@@ -32,9 +32,25 @@ export const AuthProvider = ({ children }) => {
             checkAuth();
       }, [token]);
 
+      const fetchWithTimeout = async (url, options = {}, timeout = 10000) => {
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), timeout);
+            try {
+                  const response = await fetch(url, {
+                        ...options,
+                        signal: controller.signal
+                  });
+                  clearTimeout(id);
+                  return response;
+            } catch (error) {
+                  clearTimeout(id);
+                  throw error;
+            }
+      };
+
       const login = async (email, password) => {
             try {
-                  const res = await fetch(`${API_URL}/auth/login`, {
+                  const res = await fetchWithTimeout(`${API_URL}/auth/login`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ email, password })
@@ -49,13 +65,18 @@ export const AuthProvider = ({ children }) => {
                   }
                   return { success: false, message: data.message };
             } catch (error) {
-                  return { success: false, message: 'Login failed. Please try again.' };
+                  return {
+                        success: false,
+                        message: error.name === 'AbortError'
+                              ? 'Request timed out. Please check your connection.'
+                              : 'Login failed. Please try again.'
+                  };
             }
       };
 
       const register = async (userData) => {
             try {
-                  const res = await fetch(`${API_URL}/auth/register`, {
+                  const res = await fetchWithTimeout(`${API_URL}/auth/register`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(userData)
@@ -70,7 +91,12 @@ export const AuthProvider = ({ children }) => {
                   }
                   return { success: false, message: data.message };
             } catch (error) {
-                  return { success: false, message: 'Registration failed. Please try again.' };
+                  return {
+                        success: false,
+                        message: error.name === 'AbortError'
+                              ? 'Request timed out. Please check your connection.'
+                              : 'Registration failed. Please try again.'
+                  };
             }
       };
 

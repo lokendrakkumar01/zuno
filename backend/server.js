@@ -16,7 +16,8 @@ const adminRoutes = require('./routes/adminRoutes');
 const app = express();
 
 // Connect to MongoDB
-connectDB();
+// Database connection is handled in startServer
+// connectDB();
 
 // Middleware
 app.use(cors());
@@ -83,7 +84,19 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`🚀 ZUNO Server running on port ${PORT}`);
-  console.log(`📍 Environment: ${process.env.NODE_ENV}`);
-});
+const startServer = async () => {
+  try {
+    // Connect to Database first
+    await connectDB();
+
+    app.listen(PORT, () => {
+      console.log(`🚀 ZUNO Server running on port ${PORT}`);
+      console.log(`📍 Environment: ${process.env.NODE_ENV}`);
+    });
+  } catch (err) {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  }
+};
+
+startServer();
