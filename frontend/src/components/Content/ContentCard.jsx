@@ -414,17 +414,9 @@ const ContentCard = ({ content, onDelete }) => {
                               </div>
                         </div>
 
-                        {/* Likes and Views count */}
-                        <div className="flex items-center gap-3 font-bold text-sm mb-1 px-1">
-                              <span>{(content.metrics?.helpfulCount || 0) + (isHelpful ? 1 : 0)} likes</span>
-                              <span className="text-gray-500">•</span>
-                              <span className="flex items-center gap-1 text-gray-600">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                                          <circle cx="12" cy="12" r="3"></circle>
-                                    </svg>
-                                    {content.metrics?.viewCount || 0} views
-                              </span>
+                        {/* Likes count only */}
+                        <div className="font-bold text-sm mb-1 px-1">
+                              {(content.metrics?.helpfulCount || 0) + (isHelpful ? 1 : 0)} likes
                         </div>
 
                         {/* Caption/Body preview */}
