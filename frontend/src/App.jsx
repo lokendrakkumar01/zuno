@@ -10,6 +10,7 @@ import ContentView from './pages/ContentView';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 import Settings from './pages/Settings/Settings';
 import Search from './pages/Search/Search';
+import SavedContent from './pages/SavedContent';
 
 function App() {
       return (
@@ -28,6 +29,7 @@ function App() {
                                     <Route path="settings" element={<Settings />} />
                                     <Route path="search" element={<Search />} />
                                     <Route path="content/:id" element={<ContentView />} />
+                                    <Route path="content/saved" element={<SavedContent />} />
                                     <Route path="u/:username" element={<Profile />} />
                               </Route>
 
