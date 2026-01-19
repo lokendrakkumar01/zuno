@@ -10,12 +10,16 @@ const {
       unfollowUser,
       getFollowRequests,
       acceptFollowRequest,
-      rejectFollowRequest
+      rejectFollowRequest,
+      getFollowers,
+      getFollowing
 } = require('../controllers/userController');
 const { protect } = require('../middleware/auth');
 
 // Public routes
 router.get('/:username', getUserProfile);
+router.get('/:username/followers', getFollowers);
+router.get('/:username/following', getFollowing);
 
 // Protected routes
 // Protected routes

@@ -1509,6 +1509,69 @@ textarea.input {
   background: rgba(16, 185, 129, 0.1);
 }
 
+/* Content Card Footer - Icon Buttons */
+.content-card-footer button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-family);
+  transition: all 0.2s ease;
+}
+
+.content-card-footer button svg {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+}
+
+.content-card-footer button:hover {
+  opacity: 0.7;
+}
+
+.content-card-footer button:active {
+  transform: scale(0.95);
+}
+
+/* Mobile responsive for content card footer */
+@media (max-width: 480px) {
+  .content-card-footer {
+    flex-direction: column;
+    padding: var(--space-sm) var(--space-md);
+  }
+
+  .content-card-footer>div {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .content-card-footer button {
+    gap: 4px;
+  }
+
+  .content-card-footer button svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .content-card-footer button span {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 360px) {
+  .content-card-footer button span.text-sm {
+    display: none;
+  }
+
+  .content-card-footer button svg {
+    width: 24px;
+    height: 24px;
+  }
+}
+
 /* ========================================
    Responsive
    ======================================== */

@@ -297,19 +297,24 @@ const ContentCard = ({ content, onDelete }) => {
                                           style={{
                                                 transform: animateHelpful ? 'scale(1.2)' : 'scale(1)',
                                                 transition: 'transform 0.2s ease',
-                                                background: 'none', border: 'none', padding: 0
+                                                background: 'none', border: 'none', padding: 0,
+                                                cursor: 'pointer'
                                           }}
                                     >
-                                          <span style={{ fontSize: '1.5rem' }}>{isHelpful ? '❤️' : '♡'}</span>
+                                          <svg width="24" height="24" viewBox="0 0 24 24" fill={isHelpful ? '#ef4444' : 'none'} stroke={isHelpful ? '#ef4444' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                                          </svg>
                                           <span className="text-sm font-medium">Like</span>
                                     </button>
 
                                     <button
                                           className="flex items-center gap-1 hover:opacity-80 transition-opacity text-gray-800"
                                           onClick={() => setShowComments(!showComments)}
-                                          style={{ background: 'none', border: 'none', padding: 0 }}
+                                          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
                                     >
-                                          <span style={{ fontSize: '1.5rem' }}>💬</span>
+                                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                                          </svg>
                                           <span className="text-sm font-medium">Comment</span>
                                     </button>
 
@@ -319,10 +324,14 @@ const ContentCard = ({ content, onDelete }) => {
                                           style={{
                                                 transform: animateShare ? 'scale(1.2)' : 'scale(1)',
                                                 transition: 'transform 0.2s ease',
-                                                background: 'none', border: 'none', padding: 0
+                                                background: 'none', border: 'none', padding: 0,
+                                                cursor: 'pointer'
                                           }}
                                     >
-                                          <span style={{ fontSize: '1.5rem' }}>✈️</span>
+                                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <line x1="22" y1="2" x2="11" y2="13"></line>
+                                                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                                          </svg>
                                           <span className="text-sm font-medium">Share</span>
                                     </button>
                               </div>
@@ -334,10 +343,13 @@ const ContentCard = ({ content, onDelete }) => {
                                           style={{
                                                 transform: animateSave ? 'scale(1.2)' : 'scale(1)',
                                                 transition: 'transform 0.2s ease',
-                                                background: 'none', border: 'none', padding: 0
+                                                background: 'none', border: 'none', padding: 0,
+                                                cursor: 'pointer'
                                           }}
                                     >
-                                          <span style={{ fontSize: '1.5rem' }}>{isSaved ? '🔖' : '🏷️'}</span>
+                                          <svg width="24" height="24" viewBox="0 0 24 24" fill={isSaved ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                                          </svg>
                                           <span className="text-sm font-medium">Save</span>
                                     </button>
 
@@ -347,9 +359,13 @@ const ContentCard = ({ content, onDelete }) => {
                                                 e.stopPropagation();
                                                 setShowMenu(!showMenu);
                                           }}
-                                          style={{ background: 'none', border: 'none', padding: 0 }}
+                                          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
                                     >
-                                          <span style={{ fontSize: '1.5rem' }}>⋮</span>
+                                          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                                                <circle cx="12" cy="5" r="2"></circle>
+                                                <circle cx="12" cy="12" r="2"></circle>
+                                                <circle cx="12" cy="19" r="2"></circle>
+                                          </svg>
                                           <span className="text-sm font-medium">More</span>
                                     </button>
 
@@ -363,7 +379,11 @@ const ContentCard = ({ content, onDelete }) => {
                                                             onClick={handleDelete}
                                                             className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded flex items-center gap-2"
                                                       >
-                                                            <span>🗑️</span> Delete
+                                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                                  <polyline points="3 6 5 6 21 6"></polyline>
+                                                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                                            </svg>
+                                                            Delete
                                                       </button>
                                                 )}
                                                 <button
@@ -373,16 +393,28 @@ const ContentCard = ({ content, onDelete }) => {
                                                       }}
                                                       className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded flex items-center gap-2"
                                                 >
-                                                      <span>🚩</span> Report
+                                                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                            <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+                                                            <line x1="4" y1="22" x2="4" y2="15"></line>
+                                                      </svg>
+                                                      Report
                                                 </button>
                                           </div>
                                     )}
                               </div>
                         </div>
 
-                        {/* Likes count (Helpful = Likes for now) */}
-                        <div className="font-bold text-sm mb-1 px-1">
-                              {(content.metrics?.helpfulCount || 0) + (isHelpful ? 1 : 0)} likes
+                        {/* Likes and Views count */}
+                        <div className="flex items-center gap-3 font-bold text-sm mb-1 px-1">
+                              <span>{(content.metrics?.helpfulCount || 0) + (isHelpful ? 1 : 0)} likes</span>
+                              <span className="text-gray-500">•</span>
+                              <span className="flex items-center gap-1 text-gray-600">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                          <circle cx="12" cy="12" r="3"></circle>
+                                    </svg>
+                                    {content.metrics?.viewCount || 0} views
+                              </span>
                         </div>
 
                         {/* Caption/Body preview */}

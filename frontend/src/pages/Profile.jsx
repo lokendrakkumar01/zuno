@@ -35,6 +35,16 @@ const Profile = () => {
       const [isFollowing, setIsFollowing] = useState(false);
       const [followLoading, setFollowLoading] = useState(false);
 
+      // Followers/Following modal states
+      const [showFollowersModal, setShowFollowersModal] = useState(false);
+      const [showFollowingModal, setShowFollowingModal] = useState(false);
+      const [followersList, setFollowersList] = useState([]);
+      const [followingList, setFollowingList] = useState([]);
+      const [modalLoading, setModalLoading] = useState(false);
+
+      // Total views for content
+      const [totalViews, setTotalViews] = useState(0);
+
       const isOwnProfile = !username || (user && user.username === username);
 
       // Refresh profile when page becomes visible (for dynamic updates)
@@ -105,10 +115,56 @@ const Profile = () => {
                   const data = await res.json();
                   if (data.success) {
                         setUserPosts(data.data);
+                        // Calculate total views from all posts
+                        const views = data.data.reduce((sum, post) => sum + (post.metrics?.viewCount || 0), 0);
+                        setTotalViews(views);
                   }
             } catch (error) {
                   console.error('Failed to fetch user posts:', error);
             }
+      };
+
+      // Fetch followers list
+      const fetchFollowers = async () => {
+            const targetUsername = profileUser?.username || user?.username;
+            if (!targetUsername) return;
+
+            setModalLoading(true);
+            try {
+                  const res = await fetch(`${API_URL}/users/${targetUsername}/followers`);
+                  const data = await res.json();
+                  if (data.success) {
+                        setFollowersList(data.data.followers || []);
+                  }
+            } catch (error) {
+                  console.error('Failed to fetch followers:', error);
+            }
+            setModalLoading(false);
+            setShowFollowersModal(true);
+      };
+
+      // Fetch following list
+      const fetchFollowing = async () => {
+            const targetUsername = profileUser?.username || user?.username;
+            if (!targetUsername) return;
+
+            setModalLoading(true);
+            try {
+                  const res = await fetch(`${API_URL}/users/${targetUsername}/following`);
+                  const data = await res.json();
+                  if (data.success) {
+                        setFollowingList(data.data.following || []);
+                  }
+            } catch (error) {
+                  console.error('Failed to fetch following:', error);
+            }
+            setModalLoading(false);
+            setShowFollowingModal(true);
+      };
+
+      // Handle delete content from profile
+      const handleDeleteContent = (contentId) => {
+            setUserPosts(prev => prev.filter(post => post._id !== contentId));
       };
 
       // Check if current user follows this profile
@@ -256,261 +312,455 @@ const Profile = () => {
       }
 
       return (
-            <div className="container" style={{ paddingTop: 'var(--space-xl)', paddingBottom: 'var(--space-2xl)' }}>
-                  <div className="profile-page animate-fadeIn">
+            <>
+                  <div className="container" style={{ paddingTop: 'var(--space-xl)', paddingBottom: 'var(--space-2xl)' }}>
+                        <div className="profile-page animate-fadeIn">
 
-                        {/* Profile Header Card */}
-                        <div className="card mb-xl" style={{
-                              background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.05) 100%)',
-                              borderColor: 'rgba(99, 102, 241, 0.2)'
-                        }}>
-                              <div className="flex items-center gap-xl flex-wrap">
+                              {/* Profile Header Card */}
+                              <div className="card mb-xl" style={{
+                                    background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.05) 100%)',
+                                    borderColor: 'rgba(99, 102, 241, 0.2)'
+                              }}>
+                                    <div className="flex items-center gap-xl flex-wrap">
 
-                                    {/* Avatar with Upload */}
-                                    <div style={{ position: 'relative' }}>
-                                          <div
-                                                className="avatar avatar-xl"
-                                                onClick={handlePhotoClick}
-                                                style={{
-                                                      cursor: isOwnProfile ? 'pointer' : 'default',
-                                                      transition: 'all 0.3s ease',
-                                                      border: '3px solid rgba(99, 102, 241, 0.5)'
-                                                }}
-                                                onMouseOver={(e) => isOwnProfile && (e.currentTarget.style.transform = 'scale(1.05)')}
-                                                onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                                          >
-                                                {uploadingPhoto ? (
-                                                      <div className="spinner"></div>
-                                                ) : profileUser.avatar ? (
-                                                      <img src={profileUser.avatar} alt={profileUser.displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                                ) : (
-                                                      <span style={{ fontSize: '2.5rem' }}>
-                                                            {profileUser.displayName?.charAt(0).toUpperCase() || profileUser.username?.charAt(0).toUpperCase() || 'Z'}
+                                          {/* Avatar with Upload */}
+                                          <div style={{ position: 'relative' }}>
+                                                <div
+                                                      className="avatar avatar-xl"
+                                                      onClick={handlePhotoClick}
+                                                      style={{
+                                                            cursor: isOwnProfile ? 'pointer' : 'default',
+                                                            transition: 'all 0.3s ease',
+                                                            border: '3px solid rgba(99, 102, 241, 0.5)'
+                                                      }}
+                                                      onMouseOver={(e) => isOwnProfile && (e.currentTarget.style.transform = 'scale(1.05)')}
+                                                      onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                                >
+                                                      {uploadingPhoto ? (
+                                                            <div className="spinner"></div>
+                                                      ) : profileUser.avatar ? (
+                                                            <img src={profileUser.avatar} alt={profileUser.displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                      ) : (
+                                                            <span style={{ fontSize: '2.5rem' }}>
+                                                                  {profileUser.displayName?.charAt(0).toUpperCase() || profileUser.username?.charAt(0).toUpperCase() || 'Z'}
+                                                            </span>
+                                                      )}
+                                                </div>
+
+                                                {isOwnProfile && (
+                                                      <div
+                                                            onClick={handlePhotoClick}
+                                                            style={{
+                                                                  position: 'absolute',
+                                                                  bottom: '0',
+                                                                  right: '0',
+                                                                  width: '32px',
+                                                                  height: '32px',
+                                                                  background: 'var(--gradient-primary)',
+                                                                  borderRadius: '50%',
+                                                                  display: 'flex',
+                                                                  alignItems: 'center',
+                                                                  justifyContent: 'center',
+                                                                  cursor: 'pointer',
+                                                                  boxShadow: 'var(--shadow-md)',
+                                                                  fontSize: '1rem'
+                                                            }}
+                                                      >
+                                                            📷
+                                                      </div>
+                                                )}
+                                                <input ref={fileInputRef} type="file" accept="image/*" onChange={handlePhotoChange} style={{ display: 'none' }} />
+                                          </div>
+
+                                          {/* User Info */}
+                                          <div className="flex-1">
+                                                <h1 className="text-3xl font-bold mb-xs">
+                                                      {profileUser.displayName || profileUser.username}
+                                                </h1>
+                                                <p className="text-muted text-lg mb-md">@{profileUser.username}</p>
+
+                                                {/* Stats: Followers/Following */}
+                                                <div className="flex gap-lg mb-md text-sm">
+                                                      <div
+                                                            className="flex items-center gap-xs cursor-pointer hover:opacity-80 transition-opacity"
+                                                            onClick={fetchFollowers}
+                                                            style={{ cursor: 'pointer' }}
+                                                      >
+                                                            <span className="font-bold text-gray-900 text-lg">{profileUser.followersCount || 0}</span>
+                                                            <span className="text-gray-500 hover:text-blue-500">Followers</span>
+                                                      </div>
+                                                      <div
+                                                            className="flex items-center gap-xs cursor-pointer hover:opacity-80 transition-opacity"
+                                                            onClick={fetchFollowing}
+                                                            style={{ cursor: 'pointer' }}
+                                                      >
+                                                            <span className="font-bold text-gray-900 text-lg">{profileUser.followingCount || 0}</span>
+                                                            <span className="text-gray-500 hover:text-blue-500">Following</span>
+                                                      </div>
+                                                      <div className="flex items-center gap-xs">
+                                                            <span className="font-bold text-gray-900 text-lg">{userPosts.length || 0}</span>
+                                                            <span className="text-gray-500">Posts</span>
+                                                      </div>
+                                                      {isOwnProfile && totalViews > 0 && (
+                                                            <div className="flex items-center gap-xs">
+                                                                  <span className="font-bold text-gray-900 text-lg">{totalViews}</span>
+                                                                  <span className="text-gray-500">👁 Views</span>
+                                                            </div>
+                                                      )}
+                                                </div>
+
+                                                {profileUser.bio && (
+                                                      <p className="text-secondary mt-sm" style={{ maxWidth: '500px' }}>{profileUser.bio}</p>
+                                                )}
+
+                                                <div className="flex gap-sm mt-lg flex-wrap">
+                                                      <span className="tag tag-primary" style={{ fontSize: 'var(--font-size-sm)' }}>
+                                                            {profileUser.role === 'admin' ? '👑 Admin' :
+                                                                  profileUser.role === 'creator' ? '✨ Creator' :
+                                                                        profileUser.role === 'mentor' ? '🎓 Mentor' : '👤 User'}
                                                       </span>
+                                                      {profileUser.isVerified && (
+                                                            <span className="tag tag-success">✅ Verified</span>
+                                                      )}
+                                                </div>
+                                          </div>
+
+                                          {/* Action Buttons */}
+                                          {isOwnProfile ? (
+                                                <div className="flex gap-md">
+                                                      <button
+                                                            onClick={() => setEditing(!editing)}
+                                                            className={`btn ${editing ? 'btn-ghost' : 'btn-secondary'}`}
+                                                      >
+                                                            {editing ? '❌ Cancel' : '✏️ Edit Profile'}
+                                                      </button>
+                                                </div>
+                                          ) : isAuthenticated && (
+                                                <div className="flex gap-md">
+                                                      <button
+                                                            onClick={handleFollow}
+                                                            disabled={followLoading}
+                                                            className={`btn ${isFollowing ? 'btn-secondary' : 'btn-primary'}`}
+                                                            style={{ minWidth: '120px' }}
+                                                      >
+                                                            {followLoading ? (
+                                                                  <span className="spinner" style={{ width: '16px', height: '16px' }}></span>
+                                                            ) : isFollowing ? (
+                                                                  '✓ Following'
+                                                            ) : (
+                                                                  '+ Follow'
+                                                            )}
+                                                      </button>
+                                                </div>
+                                          )}
+                                    </div>
+                              </div>
+
+                              {message && (
+                                    <div className="card p-md mb-lg animate-fadeIn" style={{
+                                          background: message.includes('✅') ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                                          borderColor: message.includes('✅') ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'
+                                    }}>
+                                          <p>{message}</p>
+                                    </div>
+                              )}
+
+                              {isOwnProfile && (
+                                    <div className="mode-pills mb-xl" style={{ maxWidth: '500px' }}>
+                                          <button className={`mode-pill ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => setActiveTab('profile')}>👤 Profile</button>
+                                          <button className={`mode-pill ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>⚙️ Settings</button>
+                                          <button className={`mode-pill ${activeTab === 'stats' ? 'active' : ''}`} onClick={() => setActiveTab('stats')}>📊 Stats</button>
+                                    </div>
+                              )}
+
+                              {editing && isOwnProfile && (
+                                    <div className="card mb-xl animate-fadeInUp">
+                                          <h2 className="text-xl font-semibold mb-lg flex items-center gap-sm">✏️ Edit Profile</h2>
+                                          <div className="grid grid-cols-2 gap-lg">
+                                                <div className="input-group">
+                                                      <label className="input-label">Display Name</label>
+                                                      <input type="text" className="input" value={editData.displayName} onChange={(e) => setEditData(prev => ({ ...prev, displayName: e.target.value }))} placeholder="Your display name" />
+                                                </div>
+                                                <div className="input-group">
+                                                      <label className="input-label">Preferred Feed Mode</label>
+                                                      <select className="input select" value={editData.preferredFeedMode} onChange={(e) => setEditData(prev => ({ ...prev, preferredFeedMode: e.target.value }))}>
+                                                            {FEED_MODES.map(mode => <option key={mode.id} value={mode.id}>{mode.label}</option>)}
+                                                      </select>
+                                                </div>
+                                          </div>
+                                          <div className="input-group mt-lg">
+                                                <label className="input-label">Bio</label>
+                                                <textarea className="input" rows={3} value={editData.bio} onChange={(e) => setEditData(prev => ({ ...prev, bio: e.target.value }))} placeholder="Tell us about yourself..." maxLength={200} />
+                                                <p className="text-xs text-muted mt-xs">{editData.bio?.length || 0}/200</p>
+                                          </div>
+                                          <div className="input-group mt-lg">
+                                                <label className="input-label">Interests (affects your feed)</label>
+                                                <div className="flex gap-sm flex-wrap">
+                                                      {INTERESTS.map(interest => (
+                                                            <button key={interest} type="button" className={`tag ${editData.interests?.includes(interest) ? 'tag-primary' : ''}`} onClick={() => handleInterestToggle(interest)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}>{interest}</button>
+                                                      ))}
+                                                </div>
+                                          </div>
+                                          <div className="flex gap-md mt-xl">
+                                                <button onClick={handleSaveProfile} className="btn btn-primary">💾 Save Changes</button>
+                                                <button onClick={() => setEditing(false)} className="btn btn-ghost">Cancel</button>
+                                          </div>
+                                    </div>
+                              )}
+
+                              {activeTab === 'profile' && !editing && (
+                                    <>
+                                          {profileUser.interests && profileUser.interests.length > 0 && (
+                                                <div className="card mb-lg animate-fadeInUp">
+                                                      <h3 className="font-semibold mb-md flex items-center gap-sm">🎯 Interests</h3>
+                                                      <div className="flex gap-sm flex-wrap">
+                                                            {profileUser.interests.map(interest => (
+                                                                  <span key={interest} className="tag tag-primary">{interest}</span>
+                                                            ))}
+                                                      </div>
+                                                </div>
+                                          )}
+
+                                          {/* User Posts */}
+                                          <h3 className="text-xl font-bold mb-md mt-xl">Posts</h3>
+                                          <div className="posts-grid">
+                                                {userPosts.length > 0 ? (
+                                                      userPosts.map(post => (
+                                                            <ContentCard key={post._id} content={post} onDelete={handleDeleteContent} />
+                                                      ))
+                                                ) : (
+                                                      <div className="text-center text-gray-500 py-xl">No posts yet.</div>
                                                 )}
                                           </div>
 
                                           {isOwnProfile && (
-                                                <div
-                                                      onClick={handlePhotoClick}
-                                                      style={{
-                                                            position: 'absolute',
-                                                            bottom: '0',
-                                                            right: '0',
-                                                            width: '32px',
-                                                            height: '32px',
-                                                            background: 'var(--gradient-primary)',
-                                                            borderRadius: '50%',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            justifyContent: 'center',
-                                                            cursor: 'pointer',
-                                                            boxShadow: 'var(--shadow-md)',
-                                                            fontSize: '1rem'
-                                                      }}
-                                                >
-                                                      📷
+                                                <div className="grid grid-cols-3 gap-md mb-lg mt-xl">
+                                                      <button onClick={() => navigate('/upload')} className="feature-card animate-fadeInUp stagger-1" style={{ padding: 'var(--space-lg)' }}>
+                                                            <div style={{ fontSize: '2rem', marginBottom: 'var(--space-sm)' }}>📤</div>
+                                                            <div className="font-semibold">Upload</div>
+                                                      </button>
+                                                      <button onClick={() => setEditing(true)} className="feature-card animate-fadeInUp stagger-2" style={{ padding: 'var(--space-lg)' }}>
+                                                            <div style={{ fontSize: '2rem', marginBottom: 'var(--space-sm)' }}>✏️</div>
+                                                            <div className="font-semibold">Edit Profile</div>
+                                                      </button>
+                                                      <button onClick={handlePhotoClick} className="feature-card animate-fadeInUp stagger-3" style={{ padding: 'var(--space-lg)' }}>
+                                                            <div style={{ fontSize: '2rem', marginBottom: 'var(--space-sm)' }}>📷</div>
+                                                            <div className="font-semibold">Change Photo</div>
+                                                      </button>
                                                 </div>
                                           )}
-                                          <input ref={fileInputRef} type="file" accept="image/*" onChange={handlePhotoChange} style={{ display: 'none' }} />
+                                    </>
+                              )}
+
+                              {activeTab === 'settings' && isOwnProfile && (
+                                    <div className="card animate-fadeInUp">
+                                          <h3 className="text-lg font-semibold mb-lg">🧘 Wellness Settings</h3>
+                                          <div className="flex items-center gap-lg p-md mb-md" style={{ background: 'rgba(99, 102, 241, 0.1)', borderRadius: 'var(--radius-lg)' }}>
+                                                <input type="checkbox" id="focusMode" checked={editData.focusModeEnabled} onChange={(e) => { setEditData(prev => ({ ...prev, focusModeEnabled: e.target.checked })); updateProfile({ focusModeEnabled: e.target.checked }); }} style={{ width: '24px', height: '24px', accentColor: 'var(--color-accent-primary)' }} />
+                                                <label htmlFor="focusMode" style={{ cursor: 'pointer', flex: 1 }}><div className="font-semibold">🧘 Focus Mode</div><p className="text-sm text-muted">Hide all counts and metrics for peaceful browsing</p></label>
+                                          </div>
+                                          <div className="input-group mt-lg">
+                                                <label className="input-label">⏰ Daily Usage Limit (minutes)</label>
+                                                <input type="number" className="input" min="0" max="480" value={editData.dailyUsageLimit} onChange={(e) => { const value = parseInt(e.target.value) || 0; setEditData(prev => ({ ...prev, dailyUsageLimit: value })); }} placeholder="0 = unlimited" />
+                                                <p className="text-xs text-muted mt-xs">Set 0 for unlimited.</p>
+                                          </div>
+                                          <button onClick={handleSaveProfile} className="btn btn-primary mt-lg">💾 Save Settings</button>
+                                          <hr style={{ border: 'none', borderTop: '1px solid var(--color-border)', margin: 'var(--space-xl) 0' }} />
+                                          <button onClick={handleLogout} className="btn btn-ghost" style={{ color: '#ef4444' }}>🚪 Logout</button>
                                     </div>
+                              )}
 
-                                    {/* User Info */}
-                                    <div className="flex-1">
-                                          <h1 className="text-3xl font-bold mb-xs">
-                                                {profileUser.displayName || profileUser.username}
-                                          </h1>
-                                          <p className="text-muted text-lg mb-md">@{profileUser.username}</p>
-
-                                          {/* Stats: Followers/Following */}
-                                          <div className="flex gap-lg mb-md text-sm">
-                                                <div className="flex items-center gap-xs">
-                                                      <span className="font-bold text-gray-900 text-lg">{profileUser.followersCount || 0}</span>
-                                                      <span className="text-gray-500">Followers</span>
-                                                </div>
-                                                <div className="flex items-center gap-xs">
-                                                      <span className="font-bold text-gray-900 text-lg">{profileUser.followingCount || 0}</span>
-                                                      <span className="text-gray-500">Following</span>
-                                                </div>
-                                                <div className="flex items-center gap-xs">
-                                                      <span className="font-bold text-gray-900 text-lg">{userPosts.length || 0}</span>
-                                                      <span className="text-gray-500">Posts</span>
-                                                </div>
+                              {activeTab === 'stats' && isOwnProfile && user?.stats && (
+                                    <div className="animate-fadeInUp">
+                                          <div className="grid grid-cols-3 gap-lg mb-lg">
+                                                <div className="stat-card"><div className="stat-value">{user.stats.contentCount || 0}</div><div className="stat-label">📝 Content Created</div></div>
+                                                <div className="stat-card"><div className="stat-value">{user.stats.helpfulReceived || 0}</div><div className="stat-label">👍 Helpful Received</div></div>
+                                                <div className="stat-card"><div className="stat-value">{user.stats.helpfulGiven || 0}</div><div className="stat-label">💚 Helpful Given</div></div>
                                           </div>
-
-                                          {profileUser.bio && (
-                                                <p className="text-secondary mt-sm" style={{ maxWidth: '500px' }}>{profileUser.bio}</p>
-                                          )}
-
-                                          <div className="flex gap-sm mt-lg flex-wrap">
-                                                <span className="tag tag-primary" style={{ fontSize: 'var(--font-size-sm)' }}>
-                                                      {profileUser.role === 'admin' ? '👑 Admin' :
-                                                            profileUser.role === 'creator' ? '✨ Creator' :
-                                                                  profileUser.role === 'mentor' ? '🎓 Mentor' : '👤 User'}
-                                                </span>
-                                                {profileUser.isVerified && (
-                                                      <span className="tag tag-success">✅ Verified</span>
-                                                )}
-                                          </div>
+                                          <div className="card p-md" style={{ background: 'rgba(34, 197, 94, 0.1)', borderColor: 'rgba(34, 197, 94, 0.3)' }}><p className="text-sm" style={{ color: '#22c55e' }}>🔒 Your stats are private and only visible to you</p></div>
                                     </div>
+                              )}
+                        </div>
+                  </div>
 
-                                    {/* Action Buttons */}
-                                    {isOwnProfile ? (
-                                          <div className="flex gap-md">
-                                                <button
-                                                      onClick={() => setEditing(!editing)}
-                                                      className={`btn ${editing ? 'btn-ghost' : 'btn-secondary'}`}
-                                                >
-                                                      {editing ? '❌ Cancel' : '✏️ Edit Profile'}
-                                                </button>
+                  {/* Followers Modal */}
+                  {showFollowersModal && (
+                        <div
+                              className="modal-overlay"
+                              style={{
+                                    position: 'fixed',
+                                    top: 0,
+                                    left: 0,
+                                    right: 0,
+                                    bottom: 0,
+                                    background: 'rgba(0,0,0,0.6)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    zIndex: 1000,
+                                    backdropFilter: 'blur(4px)'
+                              }}
+                              onClick={() => setShowFollowersModal(false)}
+                        >
+                              <div
+                                    className="modal-content card animate-fadeIn"
+                                    style={{
+                                          maxWidth: '400px',
+                                          width: '90%',
+                                          maxHeight: '70vh',
+                                          overflow: 'auto'
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                              >
+                                    <div className="flex items-center justify-between mb-lg">
+                                          <h3 className="text-lg font-bold">👥 Followers</h3>
+                                          <button
+                                                onClick={() => setShowFollowersModal(false)}
+                                                className="btn btn-ghost btn-sm"
+                                                style={{ padding: '4px 8px' }}
+                                          >✕</button>
+                                    </div>
+                                    {modalLoading ? (
+                                          <div className="text-center py-lg">
+                                                <div className="spinner" style={{ margin: '0 auto' }}></div>
                                           </div>
-                                    ) : isAuthenticated && (
-                                          <div className="flex gap-md">
-                                                <button
-                                                      onClick={handleFollow}
-                                                      disabled={followLoading}
-                                                      className={`btn ${isFollowing ? 'btn-secondary' : 'btn-primary'}`}
-                                                      style={{ minWidth: '120px' }}
-                                                >
-                                                      {followLoading ? (
-                                                            <span className="spinner" style={{ width: '16px', height: '16px' }}></span>
-                                                      ) : isFollowing ? (
-                                                            '✓ Following'
-                                                      ) : (
-                                                            '+ Follow'
-                                                      )}
-                                                </button>
+                                    ) : followersList.length > 0 ? (
+                                          <div className="flex flex-col gap-md">
+                                                {followersList.map(follower => (
+                                                      <div
+                                                            key={follower._id}
+                                                            className="flex items-center gap-md p-sm"
+                                                            style={{
+                                                                  background: 'rgba(99, 102, 241, 0.05)',
+                                                                  borderRadius: 'var(--radius-md)',
+                                                                  cursor: 'pointer'
+                                                            }}
+                                                            onClick={() => {
+                                                                  setShowFollowersModal(false);
+                                                                  navigate(`/u/${follower.username}`);
+                                                            }}
+                                                      >
+                                                            <div className="avatar avatar-md" style={{ overflow: 'hidden' }}>
+                                                                  {follower.avatar ? (
+                                                                        <img src={follower.avatar} alt={follower.displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                                  ) : (
+                                                                        <span>{follower.displayName?.charAt(0) || follower.username?.charAt(0) || 'U'}</span>
+                                                                  )}
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                  <div className="font-semibold text-sm">{follower.displayName || follower.username}</div>
+                                                                  <div className="text-xs text-gray-500">@{follower.username}</div>
+                                                                  {follower.bio && (
+                                                                        <div className="text-xs text-gray-400 mt-xs" style={{
+                                                                              overflow: 'hidden',
+                                                                              textOverflow: 'ellipsis',
+                                                                              whiteSpace: 'nowrap',
+                                                                              maxWidth: '200px'
+                                                                        }}>
+                                                                              {follower.bio}
+                                                                        </div>
+                                                                  )}
+                                                            </div>
+                                                            {follower.isVerified && <span className="text-blue-500">✓</span>}
+                                                      </div>
+                                                ))}
                                           </div>
+                                    ) : (
+                                          <div className="text-center text-gray-500 py-lg">No followers yet</div>
                                     )}
                               </div>
                         </div>
+                  )}
 
-                        {message && (
-                              <div className="card p-md mb-lg animate-fadeIn" style={{
-                                    background: message.includes('✅') ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                                    borderColor: message.includes('✅') ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'
-                              }}>
-                                    <p>{message}</p>
-                              </div>
-                        )}
-
-                        {isOwnProfile && (
-                              <div className="mode-pills mb-xl" style={{ maxWidth: '500px' }}>
-                                    <button className={`mode-pill ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => setActiveTab('profile')}>👤 Profile</button>
-                                    <button className={`mode-pill ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>⚙️ Settings</button>
-                                    <button className={`mode-pill ${activeTab === 'stats' ? 'active' : ''}`} onClick={() => setActiveTab('stats')}>📊 Stats</button>
-                              </div>
-                        )}
-
-                        {editing && isOwnProfile && (
-                              <div className="card mb-xl animate-fadeInUp">
-                                    <h2 className="text-xl font-semibold mb-lg flex items-center gap-sm">✏️ Edit Profile</h2>
-                                    <div className="grid grid-cols-2 gap-lg">
-                                          <div className="input-group">
-                                                <label className="input-label">Display Name</label>
-                                                <input type="text" className="input" value={editData.displayName} onChange={(e) => setEditData(prev => ({ ...prev, displayName: e.target.value }))} placeholder="Your display name" />
-                                          </div>
-                                          <div className="input-group">
-                                                <label className="input-label">Preferred Feed Mode</label>
-                                                <select className="input select" value={editData.preferredFeedMode} onChange={(e) => setEditData(prev => ({ ...prev, preferredFeedMode: e.target.value }))}>
-                                                      {FEED_MODES.map(mode => <option key={mode.id} value={mode.id}>{mode.label}</option>)}
-                                                </select>
-                                          </div>
+                  {/* Following Modal */}
+                  {showFollowingModal && (
+                        <div
+                              className="modal-overlay"
+                              style={{
+                                    position: 'fixed',
+                                    top: 0,
+                                    left: 0,
+                                    right: 0,
+                                    bottom: 0,
+                                    background: 'rgba(0,0,0,0.6)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    zIndex: 1000,
+                                    backdropFilter: 'blur(4px)'
+                              }}
+                              onClick={() => setShowFollowingModal(false)}
+                        >
+                              <div
+                                    className="modal-content card animate-fadeIn"
+                                    style={{
+                                          maxWidth: '400px',
+                                          width: '90%',
+                                          maxHeight: '70vh',
+                                          overflow: 'auto'
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                              >
+                                    <div className="flex items-center justify-between mb-lg">
+                                          <h3 className="text-lg font-bold">👤 Following</h3>
+                                          <button
+                                                onClick={() => setShowFollowingModal(false)}
+                                                className="btn btn-ghost btn-sm"
+                                                style={{ padding: '4px 8px' }}
+                                          >✕</button>
                                     </div>
-                                    <div className="input-group mt-lg">
-                                          <label className="input-label">Bio</label>
-                                          <textarea className="input" rows={3} value={editData.bio} onChange={(e) => setEditData(prev => ({ ...prev, bio: e.target.value }))} placeholder="Tell us about yourself..." maxLength={200} />
-                                          <p className="text-xs text-muted mt-xs">{editData.bio?.length || 0}/200</p>
-                                    </div>
-                                    <div className="input-group mt-lg">
-                                          <label className="input-label">Interests (affects your feed)</label>
-                                          <div className="flex gap-sm flex-wrap">
-                                                {INTERESTS.map(interest => (
-                                                      <button key={interest} type="button" className={`tag ${editData.interests?.includes(interest) ? 'tag-primary' : ''}`} onClick={() => handleInterestToggle(interest)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}>{interest}</button>
+                                    {modalLoading ? (
+                                          <div className="text-center py-lg">
+                                                <div className="spinner" style={{ margin: '0 auto' }}></div>
+                                          </div>
+                                    ) : followingList.length > 0 ? (
+                                          <div className="flex flex-col gap-md">
+                                                {followingList.map(following => (
+                                                      <div
+                                                            key={following._id}
+                                                            className="flex items-center gap-md p-sm"
+                                                            style={{
+                                                                  background: 'rgba(99, 102, 241, 0.05)',
+                                                                  borderRadius: 'var(--radius-md)',
+                                                                  cursor: 'pointer'
+                                                            }}
+                                                            onClick={() => {
+                                                                  setShowFollowingModal(false);
+                                                                  navigate(`/u/${following.username}`);
+                                                            }}
+                                                      >
+                                                            <div className="avatar avatar-md" style={{ overflow: 'hidden' }}>
+                                                                  {following.avatar ? (
+                                                                        <img src={following.avatar} alt={following.displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                                  ) : (
+                                                                        <span>{following.displayName?.charAt(0) || following.username?.charAt(0) || 'U'}</span>
+                                                                  )}
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                  <div className="font-semibold text-sm">{following.displayName || following.username}</div>
+                                                                  <div className="text-xs text-gray-500">@{following.username}</div>
+                                                                  {following.bio && (
+                                                                        <div className="text-xs text-gray-400 mt-xs" style={{
+                                                                              overflow: 'hidden',
+                                                                              textOverflow: 'ellipsis',
+                                                                              whiteSpace: 'nowrap',
+                                                                              maxWidth: '200px'
+                                                                        }}>
+                                                                              {following.bio}
+                                                                        </div>
+                                                                  )}
+                                                            </div>
+                                                            {following.isVerified && <span className="text-blue-500">✓</span>}
+                                                      </div>
                                                 ))}
                                           </div>
-                                    </div>
-                                    <div className="flex gap-md mt-xl">
-                                          <button onClick={handleSaveProfile} className="btn btn-primary">💾 Save Changes</button>
-                                          <button onClick={() => setEditing(false)} className="btn btn-ghost">Cancel</button>
-                                    </div>
-                              </div>
-                        )}
-
-                        {activeTab === 'profile' && !editing && (
-                              <>
-                                    {profileUser.interests && profileUser.interests.length > 0 && (
-                                          <div className="card mb-lg animate-fadeInUp">
-                                                <h3 className="font-semibold mb-md flex items-center gap-sm">🎯 Interests</h3>
-                                                <div className="flex gap-sm flex-wrap">
-                                                      {profileUser.interests.map(interest => (
-                                                            <span key={interest} className="tag tag-primary">{interest}</span>
-                                                      ))}
-                                                </div>
-                                          </div>
+                                    ) : (
+                                          <div className="text-center text-gray-500 py-lg">Not following anyone yet</div>
                                     )}
-
-                                    {/* User Posts */}
-                                    <h3 className="text-xl font-bold mb-md mt-xl">Posts</h3>
-                                    <div className="posts-grid">
-                                          {userPosts.length > 0 ? (
-                                                userPosts.map(post => (
-                                                      <ContentCard key={post._id} content={post} />
-                                                ))
-                                          ) : (
-                                                <div className="text-center text-gray-500 py-xl">No posts yet.</div>
-                                          )}
-                                    </div>
-
-                                    {isOwnProfile && (
-                                          <div className="grid grid-cols-3 gap-md mb-lg mt-xl">
-                                                <button onClick={() => navigate('/upload')} className="feature-card animate-fadeInUp stagger-1" style={{ padding: 'var(--space-lg)' }}>
-                                                      <div style={{ fontSize: '2rem', marginBottom: 'var(--space-sm)' }}>📤</div>
-                                                      <div className="font-semibold">Upload</div>
-                                                </button>
-                                                <button onClick={() => setEditing(true)} className="feature-card animate-fadeInUp stagger-2" style={{ padding: 'var(--space-lg)' }}>
-                                                      <div style={{ fontSize: '2rem', marginBottom: 'var(--space-sm)' }}>✏️</div>
-                                                      <div className="font-semibold">Edit Profile</div>
-                                                </button>
-                                                <button onClick={handlePhotoClick} className="feature-card animate-fadeInUp stagger-3" style={{ padding: 'var(--space-lg)' }}>
-                                                      <div style={{ fontSize: '2rem', marginBottom: 'var(--space-sm)' }}>📷</div>
-                                                      <div className="font-semibold">Change Photo</div>
-                                                </button>
-                                          </div>
-                                    )}
-                              </>
-                        )}
-
-                        {activeTab === 'settings' && isOwnProfile && (
-                              <div className="card animate-fadeInUp">
-                                    <h3 className="text-lg font-semibold mb-lg">🧘 Wellness Settings</h3>
-                                    <div className="flex items-center gap-lg p-md mb-md" style={{ background: 'rgba(99, 102, 241, 0.1)', borderRadius: 'var(--radius-lg)' }}>
-                                          <input type="checkbox" id="focusMode" checked={editData.focusModeEnabled} onChange={(e) => { setEditData(prev => ({ ...prev, focusModeEnabled: e.target.checked })); updateProfile({ focusModeEnabled: e.target.checked }); }} style={{ width: '24px', height: '24px', accentColor: 'var(--color-accent-primary)' }} />
-                                          <label htmlFor="focusMode" style={{ cursor: 'pointer', flex: 1 }}><div className="font-semibold">🧘 Focus Mode</div><p className="text-sm text-muted">Hide all counts and metrics for peaceful browsing</p></label>
-                                    </div>
-                                    <div className="input-group mt-lg">
-                                          <label className="input-label">⏰ Daily Usage Limit (minutes)</label>
-                                          <input type="number" className="input" min="0" max="480" value={editData.dailyUsageLimit} onChange={(e) => { const value = parseInt(e.target.value) || 0; setEditData(prev => ({ ...prev, dailyUsageLimit: value })); }} placeholder="0 = unlimited" />
-                                          <p className="text-xs text-muted mt-xs">Set 0 for unlimited.</p>
-                                    </div>
-                                    <button onClick={handleSaveProfile} className="btn btn-primary mt-lg">💾 Save Settings</button>
-                                    <hr style={{ border: 'none', borderTop: '1px solid var(--color-border)', margin: 'var(--space-xl) 0' }} />
-                                    <button onClick={handleLogout} className="btn btn-ghost" style={{ color: '#ef4444' }}>🚪 Logout</button>
                               </div>
-                        )}
-
-                        {activeTab === 'stats' && isOwnProfile && user?.stats && (
-                              <div className="animate-fadeInUp">
-                                    <div className="grid grid-cols-3 gap-lg mb-lg">
-                                          <div className="stat-card"><div className="stat-value">{user.stats.contentCount || 0}</div><div className="stat-label">📝 Content Created</div></div>
-                                          <div className="stat-card"><div className="stat-value">{user.stats.helpfulReceived || 0}</div><div className="stat-label">👍 Helpful Received</div></div>
-                                          <div className="stat-card"><div className="stat-value">{user.stats.helpfulGiven || 0}</div><div className="stat-label">💚 Helpful Given</div></div>
-                                    </div>
-                                    <div className="card p-md" style={{ background: 'rgba(34, 197, 94, 0.1)', borderColor: 'rgba(34, 197, 94, 0.3)' }}><p className="text-sm" style={{ color: '#22c55e' }}>🔒 Your stats are private and only visible to you</p></div>
-                              </div>
-                        )}
-                  </div>
-            </div>
+                        </div>
+                  )}
+            </>
       );
 };
 

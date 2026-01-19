@@ -269,6 +269,54 @@ const rejectFollowRequest = async (req, res) => {
       }
 };
 
+// @desc    Get followers list
+// @route   GET /api/users/:username/followers
+// @access  Public
+const getFollowers = async (req, res) => {
+      try {
+            const user = await User.findOne({ username: req.params.username })
+                  .populate('followers', 'username displayName avatar bio isVerified');
+
+            if (!user) {
+                  return res.status(404).json({ success: false, message: 'User not found' });
+            }
+
+            res.json({
+                  success: true,
+                  data: {
+                        followers: user.followers || [],
+                        count: user.followers ? user.followers.length : 0
+                  }
+            });
+      } catch (error) {
+            res.status(500).json({ success: false, message: 'Failed to get followers', error: error.message });
+      }
+};
+
+// @desc    Get following list
+// @route   GET /api/users/:username/following
+// @access  Public
+const getFollowing = async (req, res) => {
+      try {
+            const user = await User.findOne({ username: req.params.username })
+                  .populate('following', 'username displayName avatar bio isVerified');
+
+            if (!user) {
+                  return res.status(404).json({ success: false, message: 'User not found' });
+            }
+
+            res.json({
+                  success: true,
+                  data: {
+                        following: user.following || [],
+                        count: user.following ? user.following.length : 0
+                  }
+            });
+      } catch (error) {
+            res.status(500).json({ success: false, message: 'Failed to get following', error: error.message });
+      }
+};
+
 // @desc    Get follow requests
 // @route   GET /api/users/requests
 // @access  Private
@@ -291,5 +339,7 @@ module.exports = {
       unfollowUser,
       acceptFollowRequest,
       rejectFollowRequest,
-      getFollowRequests
+      getFollowRequests,
+      getFollowers,
+      getFollowing
 };
