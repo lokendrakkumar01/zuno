@@ -424,6 +424,13 @@ const ContentCard = ({ content, onDelete }) => {
                                     </span>
                               )}
                         </div>
+
+                        {/* Comment Section - shows when Comment button is clicked */}
+                        {showComments && (
+                              <div className="mt-3 pt-3 border-t border-gray-100">
+                                    <CommentSection contentId={content._id} />
+                              </div>
+                        )}
                   </div>
             </article>
       );
