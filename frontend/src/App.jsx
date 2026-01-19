@@ -9,6 +9,7 @@ import Profile from './pages/Profile';
 import ContentView from './pages/ContentView';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 import Settings from './pages/Settings/Settings';
+import Search from './pages/Search/Search';
 
 function App() {
       return (
@@ -25,6 +26,7 @@ function App() {
                                     <Route path="upload" element={<Upload />} />
                                     <Route path="profile" element={<Profile />} />
                                     <Route path="settings" element={<Settings />} />
+                                    <Route path="search" element={<Search />} />
                                     <Route path="content/:id" element={<ContentView />} />
                                     <Route path="u/:username" element={<Profile />} />
                               </Route>

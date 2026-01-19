@@ -32,8 +32,39 @@ const Profile = () => {
       const [message, setMessage] = useState('');
       const [uploadingPhoto, setUploadingPhoto] = useState(false);
       const [activeTab, setActiveTab] = useState('profile');
+      const [isFollowing, setIsFollowing] = useState(false);
+      const [followLoading, setFollowLoading] = useState(false);
 
       const isOwnProfile = !username || (user && user.username === username);
+
+      // Refresh profile when page becomes visible (for dynamic updates)
+      useEffect(() => {
+            const handleVisibilityChange = () => {
+                  if (document.visibilityState === 'visible') {
+                        refreshProfile();
+                  }
+            };
+            document.addEventListener('visibilitychange', handleVisibilityChange);
+            return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }, [username, user]);
+
+      const refreshProfile = async () => {
+            if (isOwnProfile && user) {
+                  setProfileUser(user);
+                  fetchUserPosts(user.username);
+            } else if (username) {
+                  try {
+                        const res = await fetch(`${API_URL}/users/${username}`);
+                        const data = await res.json();
+                        if (data.success) {
+                              setProfileUser(data.data.user);
+                              fetchUserPosts(username);
+                        }
+                  } catch (error) {
+                        console.error('Failed to refresh profile:', error);
+                  }
+            }
+      };
 
       useEffect(() => {
             const fetchProfile = async () => {
@@ -78,6 +109,43 @@ const Profile = () => {
             } catch (error) {
                   console.error('Failed to fetch user posts:', error);
             }
+      };
+
+      // Check if current user follows this profile
+      useEffect(() => {
+            if (!isOwnProfile && profileUser && user) {
+                  // Check if current user's following list contains this profile's ID
+                  const following = user.following || [];
+                  setIsFollowing(following.includes(profileUser._id));
+            }
+      }, [profileUser, user, isOwnProfile]);
+
+      const handleFollow = async () => {
+            if (!token || !profileUser) return;
+            setFollowLoading(true);
+            try {
+                  const endpoint = isFollowing ? 'unfollow' : 'follow';
+                  const res = await fetch(`${API_URL}/users/${profileUser._id}/${endpoint}`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                        setIsFollowing(!isFollowing);
+                        // Update follower count locally
+                        setProfileUser(prev => ({
+                              ...prev,
+                              followersCount: isFollowing
+                                    ? (prev.followersCount || 1) - 1
+                                    : (prev.followersCount || 0) + 1
+                        }));
+                        setMessage(data.message);
+                        setTimeout(() => setMessage(''), 3000);
+                  }
+            } catch (error) {
+                  console.error('Failed to toggle follow:', error);
+            }
+            setFollowLoading(false);
       };
 
       const handlePhotoClick = () => {
@@ -287,13 +355,30 @@ const Profile = () => {
                                     </div>
 
                                     {/* Action Buttons */}
-                                    {isOwnProfile && (
+                                    {isOwnProfile ? (
                                           <div className="flex gap-md">
                                                 <button
                                                       onClick={() => setEditing(!editing)}
                                                       className={`btn ${editing ? 'btn-ghost' : 'btn-secondary'}`}
                                                 >
                                                       {editing ? '❌ Cancel' : '✏️ Edit Profile'}
+                                                </button>
+                                          </div>
+                                    ) : isAuthenticated && (
+                                          <div className="flex gap-md">
+                                                <button
+                                                      onClick={handleFollow}
+                                                      disabled={followLoading}
+                                                      className={`btn ${isFollowing ? 'btn-secondary' : 'btn-primary'}`}
+                                                      style={{ minWidth: '120px' }}
+                                                >
+                                                      {followLoading ? (
+                                                            <span className="spinner" style={{ width: '16px', height: '16px' }}></span>
+                                                      ) : isFollowing ? (
+                                                            '✓ Following'
+                                                      ) : (
+                                                            '+ Follow'
+                                                      )}
                                                 </button>
                                           </div>
                                     )}

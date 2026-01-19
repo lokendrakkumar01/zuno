@@ -177,7 +177,7 @@ const ContentCard = ({ content, onDelete }) => {
                   {/* Header */}
                   <div className="content-card-header flex items-center justify-between mb-sm">
                         <div className="flex items-center gap-sm">
-                              <Link to={`/profile/${content.creator?._id}`}>
+                              <Link to={`/u/${content.creator?.username}`}>
                                     <img
                                           src={content.creator?.avatar || 'https://via.placeholder.com/40'}
                                           alt={content.creator?.displayName}
@@ -186,7 +186,7 @@ const ContentCard = ({ content, onDelete }) => {
                               </Link>
                               <div className="flex flex-col">
                                     <h4 className="font-semibold text-sm leading-tight">
-                                          <Link to={`/profile/${content.creator?._id}`} className="hover:underline text-gray-900">
+                                          <Link to={`/u/${content.creator?.username}`} className="hover:underline text-gray-900">
                                                 {content.creator?.displayName || 'Anonymous'}
                                           </Link>
                                     </h4>
