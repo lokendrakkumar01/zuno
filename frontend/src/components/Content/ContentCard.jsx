@@ -299,6 +299,17 @@ const ContentCard = ({ content, onDelete }) => {
 
                   {/* Footer - Social Actions */}
                   <div className="content-card-footer p-3">
+                        {/* Caption/Body preview */}
+                        <div className="px-1 text-sm mb-3">
+                              <span className="font-bold mr-1">{content.creator?.username}</span>
+                              {content.body && (
+                                    <span>
+                                          {content.body.slice(0, 100)}
+                                          {content.body.length > 100 && '...'}
+                                    </span>
+                              )}
+                        </div>
+
                         <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-4">
                                     <button
@@ -415,15 +426,7 @@ const ContentCard = ({ content, onDelete }) => {
                         </div>
 
                         {/* Caption/Body preview */}
-                        <div className="px-1 text-sm mb-2">
-                              <span className="font-bold mr-1">{content.creator?.username}</span>
-                              {content.body && (
-                                    <span>
-                                          {content.body.slice(0, 100)}
-                                          {content.body.length > 100 && '...'}
-                                    </span>
-                              )}
-                        </div>
+
 
                         {/* Comment Section - shows when Comment button is clicked */}
                         {showComments && (
