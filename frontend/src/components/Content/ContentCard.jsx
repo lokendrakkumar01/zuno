@@ -166,11 +166,19 @@ const ContentCard = ({ content, onDelete }) => {
             return gradients[type] || 'var(--gradient-primary)';
       };
 
+      const [imageError, setImageError] = useState(false);
+
       const getMediaUrl = (url) => {
             if (!url) return '';
-            if (url.startsWith('http')) return url;
-            return `${API_BASE_URL}${url}`;
+            // If it's already a full URL, return as-is
+            if (url.startsWith('http://') || url.startsWith('https://')) return url;
+            // If it's a data URL, return as-is
+            if (url.startsWith('data:')) return url;
+            // Otherwise, prepend the API base URL
+            return `${API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
       };
+
+      const placeholderImage = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300"%3E%3Crect fill="%23f0f0f0" width="400" height="300"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="18" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3ENo Image Available%3C/text%3E%3C/svg%3E';
 
       return (
             <article className="content-card">
@@ -224,9 +232,11 @@ const ContentCard = ({ content, onDelete }) => {
                         <div className="content-card-media">
                               {content.media[0].type === 'image' ? (
                                     <img
-                                          src={getMediaUrl(content.media[0].url)}
-                                          alt={content.title}
+                                          src={imageError ? placeholderImage : getMediaUrl(content.media[0].url)}
+                                          alt={content.title || 'Content image'}
                                           loading="lazy"
+                                          onError={() => setImageError(true)}
+                                          style={{ minHeight: '200px', backgroundColor: '#f5f5f5' }}
                                     />
                               ) : (
                                     <video
