@@ -24,6 +24,32 @@ const Layout = () => {
 
       const isActive = (path) => location.pathname === path;
 
+      // SVG Icons for cleaner look
+      const HomeIcon = () => (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
+            </svg>
+      );
+
+      const SearchIcon = () => (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="M21 21l-4.35-4.35" />
+            </svg>
+      );
+
+      const PlusIcon = () => (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z" />
+            </svg>
+      );
+
+      const SettingsIcon = () => (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
+            </svg>
+      );
+
       return (
             <div className="app">
                   {/* Header */}
@@ -47,14 +73,21 @@ const Layout = () => {
                                                 <Link to="/profile" className={`nav-link ${isActive('/profile') ? 'active' : ''}`}>
                                                       👤 Profile
                                                 </Link>
+                                                <Link to="/settings" className={`nav-link ${isActive('/settings') ? 'active' : ''}`}>
+                                                      ⚙️ Settings
+                                                </Link>
                                                 {user?.role === 'admin' && (
                                                       <Link to="/admin" className="nav-link" style={{ color: 'var(--color-accent-pink)' }}>
-                                                            ⚙️ Admin
+                                                            👑 Admin
                                                       </Link>
                                                 )}
                                                 <div className="flex items-center gap-sm" style={{ marginLeft: 'var(--space-sm)' }}>
-                                                      <div className="avatar avatar-sm" style={{ cursor: 'pointer' }} onClick={() => navigate('/profile')}>
-                                                            {user?.displayName?.charAt(0) || user?.username?.charAt(0) || 'U'}
+                                                      <div className="avatar avatar-sm" style={{ cursor: 'pointer', overflow: 'hidden' }} onClick={() => navigate('/profile')}>
+                                                            {user?.avatar ? (
+                                                                  <img src={user.avatar} alt={user.displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                            ) : (
+                                                                  user?.displayName?.charAt(0) || user?.username?.charAt(0) || 'U'
+                                                            )}
                                                       </div>
                                                 </div>
                                           </>
@@ -78,20 +111,48 @@ const Layout = () => {
                   {/* Mobile Bottom Navigation */}
                   <nav className="bottom-nav">
                         <Link to="/" className={`bottom-nav-item ${isActive('/') ? 'active' : ''}`}>
-                              <span className="bottom-nav-icon">🏠</span>
+                              <HomeIcon />
+                              <span style={{ fontSize: '10px' }}>Home</span>
                         </Link>
-                        <Link to="/search" className="bottom-nav-item">
-                              <span className="bottom-nav-icon">🔍</span>
+                        <Link to="/search" className={`bottom-nav-item ${isActive('/search') ? 'active' : ''}`}>
+                              <SearchIcon />
+                              <span style={{ fontSize: '10px' }}>Search</span>
                         </Link>
                         <Link to="/upload" className={`bottom-nav-item ${isActive('/upload') ? 'active' : ''}`}>
-                              <span className="bottom-nav-icon">➕</span>
+                              <div style={{
+                                    background: 'var(--gradient-primary)',
+                                    borderRadius: '8px',
+                                    padding: '8px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                              }}>
+                                    <PlusIcon />
+                              </div>
                         </Link>
                         <Link to="/settings" className={`bottom-nav-item ${isActive('/settings') ? 'active' : ''}`}>
-                              <span className="bottom-nav-icon">⚙️</span>
+                              <SettingsIcon />
+                              <span style={{ fontSize: '10px' }}>Settings</span>
                         </Link>
                         <Link to="/profile" className={`bottom-nav-item ${isActive('/profile') ? 'active' : ''}`}>
-                              <div className="avatar avatar-sm" style={{ width: '24px', height: '24px' }}>
-                                    {user?.displayName?.charAt(0) || 'U'}
+                              <div style={{
+                                    width: '28px',
+                                    height: '28px',
+                                    borderRadius: '50%',
+                                    overflow: 'hidden',
+                                    background: 'var(--gradient-primary)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    border: isActive('/profile') ? '2px solid var(--color-accent-primary)' : 'none'
+                              }}>
+                                    {user?.avatar ? (
+                                          <img src={user.avatar} alt={user?.displayName || 'User'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    ) : (
+                                          <span style={{ fontSize: '12px', color: 'white', fontWeight: 'bold' }}>
+                                                {user?.displayName?.charAt(0) || user?.username?.charAt(0) || 'U'}
+                                          </span>
+                                    )}
                               </div>
                         </Link>
                   </nav>
@@ -100,3 +161,4 @@ const Layout = () => {
 };
 
 export default Layout;
+

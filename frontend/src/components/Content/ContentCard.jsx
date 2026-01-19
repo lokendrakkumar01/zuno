@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { API_BASE_URL } from '../../config';
+import { API_URL, API_BASE_URL } from '../../config';
 import CommentSection from './CommentSection';
 
 const ContentCard = ({ content, onDelete }) => {
@@ -40,7 +40,7 @@ const ContentCard = ({ content, onDelete }) => {
             setTimeout(() => setAnimateHelpful(false), 300);
 
             try {
-                  await fetch(`/api/content/${content._id}/helpful`, {
+                  await fetch(`${API_URL}/content/${content._id}/helpful`, {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${token}` }
                   });
@@ -57,7 +57,7 @@ const ContentCard = ({ content, onDelete }) => {
             setTimeout(() => setAnimateSave(false), 300);
 
             try {
-                  await fetch(`/api/content/${content._id}/save`, {
+                  await fetch(`${API_URL}/content/${content._id}/save`, {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${token}` }
                   });
@@ -87,7 +87,7 @@ const ContentCard = ({ content, onDelete }) => {
                   }
 
                   // Track share in backend
-                  await fetch(`/api/content/${content._id}/share`, { method: 'POST' });
+                  await fetch(`${API_URL}/content/${content._id}/share`, { method: 'POST' });
                   setShareCount(shareCount + 1);
             } catch (error) {
                   console.error('Failed to share:', error);
@@ -98,7 +98,7 @@ const ContentCard = ({ content, onDelete }) => {
             if (!token) return;
             try {
                   const endpoint = isFollowing ? 'unfollow' : 'follow';
-                  await fetch(`/api/users/${content.creator._id}/${endpoint}`, {
+                  await fetch(`${API_URL}/users/${content.creator._id}/${endpoint}`, {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${token}` }
                   });
