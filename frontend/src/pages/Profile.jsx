@@ -114,9 +114,11 @@ const Profile = () => {
                   const res = await fetch(`${API_URL}/feed/creator/${uname}`, { headers });
                   const data = await res.json();
                   if (data.success) {
-                        setUserPosts(data.data);
+                        // API returns { data: { contents: [...], creator: {...}, pagination: {...} } }
+                        const posts = data.data.contents || data.data || [];
+                        setUserPosts(posts);
                         // Calculate total views from all posts
-                        const views = data.data.reduce((sum, post) => sum + (post.metrics?.viewCount || 0), 0);
+                        const views = posts.reduce((sum, post) => sum + (post.metrics?.viewCount || 0), 0);
                         setTotalViews(views);
                   }
             } catch (error) {
