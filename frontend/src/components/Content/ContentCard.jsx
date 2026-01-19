@@ -414,11 +414,6 @@ const ContentCard = ({ content, onDelete }) => {
                               </div>
                         </div>
 
-                        {/* Likes count only */}
-                        <div className="font-bold text-sm mb-1 px-1">
-                              {(content.metrics?.helpfulCount || 0) + (isHelpful ? 1 : 0)} likes
-                        </div>
-
                         {/* Caption/Body preview */}
                         <div className="px-1 text-sm mb-2">
                               <span className="font-bold mr-1">{content.creator?.username}</span>
