@@ -424,21 +424,6 @@ const ContentCard = ({ content, onDelete }) => {
                                     </span>
                               )}
                         </div>
-
-                        {/* View Comments Link */}
-                        <div
-                              className="px-1 text-gray-500 text-sm cursor-pointer mb-2"
-                              onClick={() => setShowComments(!showComments)}
-                        >
-                              {showComments ? 'Hide comments' : 'View all comments'}
-                        </div>
-
-                        {/* Comment Section (Inline) */}
-                        {showComments && (
-                              <div className="mt-3 pt-3 border-t border-gray-100">
-                                    <CommentSection contentId={content._id} />
-                              </div>
-                        )}
                   </div>
             </article>
       );
