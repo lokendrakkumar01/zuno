@@ -13,6 +13,11 @@ import AdminDashboard from './pages/Admin/AdminDashboard';
 import Settings from './pages/Settings/Settings';
 import Appearance from './pages/Settings/Appearance';
 import Privacy from './pages/Settings/Privacy';
+import Language from './pages/Settings/Language';
+import Notifications from './pages/Settings/Notifications';
+import TimeManagement from './pages/Settings/TimeManagement';
+import PasswordSecurity from './pages/Settings/PasswordSecurity';
+import CloseFriends from './pages/Settings/CloseFriends';
 import Search from './pages/Search/Search';
 import SavedContent from './pages/SavedContent';
 
@@ -65,6 +70,11 @@ function AppRouter() {
                         <Route path="settings" element={<Settings />} />
                         <Route path="settings/appearance" element={<Appearance />} />
                         <Route path="settings/privacy" element={<Privacy />} />
+                        <Route path="settings/language" element={<Language />} />
+                        <Route path="settings/notifications" element={<Notifications />} />
+                        <Route path="settings/time-management" element={<TimeManagement />} />
+                        <Route path="settings/password-security" element={<PasswordSecurity />} />
+                        <Route path="settings/close-friends" element={<CloseFriends />} />
                         <Route path="search" element={<Search />} />
                         <Route path="content/:id" element={<ContentView />} />
                         <Route path="content/saved" element={<SavedContent />} />
