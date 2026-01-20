@@ -80,7 +80,7 @@
   --shadow-glow: 0 0 10px rgba(0, 0, 0, 0.05);
 }
 
-/* Dark Mode (Optional) */
+/* Dark Mode */
 [data-theme="dark"] {
   --color-bg-primary: #000000;
   --color-bg-secondary: #121212;
@@ -92,6 +92,49 @@
   --color-text-muted: #555555;
   --color-border: #262626;
   --color-border-light: #363636;
+}
+
+/* Light Mode */
+[data-theme="light"] {
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #fafafa;
+  --color-bg-tertiary: #efefef;
+  --color-bg-card: #ffffff;
+  --color-bg-hover: #f0f0f0;
+  --color-text-primary: #262626;
+  --color-text-secondary: #8e8e8e;
+  --color-text-muted: #c7c7c7;
+  --color-border: #dbdbdb;
+  --color-border-light: #efefef;
+}
+
+/* System Theme - follows OS preference */
+[data-theme="system"] {
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #fafafa;
+  --color-bg-tertiary: #efefef;
+  --color-bg-card: #ffffff;
+  --color-bg-hover: #f0f0f0;
+  --color-text-primary: #262626;
+  --color-text-secondary: #8e8e8e;
+  --color-text-muted: #c7c7c7;
+  --color-border: #dbdbdb;
+  --color-border-light: #efefef;
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-theme="system"] {
+    --color-bg-primary: #000000;
+    --color-bg-secondary: #121212;
+    --color-bg-tertiary: #1a1a1a;
+    --color-bg-card: #000000;
+    --color-bg-hover: #1a1a1a;
+    --color-text-primary: #fafafa;
+    --color-text-secondary: #a8a8a8;
+    --color-text-muted: #555555;
+    --color-border: #262626;
+    --color-border-light: #363636;
+  }
 }
 
 /* Reset & Base Styles */

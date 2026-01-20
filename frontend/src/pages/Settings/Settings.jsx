@@ -22,6 +22,12 @@ const Settings = () => {
             language: 'en'
       });
 
+      // Load theme on mount and apply it
+      useEffect(() => {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+      }, []);
+
       useEffect(() => {
             if (user) {
                   setFormData({
@@ -37,6 +43,14 @@ const Settings = () => {
                   });
             }
       }, [user]);
+
+      // Apply theme immediately when it changes
+      useEffect(() => {
+            if (formData.theme) {
+                  document.documentElement.setAttribute('data-theme', formData.theme);
+                  localStorage.setItem('theme', formData.theme);
+            }
+      }, [formData.theme]);
 
       const handleChange = (e) => {
             const { name, value, type, checked } = e.target;

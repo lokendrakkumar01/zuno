@@ -74,6 +74,12 @@ function AppRouter() {
 }
 
 function App() {
+      // Initialize theme on app load
+      useEffect(() => {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+      }, []);
+
       return (
             <AuthProvider>
                   <Router>
