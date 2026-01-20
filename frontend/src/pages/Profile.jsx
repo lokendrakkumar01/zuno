@@ -132,18 +132,29 @@ const Profile = () => {
             const targetUsername = profileUser?.username || user?.username;
             if (!targetUsername) return;
 
+            setShowFollowersModal(true);
             setModalLoading(true);
+            setFollowersList([]);
+
             try {
                   const res = await fetch(`${API_URL}/users/${targetUsername}/followers`);
                   const data = await res.json();
+
                   if (data.success) {
                         setFollowersList(data.data.followers || []);
+                        console.log('Followers loaded:', data.data.followers?.length || 0);
+                  } else {
+                        console.error('Failed to fetch followers:', data.message);
+                        setMessage('⚠️ Failed to load followers');
+                        setTimeout(() => setMessage(''), 3000);
                   }
             } catch (error) {
-                  console.error('Failed to fetch followers:', error);
+                  console.error('Error fetching followers:', error);
+                  setMessage('⚠️ Could not connect to server');
+                  setTimeout(() => setMessage(''), 3000);
+            } finally {
+                  setModalLoading(false);
             }
-            setModalLoading(false);
-            setShowFollowersModal(true);
       };
 
       // Fetch following list
@@ -151,18 +162,29 @@ const Profile = () => {
             const targetUsername = profileUser?.username || user?.username;
             if (!targetUsername) return;
 
+            setShowFollowingModal(true);
             setModalLoading(true);
+            setFollowingList([]);
+
             try {
                   const res = await fetch(`${API_URL}/users/${targetUsername}/following`);
                   const data = await res.json();
+
                   if (data.success) {
                         setFollowingList(data.data.following || []);
+                        console.log('Following loaded:', data.data.following?.length || 0);
+                  } else {
+                        console.error('Failed to fetch following:', data.message);
+                        setMessage('⚠️ Failed to load following list');
+                        setTimeout(() => setMessage(''), 3000);
                   }
             } catch (error) {
-                  console.error('Failed to fetch following:', error);
+                  console.error('Error fetching following:', error);
+                  setMessage('⚠️ Could not connect to server');
+                  setTimeout(() => setMessage(''), 3000);
+            } finally {
+                  setModalLoading(false);
             }
-            setModalLoading(false);
-            setShowFollowingModal(true);
       };
 
       // Handle delete content from profile
