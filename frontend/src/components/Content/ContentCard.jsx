@@ -323,13 +323,14 @@ const ContentCard = ({ content, onDelete }) => {
                         <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-4">
                                     <button
-                                          className={`flex items-center gap-1 hover:opacity-80 transition-opacity ${isHelpful ? 'text-red-500' : 'text-gray-800'}`}
+                                          className="flex items-center gap-1 hover:opacity-80 transition-opacity"
                                           onClick={handleHelpful}
                                           style={{
                                                 transform: animateHelpful ? 'scale(1.2)' : 'scale(1)',
                                                 transition: 'transform 0.2s ease',
                                                 background: 'none', border: 'none', padding: 0,
-                                                cursor: 'pointer'
+                                                cursor: 'pointer',
+                                                color: isHelpful ? '#ef4444' : 'var(--color-text-primary)'
                                           }}
                                     >
                                           <svg width="24" height="24" viewBox="0 0 24 24" fill={isHelpful ? '#ef4444' : 'none'} stroke={isHelpful ? '#ef4444' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -339,9 +340,9 @@ const ContentCard = ({ content, onDelete }) => {
                                     </button>
 
                                     <button
-                                          className="flex items-center gap-1 hover:opacity-80 transition-opacity text-gray-800"
+                                          className="flex items-center gap-1 hover:opacity-80 transition-opacity"
                                           onClick={() => setShowComments(!showComments)}
-                                          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                                          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--color-text-primary)' }}
                                     >
                                           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                                 <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
@@ -350,13 +351,14 @@ const ContentCard = ({ content, onDelete }) => {
                                     </button>
 
                                     <button
-                                          className="flex items-center gap-1 hover:opacity-80 transition-opacity text-gray-800"
+                                          className="flex items-center gap-1 hover:opacity-80 transition-opacity"
                                           onClick={handleShare}
                                           style={{
                                                 transform: animateShare ? 'scale(1.2)' : 'scale(1)',
                                                 transition: 'transform 0.2s ease',
                                                 background: 'none', border: 'none', padding: 0,
-                                                cursor: 'pointer'
+                                                cursor: 'pointer',
+                                                color: 'var(--color-text-primary)'
                                           }}
                                     >
                                           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -369,13 +371,14 @@ const ContentCard = ({ content, onDelete }) => {
 
                               <div className="flex items-center gap-4 relative">
                                     <button
-                                          className={`flex items-center gap-1 hover:opacity-80 transition-opacity ${isSaved ? 'text-gray-900' : 'text-gray-800'}`}
+                                          className="flex items-center gap-1 hover:opacity-80 transition-opacity"
                                           onClick={handleSave}
                                           style={{
                                                 transform: animateSave ? 'scale(1.2)' : 'scale(1)',
                                                 transition: 'transform 0.2s ease',
                                                 background: 'none', border: 'none', padding: 0,
-                                                cursor: 'pointer'
+                                                cursor: 'pointer',
+                                                color: isSaved ? 'var(--color-accent-primary)' : 'var(--color-text-primary)'
                                           }}
                                     >
                                           <svg width="24" height="24" viewBox="0 0 24 24" fill={isSaved ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -385,12 +388,12 @@ const ContentCard = ({ content, onDelete }) => {
                                     </button>
 
                                     <button
-                                          className="flex items-center gap-1 hover:opacity-80 transition-opacity text-gray-800"
+                                          className="flex items-center gap-1 hover:opacity-80 transition-opacity"
                                           onClick={(e) => {
                                                 e.stopPropagation();
                                                 setShowMenu(!showMenu);
                                           }}
-                                          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                                          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--color-text-primary)' }}
                                     >
                                           <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
                                                 <circle cx="12" cy="5" r="2"></circle>
