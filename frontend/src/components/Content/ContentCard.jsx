@@ -240,11 +240,21 @@ const ContentCard = ({ content, onDelete }) => {
                                     />
                               ) : (
                                     <video
+                                          key={content.media[0].url}
                                           src={getMediaUrl(content.media[0].url)}
                                           controls
                                           controlsList="nodownload"
                                           playsInline
+                                          preload="metadata"
                                           poster={content.media[0].thumbnail}
+                                          onError={(e) => {
+                                                console.error('Video failed to load:', e);
+                                                // Retry loading once
+                                                if (!e.target.dataset.retried) {
+                                                      e.target.dataset.retried = 'true';
+                                                      e.target.load();
+                                                }
+                                          }}
                                     />
                               )}
                               {/* Content Type Badge */}

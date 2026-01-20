@@ -121,10 +121,20 @@ const ContentView = () => {
                                                 />
                                           ) : (
                                                 <video
+                                                      key={m.url}
                                                       src={m.url.startsWith('http') ? m.url : `${API_BASE_URL}${m.url}`}
                                                       controls
                                                       controlsList="nodownload"
+                                                      preload="metadata"
+                                                      playsInline
                                                       style={{ width: '100%', maxHeight: '500px' }}
+                                                      onError={(e) => {
+                                                            console.error('Video failed to load:', e);
+                                                            if (!e.target.dataset.retried) {
+                                                                  e.target.dataset.retried = 'true';
+                                                                  e.target.load();
+                                                            }
+                                                      }}
                                                 />
                                           )}
                                     </div>

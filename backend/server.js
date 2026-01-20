@@ -24,8 +24,21 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Static files for uploads
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Static files for uploads with proper headers
+app.use('/uploads', (req, res, next) => {
+  // Set cache control headers for media files
+  res.setHeader('Cache-Control', 'public, max-age=31536000'); // 1 year cache
+  res.setHeader('Access-Control-Allow-Origin', '*'); // Allow CORS for media
+  next();
+}, express.static(path.join(__dirname, 'uploads'), {
+  setHeaders: (res, path) => {
+    // Additional headers for video streaming support
+    if (path.endsWith('.mp4') || path.endsWith('.webm') || path.endsWith('.mov')) {
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('Content-Type', 'video/mp4');
+    }
+  }
+}));
 
 // API Routes
 app.use('/api/auth', authRoutes);

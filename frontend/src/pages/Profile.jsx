@@ -59,16 +59,15 @@ const Profile = () => {
       }, [username, user]);
 
       const refreshProfile = async () => {
-            if (isOwnProfile && user) {
-                  setProfileUser(user);
-                  fetchUserPosts(user.username);
-            } else if (username) {
+            // Always fetch from API to get fresh follower/following counts
+            const targetUsername = username || user?.username;
+            if (targetUsername) {
                   try {
-                        const res = await fetch(`${API_URL}/users/${username}`);
+                        const res = await fetch(`${API_URL}/users/${targetUsername}`);
                         const data = await res.json();
                         if (data.success) {
                               setProfileUser(data.data.user);
-                              fetchUserPosts(username);
+                              fetchUserPosts(targetUsername);
                         }
                   } catch (error) {
                         console.error('Failed to refresh profile:', error);
@@ -79,25 +78,27 @@ const Profile = () => {
       useEffect(() => {
             const fetchProfile = async () => {
                   setLoading(true);
-                  if (isOwnProfile && user) {
-                        setProfileUser(user);
-                        setEditData({
-                              displayName: user.displayName || '',
-                              bio: user.bio || '',
-                              avatar: user.avatar || '',
-                              interests: user.interests || [],
-                              preferredFeedMode: user.preferredFeedMode || 'learning',
-                              focusModeEnabled: user.focusModeEnabled || false,
-                              dailyUsageLimit: user.dailyUsageLimit || 0
-                        });
-                        fetchUserPosts(user.username);
-                  } else if (username) {
+                  // Always fetch from API to get accurate follower/following counts
+                  const targetUsername = username || user?.username;
+                  if (targetUsername) {
                         try {
-                              const res = await fetch(`${API_URL}/users/${username}`);
+                              const res = await fetch(`${API_URL}/users/${targetUsername}`);
                               const data = await res.json();
                               if (data.success) {
                                     setProfileUser(data.data.user);
-                                    fetchUserPosts(username);
+                                    // Set edit data for own profile
+                                    if (isOwnProfile) {
+                                          setEditData({
+                                                displayName: data.data.user.displayName || '',
+                                                bio: data.data.user.bio || '',
+                                                avatar: data.data.user.avatar || '',
+                                                interests: data.data.user.interests || [],
+                                                preferredFeedMode: data.data.user.preferredFeedMode || 'learning',
+                                                focusModeEnabled: data.data.user.focusModeEnabled || false,
+                                                dailyUsageLimit: data.data.user.dailyUsageLimit || 0
+                                          });
+                                    }
+                                    fetchUserPosts(targetUsername);
                               }
                         } catch (error) {
                               console.error('Failed to fetch profile:', error);
@@ -399,9 +400,18 @@ const Profile = () => {
                                                             <span className="font-bold text-gray-900 text-lg">{profileUser.followingCount || 0}</span>
                                                             <span className="text-gray-500 hover:text-blue-500">Following</span>
                                                       </div>
-                                                      <div className="flex items-center gap-xs">
+                                                      <div
+                                                            className="flex items-center gap-xs cursor-pointer hover:opacity-80 transition-opacity"
+                                                            onClick={() => {
+                                                                  const postsSection = document.getElementById('posts-section');
+                                                                  if (postsSection) {
+                                                                        postsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                                  }
+                                                            }}
+                                                            style={{ cursor: 'pointer' }}
+                                                      >
                                                             <span className="font-bold text-gray-900 text-lg">{userPosts.length || 0}</span>
-                                                            <span className="text-gray-500">Posts</span>
+                                                            <span className="text-gray-500 hover:text-blue-500">Posts</span>
                                                       </div>
                                                       {isOwnProfile && totalViews > 0 && (
                                                             <div className="flex items-center gap-xs">
@@ -524,7 +534,7 @@ const Profile = () => {
                                           )}
 
                                           {/* User Posts */}
-                                          <h3 className="text-xl font-bold mb-md mt-xl">Posts</h3>
+                                          <h3 id="posts-section" className="text-xl font-bold mb-md mt-xl">Posts</h3>
                                           <div className="posts-grid">
                                                 {userPosts.length > 0 ? (
                                                       userPosts.map(post => (
