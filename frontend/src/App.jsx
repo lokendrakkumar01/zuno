@@ -11,6 +11,8 @@ import Profile from './pages/Profile';
 import ContentView from './pages/ContentView';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 import Settings from './pages/Settings/Settings';
+import Appearance from './pages/Settings/Appearance';
+import Privacy from './pages/Settings/Privacy';
 import Search from './pages/Search/Search';
 import SavedContent from './pages/SavedContent';
 
@@ -61,6 +63,8 @@ function AppRouter() {
                         <Route path="upload" element={<Upload />} />
                         <Route path="profile" element={<Profile />} />
                         <Route path="settings" element={<Settings />} />
+                        <Route path="settings/appearance" element={<Appearance />} />
+                        <Route path="settings/privacy" element={<Privacy />} />
                         <Route path="search" element={<Search />} />
                         <Route path="content/:id" element={<ContentView />} />
                         <Route path="content/saved" element={<SavedContent />} />

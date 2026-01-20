@@ -2,25 +2,21 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { API_URL } from '../../config';
+import SettingsOption from '../../components/Settings/SettingsOption';
 
 const Settings = () => {
       const { user, token, logout } = useAuth();
       const navigate = useNavigate();
       const [loading, setLoading] = useState(false);
       const [message, setMessage] = useState('');
-      const [activeTab, setActiveTab] = useState('profile');
 
-      const [formData, setFormData] = useState({
-            displayName: '',
-            bio: '',
-            email: '',
-            isPrivate: false,
-            profileVisibility: 'public',
-            notificationsEnabled: true,
-            emailNotifications: true,
-            theme: 'dark',
-            language: 'en'
-      });
+      // Modal states
+      const [showActivity, setShowActivity] = useState(false);
+      const [showTimeManagement, setShowTimeManagement] = useState(false);
+      const [showInsights, setShowInsights] = useState(false);
+      const [showCloseFriends, setShowCloseFriends] = useState(false);
+      const [showArchive, setShowArchive] = useState(false);
+      const [showCreatorTools, setShowCreatorTools] = useState(false);
 
       // Load theme on mount and apply it
       useEffect(() => {
@@ -28,308 +24,397 @@ const Settings = () => {
             document.documentElement.setAttribute('data-theme', savedTheme);
       }, []);
 
-      useEffect(() => {
-            if (user) {
-                  setFormData({
-                        displayName: user.displayName || '',
-                        bio: user.bio || '',
-                        email: user.email || '',
-                        isPrivate: user.isPrivate || false,
-                        profileVisibility: user.profileVisibility || 'public',
-                        notificationsEnabled: user.notificationsEnabled !== false,
-                        emailNotifications: user.emailNotifications !== false,
-                        theme: localStorage.getItem('theme') || 'dark',
-                        language: user.language || 'en'
-                  });
-            }
-      }, [user]);
-
-      // Apply theme immediately when it changes
-      useEffect(() => {
-            if (formData.theme) {
-                  document.documentElement.setAttribute('data-theme', formData.theme);
-                  localStorage.setItem('theme', formData.theme);
-            }
-      }, [formData.theme]);
-
-      const handleChange = (e) => {
-            const { name, value, type, checked } = e.target;
-            setFormData(prev => ({
-                  ...prev,
-                  [name]: type === 'checkbox' ? checked : value
-            }));
-      };
-
-      const handleSubmit = async (e) => {
-            e.preventDefault();
-            setLoading(true);
-            setMessage('');
-
-            try {
-                  const res = await fetch(`${API_URL}/users/profile`, {
-                        method: 'PUT',
-                        headers: {
-                              'Content-Type': 'application/json',
-                              'Authorization': `Bearer ${token}`
-                        },
-                        body: JSON.stringify(formData)
-                  });
-                  const data = await res.json();
-
-                  if (data.success) {
-                        setMessage('✅ Settings updated successfully!');
-                        if (formData.theme) {
-                              localStorage.setItem('theme', formData.theme);
-                        }
-                  } else {
-                        setMessage(`❌ ${data.message || 'Update failed'}`);
-                  }
-            } catch (error) {
-                  setMessage('❌ Failed to update settings');
-            }
-            setLoading(false);
-      };
-
       const handleLogout = () => {
             logout();
             navigate('/login');
       };
 
-      const tabs = [
-            { id: 'profile', label: '👤 Profile', icon: '👤' },
-            { id: 'privacy', label: '🔒 Privacy', icon: '🔒' },
-            { id: 'notifications', label: '🔔 Notifications', icon: '🔔' },
-            { id: 'appearance', label: '🎨 Appearance', icon: '🎨' },
-            { id: 'account', label: '⚙️ Account', icon: '⚙️' }
-      ];
+      const SectionTitle = ({ title }) => (
+            <h3 style={{
+                  fontWeight: '600',
+                  fontSize: '14px',
+                  color: 'var(--color-text-secondary)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  padding: '20px 16px 8px 16px',
+                  marginTop: '12px'
+            }}>
+                  {title}
+            </h3>
+      );
 
       return (
-            <div className="container animate-fadeIn" style={{ paddingTop: '20px', paddingBottom: '100px' }}>
-                  <h1 className="text-2xl font-bold mb-lg" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div className="container" style={{ paddingTop: '20px', paddingBottom: '100px', maxWidth: '600px' }}>
+                  <h1 style={{
+                        fontSize: '28px',
+                        fontWeight: '700',
+                        marginBottom: '24px',
+                        padding: '0 16px'
+                  }}>
                         ⚙️ Settings
                   </h1>
 
                   {message && (
-                        <div className={`card p-md mb-lg ${message.includes('✅') ? 'bg-green-50' : 'bg-red-50'}`}
-                              style={{ border: message.includes('✅') ? '1px solid #22c55e' : '1px solid #ef4444' }}>
+                        <div style={{
+                              margin: '0 16px 16px 16px',
+                              padding: '12px 16px',
+                              borderRadius: '12px',
+                              backgroundColor: message.includes('✅') ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                              border: `1px solid ${message.includes('✅') ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                              color: 'var(--color-text-primary)'
+                        }}>
                               {message}
                         </div>
                   )}
 
-                  {/* Tabs */}
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', overflowX: 'auto', paddingBottom: '8px' }}>
-                        {tabs.map(tab => (
-                              <button
-                                    key={tab.id}
-                                    onClick={() => setActiveTab(tab.id)}
-                                    style={{
-                                          padding: '10px 16px',
-                                          borderRadius: '20px',
-                                          border: 'none',
-                                          background: activeTab === tab.id ? 'var(--gradient-primary)' : 'var(--color-bg-secondary)',
-                                          color: activeTab === tab.id ? 'white' : 'var(--color-text-secondary)',
-                                          cursor: 'pointer',
-                                          whiteSpace: 'nowrap',
-                                          fontWeight: activeTab === tab.id ? '600' : '400',
-                                          transition: 'all 0.2s ease'
-                                    }}
-                              >
-                                    {tab.label}
-                              </button>
-                        ))}
+                  <div style={{
+                        backgroundColor: 'var(--color-bg-card)',
+                        borderRadius: '16px',
+                        overflow: 'hidden',
+                        border: '1px solid var(--color-border)'
+                  }}>
+                        {/* For You Section */}
+                        <SectionTitle title="For you" />
+                        <SettingsOption
+                              icon="📑"
+                              label="Saved"
+                              subtitle="Your saved posts and content"
+                              onClick={() => navigate('/content/saved')}
+                        />
+                        <SettingsOption
+                              icon="📦"
+                              label="Archive"
+                              subtitle="Posts you've archived"
+                              onClick={() => setShowArchive(true)}
+                        />
+                        <SettingsOption
+                              icon="📊"
+                              label="Your activity"
+                              subtitle="Time spent, posts viewed, and more"
+                              onClick={() => setShowActivity(true)}
+                        />
+                        <SettingsOption
+                              icon="🔔"
+                              label="Notifications"
+                              subtitle="Manage your notification preferences"
+                              onClick={() => navigate('/settings/notifications')}
+                        />
+                        <SettingsOption
+                              icon="⏰"
+                              label="Time management"
+                              subtitle="Set daily time limits and reminders"
+                              onClick={() => setShowTimeManagement(true)}
+                        />
+
+                        {/* For Professionals Section */}
+                        <SectionTitle title="For professionals" />
+                        <SettingsOption
+                              icon="📈"
+                              label="Insights"
+                              subtitle="View your content analytics"
+                              onClick={() => setShowInsights(true)}
+                        />
+                        <SettingsOption
+                              icon="✓"
+                              label="Meta Verified"
+                              badge="Not subscribed"
+                              subtitle="Get the blue checkmark"
+                              onClick={() => alert('Meta Verified subscription - Coming soon!')}
+                        />
+                        <SettingsOption
+                              icon="📅"
+                              label="Scheduled content"
+                              subtitle="Schedule posts for later"
+                              onClick={() => alert('Scheduled content - Coming soon!')}
+                        />
+                        <SettingsOption
+                              icon="🛠️"
+                              label="Creator tools and controls"
+                              subtitle="Manage your creator features"
+                              onClick={() => setShowCreatorTools(true)}
+                        />
+
+                        {/* Who Can See Your Content Section */}
+                        <SectionTitle title="Who can see your content" />
+                        <SettingsOption
+                              icon="🔒"
+                              label="Account privacy"
+                              value={user?.isPrivate ? 'Private' : 'Public'}
+                              onClick={() => navigate('/settings/privacy')}
+                        />
+                        <SettingsOption
+                              icon="👥"
+                              label="Close Friends"
+                              subtitle="Share with your closest friends"
+                              onClick={() => setShowCloseFriends(true)}
+                        />
+
+                        {/* How You Use ZUNO Section */}
+                        <SectionTitle title="How you use ZUNO" />
+                        <SettingsOption
+                              icon="🎨"
+                              label="Appearance"
+                              value={localStorage.getItem('theme') === 'light' ? 'Light' : localStorage.getItem('theme') === 'dark' ? 'Dark' : 'System'}
+                              onClick={() => navigate('/settings/appearance')}
+                        />
+                        <SettingsOption
+                              icon="🌍"
+                              label="Language"
+                              value={user?.language === 'hi' ? 'Hindi' : 'English'}
+                              onClick={() => navigate('/settings/language')}
+                        />
+
+                        {/* Account Section */}
+                        <SectionTitle title="Your account" />
+                        <SettingsOption
+                              icon="👤"
+                              label="Personal information"
+                              subtitle="Edit your profile details"
+                              onClick={() => navigate('/profile')}
+                        />
+                        <SettingsOption
+                              icon="🔐"
+                              label="Password and security"
+                              onClick={() => alert('Password settings - Coming soon!')}
+                        />
+                        <SettingsOption
+                              icon="🚪"
+                              label="Log out"
+                              onClick={handleLogout}
+                        />
+                        <SettingsOption
+                              icon="🗑️"
+                              label="Delete account"
+                              onClick={() => {
+                                    if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
+                                          alert('Contact support to delete your account');
+                                    }
+                              }}
+                        />
                   </div>
 
-                  <div className="grid gap-lg">
-                        {/* Profile Tab */}
-                        {activeTab === 'profile' && (
-                              <div className="card">
-                                    <h2 className="text-lg font-semibold mb-md">👤 Profile Information</h2>
-                                    <div className="input-group mb-md">
-                                          <label className="input-label">Display Name</label>
-                                          <input
-                                                type="text"
-                                                name="displayName"
-                                                value={formData.displayName}
-                                                onChange={handleChange}
-                                                className="input"
-                                                placeholder="Your display name"
-                                          />
-                                    </div>
-                                    <div className="input-group mb-md">
-                                          <label className="input-label">Bio</label>
-                                          <textarea
-                                                name="bio"
-                                                value={formData.bio}
-                                                onChange={handleChange}
-                                                className="input"
-                                                rows="3"
-                                                placeholder="Tell us about yourself..."
-                                          />
-                                    </div>
-                                    <div className="input-group mb-md">
-                                          <label className="input-label">Email</label>
-                                          <input
-                                                type="email"
-                                                name="email"
-                                                value={formData.email}
-                                                onChange={handleChange}
-                                                className="input"
-                                                placeholder="your@email.com"
-                                          />
-                                    </div>
-                              </div>
-                        )}
+                  {/* Modal for Your Activity */}
+                  {showActivity && (
+                        <ActivityModal onClose={() => setShowActivity(false)} />
+                  )}
 
-                        {/* Privacy Tab */}
-                        {activeTab === 'privacy' && (
-                              <div className="card">
-                                    <h2 className="text-lg font-semibold mb-md">🔒 Privacy & Safety</h2>
+                  {/* Modal for Time Management */}
+                  {showTimeManagement && (
+                        <TimeManagementModal onClose={() => setShowTimeManagement(false)} />
+                  )}
 
-                                    <div className="flex items-center justify-between p-md mb-sm" style={{ background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-md)' }}>
-                                          <div>
-                                                <strong className="block">🔐 Private Account</strong>
-                                                <span className="text-sm text-muted">Only approved followers can see your content</span>
-                                          </div>
-                                          <input
-                                                type="checkbox"
-                                                name="isPrivate"
-                                                checked={formData.isPrivate}
-                                                onChange={handleChange}
-                                                style={{ transform: 'scale(1.5)', accentColor: 'var(--color-accent-primary)' }}
-                                          />
-                                    </div>
+                  {/* Modal for Insights */}
+                  {showInsights && (
+                        <InsightsModal onClose={() => setShowInsights(false)} />
+                  )}
 
-                                    <div className="input-group mb-md">
-                                          <label className="input-label">👁️ Profile Visibility</label>
-                                          <select
-                                                name="profileVisibility"
-                                                value={formData.profileVisibility}
-                                                onChange={handleChange}
-                                                className="input"
-                                          >
-                                                <option value="public">🌍 Public - Anyone can view</option>
-                                                <option value="friends">👥 Friends Only</option>
-                                                <option value="private">🔒 Private - Only you</option>
-                                          </select>
-                                    </div>
-                              </div>
-                        )}
+                  {/* Modal for Close Friends */}
+                  {showCloseFriends && (
+                        <CloseFriendsModal onClose={() => setShowCloseFriends(false)} />
+                  )}
 
-                        {/* Notifications Tab */}
-                        {activeTab === 'notifications' && (
-                              <div className="card">
-                                    <h2 className="text-lg font-semibold mb-md">🔔 Notification Preferences</h2>
+                  {/* Modal for Archive */}
+                  {showArchive && (
+                        <ArchiveModal onClose={() => setShowArchive(false)} />
+                  )}
 
-                                    <div className="flex items-center justify-between p-md mb-sm" style={{ background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-md)' }}>
-                                          <div>
-                                                <strong className="block">📱 Push Notifications</strong>
-                                                <span className="text-sm text-muted">Receive notifications on your device</span>
-                                          </div>
-                                          <input
-                                                type="checkbox"
-                                                name="notificationsEnabled"
-                                                checked={formData.notificationsEnabled}
-                                                onChange={handleChange}
-                                                style={{ transform: 'scale(1.5)', accentColor: 'var(--color-accent-primary)' }}
-                                          />
-                                    </div>
-
-                                    <div className="flex items-center justify-between p-md mb-sm" style={{ background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-md)' }}>
-                                          <div>
-                                                <strong className="block">📧 Email Notifications</strong>
-                                                <span className="text-sm text-muted">Receive updates via email</span>
-                                          </div>
-                                          <input
-                                                type="checkbox"
-                                                name="emailNotifications"
-                                                checked={formData.emailNotifications}
-                                                onChange={handleChange}
-                                                style={{ transform: 'scale(1.5)', accentColor: 'var(--color-accent-primary)' }}
-                                          />
-                                    </div>
-                              </div>
-                        )}
-
-                        {/* Appearance Tab */}
-                        {activeTab === 'appearance' && (
-                              <div className="card">
-                                    <h2 className="text-lg font-semibold mb-md">🎨 Appearance</h2>
-
-                                    <div className="input-group mb-md">
-                                          <label className="input-label">🌙 Theme</label>
-                                          <select
-                                                name="theme"
-                                                value={formData.theme}
-                                                onChange={handleChange}
-                                                className="input"
-                                          >
-                                                <option value="dark">🌙 Dark Mode</option>
-                                                <option value="light">☀️ Light Mode</option>
-                                                <option value="system">💻 System Default</option>
-                                          </select>
-                                    </div>
-
-                                    <div className="input-group mb-md">
-                                          <label className="input-label">🌍 Language</label>
-                                          <select
-                                                name="language"
-                                                value={formData.language}
-                                                onChange={handleChange}
-                                                className="input"
-                                          >
-                                                <option value="en">🇬🇧 English</option>
-                                                <option value="hi">🇮🇳 Hindi</option>
-                                                <option value="es">🇪🇸 Spanish</option>
-                                                <option value="fr">🇫🇷 French</option>
-                                          </select>
-                                    </div>
-                              </div>
-                        )}
-
-                        {/* Account Tab */}
-                        {activeTab === 'account' && (
-                              <div className="card">
-                                    <h2 className="text-lg font-semibold mb-md">⚙️ Account Settings</h2>
-
-                                    <div className="p-md mb-md" style={{ background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-md)' }}>
-                                          <strong className="block mb-sm">📋 Account Info</strong>
-                                          <p className="text-sm text-muted">Username: @{user?.username || 'N/A'}</p>
-                                          <p className="text-sm text-muted">Member since: {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}</p>
-                                    </div>
-
-                                    <button
-                                          onClick={handleLogout}
-                                          className="btn"
-                                          style={{ width: '100%', background: 'var(--color-text-secondary)', color: 'white', marginBottom: '12px' }}
-                                    >
-                                          🚪 Logout
-                                    </button>
-
-                                    <button
-                                          className="btn"
-                                          style={{ width: '100%', background: '#ef4444', color: 'white' }}
-                                          onClick={() => alert('Contact support to delete your account')}
-                                    >
-                                          🗑️ Delete Account
-                                    </button>
-                              </div>
-                        )}
-
-                        {/* Save Button */}
-                        {activeTab !== 'account' && (
-                              <button
-                                    onClick={handleSubmit}
-                                    className="btn btn-primary"
-                                    disabled={loading}
-                                    style={{ width: '100%' }}
-                              >
-                                    {loading ? '⏳ Saving...' : '💾 Save Changes'}
-                              </button>
-                        )}
-                  </div>
+                  {/* Modal for Creator Tools */}
+                  {showCreatorTools && (
+                        <CreatorToolsModal onClose={() => setShowCreatorTools(false)} />
+                  )}
             </div>
       );
 };
 
-export default Settings;
+// Simple Modal Components (placeholders for now)
+const ActivityModal = ({ onClose }) => (
+      <ModalWrapper title="Your Activity" onClose={onClose}>
+            <div style={{ padding: '20px', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
+                  <div style={{ fontSize: '48px', marginBottom: '16px' }}>📊</div>
+                  <h3 style={{ marginBottom: '8px', color: 'var(--color-text-primary)' }}>Activity Dashboard</h3>
+                  <p>Track your time spent, posts viewed, and interactions</p>
+                  <div style={{ marginTop: '24px', textAlign: 'left' }}>
+                        <StatCard label="Time Today" value="2h 34m" icon="⏱️" />
+                        <StatCard label="Posts Viewed" value="45" icon="👁️" />
+                        <StatCard label="Likes Given" value="23" icon="❤️" />
+                        <StatCard label="Comments" value="8" icon="💬" />
+                  </div>
+            </div>
+      </ModalWrapper>
+);
 
+const TimeManagementModal = ({ onClose }) => (
+      <ModalWrapper title="Time Management" onClose={onClose}>
+            <div style={{ padding: '20px' }}>
+                  <div style={{ fontSize: '48px', textAlign: 'center', marginBottom: '16px' }}>⏰</div>
+                  <h3 style={{ textAlign: 'center', marginBottom: '24px', color: 'var(--color-text-primary)' }}>Set Daily Limit</h3>
+                  <div style={{ marginBottom: '16px' }}>
+                        <label style={{ display: 'block', marginBottom: '8px', color: 'var(--color-text-secondary)' }}>Daily time limit (hours)</label>
+                        <input type="number" min="0" max="12" defaultValue="2" style={{
+                              width: '100%',
+                              padding: '12px',
+                              borderRadius: '8px',
+                              border: '1px solid var(--color-border)',
+                              backgroundColor: 'var(--color-bg-secondary)',
+                              color: 'var(--color-text-primary)'
+                        }} />
+                  </div>
+                  <button style={{
+                        width: '100%',
+                        padding: '14px',
+                        borderRadius: '12px',
+                        border: 'none',
+                        background: 'var(--gradient-primary)',
+                        color: 'white',
+                        fontWeight: '600',
+                        cursor: 'pointer'
+                  }}>
+                        Save Limit
+                  </button>
+            </div>
+      </ModalWrapper>
+);
+
+const InsightsModal = ({ onClose }) => (
+      <ModalWrapper title="Insights" onClose={onClose}>
+            <div style={{ padding: '20px' }}>
+                  <div style={{ fontSize: '48px', textAlign: 'center', marginBottom: '16px' }}>📈</div>
+                  <h3 style={{ textAlign: 'center', marginBottom: '24px', color: 'var(--color-text-primary)' }}>Content Analytics</h3>
+                  <div>
+                        <StatCard label="Total Reach" value="1,234" icon="👥" />
+                        <StatCard label="Engagement Rate" value="8.5%" icon="💓" />
+                        <StatCard label="Profile Visits" value="456" icon="👁️" />
+                        <StatCard label="New Followers" value="89" icon="➕" />
+                  </div>
+            </div>
+      </ModalWrapper>
+);
+
+const CloseFriendsModal = ({ onClose }) => (
+      <ModalWrapper title="Close Friends" onClose={onClose}>
+            <div style={{ padding: '20px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '48px', marginBottom: '16px' }}>👥</div>
+                  <h3 style={{ marginBottom: '8px', color: 'var(--color-text-primary)' }}>Manage Close Friends</h3>
+                  <p style={{ color: 'var(--color-text-secondary)', marginBottom: '24px' }}>
+                        Share exclusive content with your closest friends
+                  </p>
+                  <button style={{
+                        width: '100%',
+                        padding: '14px',
+                        borderRadius: '12px',
+                        border: 'none',
+                        background: 'var(--gradient-primary)',
+                        color: 'white',
+                        fontWeight: '600',
+                        cursor: 'pointer'
+                  }}>
+                        Add Close Friends
+                  </button>
+            </div>
+      </ModalWrapper>
+);
+
+const ArchiveModal = ({ onClose }) => (
+      <ModalWrapper title="Archive" onClose={onClose}>
+            <div style={{ padding: '20px', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
+                  <div style={{ fontSize: '48px', marginBottom: '16px' }}>📦</div>
+                  <h3 style={{ marginBottom: '8px', color: 'var(--color-text-primary)' }}>Your Archive</h3>
+                  <p>Posts you've archived will appear here</p>
+                  <div style={{ marginTop: '24px', padding: '40px 20px', backgroundColor: 'var(--color-bg-secondary)', borderRadius: '12px' }}>
+                        <p>No archived posts yet</p>
+                  </div>
+            </div>
+      </ModalWrapper>
+);
+
+const CreatorToolsModal = ({ onClose }) => (
+      <ModalWrapper title="Creator Tools" onClose={onClose}>
+            <div style={{ padding: '20px' }}>
+                  <div style={{ fontSize: '48px', textAlign: 'center', marginBottom: '16px' }}>🛠️</div>
+                  <h3 style={{ textAlign: 'center', marginBottom: '24px', color: 'var(--color-text-primary)' }}>Creator Dashboard</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <SettingsOption icon="💰" label="Monetization" subtitle="Coming soon" />
+                        <SettingsOption icon="📊" label="Analytics" subtitle="View detailed stats" />
+                        <SettingsOption icon="🎥" label="Content Studio" subtitle="Manage all content" />
+                  </div>
+            </div>
+      </ModalWrapper>
+);
+
+// Reusable Modal Wrapper
+const ModalWrapper = ({ title, onClose, children }) => (
+      <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            backdropFilter: 'blur(4px)',
+            padding: '20px'
+      }} onClick={onClose}>
+            <div style={{
+                  backgroundColor: 'var(--color-bg-card)',
+                  borderRadius: '20px',
+                  maxWidth: '500px',
+                  width: '100%',
+                  maxHeight: '80vh',
+                  overflow: 'auto',
+                  border: '1px solid var(--color-border)'
+            }} onClick={(e) => e.stopPropagation()}>
+                  <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '20px',
+                        borderBottom: '1px solid var(--color-border)',
+                        position: 'sticky',
+                        top: 0,
+                        backgroundColor: 'var(--color-bg-card)',
+                        zIndex: 1
+                  }}>
+                        <h2 style={{ fontSize: '20px', fontWeight: '600', color: 'var(--color-text-primary)' }}>{title}</h2>
+                        <button onClick={onClose} style={{
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '50%',
+                              border: 'none',
+                              backgroundColor: 'var(--color-bg-secondary)',
+                              color: 'var(--color-text-primary)',
+                              cursor: 'pointer',
+                              fontSize: '18px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                        }}>✕</button>
+                  </div>
+                  {children}
+            </div>
+      </div>
+);
+
+// Stat Card Component
+const StatCard = ({ label, value, icon }) => (
+      <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '16px',
+            marginBottom: '12px',
+            backgroundColor: 'var(--color-bg-secondary)',
+            borderRadius: '12px',
+            border: '1px solid var(--color-border)'
+      }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ fontSize: '24px' }}>{icon}</span>
+                  <span style={{ color: 'var(--color-text-secondary)' }}>{label}</span>
+            </div>
+            <span style={{ fontWeight: '600', fontSize: '18px', color: 'var(--color-text-primary)' }}>{value}</span>
+      </div>
+);
+
+export default Settings;
