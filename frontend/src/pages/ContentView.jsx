@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { API_BASE_URL } from '../config';
+import { API_URL, API_BASE_URL } from '../config';
 
 const ContentView = () => {
       const { id } = useParams();
@@ -14,10 +14,12 @@ const ContentView = () => {
       useEffect(() => {
             const fetchContent = async () => {
                   try {
-                        const res = await fetch(`/ api / content / ${id} `);
+                        const res = await fetch(`${API_URL}/content/${id}`);
                         const data = await res.json();
                         if (data.success) {
                               setContent(data.data.content);
+                        } else {
+                              console.error('Content fetch failed:', data.message);
                         }
                   } catch (error) {
                         console.error('Failed to fetch content:', error);
@@ -30,7 +32,7 @@ const ContentView = () => {
       const handleHelpful = async () => {
             if (!token) return;
             try {
-                  await fetch(`/ api / content / ${id}/helpful`, {
+                  await fetch(`${API_URL}/content/${id}/helpful`, {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${token}` }
                   });
@@ -43,7 +45,7 @@ const ContentView = () => {
       const handleSave = async () => {
             if (!token) return;
             try {
-                  await fetch(`/api/content/${id}/save`, {
+                  await fetch(`${API_URL}/content/${id}/save`, {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${token}` }
                   });
