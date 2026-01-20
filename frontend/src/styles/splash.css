@@ -1,0 +1,303 @@
+/* ========================================
+   ZUNO Splash Screen Styles
+   Peaceful, Modern, Animated
+   ======================================== */
+
+/* Splash Screen Container */
+.splash-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: linear-gradient(135deg, #fafafa 0%, #ffffff 50%, #f0f9ff 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      cursor: pointer;
+      animation: fadeIn 0.5s ease-out;
+}
+
+/* Dark mode support */
+[data-theme="dark"] .splash-screen {
+      background: linear-gradient(135deg, #000000 0%, #0a0a0a 50%, #001a2e 100%);
+}
+
+/* Splash Content Container */
+.splash-content {
+      text-align: center;
+      animation: slideUp 0.8s ease-out 0.2s both;
+}
+
+/* Logo Container with Glow */
+.splash-logo-container {
+      position: relative;
+      display: inline-block;
+      margin-bottom: 2rem;
+      animation: breathe 3s ease-in-out infinite;
+}
+
+/* Logo Image */
+.splash-logo {
+      width: 120px;
+      height: 120px;
+      border-radius: 24px;
+      object-fit: cover;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      position: relative;
+      z-index: 2;
+      animation: logoFadeIn 1s ease-out;
+}
+
+/* Ethereal Glow Effect */
+.splash-glow {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 180px;
+      height: 180px;
+      background: radial-gradient(circle,
+                  rgba(0, 149, 246, 0.3) 0%,
+                  rgba(214, 41, 118, 0.2) 40%,
+                  transparent 70%);
+      border-radius: 50%;
+      z-index: 1;
+      animation: glowPulse 3s ease-in-out infinite;
+      filter: blur(20px);
+}
+
+[data-theme="dark"] .splash-glow {
+      background: radial-gradient(circle,
+                  rgba(0, 149, 246, 0.4) 0%,
+                  rgba(214, 41, 118, 0.3) 40%,
+                  transparent 70%);
+}
+
+/* Splash Title */
+.splash-title {
+      font-size: 3rem;
+      font-weight: 800;
+      background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 0.5rem;
+      letter-spacing: 0.05em;
+      animation: titleFadeIn 1s ease-out 0.3s both;
+}
+
+[data-theme="dark"] .splash-title {
+      background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+}
+
+/* Splash Tagline */
+.splash-tagline {
+      font-size: 1.125rem;
+      color: #8e8e8e;
+      font-weight: 400;
+      margin-bottom: 3rem;
+      animation: taglineFadeIn 1s ease-out 0.5s both;
+}
+
+[data-theme="dark"] .splash-tagline {
+      color: #a8a8a8;
+}
+
+/* Progress Indicator */
+.splash-progress {
+      width: 200px;
+      height: 4px;
+      background: rgba(0, 0, 0, 0.05);
+      border-radius: 9999px;
+      margin: 0 auto;
+      overflow: hidden;
+      animation: progressFadeIn 1s ease-out 0.7s both;
+}
+
+[data-theme="dark"] .splash-progress {
+      background: rgba(255, 255, 255, 0.1);
+}
+
+.splash-progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+      border-radius: 9999px;
+      animation: progressBar 2.5s ease-out forwards;
+}
+
+/* ========================================
+   Animations
+   ======================================== */
+
+/* Fade In */
+@keyframes fadeIn {
+      from {
+            opacity: 0;
+      }
+
+      to {
+            opacity: 1;
+      }
+}
+
+/* Slide Up */
+@keyframes slideUp {
+      from {
+            opacity: 0;
+            transform: translateY(30px);
+      }
+
+      to {
+            opacity: 1;
+            transform: translateY(0);
+      }
+}
+
+/* Logo Fade In */
+@keyframes logoFadeIn {
+      from {
+            opacity: 0;
+            transform: scale(0.8);
+      }
+
+      to {
+            opacity: 1;
+            transform: scale(1);
+      }
+}
+
+/* Title Fade In */
+@keyframes titleFadeIn {
+      from {
+            opacity: 0;
+            transform: translateY(10px);
+      }
+
+      to {
+            opacity: 1;
+            transform: translateY(0);
+      }
+}
+
+/* Tagline Fade In */
+@keyframes taglineFadeIn {
+      from {
+            opacity: 0;
+      }
+
+      to {
+            opacity: 1;
+      }
+}
+
+/* Progress Fade In */
+@keyframes progressFadeIn {
+      from {
+            opacity: 0;
+      }
+
+      to {
+            opacity: 1;
+      }
+}
+
+/* Breathing Animation */
+@keyframes breathe {
+
+      0%,
+      100% {
+            transform: scale(1);
+      }
+
+      50% {
+            transform: scale(1.05);
+      }
+}
+
+/* Glow Pulse */
+@keyframes glowPulse {
+
+      0%,
+      100% {
+            opacity: 0.6;
+            transform: translate(-50%, -50%) scale(1);
+      }
+
+      50% {
+            opacity: 0.9;
+            transform: translate(-50%, -50%) scale(1.1);
+      }
+}
+
+/* Progress Bar Animation */
+@keyframes progressBar {
+      from {
+            width: 0%;
+      }
+
+      to {
+            width: 100%;
+      }
+}
+
+/* ========================================
+   Responsive Design
+   ======================================== */
+
+/* Mobile Devices */
+@media (max-width: 768px) {
+      .splash-logo {
+            width: 100px;
+            height: 100px;
+      }
+
+      .splash-glow {
+            width: 150px;
+            height: 150px;
+      }
+
+      .splash-title {
+            font-size: 2.5rem;
+      }
+
+      .splash-tagline {
+            font-size: 1rem;
+      }
+
+      .splash-progress {
+            width: 160px;
+      }
+}
+
+/* Small Mobile */
+@media (max-width: 480px) {
+      .splash-logo {
+            width: 80px;
+            height: 80px;
+            border-radius: 16px;
+      }
+
+      .splash-glow {
+            width: 120px;
+            height: 120px;
+      }
+
+      .splash-title {
+            font-size: 2rem;
+      }
+
+      .splash-tagline {
+            font-size: 0.875rem;
+            margin-bottom: 2rem;
+      }
+
+      .splash-progress {
+            width: 140px;
+            height: 3px;
+      }
+}
