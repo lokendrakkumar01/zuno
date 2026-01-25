@@ -235,6 +235,36 @@ const ContentView = () => {
                               >
                                     {isSaved ? '📌 Saved' : '🔖 Save for Later'}
                               </button>
+                              {content.media && content.media.length > 0 && (
+                                    <button
+                                          className="btn btn-secondary"
+                                          onClick={async () => {
+                                                try {
+                                                      const media = content.media[0];
+                                                      const url = media.url.startsWith('http') ? media.url : `${API_BASE_URL}${media.url}`;
+                                                      const filename = `zuno-${content._id}.${media.type === 'video' ? 'mp4' : 'jpg'}`;
+
+                                                      const res = await fetch(url);
+                                                      const blob = await res.blob();
+                                                      const blobUrl = window.URL.createObjectURL(blob);
+
+                                                      const link = document.createElement('a');
+                                                      link.href = blobUrl;
+                                                      link.download = filename;
+                                                      document.body.appendChild(link);
+                                                      link.click();
+
+                                                      document.body.removeChild(link);
+                                                      window.URL.revokeObjectURL(blobUrl);
+                                                } catch (err) {
+                                                      console.error("Download failed", err);
+                                                      alert("Failed to download media");
+                                                }
+                                          }}
+                                    >
+                                          ⬇️ Download
+                                    </button>
+                              )}
                         </div>
                         <p className="text-sm text-muted mt-md">
                               Your feedback is private and helps improve your personal feed.

@@ -457,6 +457,44 @@ const ContentCard = ({ content, onDelete }) => {
                                           <div className="absolute bottom-full right-0 mb-2 bg-white rounded-lg shadow-xl border border-gray-100 p-2 min-w-[150px] z-50 animate-fadeIn"
                                                 onClick={(e) => e.stopPropagation()}
                                           >
+                                                {/* Download Option */}
+                                                {content.media && content.media.length > 0 && (
+                                                      <button
+                                                            onClick={async () => {
+                                                                  try {
+                                                                        const media = content.media[0];
+                                                                        const url = getMediaUrl(media.url);
+                                                                        const filename = `zuno-${content._id}.${media.type === 'video' ? 'mp4' : 'jpg'}`;
+
+                                                                        const res = await fetch(url);
+                                                                        const blob = await res.blob();
+                                                                        const blobUrl = window.URL.createObjectURL(blob);
+
+                                                                        const link = document.createElement('a');
+                                                                        link.href = blobUrl;
+                                                                        link.download = filename;
+                                                                        document.body.appendChild(link);
+                                                                        link.click();
+
+                                                                        document.body.removeChild(link);
+                                                                        window.URL.revokeObjectURL(blobUrl);
+                                                                        setShowMenu(false);
+                                                                  } catch (err) {
+                                                                        console.error("Download failed", err);
+                                                                        alert("Failed to download media");
+                                                                  }
+                                                            }}
+                                                            className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded flex items-center gap-2"
+                                                      >
+                                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                                                  <polyline points="7 10 12 15 17 10"></polyline>
+                                                                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                                                            </svg>
+                                                            Download
+                                                      </button>
+                                                )}
+
                                                 {currentUser?._id === content.creator?._id && (
                                                       <button
                                                             onClick={handleDelete}
