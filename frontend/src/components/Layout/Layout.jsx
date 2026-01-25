@@ -1,10 +1,12 @@
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { useState, useEffect } from 'react';
 import zunoLogo from '../../assets/zuno-logo.png';
 
 const Layout = () => {
       const { user, isAuthenticated, logout } = useAuth();
+      const { t } = useLanguage();
       const navigate = useNavigate();
       const location = useLocation();
       const [scrolled, setScrolled] = useState(false);
@@ -63,22 +65,22 @@ const Layout = () => {
                               {/* Desktop Navigation */}
                               <nav className="nav">
                                     <Link to="/" className={`nav-link ${isActive('/') ? 'active' : ''}`}>
-                                          🏠 Home
+                                          🏠 {t('home')}
                                     </Link>
                                     {isAuthenticated ? (
                                           <>
                                                 <Link to="/upload" className={`nav-link ${isActive('/upload') ? 'active' : ''}`}>
-                                                      ➕ Upload
+                                                      ➕ {t('upload')}
                                                 </Link>
                                                 <Link to="/profile" className={`nav-link ${isActive('/profile') ? 'active' : ''}`}>
-                                                      👤 Profile
+                                                      👤 {t('profile')}
                                                 </Link>
                                                 <Link to="/settings" className={`nav-link ${isActive('/settings') ? 'active' : ''}`}>
-                                                      ⚙️ Settings
+                                                      ⚙️ {t('settings')}
                                                 </Link>
                                                 {user?.role === 'admin' && (
                                                       <Link to="/admin" className="nav-link" style={{ color: 'var(--color-accent-pink)' }}>
-                                                            👑 Admin
+                                                            👑 {t('admin')}
                                                       </Link>
                                                 )}
                                                 <div className="flex items-center gap-sm" style={{ marginLeft: 'var(--space-sm)' }}>
@@ -93,9 +95,9 @@ const Layout = () => {
                                           </>
                                     ) : (
                                           <>
-                                                <Link to="/login" className="btn btn-ghost btn-sm">Login</Link>
+                                                <Link to="/login" className="btn btn-ghost btn-sm">{t('login')}</Link>
                                                 <Link to="/register" className="btn btn-primary btn-sm">
-                                                      Join ZUNO
+                                                      {t('join')}
                                                 </Link>
                                           </>
                                     )}
@@ -112,11 +114,11 @@ const Layout = () => {
                   <nav className="bottom-nav">
                         <Link to="/" className={`bottom-nav-item ${isActive('/') ? 'active' : ''}`}>
                               <HomeIcon />
-                              <span style={{ fontSize: '10px' }}>Home</span>
+                              <span style={{ fontSize: '10px' }}>{t('home')}</span>
                         </Link>
                         <Link to="/search" className={`bottom-nav-item ${isActive('/search') ? 'active' : ''}`}>
                               <SearchIcon />
-                              <span style={{ fontSize: '10px' }}>Search</span>
+                              <span style={{ fontSize: '10px' }}>{t('search')}</span>
                         </Link>
                         <Link to="/upload" className={`bottom-nav-item ${isActive('/upload') ? 'active' : ''}`}>
                               <div style={{
@@ -132,7 +134,7 @@ const Layout = () => {
                         </Link>
                         <Link to="/settings" className={`bottom-nav-item ${isActive('/settings') ? 'active' : ''}`}>
                               <SettingsIcon />
-                              <span style={{ fontSize: '10px' }}>Settings</span>
+                              <span style={{ fontSize: '10px' }}>{t('settings')}</span>
                         </Link>
                         <Link to="/profile" className={`bottom-nav-item ${isActive('/profile') ? 'active' : ''}`}>
                               <div style={{

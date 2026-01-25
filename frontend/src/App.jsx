@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { LanguageProvider } from './context/LanguageContext';
 import SplashScreen from './components/SplashScreen';
 import Layout from './components/Layout/Layout';
 import Home from './pages/Home';
@@ -96,9 +97,11 @@ function App() {
 
       return (
             <AuthProvider>
-                  <Router>
-                        <AppRouter />
-                  </Router>
+                  <LanguageProvider>
+                        <Router>
+                              <AppRouter />
+                        </Router>
+                  </LanguageProvider>
             </AuthProvider>
       );
 }

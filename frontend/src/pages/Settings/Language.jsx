@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { API_URL } from '../../config';
 
 const Language = () => {
       const navigate = useNavigate();
       const { user, token } = useAuth();
-      const [language, setLanguage] = useState(user?.language || 'en');
+      const { language, changeLanguage } = useLanguage();
       const [message, setMessage] = useState('');
       const [loading, setLoading] = useState(false);
 
@@ -20,7 +21,7 @@ const Language = () => {
       ];
 
       const handleSave = async (selectedLang) => {
-            setLanguage(selectedLang);
+            changeLanguage(selectedLang);
             setLoading(true);
             setMessage('');
 
