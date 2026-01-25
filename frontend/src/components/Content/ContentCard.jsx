@@ -95,19 +95,7 @@ const ContentCard = ({ content, onDelete }) => {
             }
       };
 
-      const handleFollow = async () => {
-            if (!token) return;
-            try {
-                  const endpoint = isFollowing ? 'unfollow' : 'follow';
-                  await fetch(`${API_URL}/users/${content.creator._id}/${endpoint}`, {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${token}` }
-                  });
-                  setIsFollowing(!isFollowing);
-            } catch (error) {
-                  console.error('Failed to toggle follow:', error);
-            }
-      };
+
 
       const handleDelete = async () => {
             if (!window.confirm('Are you sure you want to delete this content?')) {
