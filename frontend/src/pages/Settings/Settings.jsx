@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { useNavigate } from 'react-router-dom';
 import { API_URL } from '../../config';
 import SettingsOption from '../../components/Settings/SettingsOption';
 
 const Settings = () => {
       const { user, token, logout } = useAuth();
+      const { t } = useLanguage();
       const navigate = useNavigate();
       const [loading, setLoading] = useState(false);
       const [message, setMessage] = useState('');
@@ -51,7 +53,7 @@ const Settings = () => {
                         marginBottom: '24px',
                         padding: '0 16px'
                   }}>
-                        ⚙️ Settings
+                        ⚙️ {t('settings')}
                   </h1>
 
                   {message && (
@@ -74,43 +76,43 @@ const Settings = () => {
                         border: '1px solid var(--color-border)'
                   }}>
                         {/* For You Section */}
-                        <SectionTitle title="For you" />
+                        <SectionTitle title={t('forYou')} />
                         <SettingsOption
                               icon="📑"
-                              label="Saved"
+                              label={t('saved')}
                               subtitle="Your saved posts and content"
                               onClick={() => navigate('/content/saved')}
                         />
                         <SettingsOption
                               icon="📦"
-                              label="Archive"
+                              label={t('archive')}
                               subtitle="Posts you've archived"
                               onClick={() => setShowArchive(true)}
                         />
                         <SettingsOption
                               icon="📊"
-                              label="Your activity"
+                              label={t('activity')}
                               subtitle="Time spent, posts viewed, and more"
                               onClick={() => setShowActivity(true)}
                         />
                         <SettingsOption
                               icon="🔔"
-                              label="Notifications"
+                              label={t('notifications')}
                               subtitle="Manage your notification preferences"
                               onClick={() => navigate('/settings/notifications')}
                         />
                         <SettingsOption
                               icon="⏰"
-                              label="Time management"
+                              label={t('timeManagement')}
                               subtitle="Set daily time limits and reminders"
                               onClick={() => setShowTimeManagement(true)}
                         />
 
                         {/* For Professionals Section */}
-                        <SectionTitle title="For professionals" />
+                        <SectionTitle title={t('forProfessionals')} />
                         <SettingsOption
                               icon="📈"
-                              label="Insights"
+                              label={t('insights')}
                               subtitle="View your content analytics"
                               onClick={() => setShowInsights(true)}
                         />
@@ -129,46 +131,46 @@ const Settings = () => {
                         />
                         <SettingsOption
                               icon="🛠️"
-                              label="Creator tools and controls"
+                              label={t('creatorTools')}
                               subtitle="Manage your creator features"
                               onClick={() => setShowCreatorTools(true)}
                         />
 
                         {/* Who Can See Your Content Section */}
-                        <SectionTitle title="Who can see your content" />
+                        <SectionTitle title={t('whoCanSee')} />
                         <SettingsOption
                               icon="🔒"
-                              label="Account privacy"
+                              label={t('privacy')}
                               value={user?.isPrivate ? 'Private' : 'Public'}
                               onClick={() => navigate('/settings/privacy')}
                         />
                         <SettingsOption
                               icon="👥"
-                              label="Close Friends"
+                              label={t('closeFriends')}
                               subtitle="Share with your closest friends"
                               onClick={() => setShowCloseFriends(true)}
                         />
 
                         {/* How You Use ZUNO Section */}
-                        <SectionTitle title="How you use ZUNO" />
+                        <SectionTitle title={t('howYouUse')} />
                         <SettingsOption
                               icon="🎨"
-                              label="Appearance"
+                              label={t('appearance')}
                               value={localStorage.getItem('theme') === 'light' ? 'Light' : localStorage.getItem('theme') === 'dark' ? 'Dark' : 'System'}
                               onClick={() => navigate('/settings/appearance')}
                         />
                         <SettingsOption
                               icon="🌍"
-                              label="Language"
+                              label={t('language')}
                               value={user?.language === 'hi' ? 'Hindi' : 'English'}
                               onClick={() => navigate('/settings/language')}
                         />
 
                         {/* Account Section */}
-                        <SectionTitle title="Your account" />
+                        <SectionTitle title={t('yourAccount')} />
                         <SettingsOption
                               icon="👤"
-                              label="Personal information"
+                              label={t('personalInfo')}
                               subtitle="Edit your profile details"
                               onClick={() => navigate('/profile')}
                         />
@@ -179,12 +181,12 @@ const Settings = () => {
                         />
                         <SettingsOption
                               icon="🚪"
-                              label="Log out"
+                              label={t('logout')}
                               onClick={handleLogout}
                         />
                         <SettingsOption
                               icon="🗑️"
-                              label="Delete account"
+                              label={t('deleteAccount')}
                               onClick={() => {
                                     if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
                                           alert('Contact support to delete your account');

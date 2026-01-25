@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import ContentCard from '../components/Content/ContentCard';
 import StoryBar from '../components/Story/StoryBar';
 import { API_URL } from '../config';
@@ -33,6 +34,7 @@ const CATEGORIES = [
 
 const Home = () => {
       const { token, isAuthenticated, user } = useAuth();
+      const { t } = useLanguage();
       const [mode, setMode] = useState('learning');
       const [contents, setContents] = useState([]);
       const [loading, setLoading] = useState(true);
@@ -85,8 +87,8 @@ const Home = () => {
                                     </div>
 
                                     <h1 className="hero-title">
-                                          Learn, Grow & Share <br />
-                                          <span className="text-gradient">Without the Noise</span>
+                                          {t('heroTitle') || 'Learn, Grow & Share'} <br />
+                                          <span className="text-gradient">{t('heroSubtitle') || 'Without the Noise'}</span>
                                     </h1>
 
                                     <p className="hero-subtitle">
@@ -96,10 +98,10 @@ const Home = () => {
 
                                     <div className="hero-buttons">
                                           <Link to="/register" className="btn btn-primary btn-lg">
-                                                ✨ Join ZUNO Free
+                                                ✨ {t('join')}
                                           </Link>
                                           <Link to="/login" className="btn btn-secondary btn-lg">
-                                                Login
+                                                {t('login')}
                                           </Link>
                                     </div>
 
@@ -139,16 +141,16 @@ const Home = () => {
                                     <div className="flex items-center justify-between flex-wrap gap-lg">
                                           <div>
                                                 <h2 className="text-2xl font-bold mb-sm">
-                                                      Welcome back, <span className="text-gradient">{user?.displayName || user?.username}</span>! 👋
+                                                      {t('welcomeBack')}, <span className="text-gradient">{user?.displayName || user?.username}</span>! 👋
                                                 </h2>
                                                 <p className="text-secondary">Ready to learn something new today?</p>
                                           </div>
                                           <div className="flex gap-md">
                                                 <Link to="/upload" className="btn btn-primary">
-                                                      ➕ Upload Content
+                                                      ➕ {t('upload')}
                                                 </Link>
                                                 <Link to="/profile" className="btn btn-secondary">
-                                                      👤 Profile
+                                                      👤 {t('profile')}
                                                 </Link>
                                           </div>
                                     </div>
