@@ -15,6 +15,7 @@ const ContentCard = ({ content, onDelete }) => {
       const [animateHelpful, setAnimateHelpful] = useState(false);
       const [animateSave, setAnimateSave] = useState(false);
       const [animateShare, setAnimateShare] = useState(false);
+      const [imageLoaded, setImageLoaded] = useState(false);
 
       // Assuming useFollow is a custom hook you have
       // const { isFollowing: initialFollowing } = useFollow(content.creator?._id);
@@ -229,34 +230,82 @@ const ContentCard = ({ content, onDelete }) => {
 
                   {/* Media */}
                   {content.media && content.media.length > 0 && (
-                        <div className="content-card-media">
-                              {content.media[0].type === 'image' ? (
-                                    <img
-                                          src={imageError ? placeholderImage : getMediaUrl(content.media[0].url)}
-                                          alt={content.title || 'Content image'}
-                                          loading="lazy"
-                                          onError={() => setImageError(true)}
-                                          style={{ minHeight: '200px', backgroundColor: '#f5f5f5' }}
-                                    />
-                              ) : (
-                                    <video
-                                          key={content.media[0].url}
-                                          src={getMediaUrl(content.media[0].url)}
-                                          controls
-                                          controlsList="nodownload"
-                                          playsInline
-                                          preload="metadata"
-                                          poster={content.media[0].thumbnail}
-                                          onError={(e) => {
-                                                console.error('Video failed to load:', e);
-                                                // Retry loading once
-                                                if (!e.target.dataset.retried) {
-                                                      e.target.dataset.retried = 'true';
-                                                      e.target.load();
-                                                }
-                                          }}
-                                    />
+                        <div className="content-card-media relative bg-gray-100" style={{ minHeight: '200px' }}>
+                              {/* Uploading State */}
+                              {content.media[0].status === 'uploading' && (
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500">
+                                          <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-2"></div>
+                                          <span className="text-sm">Processing media...</span>
+                                    </div>
                               )}
+
+                              {/* Error State */}
+                              {content.media[0].status === 'failed' && (
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center text-red-500">
+                                          <span className="text-2xl mb-2">⚠️</span>
+                                          <span className="text-sm">Media failed to process</span>
+                                    </div>
+                              )}
+
+                              {/* Ready State */}
+                              {(content.media[0].status === 'ready' || !content.media[0].status) && (
+                                    content.media[0].type === 'image' ? (
+                                          <>
+                                                {/* Loading Spinner for Image */}
+                                                {!imageLoaded && !imageError && (
+                                                      <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+                                                            <div className="w-8 h-8 border-4 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
+                                                      </div>
+                                                )}
+
+                                                <img
+                                                      src={imageError ? placeholderImage : `${getMediaUrl(content.media[0].url)}?v=${new Date(content.updatedAt).getTime()}`}
+                                                      alt={content.title || 'Content image'}
+                                                      loading="lazy"
+                                                      onLoad={() => setImageLoaded(true)}
+                                                      onError={() => setImageError(true)}
+                                                      className={`w-full h-auto object-cover transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+                                                      style={{ minHeight: '200px', display: imageError ? 'none' : 'block' }}
+                                                />
+
+                                                {/* Fallback for Error */}
+                                                {imageError && (
+                                                      <div className="flex flex-col items-center justify-center h-full p-8 text-gray-400 bg-gray-100" style={{ minHeight: '200px' }}>
+                                                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="mb-2">
+                                                                  <image x="4" y="4" width="16" height="16" transform="rotate(-15 12 12)" opacity="0.1" />
+                                                                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-9" />
+                                                                  <path d="M15 5h4a2 2 0 0 1 2 2v2" />
+                                                                  <path d="M13 2 L3 12" />
+                                                                  <path d="M21 2 L11 12" />
+                                                            </svg>
+                                                            <span className="text-sm">Image not available</span>
+                                                      </div>
+                                                )}
+                                          </>
+                                    ) : (
+                                          <video
+                                                key={content.media[0].url}
+                                                src={`${getMediaUrl(content.media[0].url)}?v=${new Date(content.updatedAt).getTime()}`}
+                                                controls
+                                                controlsList="nodownload"
+                                                playsInline
+                                                preload="metadata"
+                                                poster={content.media[0].thumbnail}
+                                                className="w-full h-auto bg-black"
+                                                style={{ maxHeight: '600px' }}
+                                                onError={(e) => {
+                                                      console.error('Video failed to load:', e);
+                                                      if (!e.target.dataset.retried) {
+                                                            e.target.dataset.retried = 'true';
+                                                            setTimeout(() => {
+                                                                  e.target.src = `${getMediaUrl(content.media[0].url)}?v=${Date.now()}`;
+                                                            }, 1000);
+                                                      }
+                                                }}
+                                          />
+                                    )
+                              )}
+
                               {/* Content Type Badge */}
                               {content.contentType.includes('video') && (
                                     <div style={{

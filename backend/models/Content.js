@@ -36,7 +36,12 @@ const contentSchema = new mongoose.Schema({
             url: String,
             type: { type: String, enum: ['image', 'video', 'audio'] },
             duration: Number, // for videos in seconds
-            thumbnail: String
+            thumbnail: String,
+            status: {
+                  type: String,
+                  enum: ['uploading', 'ready', 'failed'],
+                  default: 'ready'
+            }
       }],
 
       // Purpose-based category (ZUNO unique)

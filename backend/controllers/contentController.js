@@ -17,12 +17,14 @@ const createContent = async (req, res) => {
             if (req.files && req.files.length > 0) {
                   media = req.files.map(file => ({
                         url: `/uploads/${file.filename}`,
-                        type: file.mimetype.startsWith('image') ? 'image' : 'video'
+                        type: file.mimetype.startsWith('image') ? 'image' : 'video',
+                        status: 'ready'
                   }));
             } else if (req.file) {
                   media = [{
                         url: `/uploads/${req.file.filename}`,
-                        type: req.file.mimetype.startsWith('image') ? 'image' : 'video'
+                        type: req.file.mimetype.startsWith('image') ? 'image' : 'video',
+                        status: 'ready'
                   }];
             }
 

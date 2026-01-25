@@ -6,8 +6,16 @@ import { API_URL, API_BASE_URL } from '../../config';
 const StoryViewer = ({ group, onClose }) => {
       const [currentIndex, setCurrentIndex] = useState(0);
       const [progress, setProgress] = useState(0);
+      const [imageLoaded, setImageLoaded] = useState(false);
+      const [error, setError] = useState(false);
       const currentStory = group.stories[currentIndex];
       const videoRef = useRef(null);
+
+      // Reset state for new story
+      useEffect(() => {
+            setImageLoaded(false);
+            setError(false);
+      }, [currentIndex]);
 
       useEffect(() => {
             const timer = setInterval(() => {
@@ -82,6 +90,12 @@ const StoryViewer = ({ group, onClose }) => {
 
                         {/* Media */}
                         <div className="flex-1 flex items-center justify-center bg-black relative">
+                              {!isVideo && !imageLoaded && !error && (
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                          <div className="w-8 h-8 border-4 border-gray-600 border-t-white rounded-full animate-spin"></div>
+                                    </div>
+                              )}
+
                               {isVideo ? (
                                     <video
                                           src={getMediaUrl(media.url)}
@@ -89,12 +103,23 @@ const StoryViewer = ({ group, onClose }) => {
                                           autoPlay
                                           playsInline
                                           onEnded={handleNext}
+                                          onLoadedData={() => setImageLoaded(true)}
+                                          onError={() => setError(true)}
                                     />
                               ) : (
                                     <img
                                           src={getMediaUrl(media.url)}
-                                          className="w-full h-full object-contain"
+                                          className={`w-full h-full object-contain transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+                                          onLoad={() => setImageLoaded(true)}
+                                          onError={() => setError(true)}
                                     />
+                              )}
+
+                              {error && (
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
+                                          <span className="text-3xl mb-2">⚠️</span>
+                                          <p>Failed to load story</p>
+                                    </div>
                               )}
 
                               {/* Navigation Zones */}
