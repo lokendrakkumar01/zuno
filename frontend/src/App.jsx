@@ -90,7 +90,7 @@ function AppRouter() {
 function App() {
       // Initialize theme on app load
       useEffect(() => {
-            const savedTheme = localStorage.getItem('theme') || 'dark';
+            const savedTheme = localStorage.getItem('theme') || 'light';
             document.documentElement.setAttribute('data-theme', savedTheme);
       }, []);
 

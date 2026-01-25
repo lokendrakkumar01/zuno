@@ -5,11 +5,11 @@ import { useAuth } from '../../context/AuthContext';
 const Appearance = () => {
       const navigate = useNavigate();
       const { user } = useAuth();
-      const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
+      const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
       const [message, setMessage] = useState('');
 
       useEffect(() => {
-            const savedTheme = localStorage.getItem('theme') || 'dark';
+            const savedTheme = localStorage.getItem('theme') || 'light';
             setTheme(savedTheme);
       }, []);
 
