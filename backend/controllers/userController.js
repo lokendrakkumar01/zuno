@@ -329,6 +329,118 @@ const getFollowRequests = async (req, res) => {
       }
 };
 
+// @desc    Get close friends list
+// @route   GET /api/users/close-friends
+// @access  Private
+const getCloseFriends = async (req, res) => {
+      try {
+            const user = await User.findById(req.user.id)
+                  .populate('closeFriends', 'username displayName avatar bio isVerified');
+
+            res.json({
+                  success: true,
+                  data: {
+                        closeFriends: user.closeFriends || [],
+                        count: user.closeFriends ? user.closeFriends.length : 0
+                  }
+            });
+      } catch (error) {
+            res.status(500).json({ success: false, message: 'Failed to get close friends', error: error.message });
+      }
+};
+
+// @desc    Add a user to close friends
+// @route   POST /api/users/close-friends/:id
+// @access  Private
+const addCloseFriend = async (req, res) => {
+      try {
+            if (req.user.id === req.params.id) {
+                  return res.status(400).json({ success: false, message: "You cannot add yourself as a close friend" });
+            }
+
+            const userToAdd = await User.findById(req.params.id);
+            const currentUser = await User.findById(req.user.id);
+
+            if (!userToAdd) {
+                  return res.status(404).json({ success: false, message: "User not found" });
+            }
+
+            if (currentUser.closeFriends && currentUser.closeFriends.includes(req.params.id)) {
+                  return res.status(400).json({ success: false, message: "User is already in your close friends" });
+            }
+
+            await currentUser.updateOne({ $push: { closeFriends: req.params.id } });
+
+            res.json({
+                  success: true,
+                  message: "Added to close friends",
+                  data: { userId: req.params.id }
+            });
+      } catch (error) {
+            res.status(500).json({ success: false, message: "Failed to add close friend", error: error.message });
+      }
+};
+
+// @desc    Remove a user from close friends
+// @route   DELETE /api/users/close-friends/:id
+// @access  Private
+const removeCloseFriend = async (req, res) => {
+      try {
+            const currentUser = await User.findById(req.user.id);
+
+            if (!currentUser.closeFriends || !currentUser.closeFriends.includes(req.params.id)) {
+                  return res.status(400).json({ success: false, message: "User is not in your close friends" });
+            }
+
+            await currentUser.updateOne({ $pull: { closeFriends: req.params.id } });
+
+            res.json({
+                  success: true,
+                  message: "Removed from close friends",
+                  data: { userId: req.params.id }
+            });
+      } catch (error) {
+            res.status(500).json({ success: false, message: "Failed to remove close friend", error: error.message });
+      }
+};
+
+// @desc    Search users
+// @route   GET /api/users/search
+// @access  Private
+const searchUsers = async (req, res) => {
+      try {
+            const { q } = req.query;
+
+            if (!q || q.length < 2) {
+                  return res.status(400).json({
+                        success: false,
+                        message: 'Search query must be at least 2 characters'
+                  });
+            }
+
+            const users = await User.find({
+                  $and: [
+                        { _id: { $ne: req.user.id } },
+                        {
+                              $or: [
+                                    { username: { $regex: q, $options: 'i' } },
+                                    { displayName: { $regex: q, $options: 'i' } }
+                              ]
+                        }
+                  ]
+            })
+                  .select('username displayName avatar bio isVerified')
+                  .limit(20);
+
+            res.json({
+                  success: true,
+                  data: { users }
+            });
+      } catch (error) {
+            res.status(500).json({ success: false, message: 'Search failed', error: error.message });
+      }
+};
+
 module.exports = {
       getUserProfile,
       updateProfile,
@@ -341,5 +453,9 @@ module.exports = {
       rejectFollowRequest,
       getFollowRequests,
       getFollowers,
-      getFollowing
+      getFollowing,
+      getCloseFriends,
+      addCloseFriend,
+      removeCloseFriend,
+      searchUsers
 };

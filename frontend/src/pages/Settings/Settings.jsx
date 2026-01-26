@@ -148,7 +148,7 @@ const Settings = () => {
                               icon="👥"
                               label={t('closeFriends')}
                               subtitle="Share with your closest friends"
-                              onClick={() => setShowCloseFriends(true)}
+                              onClick={() => navigate('/settings/close-friends')}
                         />
 
                         {/* How You Use ZUNO Section */}

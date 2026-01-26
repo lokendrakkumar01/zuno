@@ -9,14 +9,30 @@ const CloseFriends = () => {
       const [friends, setFriends] = useState([]);
       const [searchQuery, setSearchQuery] = useState('');
       const [searchResults, setSearchResults] = useState([]);
-      const [loading, setLoading] = useState(false);
+      const [loading, setLoading] = useState(true);
       const [message, setMessage] = useState('');
 
-      // Mock friends for now - replace with actual API call
+      // Fetch close friends list from backend
       useEffect(() => {
-            // TODO: Fetch close friends list from backend
-            setFriends([]);
+            fetchCloseFriends();
       }, []);
+
+      const fetchCloseFriends = async () => {
+            try {
+                  setLoading(true);
+                  const res = await fetch(`${API_URL}/users/close-friends/list`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                        setFriends(data.data.closeFriends || []);
+                  }
+            } catch (error) {
+                  console.error('Failed to fetch close friends:', error);
+            } finally {
+                  setLoading(false);
+            }
+      };
 
       const handleSearch = async (query) => {
             setSearchQuery(query);
@@ -31,7 +47,10 @@ const CloseFriends = () => {
                   });
                   const data = await res.json();
                   if (data.success) {
-                        setSearchResults(data.data.users || []);
+                        // Filter out users who are already close friends
+                        const friendIds = friends.map(f => f._id);
+                        const filtered = (data.data.users || []).filter(u => !friendIds.includes(u._id));
+                        setSearchResults(filtered);
                   }
             } catch (error) {
                   console.error('Search failed:', error);
@@ -41,12 +60,54 @@ const CloseFriends = () => {
       const handleAddFriend = async (userId) => {
             setMessage('');
             try {
-                  setMessage('✅ Added to Close Friends!');
-                  setSearchQuery('');
-                  setSearchResults([]);
-                  setTimeout(() => setMessage(''), 2000);
+                  const res = await fetch(`${API_URL}/users/close-friends/${userId}`, {
+                        method: 'POST',
+                        headers: {
+                              'Authorization': `Bearer ${token}`,
+                              'Content-Type': 'application/json'
+                        }
+                  });
+                  const data = await res.json();
+
+                  if (data.success) {
+                        setMessage('✅ Added to Close Friends!');
+                        // Refresh the close friends list
+                        fetchCloseFriends();
+                        setSearchQuery('');
+                        setSearchResults([]);
+                  } else {
+                        setMessage(`❌ ${data.message || 'Failed to add friend'}`);
+                  }
+                  setTimeout(() => setMessage(''), 3000);
             } catch (error) {
                   setMessage('❌ Failed to add friend');
+                  setTimeout(() => setMessage(''), 3000);
+            }
+      };
+
+      const handleRemoveFriend = async (userId) => {
+            setMessage('');
+            try {
+                  const res = await fetch(`${API_URL}/users/close-friends/${userId}`, {
+                        method: 'DELETE',
+                        headers: {
+                              'Authorization': `Bearer ${token}`,
+                              'Content-Type': 'application/json'
+                        }
+                  });
+                  const data = await res.json();
+
+                  if (data.success) {
+                        setMessage('✅ Removed from Close Friends');
+                        // Refresh the close friends list
+                        fetchCloseFriends();
+                  } else {
+                        setMessage(`❌ ${data.message || 'Failed to remove friend'}`);
+                  }
+                  setTimeout(() => setMessage(''), 3000);
+            } catch (error) {
+                  setMessage('❌ Failed to remove friend');
+                  setTimeout(() => setMessage(''), 3000);
             }
       };
 
@@ -153,16 +214,63 @@ const CloseFriends = () => {
                         padding: '20px',
                         margin: '0 16px'
                   }}>
-                        {friends.length === 0 ? (
+                        <h3 style={{ marginBottom: '16px', color: 'var(--color-text-primary)', fontSize: '16px' }}>
+                              Your Close Friends ({friends.length})
+                        </h3>
+                        {loading ? (
+                              <div style={{ textAlign: 'center', padding: '20px', color: 'var(--color-text-secondary)' }}>
+                                    Loading...
+                              </div>
+                        ) : friends.length === 0 ? (
                               <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--color-text-secondary)' }}>
                                     <div style={{ fontSize: '48px', marginBottom: '16px' }}>👥</div>
                                     <h3 style={{ marginBottom: '8px', color: 'var(--color-text-primary)' }}>No Close Friends Yet</h3>
                                     <p>Search and add users to share exclusive content</p>
                               </div>
                         ) : (
-                              friends.map(friend => (
-                                    <div key={friend._id}>Friend: {friend.username}</div>
-                              ))
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                    {friends.map(friend => (
+                                          <div key={friend._id} style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between',
+                                                padding: '12px',
+                                                backgroundColor: 'var(--color-bg-secondary)',
+                                                borderRadius: '12px'
+                                          }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                      <div className="avatar avatar-sm" style={{
+                                                            border: '2px solid #22c55e' // Green ring for close friends
+                                                      }}>
+                                                            {friend.avatar ? <img src={friend.avatar} alt={friend.username} /> : friend.username[0].toUpperCase()}
+                                                      </div>
+                                                      <div>
+                                                            <div style={{ fontWeight: '500', color: 'var(--color-text-primary)' }}>
+                                                                  {friend.displayName || friend.username}
+                                                            </div>
+                                                            <div style={{ fontSize: '14px', color: 'var(--color-text-secondary)' }}>
+                                                                  @{friend.username}
+                                                            </div>
+                                                      </div>
+                                                </div>
+                                                <button
+                                                      onClick={() => handleRemoveFriend(friend._id)}
+                                                      style={{
+                                                            padding: '8px 16px',
+                                                            borderRadius: '8px',
+                                                            border: '1px solid var(--color-border)',
+                                                            background: 'transparent',
+                                                            color: 'var(--color-text-secondary)',
+                                                            fontWeight: '500',
+                                                            fontSize: '14px',
+                                                            cursor: 'pointer'
+                                                      }}
+                                                >
+                                                      Remove
+                                                </button>
+                                          </div>
+                                    ))}
+                              </div>
                         )}
                   </div>
 
