@@ -12,19 +12,19 @@ const createContent = async (req, res) => {
                   visibility, chapters, notes, silentMode, language
             } = req.body;
 
-            // Build media array from uploaded files
+            // Build media array from uploaded files - SET STATUS TO UPLOADING INITIALLY
             let media = [];
             if (req.files && req.files.length > 0) {
                   media = req.files.map(file => ({
                         url: `/uploads/${file.filename}`,
                         type: file.mimetype.startsWith('image') ? 'image' : 'video',
-                        status: 'ready'
+                        status: 'uploading' // Changed from 'ready' - file needs verification
                   }));
             } else if (req.file) {
                   media = [{
                         url: `/uploads/${req.file.filename}`,
                         type: req.file.mimetype.startsWith('image') ? 'image' : 'video',
-                        status: 'ready'
+                        status: 'uploading' // Changed from 'ready' - file needs verification
                   }];
             }
 
@@ -45,10 +45,40 @@ const createContent = async (req, res) => {
                   expiresAt: contentType === 'story' ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null
             });
 
+            // VERIFY FILES EXIST AND UPDATE STATUS
+            const fs = require('fs');
+            const path = require('path');
+
+            for (let mediaItem of content.media) {
+                  const filePath = path.join(__dirname, '..', 'public', mediaItem.url);
+
+                  try {
+                        // Check if file exists and is accessible
+                        if (fs.existsSync(filePath)) {
+                              mediaItem.status = 'ready';
+                              // Add cache-busting timestamp to prevent browser caching issues
+                              const timestamp = Date.now();
+                              mediaItem.url = `${mediaItem.url}?v=${timestamp}`;
+                        } else {
+                              mediaItem.status = 'failed';
+                              console.error(`Media file not found: ${filePath}`);
+                        }
+                  } catch (error) {
+                        mediaItem.status = 'failed';
+                        console.error(`Error verifying media file: ${error.message}`);
+                  }
+            }
+
+            // Save updated media status
+            await content.save();
+
             // Update user stats
             await User.findByIdAndUpdate(req.user.id, {
                   $inc: { 'stats.contentCount': 1 }
             });
+
+            // Populate creator info before sending response
+            await content.populate('creator', 'username displayName avatar role');
 
             res.status(201).json({
                   success: true,
@@ -56,6 +86,7 @@ const createContent = async (req, res) => {
                   data: { content }
             });
       } catch (error) {
+            console.error('Content creation error:', error);
             res.status(500).json({
                   success: false,
                   message: 'Failed to create content',

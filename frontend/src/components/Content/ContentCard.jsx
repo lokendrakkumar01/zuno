@@ -17,6 +17,11 @@ const ContentCard = ({ content, onDelete }) => {
       const [animateShare, setAnimateShare] = useState(false);
       const [imageLoaded, setImageLoaded] = useState(false);
 
+      // Media status tracking for polling
+      const [mediaStatus, setMediaStatus] = useState(content.media?.[0]?.status || 'ready');
+      const [pollCount, setPollCount] = useState(0);
+      const [mediaUrl, setMediaUrl] = useState(content.media?.[0]?.url || '');
+
       // Assuming useFollow is a custom hook you have
       // const { isFollowing: initialFollowing } = useFollow(content.creator?._id);
       const [isFollowing, setIsFollowing] = useState(false); // Placeholder for now
@@ -24,6 +29,35 @@ const ContentCard = ({ content, onDelete }) => {
       useEffect(() => {
             // setIsFollowing(initialFollowing); // Uncomment when useFollow is implemented
       }, []); // [initialFollowing]
+
+      // Poll for media status updates when uploading
+      useEffect(() => {
+            if (mediaStatus === 'uploading' && pollCount < 10) {
+                  const interval = setInterval(async () => {
+                        try {
+                              const res = await fetch(`${API_URL}/content/${content._id}`);
+                              const data = await res.json();
+
+                              if (data.success && data.data.content.media?.[0]) {
+                                    const newMediaStatus = data.data.content.media[0].status;
+                                    const newMediaUrl = data.data.content.media[0].url;
+
+                                    if (newMediaStatus !== 'uploading') {
+                                          setMediaStatus(newMediaStatus);
+                                          setMediaUrl(newMediaUrl);
+                                          clearInterval(interval);
+                                    }
+                              }
+                              setPollCount(c => c + 1);
+                        } catch (error) {
+                              console.error('Error polling media status:', error);
+                              setPollCount(c => c + 1);
+                        }
+                  }, 2000); // Poll every 2 seconds
+
+                  return () => clearInterval(interval);
+            }
+      }, [mediaStatus, pollCount, content._id]);
 
       // Close menu when clicking outside
       useEffect(() => {
@@ -247,7 +281,7 @@ const ContentCard = ({ content, onDelete }) => {
                   {content.media && content.media.length > 0 && (
                         <div className="content-card-media relative bg-gray-100" style={{ minHeight: '200px' }}>
                               {/* Uploading State */}
-                              {content.media[0].status === 'uploading' && (
+                              {mediaStatus === 'uploading' && (
                                     <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500">
                                           <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-2"></div>
                                           <span className="text-sm">Processing media...</span>
@@ -255,7 +289,7 @@ const ContentCard = ({ content, onDelete }) => {
                               )}
 
                               {/* Error State */}
-                              {content.media[0].status === 'failed' && (
+                              {mediaStatus === 'failed' && (
                                     <div className="absolute inset-0 flex flex-col items-center justify-center text-red-500">
                                           <span className="text-2xl mb-2">⚠️</span>
                                           <span className="text-sm">Media failed to process</span>
@@ -263,7 +297,7 @@ const ContentCard = ({ content, onDelete }) => {
                               )}
 
                               {/* Ready State */}
-                              {(content.media[0].status === 'ready' || !content.media[0].status) && (
+                              {mediaStatus === 'ready' && (
                                     content.media[0].type === 'image' ? (
                                           <>
                                                 {/* Loading Spinner for Image */}
@@ -274,7 +308,7 @@ const ContentCard = ({ content, onDelete }) => {
                                                 )}
 
                                                 <img
-                                                      src={imageError ? placeholderImage : `${getMediaUrl(content.media[0].url)}?v=${new Date(content.updatedAt).getTime()}`}
+                                                      src={imageError ? placeholderImage : `${getMediaUrl(mediaUrl)}${mediaUrl.includes('?') ? '&' : '?'}cache=${Date.now()}`}
                                                       alt={content.title || 'Content image'}
                                                       loading="lazy"
                                                       onLoad={() => setImageLoaded(true)}
@@ -299,8 +333,8 @@ const ContentCard = ({ content, onDelete }) => {
                                           </>
                                     ) : (
                                           <video
-                                                key={content.media[0].url}
-                                                src={`${getMediaUrl(content.media[0].url)}?v=${new Date(content.updatedAt).getTime()}`}
+                                                key={mediaUrl}
+                                                src={`${getMediaUrl(mediaUrl)}${mediaUrl.includes('?') ? '&' : '?'}cache=${Date.now()}`}
                                                 controls
                                                 controlsList="nodownload"
                                                 playsInline
@@ -313,7 +347,7 @@ const ContentCard = ({ content, onDelete }) => {
                                                       if (!e.target.dataset.retried) {
                                                             e.target.dataset.retried = 'true';
                                                             setTimeout(() => {
-                                                                  e.target.src = `${getMediaUrl(content.media[0].url)}?v=${Date.now()}`;
+                                                                  e.target.src = `${getMediaUrl(mediaUrl)}?cache=${Date.now()}`;
                                                             }, 1000);
                                                       }
                                                 }}
