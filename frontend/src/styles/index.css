@@ -1400,6 +1400,63 @@ textarea.input {
   gap: var(--space-lg);
 }
 
+/* Posts Grid - Profile Page */
+.posts-grid {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: var(--space-lg);
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+/* Tablet - 2 columns for posts grid */
+@media (min-width: 768px) {
+  .posts-grid {
+    grid-template-columns: repeat(1, 1fr);
+    max-width: 600px;
+  }
+}
+
+/* Desktop - keep single column for feed-style layout */
+@media (min-width: 1024px) {
+  .posts-grid {
+    grid-template-columns: repeat(1, 1fr);
+    max-width: 600px;
+  }
+}
+
+/* Instagram-style Grid for Profile (3 columns) */
+.posts-grid-compact {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+  width: 100%;
+}
+
+.posts-grid-compact .content-card {
+  aspect-ratio: 1;
+  margin-bottom: 0;
+  border-radius: 0;
+  border: none;
+}
+
+.posts-grid-compact .content-card-media {
+  height: 100%;
+}
+
+.posts-grid-compact .content-card-media img,
+.posts-grid-compact .content-card-media video {
+  object-fit: cover;
+  height: 100%;
+}
+
+.posts-grid-compact .content-card-header,
+.posts-grid-compact .content-card-body,
+.posts-grid-compact .content-card-footer {
+  display: none;
+}
+
 /* Content Card - Instagram Style */
 .content-card {
   background: var(--color-bg-card);
