@@ -50,7 +50,9 @@ const createContent = async (req, res) => {
             const path = require('path');
 
             for (let mediaItem of content.media) {
-                  const filePath = path.join(__dirname, '..', 'public', mediaItem.url);
+                  // Remove leading slash from URL for proper path joining
+                  const urlPath = mediaItem.url.startsWith('/') ? mediaItem.url.substring(1) : mediaItem.url;
+                  const filePath = path.join(__dirname, '..', 'public', urlPath);
 
                   try {
                         // Check if file exists and is accessible
