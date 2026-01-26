@@ -23,21 +23,47 @@ const Search = () => {
             try {
                   const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
 
-                  // Search for content
-                  if (searchType === 'all' || searchType === 'content') {
-                        const contentRes = await fetch(
-                              `${API_URL}/feed?search=${encodeURIComponent(searchQuery)}&limit=20`,
-                              { headers }
-                        );
-                        const contentData = await contentRes.json();
-                        if (contentData.success) {
-                              setContents(contentData.data.contents || []);
+                  // Search for users
+                  if (searchType === 'all' || searchType === 'users') {
+                        try {
+                              const userRes = await fetch(
+                                    `${API_URL}/users/search?q=${encodeURIComponent(searchQuery)}&limit=20`,
+                                    { headers }
+                              );
+                              const userData = await userRes.json();
+                              if (userData.success) {
+                                    setUsers(userData.data.users || []);
+                              } else {
+                                    setUsers([]);
+                              }
+                        } catch (error) {
+                              console.error('User search failed:', error);
+                              setUsers([]);
                         }
+                  } else {
+                        setUsers([]);
                   }
 
-                  // For now, we'll show content search only
-                  // User search would need a backend endpoint
-                  setUsers([]);
+                  // Search for content
+                  if (searchType === 'all' || searchType === 'content') {
+                        try {
+                              const contentRes = await fetch(
+                                    `${API_URL}/feed/search?q=${encodeURIComponent(searchQuery)}&limit=20`,
+                                    { headers }
+                              );
+                              const contentData = await contentRes.json();
+                              if (contentData.success) {
+                                    setContents(contentData.data.contents || []);
+                              } else {
+                                    setContents([]);
+                              }
+                        } catch (error) {
+                              console.error('Content search failed:', error);
+                              setContents([]);
+                        }
+                  } else {
+                        setContents([]);
+                  }
 
             } catch (error) {
                   console.error('Search failed:', error);
