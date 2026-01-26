@@ -54,21 +54,11 @@ const createContent = async (req, res) => {
                   const urlPath = mediaItem.url.startsWith('/') ? mediaItem.url.substring(1) : mediaItem.url;
                   const filePath = path.join(__dirname, '..', 'public', urlPath);
 
-                  try {
-                        // Check if file exists and is accessible
-                        if (fs.existsSync(filePath)) {
-                              mediaItem.status = 'ready';
-                              // Add cache-busting timestamp to prevent browser caching issues
-                              const timestamp = Date.now();
-                              mediaItem.url = `${mediaItem.url}?v=${timestamp}`;
-                        } else {
-                              mediaItem.status = 'failed';
-                              console.error(`Media file not found: ${filePath}`);
-                        }
-                  } catch (error) {
-                        mediaItem.status = 'failed';
-                        console.error(`Error verifying media file: ${error.message}`);
-                  }
+                  // Multer already confirmed upload success - no need to re-check
+                  mediaItem.status = 'ready';
+                  // Add cache-busting timestamp to prevent browser caching issues
+                  const timestamp = Date.now();
+                  mediaItem.url = `${mediaItem.url}?v=${timestamp}`;
             }
 
             // Save updated media status
