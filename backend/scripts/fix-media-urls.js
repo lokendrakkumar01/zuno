@@ -1,13 +1,14 @@
 // Script to fix media URLs in existing content
 // Run this once to clean up URLs with cache-busting timestamps
 
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const mongoose = require('mongoose');
 const Content = require('../models/Content');
 
 const fixMediaUrls = async () => {
       try {
-            await mongoose.connect(process.env.MONGO_URI);
+            await mongoose.connect(process.env.MONGODB_URI);
             console.log('Connected to MongoDB');
 
             // Find all content with media
