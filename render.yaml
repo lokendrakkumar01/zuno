@@ -5,6 +5,7 @@ services:
     runtime: node
     plan: free
     buildCommand: cd backend && npm install
+    preDeployCommand: cd backend && node scripts/fix-media-urls.js || true
     startCommand: cd backend && node server.js
     envVars:
       - key: PORT
