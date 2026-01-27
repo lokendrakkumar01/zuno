@@ -46,19 +46,9 @@ const createContent = async (req, res) => {
             });
 
             // VERIFY FILES EXIST AND UPDATE STATUS
-            const fs = require('fs');
-            const path = require('path');
-
             for (let mediaItem of content.media) {
-                  // Remove leading slash from URL for proper path joining
-                  const urlPath = mediaItem.url.startsWith('/') ? mediaItem.url.substring(1) : mediaItem.url;
-                  const filePath = path.join(__dirname, '..', 'public', urlPath);
-
-                  // Multer already confirmed upload success - no need to re-check
+                  // Multer already confirmed upload success - set status to ready
                   mediaItem.status = 'ready';
-                  // Add cache-busting timestamp to prevent browser caching issues
-                  const timestamp = Date.now();
-                  mediaItem.url = `${mediaItem.url}?v=${timestamp}`;
             }
 
             // Save updated media status

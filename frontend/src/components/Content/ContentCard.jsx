@@ -308,7 +308,7 @@ const ContentCard = ({ content, onDelete }) => {
                                                 )}
 
                                                 <img
-                                                      src={imageError ? placeholderImage : `${getMediaUrl(mediaUrl)}${mediaUrl.includes('?') ? '&' : '?'}cache=${Date.now()}`}
+                                                      src={imageError ? placeholderImage : getMediaUrl(mediaUrl)}
                                                       alt={content.title || 'Content image'}
                                                       loading="lazy"
                                                       onLoad={() => setImageLoaded(true)}
@@ -334,7 +334,7 @@ const ContentCard = ({ content, onDelete }) => {
                                     ) : (
                                           <video
                                                 key={mediaUrl}
-                                                src={`${getMediaUrl(mediaUrl)}${mediaUrl.includes('?') ? '&' : '?'}cache=${Date.now()}`}
+                                                src={getMediaUrl(mediaUrl)}
                                                 controls
                                                 controlsList="nodownload"
                                                 playsInline
@@ -344,12 +344,6 @@ const ContentCard = ({ content, onDelete }) => {
                                                 style={{ maxHeight: '600px' }}
                                                 onError={(e) => {
                                                       console.error('Video failed to load:', e);
-                                                      if (!e.target.dataset.retried) {
-                                                            e.target.dataset.retried = 'true';
-                                                            setTimeout(() => {
-                                                                  e.target.src = `${getMediaUrl(mediaUrl)}?cache=${Date.now()}`;
-                                                            }, 1000);
-                                                      }
                                                 }}
                                           />
                                     )
