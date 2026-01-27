@@ -2,7 +2,7 @@
 const getApiBaseUrl = () => {
       // Check if running on Render production domain
       if (typeof window !== 'undefined' && window.location.hostname.includes('onrender.com')) {
-            return 'https://zuno-backend-urim.onrender.com';
+            return 'https://zuno-backend.onrender.com';
       }
       // Check for environment variable (for other deployments)
       if (import.meta.env.VITE_API_URL) {
