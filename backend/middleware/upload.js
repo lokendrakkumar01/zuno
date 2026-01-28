@@ -1,11 +1,26 @@
 const multer = require('multer');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
-
 const fs = require('fs');
 
-// Configure storage
-const storage = multer.diskStorage({
+// Check if Cloudinary is configured
+const useCloudinary = !!(
+      process.env.CLOUDINARY_CLOUD_NAME &&
+      process.env.CLOUDINARY_API_KEY &&
+      process.env.CLOUDINARY_API_SECRET
+);
+
+let cloudinaryUpload;
+if (useCloudinary) {
+      const { uploadToCloud } = require('../config/cloudinary');
+      cloudinaryUpload = uploadToCloud;
+      console.log('📁 Using Cloudinary for media storage');
+} else {
+      console.log('📁 Using local disk storage (media will be lost on restart!)');
+}
+
+// Configure local storage as fallback
+const localStorage = multer.diskStorage({
       destination: function (req, file, cb) {
             const folder = 'uploads/';
 
@@ -35,34 +50,44 @@ const fileFilter = (req, file, cb) => {
       }
 };
 
+// Use Cloudinary if configured, otherwise use local storage
+const storage = useCloudinary ? cloudinaryUpload.storage : localStorage;
+
 // Upload configurations
-const uploadImage = multer({
-      storage: storage,
-      limits: {
-            fileSize: 10 * 1024 * 1024, // 10MB max for images
-      },
-      fileFilter: fileFilter
-});
+const uploadImage = useCloudinary
+      ? cloudinaryUpload
+      : multer({
+            storage: localStorage,
+            limits: {
+                  fileSize: 10 * 1024 * 1024, // 10MB max for images
+            },
+            fileFilter: fileFilter
+      });
 
-const uploadVideo = multer({
-      storage: storage,
-      limits: {
-            fileSize: 100 * 1024 * 1024, // 100MB max for videos
-      },
-      fileFilter: fileFilter
-});
+const uploadVideo = useCloudinary
+      ? cloudinaryUpload
+      : multer({
+            storage: localStorage,
+            limits: {
+                  fileSize: 100 * 1024 * 1024, // 100MB max for videos
+            },
+            fileFilter: fileFilter
+      });
 
-const uploadMultiple = multer({
-      storage: storage,
-      limits: {
-            fileSize: 10 * 1024 * 1024,
-            files: 10 // Max 10 files
-      },
-      fileFilter: fileFilter
-});
+const uploadMultiple = useCloudinary
+      ? cloudinaryUpload
+      : multer({
+            storage: localStorage,
+            limits: {
+                  fileSize: 100 * 1024 * 1024,
+                  files: 10 // Max 10 files
+            },
+            fileFilter: fileFilter
+      });
 
 module.exports = {
       uploadImage,
       uploadVideo,
-      uploadMultiple
+      uploadMultiple,
+      useCloudinary
 };

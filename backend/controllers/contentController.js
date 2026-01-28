@@ -13,21 +13,26 @@ const createContent = async (req, res) => {
             } = req.body;
 
             // Build media array from uploaded files 
-            // By this point, multer has already saved the file, so status is 'ready'
+            // Cloudinary returns URL in file.path, local storage uses /uploads/filename
             let media = [];
             if (req.files && req.files.length > 0) {
                   media = req.files.map(file => ({
-                        url: `/uploads/${file.filename}`,
+                        // Cloudinary puts full URL in file.path, local uses /uploads/filename
+                        url: file.path || `/uploads/${file.filename}`,
                         type: file.mimetype.startsWith('image') ? 'image' : 'video',
-                        status: 'ready' // File is already saved by multer
+                        status: 'ready',
+                        // Store public_id for Cloudinary (useful for deletion)
+                        publicId: file.filename || null
                   }));
             } else if (req.file) {
                   media = [{
-                        url: `/uploads/${req.file.filename}`,
+                        url: req.file.path || `/uploads/${req.file.filename}`,
                         type: req.file.mimetype.startsWith('image') ? 'image' : 'video',
-                        status: 'ready' // File is already saved by multer
+                        status: 'ready',
+                        publicId: req.file.filename || null
                   }];
             }
+
 
             const content = await Content.create({
                   creator: req.user.id,
