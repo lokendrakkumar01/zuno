@@ -15,6 +15,12 @@ const ContentCard = ({ content, onDelete }) => {
       const [animateHelpful, setAnimateHelpful] = useState(false);
       const [animateSave, setAnimateSave] = useState(false);
       const [animateShare, setAnimateShare] = useState(false);
+      const [animateDislike, setAnimateDislike] = useState(false);
+      const [animateComment, setAnimateComment] = useState(false);
+      const [isDisliked, setIsDisliked] = useState(content.interactions?.some(i => i.user === currentUser?._id && i.type === 'not-useful') || false);
+      const [likeCount, setLikeCount] = useState(content.metrics?.helpfulCount || 0);
+      const [dislikeCount, setDislikeCount] = useState(content.metrics?.notUsefulCount || 0);
+      const [commentCount, setCommentCount] = useState(content.metrics?.commentCount || 0);
       const [imageLoaded, setImageLoaded] = useState(false);
 
       // Media status tracking for polling
@@ -106,9 +112,40 @@ const ContentCard = ({ content, onDelete }) => {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${token}` }
                   });
-                  setIsHelpful(!isHelpful);
+                  const newIsHelpful = !isHelpful;
+                  setIsHelpful(newIsHelpful);
+                  setLikeCount(prev => newIsHelpful ? prev + 1 : prev - 1);
+                  // If liking, remove dislike
+                  if (newIsHelpful && isDisliked) {
+                        setIsDisliked(false);
+                        setDislikeCount(prev => prev - 1);
+                  }
             } catch (error) {
                   console.error('Failed to like:', error);
+            }
+      };
+
+      const handleDislike = async () => {
+            if (!token) return;
+
+            setAnimateDislike(true);
+            setTimeout(() => setAnimateDislike(false), 300);
+
+            try {
+                  await fetch(`${API_URL}/content/${content._id}/dislike`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                  });
+                  const newIsDisliked = !isDisliked;
+                  setIsDisliked(newIsDisliked);
+                  setDislikeCount(prev => newIsDisliked ? prev + 1 : prev - 1);
+                  // If disliking, remove like
+                  if (newIsDisliked && isHelpful) {
+                        setIsHelpful(false);
+                        setLikeCount(prev => prev - 1);
+                  }
+            } catch (error) {
+                  console.error('Failed to dislike:', error);
             }
       };
 
@@ -448,7 +485,7 @@ const ContentCard = ({ content, onDelete }) => {
                                           </>
                                     ) : (
                                           /* Enhanced Video Player */
-                                          <div 
+                                          <div
                                                 className="video-player-container"
                                                 style={{ position: 'relative' }}
                                                 onMouseEnter={() => setShowVideoControls(true)}
@@ -543,8 +580,8 @@ const ContentCard = ({ content, onDelete }) => {
                                                 }}>
                                                       {/* Content Type Badge */}
                                                       <div style={{
-                                                            background: content.contentType === 'live' 
-                                                                  ? 'linear-gradient(135deg, #ef4444, #dc2626)' 
+                                                            background: content.contentType === 'live'
+                                                                  ? 'linear-gradient(135deg, #ef4444, #dc2626)'
                                                                   : 'rgba(0,0,0,0.75)',
                                                             padding: '4px 10px',
                                                             borderRadius: '20px',
@@ -824,93 +861,195 @@ const ContentCard = ({ content, onDelete }) => {
                               )}
                         </div>
 
-                        <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-4">
+                        <div className="flex items-center justify-between mb-2" style={{ padding: '8px 0' }}>
+                              {/* Left Side Actions - Like, Dislike, Comment, Share */}
+                              <div className="flex items-center gap-1">
+                                    {/* Like Button with Gradient */}
                                     <button
-                                          className="flex items-center gap-1 hover:opacity-80 transition-opacity"
+                                          className="action-btn flex flex-col items-center justify-center"
                                           onClick={handleHelpful}
+                                          title="Like"
                                           style={{
-                                                transform: animateHelpful ? 'scale(1.2)' : 'scale(1)',
-                                                transition: 'transform 0.2s ease',
-                                                background: 'none', border: 'none', padding: 0,
+                                                transform: animateHelpful ? 'scale(1.3)' : 'scale(1)',
+                                                transition: 'all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                                                background: isHelpful ? 'linear-gradient(135deg, #ff6b6b, #ee5a5a)' : 'linear-gradient(135deg, #f8f9fa, #e9ecef)',
+                                                border: 'none',
+                                                padding: '10px 14px',
+                                                borderRadius: '16px',
                                                 cursor: 'pointer',
-                                                color: isHelpful ? '#ef4444' : 'var(--color-text-primary)'
+                                                boxShadow: isHelpful ? '0 4px 15px rgba(239, 68, 68, 0.4)' : '0 2px 8px rgba(0,0,0,0.08)',
+                                                minWidth: '60px'
                                           }}
                                     >
-                                          <svg width="24" height="24" viewBox="0 0 24 24" fill={isHelpful ? '#ef4444' : 'none'} stroke={isHelpful ? '#ef4444' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                                          <svg width="22" height="22" viewBox="0 0 24 24" fill={isHelpful ? 'white' : 'none'} stroke={isHelpful ? 'white' : '#6b7280'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>
                                           </svg>
-                                          <span className="text-sm font-medium">Like</span>
+                                          <span style={{
+                                                fontSize: '11px',
+                                                fontWeight: '600',
+                                                marginTop: '2px',
+                                                color: isHelpful ? 'white' : '#6b7280'
+                                          }}>{likeCount > 0 ? likeCount : 'Like'}</span>
                                     </button>
 
+                                    {/* Dislike Button */}
                                     <button
-                                          className="flex items-center gap-1 hover:opacity-80 transition-opacity"
-                                          onClick={() => setShowComments(!showComments)}
-                                          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--color-text-primary)' }}
+                                          className="action-btn flex flex-col items-center justify-center"
+                                          onClick={handleDislike}
+                                          title="Dislike"
+                                          style={{
+                                                transform: animateDislike ? 'scale(1.3)' : 'scale(1)',
+                                                transition: 'all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                                                background: isDisliked ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'linear-gradient(135deg, #f8f9fa, #e9ecef)',
+                                                border: 'none',
+                                                padding: '10px 14px',
+                                                borderRadius: '16px',
+                                                cursor: 'pointer',
+                                                boxShadow: isDisliked ? '0 4px 15px rgba(99, 102, 241, 0.4)' : '0 2px 8px rgba(0,0,0,0.08)',
+                                                minWidth: '60px'
+                                          }}
                                     >
-                                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                                          <svg width="22" height="22" viewBox="0 0 24 24" fill={isDisliked ? 'white' : 'none'} stroke={isDisliked ? 'white' : '#6b7280'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'rotate(180deg)' }}>
+                                                <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>
                                           </svg>
-                                          <span className="text-sm font-medium">Comment</span>
+                                          <span style={{
+                                                fontSize: '11px',
+                                                fontWeight: '600',
+                                                marginTop: '2px',
+                                                color: isDisliked ? 'white' : '#6b7280'
+                                          }}>{dislikeCount > 0 ? dislikeCount : 'Dislike'}</span>
                                     </button>
 
+                                    {/* Comment Button */}
                                     <button
-                                          className="flex items-center gap-1 hover:opacity-80 transition-opacity"
+                                          className="action-btn flex flex-col items-center justify-center"
+                                          onClick={() => {
+                                                setAnimateComment(true);
+                                                setTimeout(() => setAnimateComment(false), 300);
+                                                setShowComments(!showComments);
+                                          }}
+                                          title="Comments"
+                                          style={{
+                                                transform: animateComment ? 'scale(1.3)' : 'scale(1)',
+                                                transition: 'all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                                                background: showComments ? 'linear-gradient(135deg, #10b981, #059669)' : 'linear-gradient(135deg, #f8f9fa, #e9ecef)',
+                                                border: 'none',
+                                                padding: '10px 14px',
+                                                borderRadius: '16px',
+                                                cursor: 'pointer',
+                                                boxShadow: showComments ? '0 4px 15px rgba(16, 185, 129, 0.4)' : '0 2px 8px rgba(0,0,0,0.08)',
+                                                minWidth: '60px'
+                                          }}
+                                    >
+                                          <svg width="22" height="22" viewBox="0 0 24 24" fill={showComments ? 'white' : 'none'} stroke={showComments ? 'white' : '#6b7280'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                                          </svg>
+                                          <span style={{
+                                                fontSize: '11px',
+                                                fontWeight: '600',
+                                                marginTop: '2px',
+                                                color: showComments ? 'white' : '#6b7280'
+                                          }}>{commentCount > 0 ? commentCount : 'Comment'}</span>
+                                    </button>
+
+                                    {/* Share Button */}
+                                    <button
+                                          className="action-btn flex flex-col items-center justify-center"
                                           onClick={handleShare}
+                                          title="Share"
                                           style={{
-                                                transform: animateShare ? 'scale(1.2)' : 'scale(1)',
-                                                transition: 'transform 0.2s ease',
-                                                background: 'none', border: 'none', padding: 0,
+                                                transform: animateShare ? 'scale(1.3) rotate(10deg)' : 'scale(1)',
+                                                transition: 'all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                                                background: 'linear-gradient(135deg, #f8f9fa, #e9ecef)',
+                                                border: 'none',
+                                                padding: '10px 14px',
+                                                borderRadius: '16px',
                                                 cursor: 'pointer',
-                                                color: 'var(--color-text-primary)'
+                                                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                                                minWidth: '60px'
                                           }}
                                     >
-                                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                <line x1="22" y1="2" x2="11" y2="13"></line>
-                                                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <circle cx="18" cy="5" r="3"></circle>
+                                                <circle cx="6" cy="12" r="3"></circle>
+                                                <circle cx="18" cy="19" r="3"></circle>
+                                                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                                                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
                                           </svg>
-                                          <span className="text-sm font-medium">Share</span>
+                                          <span style={{
+                                                fontSize: '11px',
+                                                fontWeight: '600',
+                                                marginTop: '2px',
+                                                color: '#6b7280'
+                                          }}>{shareCount > 0 ? shareCount : 'Share'}</span>
                                     </button>
                               </div>
 
-                              <div className="flex items-center gap-4 relative">
+                              {/* Right Side Actions - Save, More */}
+                              <div className="flex items-center gap-1 relative">
+                                    {/* Save/Bookmark Button */}
                                     <button
-                                          className="flex items-center gap-1 hover:opacity-80 transition-opacity"
+                                          className="action-btn flex flex-col items-center justify-center"
                                           onClick={handleSave}
+                                          title="Save for later"
                                           style={{
-                                                transform: animateSave ? 'scale(1.2)' : 'scale(1)',
-                                                transition: 'transform 0.2s ease',
-                                                background: 'none', border: 'none', padding: 0,
+                                                transform: animateSave ? 'scale(1.3)' : 'scale(1)',
+                                                transition: 'all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                                                background: isSaved ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, #f8f9fa, #e9ecef)',
+                                                border: 'none',
+                                                padding: '10px 14px',
+                                                borderRadius: '16px',
                                                 cursor: 'pointer',
-                                                color: isSaved ? 'var(--color-accent-primary)' : 'var(--color-text-primary)'
+                                                boxShadow: isSaved ? '0 4px 15px rgba(245, 158, 11, 0.4)' : '0 2px 8px rgba(0,0,0,0.08)',
+                                                minWidth: '50px'
                                           }}
                                     >
-                                          <svg width="24" height="24" viewBox="0 0 24 24" fill={isSaved ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                          <svg width="22" height="22" viewBox="0 0 24 24" fill={isSaved ? 'white' : 'none'} stroke={isSaved ? 'white' : '#6b7280'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                                 <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
                                           </svg>
-                                          <span className="text-sm font-medium">Save</span>
+                                          <span style={{
+                                                fontSize: '11px',
+                                                fontWeight: '600',
+                                                marginTop: '2px',
+                                                color: isSaved ? 'white' : '#6b7280'
+                                          }}>Save</span>
                                     </button>
 
+                                    {/* More Options Button */}
                                     <button
-                                          className="flex items-center gap-1 hover:opacity-80 transition-opacity"
+                                          className="action-btn flex flex-col items-center justify-center"
                                           onClick={(e) => {
                                                 e.stopPropagation();
                                                 setShowMenu(!showMenu);
                                           }}
-                                          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--color-text-primary)' }}
+                                          title="More options"
+                                          style={{
+                                                transition: 'all 0.2s ease',
+                                                background: showMenu ? 'linear-gradient(135deg, #374151, #1f2937)' : 'linear-gradient(135deg, #f8f9fa, #e9ecef)',
+                                                border: 'none',
+                                                padding: '10px 12px',
+                                                borderRadius: '16px',
+                                                cursor: 'pointer',
+                                                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                                          }}
                                     >
-                                          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                                          <svg width="22" height="22" viewBox="0 0 24 24" fill={showMenu ? 'white' : '#6b7280'}>
                                                 <circle cx="12" cy="5" r="2"></circle>
                                                 <circle cx="12" cy="12" r="2"></circle>
                                                 <circle cx="12" cy="19" r="2"></circle>
                                           </svg>
-                                          <span className="text-sm font-medium">More</span>
                                     </button>
 
                                     {/* More Menu Dropdown */}
                                     {showMenu && (
-                                          <div className="absolute bottom-full right-0 mb-2 bg-white rounded-lg shadow-xl border border-gray-100 p-2 min-w-[150px] z-50 animate-fadeIn"
+                                          <div
+                                                className="absolute bottom-full right-0 mb-2 bg-white rounded-xl shadow-2xl border border-gray-100 p-2 min-w-[180px] z-50"
                                                 onClick={(e) => e.stopPropagation()}
+                                                style={{
+                                                      animation: 'fadeInUp 0.2s ease-out',
+                                                      backdropFilter: 'blur(10px)',
+                                                      background: 'rgba(255,255,255,0.95)'
+                                                }}
                                           >
                                                 {/* Download Option */}
                                                 {content.media && content.media.length > 0 && (
@@ -939,41 +1078,118 @@ const ContentCard = ({ content, onDelete }) => {
                                                                         alert("Failed to download media");
                                                                   }
                                                             }}
-                                                            className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded flex items-center gap-2"
+                                                            className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 rounded-lg flex items-center gap-3 transition-all"
                                                       >
-                                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                                                  <polyline points="7 10 12 15 17 10"></polyline>
-                                                                  <line x1="12" y1="15" x2="12" y2="3"></line>
-                                                            </svg>
-                                                            Download
+                                                            <div style={{
+                                                                  background: 'linear-gradient(135deg, #3b82f6, #6366f1)',
+                                                                  borderRadius: '8px',
+                                                                  padding: '6px',
+                                                                  display: 'flex',
+                                                                  alignItems: 'center',
+                                                                  justifyContent: 'center'
+                                                            }}>
+                                                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+                                                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                                                        <polyline points="7 10 12 15 17 10"></polyline>
+                                                                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                                                                  </svg>
+                                                            </div>
+                                                            <span style={{ fontWeight: '500' }}>Download</span>
                                                       </button>
                                                 )}
+
+                                                {/* Copy Link */}
+                                                <button
+                                                      onClick={() => {
+                                                            navigator.clipboard.writeText(`${window.location.origin}/content/${content._id}`);
+                                                            alert('Link copied!');
+                                                            setShowMenu(false);
+                                                      }}
+                                                      className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gradient-to-r hover:from-green-50 hover:to-emerald-50 rounded-lg flex items-center gap-3 transition-all"
+                                                >
+                                                      <div style={{
+                                                            background: 'linear-gradient(135deg, #10b981, #059669)',
+                                                            borderRadius: '8px',
+                                                            padding: '6px',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center'
+                                                      }}>
+                                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+                                                                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                                                                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                                                            </svg>
+                                                      </div>
+                                                      <span style={{ fontWeight: '500' }}>Copy Link</span>
+                                                </button>
+
+                                                {/* Not Interested */}
+                                                <button
+                                                      onClick={() => {
+                                                            alert('Noted! We will show less content like this.');
+                                                            setShowMenu(false);
+                                                      }}
+                                                      className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gradient-to-r hover:from-gray-50 hover:to-slate-50 rounded-lg flex items-center gap-3 transition-all"
+                                                >
+                                                      <div style={{
+                                                            background: 'linear-gradient(135deg, #6b7280, #4b5563)',
+                                                            borderRadius: '8px',
+                                                            padding: '6px',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center'
+                                                      }}>
+                                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+                                                                  <circle cx="12" cy="12" r="10"></circle>
+                                                                  <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+                                                            </svg>
+                                                      </div>
+                                                      <span style={{ fontWeight: '500' }}>Not Interested</span>
+                                                </button>
 
                                                 {currentUser?._id === content.creator?._id && (
                                                       <button
                                                             onClick={handleDelete}
-                                                            className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded flex items-center gap-2"
+                                                            className="w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-gradient-to-r hover:from-red-50 hover:to-rose-50 rounded-lg flex items-center gap-3 transition-all"
                                                       >
-                                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                                  <polyline points="3 6 5 6 21 6"></polyline>
-                                                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                                            </svg>
-                                                            Delete
+                                                            <div style={{
+                                                                  background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                                                                  borderRadius: '8px',
+                                                                  padding: '6px',
+                                                                  display: 'flex',
+                                                                  alignItems: 'center',
+                                                                  justifyContent: 'center'
+                                                            }}>
+                                                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+                                                                        <polyline points="3 6 5 6 21 6"></polyline>
+                                                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                                                  </svg>
+                                                            </div>
+                                                            <span style={{ fontWeight: '500' }}>Delete</span>
                                                       </button>
                                                 )}
+
                                                 <button
                                                       onClick={() => {
                                                             alert('Report feature coming soon');
                                                             setShowMenu(false);
                                                       }}
-                                                      className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded flex items-center gap-2"
+                                                      className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gradient-to-r hover:from-orange-50 hover:to-amber-50 rounded-lg flex items-center gap-3 transition-all"
                                                 >
-                                                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                            <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
-                                                            <line x1="4" y1="22" x2="4" y2="15"></line>
-                                                      </svg>
-                                                      Report
+                                                      <div style={{
+                                                            background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                                                            borderRadius: '8px',
+                                                            padding: '6px',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center'
+                                                      }}>
+                                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+                                                                  <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+                                                                  <line x1="4" y1="22" x2="4" y2="15"></line>
+                                                            </svg>
+                                                      </div>
+                                                      <span style={{ fontWeight: '500' }}>Report</span>
                                                 </button>
                                           </div>
                                     )}
