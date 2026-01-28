@@ -12,19 +12,20 @@ const createContent = async (req, res) => {
                   visibility, chapters, notes, silentMode, language
             } = req.body;
 
-            // Build media array from uploaded files - SET STATUS TO UPLOADING INITIALLY
+            // Build media array from uploaded files 
+            // By this point, multer has already saved the file, so status is 'ready'
             let media = [];
             if (req.files && req.files.length > 0) {
                   media = req.files.map(file => ({
                         url: `/uploads/${file.filename}`,
                         type: file.mimetype.startsWith('image') ? 'image' : 'video',
-                        status: 'uploading' // Changed from 'ready' - file needs verification
+                        status: 'ready' // File is already saved by multer
                   }));
             } else if (req.file) {
                   media = [{
                         url: `/uploads/${req.file.filename}`,
                         type: req.file.mimetype.startsWith('image') ? 'image' : 'video',
-                        status: 'uploading' // Changed from 'ready' - file needs verification
+                        status: 'ready' // File is already saved by multer
                   }];
             }
 
@@ -42,17 +43,7 @@ const createContent = async (req, res) => {
                   notes,
                   silentMode: silentMode || false,
                   language: language || 'en',
-                  expiresAt: contentType === 'story' ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null
             });
-
-            // VERIFY FILES EXIST AND UPDATE STATUS
-            for (let mediaItem of content.media) {
-                  // Multer already confirmed upload success - set status to ready
-                  mediaItem.status = 'ready';
-            }
-
-            // Save updated media status
-            await content.save();
 
             // Update user stats
             await User.findByIdAndUpdate(req.user.id, {

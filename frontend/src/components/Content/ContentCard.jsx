@@ -18,9 +18,36 @@ const ContentCard = ({ content, onDelete }) => {
       const [imageLoaded, setImageLoaded] = useState(false);
 
       // Media status tracking for polling
-      const [mediaStatus, setMediaStatus] = useState(content.media?.[0]?.status || 'ready');
+      // Default to 'ready' if status is undefined or empty - the backend sets status after save
+      const initialMediaStatus = content.media?.[0]?.status;
+      const [mediaStatus, setMediaStatus] = useState(
+            initialMediaStatus && initialMediaStatus !== '' ? initialMediaStatus : 'ready'
+      );
       const [pollCount, setPollCount] = useState(0);
       const [mediaUrl, setMediaUrl] = useState(content.media?.[0]?.url || '');
+
+      // Update media status and URL when content prop changes (for fresh content)
+      useEffect(() => {
+            if (content.media?.[0]) {
+                  const newStatus = content.media[0].status;
+                  const newUrl = content.media[0].url;
+
+                  // Only update if we have a valid status, otherwise default to ready
+                  if (newStatus && newStatus !== 'uploading') {
+                        setMediaStatus(newStatus);
+                  } else if (!newStatus || newStatus === '') {
+                        setMediaStatus('ready');
+                  }
+
+                  if (newUrl && newUrl !== mediaUrl) {
+                        setMediaUrl(newUrl);
+                        // Reset image states when URL changes
+                        setImageLoaded(false);
+                        setImageError(false);
+                        setImageRetryCount(0);
+                  }
+            }
+      }, [content.media]);
 
       // Assuming useFollow is a custom hook you have
       // const { isFollowing: initialFollowing } = useFollow(content.creator?._id);
