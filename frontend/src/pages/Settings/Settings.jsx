@@ -46,7 +46,8 @@ const Settings = () => {
       );
 
       return (
-            <div className="container" style={{ paddingTop: '20px', paddingBottom: '100px', maxWidth: '600px' }}>
+      return (
+            <div className="settings-container">
                   <h1 style={{
                         fontSize: '28px',
                         fontWeight: '700',
@@ -69,12 +70,9 @@ const Settings = () => {
                         </div>
                   )}
 
-                  <div style={{
-                        backgroundColor: 'var(--color-bg-card)',
-                        borderRadius: '16px',
-                        overflow: 'hidden',
-                        border: '1px solid var(--color-border)'
-                  }}>
+                  <div className="settings-list">
+
+
                         {/* For You Section */}
                         <SectionTitle title={t('forYou')} />
                         <SettingsOption

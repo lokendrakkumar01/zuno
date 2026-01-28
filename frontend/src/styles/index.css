@@ -78,6 +78,10 @@
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
   --shadow-glow: 0 0 10px rgba(0, 0, 0, 0.05);
+
+  /* Container */
+  --container-max: 1200px;
+  --container-padding: 2rem;
 }
 
 /* Dark Mode */
@@ -1749,4 +1753,41 @@ textarea.input {
   text-align: center;
   max-width: 600px;
   margin: 0 auto var(--space-2xl);
+}
+
+@media (max-width: 640px) {
+  .settings-container {
+    padding-bottom: 160px !important;
+  }
+}
+
+/* Settings Specific Styles */
+.settings-container {
+  padding-top: 20px;
+  padding-bottom: 80px;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.settings-list {
+  background-color: var(--color-bg-card);
+  border-radius: 20px;
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+}
+
+@media (max-width: 640px) {
+  .settings-container {
+    padding-top: 10px;
+    max-width: 100%;
+  }
+
+  .settings-list {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    box-shadow: none;
+    overflow: visible;
+  }
 }
