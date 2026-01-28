@@ -120,40 +120,79 @@ const Layout = () => {
                               <SearchIcon />
                               <span style={{ fontSize: '10px' }}>{t('search')}</span>
                         </Link>
-                        <Link to="/upload" className={`bottom-nav-item ${isActive('/upload') ? 'active' : ''}`}>
-                              <div style={{
-                                    background: 'var(--gradient-primary)',
-                                    borderRadius: '8px',
-                                    padding: '8px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center'
-                              }}>
-                                    <PlusIcon />
-                              </div>
-                        </Link>
-                        <Link to="/settings" className={`bottom-nav-item ${isActive('/settings') ? 'active' : ''}`}>
-                              <SettingsIcon />
-                              <span style={{ fontSize: '10px' }}>{t('settings')}</span>
-                        </Link>
+                        {isAuthenticated ? (
+                              <Link to="/upload" className={`bottom-nav-item ${isActive('/upload') ? 'active' : ''}`}>
+                                    <div style={{
+                                          background: 'var(--gradient-primary)',
+                                          borderRadius: '12px',
+                                          padding: '10px',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          boxShadow: '0 4px 15px rgba(99, 102, 241, 0.4)'
+                                    }}>
+                                          <PlusIcon />
+                                    </div>
+                              </Link>
+                        ) : (
+                              <Link to="/login" className={`bottom-nav-item ${isActive('/login') ? 'active' : ''}`}>
+                                    <div style={{
+                                          background: 'var(--gradient-primary)',
+                                          borderRadius: '12px',
+                                          padding: '10px',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          boxShadow: '0 4px 15px rgba(99, 102, 241, 0.4)'
+                                    }}>
+                                          <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+                                                <path d="M11 7L9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5-5-5zm9 12h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-8v2h8v14z" />
+                                          </svg>
+                                    </div>
+                                    <span style={{ fontSize: '10px' }}>Login</span>
+                              </Link>
+                        )}
+                        {isAuthenticated ? (
+                              <Link to="/saved" className={`bottom-nav-item ${isActive('/saved') ? 'active' : ''}`}>
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill={isActive('/saved') ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
+                                          <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                                    </svg>
+                                    <span style={{ fontSize: '10px' }}>Saved</span>
+                              </Link>
+                        ) : (
+                              <Link to="/register" className={`bottom-nav-item ${isActive('/register') ? 'active' : ''}`}>
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                          <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                          <circle cx="8.5" cy="7" r="4"></circle>
+                                          <line x1="20" y1="8" x2="20" y2="14"></line>
+                                          <line x1="23" y1="11" x2="17" y2="11"></line>
+                                    </svg>
+                                    <span style={{ fontSize: '10px' }}>Register</span>
+                              </Link>
+                        )}
                         <Link to="/profile" className={`bottom-nav-item ${isActive('/profile') ? 'active' : ''}`}>
                               <div style={{
-                                    width: '28px',
-                                    height: '28px',
+                                    width: '32px',
+                                    height: '32px',
                                     borderRadius: '50%',
                                     overflow: 'hidden',
                                     background: 'var(--gradient-primary)',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    border: isActive('/profile') ? '2px solid var(--color-accent-primary)' : 'none'
+                                    border: isActive('/profile') ? '2px solid var(--color-accent-primary)' : '2px solid transparent',
+                                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
                               }}>
                                     {user?.avatar ? (
                                           <img src={user.avatar} alt={user?.displayName || 'User'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                    ) : (
-                                          <span style={{ fontSize: '12px', color: 'white', fontWeight: 'bold' }}>
+                                    ) : isAuthenticated ? (
+                                          <span style={{ fontSize: '14px', color: 'white', fontWeight: 'bold' }}>
                                                 {user?.displayName?.charAt(0) || user?.username?.charAt(0) || 'U'}
                                           </span>
+                                    ) : (
+                                          <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                                                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                                          </svg>
                                     )}
                               </div>
                         </Link>

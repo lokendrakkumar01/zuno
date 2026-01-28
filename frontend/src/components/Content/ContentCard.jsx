@@ -861,68 +861,65 @@ const ContentCard = ({ content, onDelete }) => {
                               )}
                         </div>
 
-                        <div className="flex items-center justify-between mb-2" style={{ padding: '8px 0' }}>
+                        <div className="flex items-center justify-between" style={{ padding: '12px 0', gap: '8px' }}>
                               {/* Left Side Actions - Like, Dislike, Comment, Share */}
-                              <div className="flex items-center gap-1">
-                                    {/* Like Button with Gradient */}
+                              <div className="flex items-center" style={{ gap: '4px', flexWrap: 'wrap' }}>
+                                    {/* Like Button */}
                                     <button
-                                          className="action-btn flex flex-col items-center justify-center"
                                           onClick={handleHelpful}
                                           title="Like"
                                           style={{
-                                                transform: animateHelpful ? 'scale(1.3)' : 'scale(1)',
-                                                transition: 'all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-                                                background: isHelpful ? 'linear-gradient(135deg, #ff6b6b, #ee5a5a)' : 'linear-gradient(135deg, #f8f9fa, #e9ecef)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '4px',
+                                                padding: '8px 12px',
+                                                borderRadius: '20px',
                                                 border: 'none',
-                                                padding: '10px 14px',
-                                                borderRadius: '16px',
                                                 cursor: 'pointer',
-                                                boxShadow: isHelpful ? '0 4px 15px rgba(239, 68, 68, 0.4)' : '0 2px 8px rgba(0,0,0,0.08)',
-                                                minWidth: '60px'
+                                                background: isHelpful ? 'linear-gradient(135deg, #ef4444, #dc2626)' : '#f3f4f6',
+                                                color: isHelpful ? 'white' : '#374151',
+                                                fontWeight: '600',
+                                                fontSize: '13px',
+                                                transition: 'all 0.2s ease',
+                                                transform: animateHelpful ? 'scale(1.1)' : 'scale(1)',
+                                                boxShadow: isHelpful ? '0 2px 8px rgba(239, 68, 68, 0.4)' : '0 1px 3px rgba(0,0,0,0.1)'
                                           }}
                                     >
-                                          <svg width="22" height="22" viewBox="0 0 24 24" fill={isHelpful ? 'white' : 'none'} stroke={isHelpful ? 'white' : '#6b7280'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                          <svg width="18" height="18" viewBox="0 0 24 24" fill={isHelpful ? 'white' : 'none'} stroke={isHelpful ? 'white' : '#374151'} strokeWidth="2.5">
                                                 <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>
                                           </svg>
-                                          <span style={{
-                                                fontSize: '11px',
-                                                fontWeight: '600',
-                                                marginTop: '2px',
-                                                color: isHelpful ? 'white' : '#6b7280'
-                                          }}>{likeCount > 0 ? likeCount : 'Like'}</span>
+                                          {likeCount > 0 && <span>{likeCount}</span>}
                                     </button>
 
                                     {/* Dislike Button */}
                                     <button
-                                          className="action-btn flex flex-col items-center justify-center"
                                           onClick={handleDislike}
                                           title="Dislike"
                                           style={{
-                                                transform: animateDislike ? 'scale(1.3)' : 'scale(1)',
-                                                transition: 'all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-                                                background: isDisliked ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'linear-gradient(135deg, #f8f9fa, #e9ecef)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '4px',
+                                                padding: '8px 12px',
+                                                borderRadius: '20px',
                                                 border: 'none',
-                                                padding: '10px 14px',
-                                                borderRadius: '16px',
                                                 cursor: 'pointer',
-                                                boxShadow: isDisliked ? '0 4px 15px rgba(99, 102, 241, 0.4)' : '0 2px 8px rgba(0,0,0,0.08)',
-                                                minWidth: '60px'
+                                                background: isDisliked ? 'linear-gradient(135deg, #6366f1, #4f46e5)' : '#f3f4f6',
+                                                color: isDisliked ? 'white' : '#374151',
+                                                fontWeight: '600',
+                                                fontSize: '13px',
+                                                transition: 'all 0.2s ease',
+                                                transform: animateDislike ? 'scale(1.1)' : 'scale(1)',
+                                                boxShadow: isDisliked ? '0 2px 8px rgba(99, 102, 241, 0.4)' : '0 1px 3px rgba(0,0,0,0.1)'
                                           }}
                                     >
-                                          <svg width="22" height="22" viewBox="0 0 24 24" fill={isDisliked ? 'white' : 'none'} stroke={isDisliked ? 'white' : '#6b7280'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'rotate(180deg)' }}>
+                                          <svg width="18" height="18" viewBox="0 0 24 24" fill={isDisliked ? 'white' : 'none'} stroke={isDisliked ? 'white' : '#374151'} strokeWidth="2.5" style={{ transform: 'rotate(180deg)' }}>
                                                 <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>
                                           </svg>
-                                          <span style={{
-                                                fontSize: '11px',
-                                                fontWeight: '600',
-                                                marginTop: '2px',
-                                                color: isDisliked ? 'white' : '#6b7280'
-                                          }}>{dislikeCount > 0 ? dislikeCount : 'Dislike'}</span>
+                                          {dislikeCount > 0 && <span>{dislikeCount}</span>}
                                     </button>
 
                                     {/* Comment Button */}
                                     <button
-                                          className="action-btn flex flex-col items-center justify-center"
                                           onClick={() => {
                                                 setAnimateComment(true);
                                                 setTimeout(() => setAnimateComment(false), 300);
@@ -930,110 +927,109 @@ const ContentCard = ({ content, onDelete }) => {
                                           }}
                                           title="Comments"
                                           style={{
-                                                transform: animateComment ? 'scale(1.3)' : 'scale(1)',
-                                                transition: 'all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-                                                background: showComments ? 'linear-gradient(135deg, #10b981, #059669)' : 'linear-gradient(135deg, #f8f9fa, #e9ecef)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '4px',
+                                                padding: '8px 12px',
+                                                borderRadius: '20px',
                                                 border: 'none',
-                                                padding: '10px 14px',
-                                                borderRadius: '16px',
                                                 cursor: 'pointer',
-                                                boxShadow: showComments ? '0 4px 15px rgba(16, 185, 129, 0.4)' : '0 2px 8px rgba(0,0,0,0.08)',
-                                                minWidth: '60px'
+                                                background: showComments ? 'linear-gradient(135deg, #10b981, #059669)' : '#f3f4f6',
+                                                color: showComments ? 'white' : '#374151',
+                                                fontWeight: '600',
+                                                fontSize: '13px',
+                                                transition: 'all 0.2s ease',
+                                                transform: animateComment ? 'scale(1.1)' : 'scale(1)',
+                                                boxShadow: showComments ? '0 2px 8px rgba(16, 185, 129, 0.4)' : '0 1px 3px rgba(0,0,0,0.1)'
                                           }}
                                     >
-                                          <svg width="22" height="22" viewBox="0 0 24 24" fill={showComments ? 'white' : 'none'} stroke={showComments ? 'white' : '#6b7280'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                          <svg width="18" height="18" viewBox="0 0 24 24" fill={showComments ? 'white' : 'none'} stroke={showComments ? 'white' : '#374151'} strokeWidth="2.5">
                                                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                                           </svg>
-                                          <span style={{
-                                                fontSize: '11px',
-                                                fontWeight: '600',
-                                                marginTop: '2px',
-                                                color: showComments ? 'white' : '#6b7280'
-                                          }}>{commentCount > 0 ? commentCount : 'Comment'}</span>
+                                          {commentCount > 0 && <span>{commentCount}</span>}
                                     </button>
 
                                     {/* Share Button */}
                                     <button
-                                          className="action-btn flex flex-col items-center justify-center"
                                           onClick={handleShare}
                                           title="Share"
                                           style={{
-                                                transform: animateShare ? 'scale(1.3) rotate(10deg)' : 'scale(1)',
-                                                transition: 'all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-                                                background: 'linear-gradient(135deg, #f8f9fa, #e9ecef)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '4px',
+                                                padding: '8px 12px',
+                                                borderRadius: '20px',
                                                 border: 'none',
-                                                padding: '10px 14px',
-                                                borderRadius: '16px',
                                                 cursor: 'pointer',
-                                                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                                                minWidth: '60px'
+                                                background: '#f3f4f6',
+                                                color: '#374151',
+                                                fontWeight: '600',
+                                                fontSize: '13px',
+                                                transition: 'all 0.2s ease',
+                                                transform: animateShare ? 'scale(1.1) rotate(5deg)' : 'scale(1)',
+                                                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
                                           }}
                                     >
-                                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2.5">
                                                 <circle cx="18" cy="5" r="3"></circle>
                                                 <circle cx="6" cy="12" r="3"></circle>
                                                 <circle cx="18" cy="19" r="3"></circle>
                                                 <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
                                                 <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
                                           </svg>
-                                          <span style={{
-                                                fontSize: '11px',
-                                                fontWeight: '600',
-                                                marginTop: '2px',
-                                                color: '#6b7280'
-                                          }}>{shareCount > 0 ? shareCount : 'Share'}</span>
+                                          {shareCount > 0 && <span>{shareCount}</span>}
                                     </button>
                               </div>
 
                               {/* Right Side Actions - Save, More */}
-                              <div className="flex items-center gap-1 relative">
+                              <div className="flex items-center relative" style={{ gap: '4px' }}>
                                     {/* Save/Bookmark Button */}
                                     <button
-                                          className="action-btn flex flex-col items-center justify-center"
                                           onClick={handleSave}
                                           title="Save for later"
                                           style={{
-                                                transform: animateSave ? 'scale(1.3)' : 'scale(1)',
-                                                transition: 'all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-                                                background: isSaved ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, #f8f9fa, #e9ecef)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '4px',
+                                                padding: '8px 12px',
+                                                borderRadius: '20px',
                                                 border: 'none',
-                                                padding: '10px 14px',
-                                                borderRadius: '16px',
                                                 cursor: 'pointer',
-                                                boxShadow: isSaved ? '0 4px 15px rgba(245, 158, 11, 0.4)' : '0 2px 8px rgba(0,0,0,0.08)',
-                                                minWidth: '50px'
+                                                background: isSaved ? 'linear-gradient(135deg, #f59e0b, #d97706)' : '#f3f4f6',
+                                                color: isSaved ? 'white' : '#374151',
+                                                fontWeight: '600',
+                                                fontSize: '13px',
+                                                transition: 'all 0.2s ease',
+                                                transform: animateSave ? 'scale(1.1)' : 'scale(1)',
+                                                boxShadow: isSaved ? '0 2px 8px rgba(245, 158, 11, 0.4)' : '0 1px 3px rgba(0,0,0,0.1)'
                                           }}
                                     >
-                                          <svg width="22" height="22" viewBox="0 0 24 24" fill={isSaved ? 'white' : 'none'} stroke={isSaved ? 'white' : '#6b7280'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                          <svg width="18" height="18" viewBox="0 0 24 24" fill={isSaved ? 'white' : 'none'} stroke={isSaved ? 'white' : '#374151'} strokeWidth="2.5">
                                                 <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
                                           </svg>
-                                          <span style={{
-                                                fontSize: '11px',
-                                                fontWeight: '600',
-                                                marginTop: '2px',
-                                                color: isSaved ? 'white' : '#6b7280'
-                                          }}>Save</span>
                                     </button>
 
                                     {/* More Options Button */}
                                     <button
-                                          className="action-btn flex flex-col items-center justify-center"
                                           onClick={(e) => {
                                                 e.stopPropagation();
                                                 setShowMenu(!showMenu);
                                           }}
                                           title="More options"
                                           style={{
-                                                transition: 'all 0.2s ease',
-                                                background: showMenu ? 'linear-gradient(135deg, #374151, #1f2937)' : 'linear-gradient(135deg, #f8f9fa, #e9ecef)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                padding: '8px',
+                                                borderRadius: '50%',
                                                 border: 'none',
-                                                padding: '10px 12px',
-                                                borderRadius: '16px',
                                                 cursor: 'pointer',
-                                                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                                                background: showMenu ? '#374151' : '#f3f4f6',
+                                                transition: 'all 0.2s ease',
+                                                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
                                           }}
                                     >
-                                          <svg width="22" height="22" viewBox="0 0 24 24" fill={showMenu ? 'white' : '#6b7280'}>
+                                          <svg width="18" height="18" viewBox="0 0 24 24" fill={showMenu ? 'white' : '#374151'}>
                                                 <circle cx="12" cy="5" r="2"></circle>
                                                 <circle cx="12" cy="12" r="2"></circle>
                                                 <circle cx="12" cy="19" r="2"></circle>
