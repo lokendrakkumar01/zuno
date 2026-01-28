@@ -376,7 +376,8 @@ const Home = () => {
                   <footer style={{
                         padding: 'var(--space-xl) 0',
                         borderTop: '1px solid var(--color-border)',
-                        marginTop: 'var(--space-2xl)'
+                        marginTop: 'var(--space-2xl)',
+                        background: 'linear-gradient(180deg, transparent 0%, rgba(99, 102, 241, 0.03) 100%)'
                   }}>
                         <div className="container">
                               <div className="flex justify-between items-center flex-wrap gap-lg">
@@ -391,9 +392,27 @@ const Home = () => {
                                           <span>💚 No Addiction</span>
                                     </div>
                               </div>
-                              <p className="text-center text-muted text-sm mt-lg">
-                                    © 2026 ZUNO. Built for learning, growth, and peace of mind.
-                              </p>
+                              <div style={{
+                                    marginTop: 'var(--space-lg)',
+                                    paddingTop: 'var(--space-lg)',
+                                    borderTop: '1px solid var(--color-border)',
+                                    textAlign: 'center'
+                              }}>
+                                    <p className="text-muted text-sm">
+                                          © 2026 ZUNO. Built for learning, growth, and peace of mind.
+                                    </p>
+                                    <p style={{
+                                          marginTop: 'var(--space-sm)',
+                                          fontSize: '14px',
+                                          fontWeight: '600',
+                                          background: 'linear-gradient(135deg, #6366f1, #8b5cf6, #ec4899)',
+                                          WebkitBackgroundClip: 'text',
+                                          WebkitTextFillColor: 'transparent',
+                                          backgroundClip: 'text'
+                                    }}>
+                                          ✨ Created by LOKENDRA KUMAR ✨
+                                    </p>
+                              </div>
                         </div>
                   </footer>
             </div>

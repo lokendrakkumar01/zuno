@@ -53,6 +53,17 @@ const StoryViewer = ({ group, onClose }) => {
             return `${API_BASE_URL}${url}`;
       };
 
+      // Calculate time ago
+      const getTimeAgo = (date) => {
+            const now = new Date();
+            const diff = now - new Date(date);
+            const hours = Math.floor(diff / (1000 * 60 * 60));
+            const minutes = Math.floor(diff / (1000 * 60));
+            if (hours > 0) return `${hours}h`;
+            if (minutes > 0) return `${minutes}m`;
+            return 'now';
+      };
+
       if (!currentStory) return null;
 
       const media = currentStory.media[0];
@@ -60,13 +71,13 @@ const StoryViewer = ({ group, onClose }) => {
 
       return (
             <div className="fixed inset-0 z-50 bg-black flex items-center justify-center">
-                  <button onClick={onClose} className="absolute top-4 right-4 text-white text-2xl z-50">✕</button>
+                  <button onClick={onClose} className="absolute top-4 right-4 text-white text-2xl z-50 hover:scale-110 transition-transform">✕</button>
 
-                  <div className="relative w-full max-w-md h-full md:h-[80vh] bg-gray-900 rounded-lg overflow-hidden flex flex-col">
+                  <div className="relative w-full max-w-md h-full md:h-[90vh] bg-gray-900 md:rounded-2xl overflow-hidden flex flex-col">
                         {/* Progress Bar */}
                         <div className="absolute top-2 left-2 right-2 flex gap-1 z-20">
                               {group.stories.map((_, idx) => (
-                                    <div key={idx} className="h-1 flex-1 bg-gray-600 rounded-full overflow-hidden">
+                                    <div key={idx} className="h-1 flex-1 bg-gray-600/50 rounded-full overflow-hidden">
                                           <div
                                                 className="h-full bg-white transition-all duration-100"
                                                 style={{
@@ -78,21 +89,37 @@ const StoryViewer = ({ group, onClose }) => {
                         </div>
 
                         {/* User Info */}
-                        <div className="absolute top-6 left-4 flex items-center gap-2 z-20">
-                              <img
-                                    src={group.creator.avatar || 'https://via.placeholder.com/40'}
-                                    alt={group.creator.displayName}
-                                    className="w-8 h-8 rounded-full border border-white"
-                              />
-                              <span className="text-white font-semibold">{group.creator.displayName}</span>
-                              <span className="text-gray-300 text-xs">• {new Date(currentStory.createdAt).getHours()}:{new Date(currentStory.createdAt).getMinutes()}</span>
+                        <div className="absolute top-8 left-4 flex items-center gap-3 z-20">
+                              <div style={{
+                                    width: '40px',
+                                    height: '40px',
+                                    borderRadius: '50%',
+                                    padding: '2px',
+                                    background: 'linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)'
+                              }}>
+                                    <img
+                                          src={group.creator.avatar || 'https://via.placeholder.com/40'}
+                                          alt={group.creator.displayName}
+                                          style={{
+                                                width: '100%',
+                                                height: '100%',
+                                                borderRadius: '50%',
+                                                border: '2px solid black',
+                                                objectFit: 'cover'
+                                          }}
+                                    />
+                              </div>
+                              <div>
+                                    <span className="text-white font-semibold text-sm">{group.creator.displayName || group.creator.username}</span>
+                                    <span className="text-gray-400 text-xs ml-2">{getTimeAgo(currentStory.createdAt)}</span>
+                              </div>
                         </div>
 
                         {/* Media */}
                         <div className="flex-1 flex items-center justify-center bg-black relative">
                               {!isVideo && !imageLoaded && !error && (
                                     <div className="absolute inset-0 flex items-center justify-center">
-                                          <div className="w-8 h-8 border-4 border-gray-600 border-t-white rounded-full animate-spin"></div>
+                                          <div className="w-10 h-10 border-4 border-gray-600 border-t-white rounded-full animate-spin"></div>
                                     </div>
                               )}
 
@@ -117,15 +144,24 @@ const StoryViewer = ({ group, onClose }) => {
 
                               {error && (
                                     <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
-                                          <span className="text-3xl mb-2">⚠️</span>
-                                          <p>Failed to load story</p>
+                                          <span className="text-4xl mb-2">⚠️</span>
+                                          <p className="text-gray-400">Failed to load story</p>
                                     </div>
                               )}
 
                               {/* Navigation Zones */}
-                              <div className="absolute inset-y-0 left-0 w-1/3" onClick={handlePrev}></div>
-                              <div className="absolute inset-y-0 right-0 w-1/3" onClick={handleNext}></div>
+                              <div className="absolute inset-y-0 left-0 w-1/3 cursor-pointer" onClick={handlePrev}></div>
+                              <div className="absolute inset-y-0 right-0 w-1/3 cursor-pointer" onClick={handleNext}></div>
                         </div>
+
+                        {/* Story expires in indicator */}
+                        {currentStory.expiresAt && (
+                              <div className="absolute bottom-4 left-0 right-0 text-center">
+                                    <span className="text-gray-500 text-xs bg-black/50 px-3 py-1 rounded-full">
+                                          ⏳ Expires {getTimeAgo(currentStory.expiresAt)}
+                                    </span>
+                              </div>
+                        )}
                   </div>
             </div>
       );
@@ -134,7 +170,7 @@ const StoryViewer = ({ group, onClose }) => {
 const StoryBar = () => {
       const [storyGroups, setStoryGroups] = useState([]);
       const [selectedGroup, setSelectedGroup] = useState(null);
-      const { user } = useAuth();
+      const { user, isAuthenticated } = useAuth();
 
       useEffect(() => {
             const fetchStories = async () => {
@@ -151,43 +187,175 @@ const StoryBar = () => {
             fetchStories();
       }, []);
 
-      if (storyGroups.length === 0) return null;
+      // Instagram-style gradient ring
+      const gradientRingStyle = {
+            background: 'linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)',
+            padding: '3px',
+            borderRadius: '50%'
+      };
+
+      const seenRingStyle = {
+            background: '#dbdbdb',
+            padding: '3px',
+            borderRadius: '50%'
+      };
+
+      if (storyGroups.length === 0 && !isAuthenticated) return null;
 
       return (
-            <div className="bg-white border-b border-gray-100 py-4 mb-4 overflow-x-auto no-scrollbar">
-                  <div className="container flex gap-4">
-                        {/* Add Story Button (If User Logged In) */}
-                        {user && (
-                              <Link to="/upload?type=story" className="flex flex-col items-center gap-1 min-w-[70px] cursor-pointer">
-                                    <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center border-2 border-white relative">
-                                          <img
-                                                src={user.avatar || 'https://via.placeholder.com/40'}
-                                                alt="You"
-                                                className="w-full h-full rounded-full object-cover opacity-50"
-                                          />
-                                          <div className="absolute bottom-0 right-0 bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs border border-white">+</div>
+            <div style={{
+                  background: 'white',
+                  borderBottom: '1px solid #efefef',
+                  padding: '12px 0',
+                  marginBottom: '16px',
+                  overflowX: 'auto',
+                  scrollbarWidth: 'none',
+                  msOverflowStyle: 'none'
+            }}>
+                  <style>
+                        {`
+                              .story-scroll::-webkit-scrollbar {
+                                    display: none;
+                              }
+                        `}
+                  </style>
+                  <div className="story-scroll" style={{
+                        display: 'flex',
+                        gap: '16px',
+                        paddingLeft: '16px',
+                        paddingRight: '16px',
+                        overflowX: 'auto'
+                  }}>
+                        {/* Your Story - Add Button */}
+                        {isAuthenticated && (
+                              <Link to="/upload?type=story" style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    minWidth: '75px',
+                                    textDecoration: 'none'
+                              }}>
+                                    <div style={{
+                                          position: 'relative',
+                                          width: '66px',
+                                          height: '66px'
+                                    }}>
+                                          <div style={{
+                                                width: '66px',
+                                                height: '66px',
+                                                borderRadius: '50%',
+                                                border: '2px solid #efefef',
+                                                overflow: 'hidden',
+                                                background: '#fafafa'
+                                          }}>
+                                                <img
+                                                      src={user?.avatar || 'https://via.placeholder.com/66'}
+                                                      alt="Your Story"
+                                                      style={{
+                                                            width: '100%',
+                                                            height: '100%',
+                                                            objectFit: 'cover'
+                                                      }}
+                                                />
+                                          </div>
+                                          {/* Plus icon */}
+                                          <div style={{
+                                                position: 'absolute',
+                                                bottom: '0',
+                                                right: '0',
+                                                width: '22px',
+                                                height: '22px',
+                                                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                                borderRadius: '50%',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                border: '2px solid white',
+                                                boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
+                                          }}>
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="white">
+                                                      <path d="M12 5v14M5 12h14" stroke="white" strokeWidth="3" strokeLinecap="round" />
+                                                </svg>
+                                          </div>
                                     </div>
-                                    <span className="text-xs text-gray-600 truncate w-full text-center">Your Story</span>
+                                    <span style={{
+                                          fontSize: '11px',
+                                          color: '#262626',
+                                          textAlign: 'center',
+                                          maxWidth: '65px',
+                                          overflow: 'hidden',
+                                          textOverflow: 'ellipsis',
+                                          whiteSpace: 'nowrap'
+                                    }}>Your Story</span>
                               </Link>
                         )}
 
-                        {/* Story Circles */}
+                        {/* Story Circles - Instagram Style */}
                         {storyGroups.map(group => (
                               <div
                                     key={group.creator._id}
-                                    className="flex flex-col items-center gap-1 min-w-[70px] cursor-pointer"
                                     onClick={() => setSelectedGroup(group)}
+                                    style={{
+                                          display: 'flex',
+                                          flexDirection: 'column',
+                                          alignItems: 'center',
+                                          gap: '6px',
+                                          minWidth: '75px',
+                                          cursor: 'pointer'
+                                    }}
                               >
-                                    <div className="w-16 h-16 rounded-full p-[2px] bg-gradient-to-tr from-yellow-400 to-fuchsia-600">
-                                          <div className="w-full h-full rounded-full border-2 border-white overflow-hidden bg-white">
+                                    <div style={gradientRingStyle}>
+                                          <div style={{
+                                                width: '60px',
+                                                height: '60px',
+                                                borderRadius: '50%',
+                                                border: '3px solid white',
+                                                overflow: 'hidden',
+                                                background: 'white'
+                                          }}>
                                                 <img
                                                       src={group.creator.avatar || 'https://via.placeholder.com/60'}
                                                       alt={group.creator.displayName}
-                                                      className="w-full h-full object-cover"
+                                                      style={{
+                                                            width: '100%',
+                                                            height: '100%',
+                                                            objectFit: 'cover'
+                                                      }}
                                                 />
                                           </div>
                                     </div>
-                                    <span className="text-xs text-gray-600 truncate w-full text-center">{group.creator.displayName}</span>
+                                    {/* Follow icon for non-followed users - Like Instagram */}
+                                    {!group.isFollowing && (
+                                          <div style={{
+                                                position: 'absolute',
+                                                marginTop: '52px',
+                                                width: '20px',
+                                                height: '20px',
+                                                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                                borderRadius: '50%',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                border: '2px solid white'
+                                          }}>
+                                                <svg width="10" height="10" viewBox="0 0 24 24" fill="white">
+                                                      <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                                      <circle cx="8.5" cy="7" r="4"></circle>
+                                                      <line x1="20" y1="8" x2="20" y2="14" stroke="white" strokeWidth="2"></line>
+                                                      <line x1="23" y1="11" x2="17" y2="11" stroke="white" strokeWidth="2"></line>
+                                                </svg>
+                                          </div>
+                                    )}
+                                    <span style={{
+                                          fontSize: '11px',
+                                          color: '#262626',
+                                          textAlign: 'center',
+                                          maxWidth: '65px',
+                                          overflow: 'hidden',
+                                          textOverflow: 'ellipsis',
+                                          whiteSpace: 'nowrap'
+                                    }}>{group.creator.displayName || group.creator.username}</span>
                               </div>
                         ))}
                   </div>
