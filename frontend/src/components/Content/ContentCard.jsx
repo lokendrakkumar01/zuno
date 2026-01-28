@@ -215,15 +215,32 @@ const ContentCard = ({ content, onDelete }) => {
       };
 
       const [imageError, setImageError] = useState(false);
+      const [imageRetryCount, setImageRetryCount] = useState(0);
 
       const getMediaUrl = (url) => {
-            if (!url) return '';
+            if (!url) {
+                  console.warn('getMediaUrl: Empty URL provided');
+                  return '';
+            }
+
             // If it's already a full URL, return as-is
-            if (url.startsWith('http://') || url.startsWith('https://')) return url;
-            // If it's a data URL, return as-is
-            if (url.startsWith('data:')) return url;
+            if (url.startsWith('http://') || url.startsWith('https://')) {
+                  console.log('getMediaUrl: Full URL detected:', url);
+                  return url;
+            }
+
+            // If it's a data URL, return as-is  
+            if (url.startsWith('data:')) {
+                  console.log('getMediaUrl: Data URL detected');
+                  return url;
+            }
+
             // Otherwise, prepend the API base URL
-            return `${API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
+            // Ensure no double slashes
+            const cleanUrl = url.startsWith('/') ? url : `/${url}`;
+            const fullUrl = `${API_BASE_URL}${cleanUrl}`;
+            console.log('getMediaUrl: Constructed URL:', fullUrl, '(from:', url, ')');
+            return fullUrl;
       };
 
       const placeholderImage = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300"%3E%3Crect fill="%23f0f0f0" width="400" height="300"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="18" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3ENo Image Available%3C/text%3E%3C/svg%3E';
@@ -311,8 +328,29 @@ const ContentCard = ({ content, onDelete }) => {
                                                       src={imageError ? placeholderImage : getMediaUrl(mediaUrl)}
                                                       alt={content.title || 'Content image'}
                                                       loading="lazy"
-                                                      onLoad={() => setImageLoaded(true)}
-                                                      onError={() => setImageError(true)}
+                                                      onLoad={() => {
+                                                            console.log('Image loaded successfully:', mediaUrl);
+                                                            setImageLoaded(true);
+                                                            setImageError(false);
+                                                      }}
+                                                      onError={(e) => {
+                                                            console.error('Image failed to load:', {
+                                                                  url: mediaUrl,
+                                                                  constructedUrl: getMediaUrl(mediaUrl),
+                                                                  error: e,
+                                                                  retryCount: imageRetryCount
+                                                            });
+
+                                                            // Try to retry once
+                                                            if (imageRetryCount < 1) {
+                                                                  console.log('Retrying image load...');
+                                                                  setImageRetryCount(imageRetryCount + 1);
+                                                                  // Force reload by changing src slightly
+                                                                  e.target.src = getMediaUrl(mediaUrl) + '?retry=' + Date.now();
+                                                            } else {
+                                                                  setImageError(true);
+                                                            }
+                                                      }}
                                                       className={`w-full h-auto object-cover transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
                                                       style={{ minHeight: '200px', display: imageError ? 'none' : 'block' }}
                                                 />
@@ -321,13 +359,14 @@ const ContentCard = ({ content, onDelete }) => {
                                                 {imageError && (
                                                       <div className="flex flex-col items-center justify-center h-full p-8 text-gray-400 bg-gray-100" style={{ minHeight: '200px' }}>
                                                             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="mb-2">
-                                                                  <image x="4" y="4" width="16" height="16" transform="rotate(-15 12 12)" opacity="0.1" />
-                                                                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-9" />
-                                                                  <path d="M15 5h4a2 2 0 0 1 2 2v2" />
-                                                                  <path d="M13 2 L3 12" />
-                                                                  <path d="M21 2 L11 12" />
+                                                                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                                                                  <circle cx="8.5" cy="8.5" r="1.5" />
+                                                                  <polyline points="21 15 16 10 5 21" />
                                                             </svg>
                                                             <span className="text-sm">Image not available</span>
+                                                            {import.meta.env.DEV && (
+                                                                  <span className="text-xs mt-2 text-gray-500">URL: {mediaUrl}</span>
+                                                            )}
                                                       </div>
                                                 )}
                                           </>
