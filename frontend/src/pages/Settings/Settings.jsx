@@ -163,6 +163,27 @@ const Settings = () => {
                               onClick={() => navigate('/settings/language')}
                         />
 
+                        {/* Advanced Settings Section */}
+                        <SectionTitle title={t('advancedSettings')} />
+                        <SettingsOption
+                              icon="🛡️"
+                              label={t('accountStatus')}
+                              subtitle="Check your standing on ZUNO"
+                              onClick={() => alert('Account status: All good! ✅')}
+                        />
+                        <SettingsOption
+                              icon="📥"
+                              label={t('downloadInfo')}
+                              subtitle="Get a copy of your ZUNO data"
+                              onClick={() => alert('Information download request submitted.')}
+                        />
+                        <SettingsOption
+                              icon="❓"
+                              label={t('support')}
+                              subtitle="Get help or report a problem"
+                              onClick={() => alert('Opening Help Center...')}
+                        />
+
                         {/* Account Section */}
                         <SectionTitle title={t('yourAccount')} />
                         <SettingsOption

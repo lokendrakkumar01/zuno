@@ -25,6 +25,10 @@ export const translations = {
             creatorTools: 'Creator Tools',
             personalInfo: 'Personal Information',
             deleteAccount: 'Delete Account',
+            advancedSettings: 'Advanced Settings',
+            accountStatus: 'Account Status',
+            downloadInfo: 'Download Information',
+            support: 'Help & Support',
 
             // Headers
             welcome: 'Welcome',
@@ -75,6 +79,10 @@ export const translations = {
             creatorTools: 'क्रिएटर टूल्स',
             personalInfo: 'व्यक्तिगत जानकारी',
             deleteAccount: 'खाता हटाएं',
+            advancedSettings: 'उन्नत सेटिंग्स',
+            accountStatus: 'खाता स्थिति',
+            downloadInfo: 'जानकारी डाउनलोड करें',
+            support: 'सहायता और समर्थन',
 
             // Headers
             welcome: 'स्वागत हे',
