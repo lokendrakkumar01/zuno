@@ -46,7 +46,6 @@ const Settings = () => {
       );
 
       return (
-      return (
             <div className="settings-container">
                   <h1 style={{
                         fontSize: '28px',
