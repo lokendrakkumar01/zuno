@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { API_URL, API_BASE_URL } from '../../config';
@@ -241,6 +241,55 @@ const ContentCard = ({ content, onDelete }) => {
             return gradients[type] || 'var(--gradient-primary)';
       };
 
+      // Enhanced Icon Mapping Functions
+      const getContentTypeIcon = (type) => {
+            const icons = {
+                  'photo': '📷',
+                  'post': '📝',
+                  'short-video': '🎥',
+                  'long-video': '🎬',
+                  'live': '🔴',
+                  'story': '⏳'
+            };
+            return icons[type] || '📄';
+      };
+
+      const getTopicIcon = (topic) => {
+            const icons = {
+                  'learning': '🎓',
+                  'technology': '💻',
+                  'creativity': '🎨',
+                  'health': '🏥',
+                  'business': '💼',
+                  'science': '🔬',
+                  'arts': '🎭',
+                  'lifestyle': '🌿',
+                  'problem-solving': '🧩',
+                  'mentoring': '👨‍🏫'
+            };
+            return icons[topic] || '📌';
+      };
+
+      const getLanguageIcon = (lang) => {
+            const icons = { 'en': '🇺🇸', 'hi': '🇮🇳', 'other': '🌐' };
+            return icons[lang] || '🌐';
+      };
+
+      const formatDuration = (seconds) => {
+            if (!seconds) return null;
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+      };
+
+      // Video player enhanced states
+      const videoRef = useRef(null);
+      const [isPlaying, setIsPlaying] = useState(false);
+      const [isMuted, setIsMuted] = useState(false);
+      const [showVideoControls, setShowVideoControls] = useState(true);
+      const [videoProgress, setVideoProgress] = useState(0);
+      const [videoDuration, setVideoDuration] = useState(0);
+
       const [imageError, setImageError] = useState(false);
       const [imageRetryCount, setImageRetryCount] = useState(0);
 
@@ -398,36 +447,333 @@ const ContentCard = ({ content, onDelete }) => {
                                                 )}
                                           </>
                                     ) : (
-                                          <video
-                                                key={mediaUrl}
-                                                src={getMediaUrl(mediaUrl)}
-                                                controls
-                                                controlsList="nodownload"
-                                                playsInline
-                                                preload="metadata"
-                                                poster={content.media[0].thumbnail}
-                                                className="w-full h-auto bg-black"
-                                                style={{ maxHeight: '600px' }}
-                                                onError={(e) => {
-                                                      console.error('Video failed to load:', e);
-                                                }}
-                                          />
+                                          /* Enhanced Video Player */
+                                          <div 
+                                                className="video-player-container"
+                                                style={{ position: 'relative' }}
+                                                onMouseEnter={() => setShowVideoControls(true)}
+                                                onMouseLeave={() => !isPlaying && setShowVideoControls(true)}
+                                          >
+                                                <video
+                                                      ref={videoRef}
+                                                      key={mediaUrl}
+                                                      src={getMediaUrl(mediaUrl)}
+                                                      controls
+                                                      controlsList="nodownload"
+                                                      playsInline
+                                                      preload="metadata"
+                                                      poster={content.media[0].thumbnail}
+                                                      className="w-full h-auto bg-black"
+                                                      style={{ maxHeight: '600px' }}
+                                                      muted={isMuted}
+                                                      onPlay={() => setIsPlaying(true)}
+                                                      onPause={() => setIsPlaying(false)}
+                                                      onLoadedMetadata={(e) => setVideoDuration(e.target.duration)}
+                                                      onTimeUpdate={(e) => setVideoProgress((e.target.currentTime / e.target.duration) * 100)}
+                                                      onError={(e) => {
+                                                            console.error('Video failed to load:', e);
+                                                      }}
+                                                />
+
+                                                {/* Floating Badges Container - Top Left */}
+                                                <div style={{
+                                                      position: 'absolute',
+                                                      top: '8px',
+                                                      left: '8px',
+                                                      display: 'flex',
+                                                      flexDirection: 'column',
+                                                      gap: '6px',
+                                                      zIndex: 10
+                                                }}>
+                                                      {/* Purpose Badge */}
+                                                      <div style={{
+                                                            background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.9), rgba(139, 92, 246, 0.9))',
+                                                            padding: '4px 10px',
+                                                            borderRadius: '20px',
+                                                            fontSize: '11px',
+                                                            color: 'white',
+                                                            fontWeight: '600',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '4px',
+                                                            backdropFilter: 'blur(4px)',
+                                                            boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
+                                                      }}>
+                                                            <span>{getPurposeEmoji(content.purpose)}</span>
+                                                            <span style={{ textTransform: 'capitalize' }}>{content.purpose}</span>
+                                                      </div>
+
+                                                      {/* Topic Icons Row */}
+                                                      {content.topics && content.topics.length > 0 && (
+                                                            <div style={{
+                                                                  display: 'flex',
+                                                                  gap: '4px',
+                                                                  flexWrap: 'wrap'
+                                                            }}>
+                                                                  {content.topics.slice(0, 3).map((topic, idx) => (
+                                                                        <div key={idx} style={{
+                                                                              background: 'rgba(0,0,0,0.7)',
+                                                                              padding: '3px 8px',
+                                                                              borderRadius: '12px',
+                                                                              fontSize: '10px',
+                                                                              color: 'white',
+                                                                              display: 'flex',
+                                                                              alignItems: 'center',
+                                                                              gap: '3px',
+                                                                              backdropFilter: 'blur(4px)'
+                                                                        }}>
+                                                                              <span>{getTopicIcon(topic)}</span>
+                                                                              <span style={{ textTransform: 'capitalize' }}>{topic}</span>
+                                                                        </div>
+                                                                  ))}
+                                                            </div>
+                                                      )}
+                                                </div>
+
+                                                {/* Top Right Badges */}
+                                                <div style={{
+                                                      position: 'absolute',
+                                                      top: '8px',
+                                                      right: '8px',
+                                                      display: 'flex',
+                                                      flexDirection: 'column',
+                                                      alignItems: 'flex-end',
+                                                      gap: '6px',
+                                                      zIndex: 10
+                                                }}>
+                                                      {/* Content Type Badge */}
+                                                      <div style={{
+                                                            background: content.contentType === 'live' 
+                                                                  ? 'linear-gradient(135deg, #ef4444, #dc2626)' 
+                                                                  : 'rgba(0,0,0,0.75)',
+                                                            padding: '4px 10px',
+                                                            borderRadius: '20px',
+                                                            fontSize: '11px',
+                                                            color: 'white',
+                                                            fontWeight: '600',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '4px',
+                                                            backdropFilter: 'blur(4px)'
+                                                      }}>
+                                                            <span>{getContentTypeIcon(content.contentType)}</span>
+                                                            <span>{content.contentType === 'short-video' ? 'Short' : content.contentType === 'long-video' ? 'Video' : content.contentType}</span>
+                                                      </div>
+
+                                                      {/* Duration Badge */}
+                                                      {(videoDuration > 0 || content.media[0]?.duration) && (
+                                                            <div style={{
+                                                                  background: 'rgba(0,0,0,0.75)',
+                                                                  padding: '3px 8px',
+                                                                  borderRadius: '12px',
+                                                                  fontSize: '10px',
+                                                                  color: 'white',
+                                                                  fontWeight: '500',
+                                                                  display: 'flex',
+                                                                  alignItems: 'center',
+                                                                  gap: '3px'
+                                                            }}>
+                                                                  <span>⏱️</span>
+                                                                  <span>{formatDuration(videoDuration || content.media[0]?.duration)}</span>
+                                                            </div>
+                                                      )}
+
+                                                      {/* Language Badge */}
+                                                      {content.language && (
+                                                            <div style={{
+                                                                  background: 'rgba(0,0,0,0.75)',
+                                                                  padding: '3px 8px',
+                                                                  borderRadius: '12px',
+                                                                  fontSize: '10px',
+                                                                  color: 'white'
+                                                            }}>
+                                                                  <span>{getLanguageIcon(content.language)}</span>
+                                                            </div>
+                                                      )}
+                                                </div>
+
+                                                {/* Bottom Right Quick Actions */}
+                                                <div style={{
+                                                      position: 'absolute',
+                                                      bottom: '50px',
+                                                      right: '8px',
+                                                      display: 'flex',
+                                                      flexDirection: 'column',
+                                                      gap: '8px',
+                                                      zIndex: 10
+                                                }}>
+                                                      {/* Mute/Unmute Button */}
+                                                      <button
+                                                            onClick={(e) => {
+                                                                  e.stopPropagation();
+                                                                  setIsMuted(!isMuted);
+                                                                  if (videoRef.current) {
+                                                                        videoRef.current.muted = !isMuted;
+                                                                  }
+                                                            }}
+                                                            style={{
+                                                                  width: '36px',
+                                                                  height: '36px',
+                                                                  borderRadius: '50%',
+                                                                  background: 'rgba(0,0,0,0.7)',
+                                                                  border: 'none',
+                                                                  color: 'white',
+                                                                  cursor: 'pointer',
+                                                                  display: 'flex',
+                                                                  alignItems: 'center',
+                                                                  justifyContent: 'center',
+                                                                  fontSize: '14px',
+                                                                  backdropFilter: 'blur(4px)',
+                                                                  transition: 'all 0.2s ease'
+                                                            }}
+                                                            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(99, 102, 241, 0.8)'}
+                                                            onMouseOut={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.7)'}
+                                                      >
+                                                            {isMuted ? '🔇' : '🔊'}
+                                                      </button>
+
+                                                      {/* Fullscreen Button */}
+                                                      <button
+                                                            onClick={(e) => {
+                                                                  e.stopPropagation();
+                                                                  if (videoRef.current) {
+                                                                        if (document.fullscreenElement) {
+                                                                              document.exitFullscreen();
+                                                                        } else {
+                                                                              videoRef.current.requestFullscreen();
+                                                                        }
+                                                                  }
+                                                            }}
+                                                            style={{
+                                                                  width: '36px',
+                                                                  height: '36px',
+                                                                  borderRadius: '50%',
+                                                                  background: 'rgba(0,0,0,0.7)',
+                                                                  border: 'none',
+                                                                  color: 'white',
+                                                                  cursor: 'pointer',
+                                                                  display: 'flex',
+                                                                  alignItems: 'center',
+                                                                  justifyContent: 'center',
+                                                                  fontSize: '14px',
+                                                                  backdropFilter: 'blur(4px)',
+                                                                  transition: 'all 0.2s ease'
+                                                            }}
+                                                            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(99, 102, 241, 0.8)'}
+                                                            onMouseOut={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.7)'}
+                                                      >
+                                                            ⛶
+                                                      </button>
+
+                                                      {/* PiP Button */}
+                                                      <button
+                                                            onClick={(e) => {
+                                                                  e.stopPropagation();
+                                                                  if (videoRef.current && document.pictureInPictureEnabled) {
+                                                                        if (document.pictureInPictureElement) {
+                                                                              document.exitPictureInPicture();
+                                                                        } else {
+                                                                              videoRef.current.requestPictureInPicture();
+                                                                        }
+                                                                  }
+                                                            }}
+                                                            style={{
+                                                                  width: '36px',
+                                                                  height: '36px',
+                                                                  borderRadius: '50%',
+                                                                  background: 'rgba(0,0,0,0.7)',
+                                                                  border: 'none',
+                                                                  color: 'white',
+                                                                  cursor: 'pointer',
+                                                                  display: 'flex',
+                                                                  alignItems: 'center',
+                                                                  justifyContent: 'center',
+                                                                  fontSize: '14px',
+                                                                  backdropFilter: 'blur(4px)',
+                                                                  transition: 'all 0.2s ease'
+                                                            }}
+                                                            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(99, 102, 241, 0.8)'}
+                                                            onMouseOut={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.7)'}
+                                                      >
+                                                            📺
+                                                      </button>
+                                                </div>
+                                          </div>
                                     )
                               )}
 
-                              {/* Content Type Badge */}
-                              {content.contentType.includes('video') && (
+                              {/* Content Type Badge for Images */}
+                              {content.media[0]?.type === 'image' && (
                                     <div style={{
                                           position: 'absolute',
-                                          top: 'var(--space-sm)',
-                                          right: 'var(--space-sm)',
-                                          background: 'rgba(0,0,0,0.7)',
-                                          padding: '0.25rem 0.5rem',
-                                          borderRadius: 'var(--radius-sm)',
-                                          fontSize: 'var(--font-size-xs)',
-                                          color: 'white'
+                                          top: '8px',
+                                          right: '8px',
+                                          display: 'flex',
+                                          flexDirection: 'column',
+                                          alignItems: 'flex-end',
+                                          gap: '6px',
+                                          zIndex: 10
                                     }}>
-                                          {content.contentType === 'short-video' ? '🎥 Short' : '🎬 Video'}
+                                          {/* Purpose Badge */}
+                                          <div style={{
+                                                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.9), rgba(139, 92, 246, 0.9))',
+                                                padding: '4px 10px',
+                                                borderRadius: '20px',
+                                                fontSize: '11px',
+                                                color: 'white',
+                                                fontWeight: '600',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '4px',
+                                                backdropFilter: 'blur(4px)',
+                                                boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
+                                          }}>
+                                                <span>{getPurposeEmoji(content.purpose)}</span>
+                                                <span style={{ textTransform: 'capitalize' }}>{content.purpose}</span>
+                                          </div>
+
+                                          {/* Language Badge */}
+                                          {content.language && (
+                                                <div style={{
+                                                      background: 'rgba(0,0,0,0.75)',
+                                                      padding: '3px 8px',
+                                                      borderRadius: '12px',
+                                                      fontSize: '10px',
+                                                      color: 'white'
+                                                }}>
+                                                      <span>{getLanguageIcon(content.language)}</span>
+                                                </div>
+                                          )}
+                                    </div>
+                              )}
+
+                              {/* Topic Icons for Images - Bottom Left */}
+                              {content.media[0]?.type === 'image' && content.topics && content.topics.length > 0 && (
+                                    <div style={{
+                                          position: 'absolute',
+                                          bottom: '8px',
+                                          left: '8px',
+                                          display: 'flex',
+                                          gap: '4px',
+                                          flexWrap: 'wrap',
+                                          zIndex: 10
+                                    }}>
+                                          {content.topics.slice(0, 3).map((topic, idx) => (
+                                                <div key={idx} style={{
+                                                      background: 'rgba(0,0,0,0.7)',
+                                                      padding: '3px 8px',
+                                                      borderRadius: '12px',
+                                                      fontSize: '10px',
+                                                      color: 'white',
+                                                      display: 'flex',
+                                                      alignItems: 'center',
+                                                      gap: '3px',
+                                                      backdropFilter: 'blur(4px)'
+                                                }}>
+                                                      <span>{getTopicIcon(topic)}</span>
+                                                      <span style={{ textTransform: 'capitalize' }}>{topic}</span>
+                                                </div>
+                                          ))}
                                     </div>
                               )}
                         </div>
