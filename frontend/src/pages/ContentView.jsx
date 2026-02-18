@@ -3,6 +3,80 @@ import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { API_URL, API_BASE_URL } from '../config';
 
+// Separate component for media items to avoid React hooks violation
+const MediaItem = ({ m, content }) => {
+      const [loaded, setLoaded] = useState(false);
+      const [error, setError] = useState(false);
+      const mediaUrl = m.url.startsWith('http') ? m.url : `${API_BASE_URL}${m.url}`;
+
+      return (
+            <div className="relative bg-gray-100" style={{ minHeight: '200px' }}>
+                  {/* Uploading Status */}
+                  {m.status === 'uploading' && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500">
+                              <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-2"></div>
+                              <span className="text-sm">Processing...</span>
+                        </div>
+                  )}
+
+                  {/* Failed Status */}
+                  {m.status === 'failed' && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-red-500">
+                              <span className="text-2xl mb-2">⚠️</span>
+                              <span className="text-sm">Media failed to load</span>
+                        </div>
+                  )}
+
+                  {/* Ready Status */}
+                  {(m.status === 'ready' || !m.status) && (
+                        m.type === 'image' ? (
+                              <>
+                                    {!loaded && !error && (
+                                          <div className="absolute inset-0 flex items-center justify-center">
+                                                <div className="w-8 h-8 border-4 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
+                                          </div>
+                                    )}
+                                    <img
+                                          src={error ? 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300"%3E%3Crect fill="%23f0f0f0" width="400" height="300"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="18" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3ENo Image Available%3C/text%3E%3C/svg%3E' : `${mediaUrl}?v=${new Date(content.updatedAt).getTime()}`}
+                                          alt={content.title}
+                                          loading="lazy"
+                                          onLoad={() => setLoaded(true)}
+                                          onError={() => setError(true)}
+                                          style={{
+                                                width: '100%',
+                                                maxHeight: '500px',
+                                                objectFit: 'contain',
+                                                background: 'var(--color-bg-tertiary)',
+                                                opacity: loaded ? 1 : 0,
+                                                transition: 'opacity 0.3s ease'
+                                          }}
+                                    />
+                              </>
+                        ) : (
+                              <video
+                                    key={mediaUrl}
+                                    src={`${mediaUrl}?v=${new Date(content.updatedAt).getTime()}`}
+                                    controls
+                                    controlsList="nodownload"
+                                    preload="metadata"
+                                    playsInline
+                                    style={{ width: '100%', maxHeight: '500px' }}
+                                    onError={(e) => {
+                                          console.error('Video failed to load:', e);
+                                          if (!e.target.dataset.retried) {
+                                                e.target.dataset.retried = 'true';
+                                                setTimeout(() => {
+                                                      e.target.src = `${mediaUrl}?v=${Date.now()}`;
+                                                }, 1000);
+                                          }
+                                    }}
+                              />
+                        )
+                  )}
+            </div>
+      );
+};
+
 const ContentView = () => {
       const { id } = useParams();
       const { token } = useAuth();
@@ -113,80 +187,9 @@ const ContentView = () => {
                   {/* Media */}
                   {content.media && content.media.length > 0 && (
                         <div className="card mb-lg p-0" style={{ overflow: 'hidden' }}>
-                              {content.media.map((m, idx) => {
-                                    const mediaUrl = m.url.startsWith('http') ? m.url : `${API_BASE_URL}${m.url}`;
-                                    // eslint-disable-next-line react-hooks/rules-of-hooks
-                                    const [loaded, setLoaded] = useState(false);
-                                    // eslint-disable-next-line react-hooks/rules-of-hooks
-                                    const [error, setError] = useState(false);
-
-                                    return (
-                                          <div key={idx} className="relative bg-gray-100" style={{ minHeight: '200px' }}>
-                                                {/* Uploading Status */}
-                                                {m.status === 'uploading' && (
-                                                      <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500">
-                                                            <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-2"></div>
-                                                            <span className="text-sm">Processing...</span>
-                                                      </div>
-                                                )}
-
-                                                {/* Failed Status */}
-                                                {m.status === 'failed' && (
-                                                      <div className="absolute inset-0 flex flex-col items-center justify-center text-red-500">
-                                                            <span className="text-2xl mb-2">⚠️</span>
-                                                            <span className="text-sm">Media failed to load</span>
-                                                      </div>
-                                                )}
-
-                                                {/* Ready Status */}
-                                                {(m.status === 'ready' || !m.status) && (
-                                                      m.type === 'image' ? (
-                                                            <>
-                                                                  {!loaded && !error && (
-                                                                        <div className="absolute inset-0 flex items-center justify-center">
-                                                                              <div className="w-8 h-8 border-4 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
-                                                                        </div>
-                                                                  )}
-                                                                  <img
-                                                                        src={error ? 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300"%3E%3Crect fill="%23f0f0f0" width="400" height="300"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="18" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3ENo Image Available%3C/text%3E%3C/svg%3E' : `${mediaUrl}?v=${new Date(content.updatedAt).getTime()}`}
-                                                                        alt={content.title}
-                                                                        loading="lazy"
-                                                                        onLoad={() => setLoaded(true)}
-                                                                        onError={() => setError(true)}
-                                                                        style={{
-                                                                              width: '100%',
-                                                                              maxHeight: '500px',
-                                                                              objectFit: 'contain',
-                                                                              background: 'var(--color-bg-tertiary)',
-                                                                              opacity: loaded ? 1 : 0,
-                                                                              transition: 'opacity 0.3s ease'
-                                                                        }}
-                                                                  />
-                                                            </>
-                                                      ) : (
-                                                            <video
-                                                                  key={mediaUrl}
-                                                                  src={`${mediaUrl}?v=${new Date(content.updatedAt).getTime()}`}
-                                                                  controls
-                                                                  controlsList="nodownload"
-                                                                  preload="metadata"
-                                                                  playsInline
-                                                                  style={{ width: '100%', maxHeight: '500px' }}
-                                                                  onError={(e) => {
-                                                                        console.error('Video failed to load:', e);
-                                                                        if (!e.target.dataset.retried) {
-                                                                              e.target.dataset.retried = 'true';
-                                                                              setTimeout(() => {
-                                                                                    e.target.src = `${mediaUrl}?v=${Date.now()}`;
-                                                                              }, 1000);
-                                                                        }
-                                                                  }}
-                                                            />
-                                                      )
-                                                )}
-                                          </div>
-                                    );
-                              })}
+                              {content.media.map((m, idx) => (
+                                    <MediaItem key={idx} m={m} content={content} />
+                              ))}
                         </div>
                   )}
 

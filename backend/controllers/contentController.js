@@ -36,6 +36,7 @@ const createContent = async (req, res) => {
 
             const content = await Content.create({
                   creator: req.user.id,
+                  isApproved: true,
                   contentType,
                   title,
                   body,

@@ -56,7 +56,7 @@ const getFeed = async (req, res) => {
             }
 
             // Sort by quality score (based on helpfulness, not views/likes)
-            let sortOptions = { qualityScore: -1, createdAt: -1 };
+            let sortOptions = { createdAt: -1, qualityScore: -1 };
 
             // If user has interests, we could prioritize, but for now show all public content (sabhi user ka content)
             // if (userInterests.length > 0) {
@@ -167,7 +167,8 @@ const getCreatorFeed = async (req, res) => {
             const query = {
                   creator: creator._id,
                   status: 'published',
-                  visibility: 'public'
+                  visibility: 'public',
+                  isApproved: true
             };
 
             const contents = await Content.find(query)
