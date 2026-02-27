@@ -13,7 +13,7 @@ const apiLimiter = rateLimit({
 // Auth rate limiter (stricter)
 const authLimiter = rateLimit({
       windowMs: 60 * 60 * 1000, // 1 hour
-      max: 10, // limit each IP to 10 auth attempts per hour
+      max: 50, // limit each IP to 50 auth attempts per hour
       message: {
             success: false,
             message: 'Too many login attempts, please try again after an hour.'
