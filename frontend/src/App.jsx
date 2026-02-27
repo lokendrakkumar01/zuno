@@ -77,8 +77,9 @@ function AppRouter() {
                         <Route path="settings/password-security" element={<PasswordSecurity />} />
                         <Route path="settings/close-friends" element={<CloseFriends />} />
                         <Route path="search" element={<Search />} />
-                        <Route path="content/:id" element={<ContentView />} />
+                        <Route path="saved" element={<SavedContent />} />
                         <Route path="content/saved" element={<SavedContent />} />
+                        <Route path="content/:id" element={<ContentView />} />
                         <Route path="u/:username" element={<Profile />} />
                   </Route>
 
