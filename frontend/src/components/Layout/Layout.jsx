@@ -75,6 +75,9 @@ const Layout = () => {
                                                 <Link to="/profile" className={`nav-link ${isActive('/profile') ? 'active' : ''}`}>
                                                       👤 {t('profile')}
                                                 </Link>
+                                                <Link to="/settings" className={`nav-link ${isActive('/settings') ? 'active' : ''}`}>
+                                                      ⚙️ {t('settings')}
+                                                </Link>
                                                 {user?.role === 'admin' && (
                                                       <Link to="/admin" className="nav-link" style={{ color: 'var(--color-accent-pink)' }}>
                                                             👑 {t('admin')}
@@ -167,6 +170,10 @@ const Layout = () => {
                                     <span style={{ fontSize: '10px' }}>Register</span>
                               </Link>
                         )}
+                        <Link to="/settings" className={`bottom-nav-item ${isActive('/settings') ? 'active' : ''}`}>
+                              <SettingsIcon />
+                              <span style={{ fontSize: '10px' }}>{t('settings')}</span>
+                        </Link>
                         <Link to="/profile" className={`bottom-nav-item ${isActive('/profile') ? 'active' : ''}`}>
                               <div style={{
                                     width: '32px',
@@ -199,4 +206,3 @@ const Layout = () => {
 };
 
 export default Layout;
-
