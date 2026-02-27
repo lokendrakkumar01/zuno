@@ -152,24 +152,6 @@ const Layout = () => {
                                     <span style={{ fontSize: '10px' }}>Login</span>
                               </Link>
                         )}
-                        {isAuthenticated ? (
-                              <Link to="/saved" className={`bottom-nav-item ${isActive('/saved') ? 'active' : ''}`}>
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill={isActive('/saved') ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
-                                          <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
-                                    </svg>
-                                    <span style={{ fontSize: '10px' }}>Saved</span>
-                              </Link>
-                        ) : (
-                              <Link to="/register" className={`bottom-nav-item ${isActive('/register') ? 'active' : ''}`}>
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                          <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                                          <circle cx="8.5" cy="7" r="4"></circle>
-                                          <line x1="20" y1="8" x2="20" y2="14"></line>
-                                          <line x1="23" y1="11" x2="17" y2="11"></line>
-                                    </svg>
-                                    <span style={{ fontSize: '10px' }}>Register</span>
-                              </Link>
-                        )}
                         <Link to="/settings" className={`bottom-nav-item ${isActive('/settings') ? 'active' : ''}`}>
                               <SettingsIcon />
                               <span style={{ fontSize: '10px' }}>{t('settings')}</span>
