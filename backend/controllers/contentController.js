@@ -89,27 +89,32 @@ const getContent = async (req, res) => {
                   });
             }
 
-            // Check Privacy logic
-            const creator = await User.findById(content.creator._id || content.creator);
+            // Check Privacy logic - only for private content
+            const creatorId = content.creator?._id || content.creator;
+            const isPrivateContent = content.visibility === 'private';
 
-            if (creator && (creator.isPrivate || content.visibility === 'private')) {
-                  // Determine if viewer is allowed
-                  let isAllowed = false;
+            if (isPrivateContent && creatorId) {
+                  const creator = await User.findById(creatorId);
+                  const isPrivateAccount = creator && creator.isPrivate;
 
-                  if (req.user) {
-                        const isOwner = req.user.id === creator._id.toString();
-                        const isFollower = creator.followers.includes(req.user.id);
-                        // Also allow admin/mod if needed, but for now stick to followers
-                        if (isOwner || isFollower || req.user.role === 'admin') {
-                              isAllowed = true;
+                  if (isPrivateContent || isPrivateAccount) {
+                        // Determine if viewer is allowed
+                        let isAllowed = false;
+
+                        if (req.user) {
+                              const isOwner = req.user.id === creator._id.toString();
+                              const isFollower = creator.followers && creator.followers.includes(req.user.id);
+                              if (isOwner || isFollower || req.user.role === 'admin') {
+                                    isAllowed = true;
+                              }
                         }
-                  }
 
-                  if (!isAllowed) {
-                        return res.status(403).json({
-                              success: false,
-                              message: "This account is private. Follow to see content."
-                        });
+                        if (!isAllowed) {
+                              return res.status(403).json({
+                                    success: false,
+                                    message: "This account is private. Follow to see content."
+                              });
+                        }
                   }
             }
 
@@ -128,9 +133,7 @@ const getContent = async (req, res) => {
                   data: { content: responseContent }
             });
       } catch (error) {
-            // If JWT error (since route is public, req.user might not be set or might throw if using tough middleware)
-            // But assumed auth middleware is flexible or we handle it. 
-            // Note: For public routes, req.user is usually undefined if not logged in.
+            console.error('getContent error:', error);
             res.status(500).json({
                   success: false,
                   message: 'Failed to get content',

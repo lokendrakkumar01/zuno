@@ -7,6 +7,7 @@ import StoryBar from '../components/Story/StoryBar';
 import { API_URL } from '../config';
 
 const FEED_MODES = [
+      { id: 'all', label: '🌟 All', desc: 'All public content from everyone', icon: '🌟' },
       { id: 'learning', label: '📚 Learning', desc: 'Skills, tutorials & explanations', icon: '📚' },
       { id: 'calm', label: '🧘 Calm', desc: 'Inspiration & peaceful stories', icon: '🧘' },
       { id: 'video', label: '🎬 Video', desc: 'Watch & learn visually', icon: '🎬' },
@@ -35,15 +36,17 @@ const CATEGORIES = [
 const Home = () => {
       const { token, isAuthenticated, user } = useAuth();
       const { t } = useLanguage();
-      const [mode, setMode] = useState('learning');
+      const [mode, setMode] = useState('all');
       const [contents, setContents] = useState([]);
       const [loading, setLoading] = useState(true);
+      const [error, setError] = useState(null);
       const [page, setPage] = useState(1);
       const [hasMore, setHasMore] = useState(true);
       const [stats, setStats] = useState({ users: '1K+', content: '500+', helpful: '10K+' });
 
       const fetchFeed = async (currentMode, currentPage, append = false) => {
             setLoading(true);
+            setError(null);
             try {
                   const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
                   const res = await fetch(`${API_URL}/feed?mode=${currentMode}&page=${currentPage}&limit=9`, { headers });
@@ -56,9 +59,12 @@ const Home = () => {
                               setContents(data.data.contents);
                         }
                         setHasMore(data.data.pagination.hasMore);
+                  } else {
+                        setError('Failed to load content. Please try again.');
                   }
-            } catch (error) {
-                  console.error('Failed to fetch feed:', error);
+            } catch (err) {
+                  console.error('Failed to fetch feed:', err);
+                  setError('Failed to load content. Please try again.');
             }
             setLoading(false);
       };
@@ -259,6 +265,15 @@ const Home = () => {
                                           <div className="spinner" style={{ margin: '0 auto' }}></div>
                                           <p className="mt-md">Loading amazing content...</p>
                                     </div>
+                              ) : error ? (
+                                    <div className="empty-state animate-fadeIn">
+                                          <div className="empty-state-icon">⚠️</div>
+                                          <h3 className="text-xl font-semibold mb-sm">Something went wrong</h3>
+                                          <p className="text-muted mb-lg">{error}</p>
+                                          <button onClick={() => fetchFeed(mode, 1, false)} className="btn btn-primary">
+                                                🔄 Retry
+                                          </button>
+                                    </div>
                               ) : contents.length === 0 ? (
                                     <div className="empty-state animate-fadeIn">
                                           <div className="empty-state-icon">📭</div>
@@ -281,7 +296,6 @@ const Home = () => {
                                                       <div
                                                             key={content._id}
                                                             className={`animate-fadeInUp stagger-${(idx % 3) + 1}`}
-                                                            style={{ opacity: 0 }}
                                                       >
                                                             <ContentCard content={content} />
                                                       </div>

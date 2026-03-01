@@ -7,7 +7,7 @@ const User = require('../models/User');
 const getFeed = async (req, res) => {
       try {
             const {
-                  mode = 'learning',
+                  mode = 'all',
                   page = 1,
                   limit = 10,
                   contentType,
@@ -23,6 +23,9 @@ const getFeed = async (req, res) => {
 
             // Mode-specific filtering
             switch (mode) {
+                  case 'all':
+                        // Show ALL published public content - no purpose/type filter
+                        break;
                   case 'learning':
                         query.purpose = { $in: ['skill', 'explain', 'learning', 'solution'] };
                         break;
