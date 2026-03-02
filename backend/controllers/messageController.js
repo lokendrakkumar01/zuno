@@ -272,15 +272,6 @@ const editMessage = async (req, res) => {
                   });
             }
 
-            // Can only edit within 15 minutes
-            const fifteenMin = 15 * 60 * 1000;
-            if (Date.now() - message.createdAt.getTime() > fifteenMin) {
-                  return res.status(400).json({
-                        success: false,
-                        message: 'Messages can only be edited within 15 minutes'
-                  });
-            }
-
             message.text = text.trim();
             message.edited = true;
             await message.save();
