@@ -2235,3 +2235,187 @@ textarea.input {
   background: #121212;
   border-color: #262626;
 }
+
+/* ========================================
+   Message Edit & Delete Styles
+   ======================================== */
+
+/* Three-dot menu button on messages */
+.chat-msg-menu-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.6);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s;
+  opacity: 0;
+  line-height: 1;
+}
+
+.chat-bubble:hover .chat-msg-menu-btn {
+  opacity: 1;
+}
+
+.chat-msg-menu-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+}
+
+.chat-bubble.received .chat-msg-menu-btn {
+  color: rgba(0, 0, 0, 0.4);
+}
+
+.chat-bubble.received .chat-msg-menu-btn:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: rgba(0, 0, 0, 0.7);
+}
+
+/* Context Menu Dropdown */
+.chat-msg-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 50;
+  min-width: 130px;
+  overflow: hidden;
+  animation: menuSlide 0.15s ease-out;
+}
+
+@keyframes menuSlide {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.chat-msg-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s;
+  text-align: left;
+}
+
+.chat-msg-menu-item:hover {
+  background: var(--color-bg-hover);
+}
+
+.chat-msg-menu-item.delete {
+  color: #ef4444;
+}
+
+.chat-msg-menu-item.delete:hover {
+  background: rgba(239, 68, 68, 0.08);
+}
+
+/* Inline Edit Form */
+.chat-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 200px;
+}
+
+.chat-edit-input {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family);
+  color: var(--color-text-primary);
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: var(--radius-md);
+  outline: none;
+}
+
+.chat-bubble.received .chat-edit-input {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: var(--color-border);
+  color: var(--color-text-primary);
+}
+
+.chat-edit-input:focus {
+  border-color: var(--color-accent-primary);
+}
+
+.chat-edit-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.chat-edit-save,
+.chat-edit-cancel {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: all 0.15s;
+}
+
+.chat-edit-save {
+  background: var(--color-accent-success);
+  color: white;
+}
+
+.chat-edit-save:hover {
+  transform: scale(1.1);
+}
+
+.chat-edit-cancel {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.chat-bubble.received .chat-edit-cancel {
+  background: rgba(0, 0, 0, 0.1);
+  color: var(--color-text-primary);
+}
+
+.chat-edit-cancel:hover {
+  transform: scale(1.1);
+  background: rgba(239, 68, 68, 0.3);
+}
+
+/* Edited label */
+.chat-edited-label {
+  font-size: 10px;
+  font-style: italic;
+  opacity: 0.6;
+}
+
+/* Dark mode menu */
+[data-theme="dark"] .chat-msg-menu {
+  background: #1a1a1a;
+  border-color: #333;
+}

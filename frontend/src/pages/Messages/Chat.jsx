@@ -15,12 +15,14 @@ const Chat = () => {
       const messagesEndRef = useRef(null);
       const pollRef = useRef(null);
 
+      // Edit & Delete states
+      const [activeMenu, setActiveMenu] = useState(null); // messageId of active context menu
+      const [editingId, setEditingId] = useState(null);
+      const [editText, setEditText] = useState('');
+
       useEffect(() => {
             fetchMessages();
-
-            // Poll for new messages every 5 seconds
             pollRef.current = setInterval(fetchMessages, 5000);
-
             return () => {
                   if (pollRef.current) clearInterval(pollRef.current);
             };
@@ -29,6 +31,13 @@ const Chat = () => {
       useEffect(() => {
             scrollToBottom();
       }, [messages]);
+
+      // Close menu on click outside
+      useEffect(() => {
+            const handleClickOutside = () => setActiveMenu(null);
+            document.addEventListener('click', handleClickOutside);
+            return () => document.removeEventListener('click', handleClickOutside);
+      }, []);
 
       const scrollToBottom = () => {
             messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -75,6 +84,59 @@ const Chat = () => {
             setSending(false);
       };
 
+      const handleEdit = async (messageId) => {
+            if (!editText.trim()) return;
+            try {
+                  const res = await fetch(`${API_URL}/messages/edit/${messageId}`, {
+                        method: 'PUT',
+                        headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ text: editText.trim() })
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                        setMessages(prev => prev.map(m =>
+                              m._id === messageId ? { ...m, text: editText.trim(), edited: true } : m
+                        ));
+                        setEditingId(null);
+                        setEditText('');
+                  } else {
+                        alert(data.message);
+                  }
+            } catch (err) {
+                  console.error('Failed to edit message:', err);
+            }
+      };
+
+      const handleDelete = async (messageId) => {
+            if (!window.confirm('Delete this message?')) return;
+            try {
+                  const res = await fetch(`${API_URL}/messages/delete/${messageId}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                        setMessages(prev => prev.filter(m => m._id !== messageId));
+                  }
+            } catch (err) {
+                  console.error('Failed to delete message:', err);
+            }
+      };
+
+      const startEditing = (msg) => {
+            setEditingId(msg._id);
+            setEditText(msg.text);
+            setActiveMenu(null);
+      };
+
+      const toggleMenu = (e, messageId) => {
+            e.stopPropagation();
+            setActiveMenu(prev => prev === messageId ? null : messageId);
+      };
+
       const formatTime = (dateStr) => {
             const date = new Date(dateStr);
             return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -96,6 +158,12 @@ const Chat = () => {
             const prev = new Date(messages[index - 1].createdAt).toDateString();
             const curr = new Date(msg.createdAt).toDateString();
             return prev !== curr;
+      };
+
+      // Check if message can be edited (within 15 minutes)
+      const canEdit = (msg) => {
+            const fifteenMin = 15 * 60 * 1000;
+            return Date.now() - new Date(msg.createdAt).getTime() < fifteenMin;
       };
 
       return (
@@ -140,16 +208,70 @@ const Chat = () => {
                                                       </div>
                                                 )}
                                                 <div className={`chat-bubble-wrapper ${isMine ? 'sent' : 'received'}`}>
-                                                      <div className={`chat-bubble ${isMine ? 'sent' : 'received'}`}>
-                                                            <p className="chat-bubble-text">{msg.text}</p>
-                                                            <div className="chat-bubble-meta">
-                                                                  <span className="chat-bubble-time">{formatTime(msg.createdAt)}</span>
-                                                                  {isMine && (
-                                                                        <span className="chat-bubble-status">
-                                                                              {msg.read ? '✓✓' : '✓'}
-                                                                        </span>
-                                                                  )}
-                                                            </div>
+                                                      <div className={`chat-bubble ${isMine ? 'sent' : 'received'}`} style={{ position: 'relative' }}>
+
+                                                            {/* Edit Mode */}
+                                                            {editingId === msg._id ? (
+                                                                  <div className="chat-edit-form">
+                                                                        <input
+                                                                              type="text"
+                                                                              value={editText}
+                                                                              onChange={(e) => setEditText(e.target.value)}
+                                                                              className="chat-edit-input"
+                                                                              autoFocus
+                                                                              maxLength={2000}
+                                                                              onKeyDown={(e) => {
+                                                                                    if (e.key === 'Enter') handleEdit(msg._id);
+                                                                                    if (e.key === 'Escape') { setEditingId(null); setEditText(''); }
+                                                                              }}
+                                                                        />
+                                                                        <div className="chat-edit-actions">
+                                                                              <button onClick={() => handleEdit(msg._id)} className="chat-edit-save">✓</button>
+                                                                              <button onClick={() => { setEditingId(null); setEditText(''); }} className="chat-edit-cancel">✕</button>
+                                                                        </div>
+                                                                  </div>
+                                                            ) : (
+                                                                  <>
+                                                                        <p className="chat-bubble-text">{msg.text}</p>
+                                                                        <div className="chat-bubble-meta">
+                                                                              {msg.edited && <span className="chat-edited-label">edited</span>}
+                                                                              <span className="chat-bubble-time">{formatTime(msg.createdAt)}</span>
+                                                                              {isMine && (
+                                                                                    <span className="chat-bubble-status">
+                                                                                          {msg.read ? '✓✓' : '✓'}
+                                                                                    </span>
+                                                                              )}
+                                                                        </div>
+                                                                  </>
+                                                            )}
+
+                                                            {/* Three-dot menu for own messages (only if not editing) */}
+                                                            {isMine && editingId !== msg._id && (
+                                                                  <button
+                                                                        className="chat-msg-menu-btn"
+                                                                        onClick={(e) => toggleMenu(e, msg._id)}
+                                                                        title="Message options"
+                                                                  >
+                                                                        ⋮
+                                                                  </button>
+                                                            )}
+
+                                                            {/* Context Menu */}
+                                                            {activeMenu === msg._id && (
+                                                                  <div className="chat-msg-menu" onClick={(e) => e.stopPropagation()}>
+                                                                        {canEdit(msg) && (
+                                                                              <button onClick={() => startEditing(msg)} className="chat-msg-menu-item">
+                                                                                    ✏️ Edit
+                                                                              </button>
+                                                                        )}
+                                                                        <button
+                                                                              onClick={() => { setActiveMenu(null); handleDelete(msg._id); }}
+                                                                              className="chat-msg-menu-item delete"
+                                                                        >
+                                                                              🗑️ Delete
+                                                                        </button>
+                                                                  </div>
+                                                            )}
                                                       </div>
                                                 </div>
                                           </div>

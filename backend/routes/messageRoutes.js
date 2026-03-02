@@ -5,7 +5,9 @@ const {
       getMessages,
       sendMessage,
       markAsRead,
-      getUnreadCount
+      getUnreadCount,
+      editMessage,
+      deleteMessage
 } = require('../controllers/messageController');
 const { protect } = require('../middleware/auth');
 
@@ -17,6 +19,10 @@ router.get('/conversations', getConversations);
 
 // Unread count (must be before /:userId)
 router.get('/unread/count', getUnreadCount);
+
+// Edit & Delete messages (must be before /:userId)
+router.put('/edit/:messageId', editMessage);
+router.delete('/delete/:messageId', deleteMessage);
 
 // Messages with a specific user
 router.get('/:userId', getMessages);

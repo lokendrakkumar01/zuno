@@ -241,10 +241,153 @@ const getUnreadCount = async (req, res) => {
       }
 };
 
+// @desc    Edit a message
+// @route   PUT /api/messages/edit/:messageId
+// @access  Private
+const editMessage = async (req, res) => {
+      try {
+            const { messageId } = req.params;
+            const { text } = req.body;
+
+            if (!text || !text.trim()) {
+                  return res.status(400).json({
+                        success: false,
+                        message: 'Message text is required'
+                  });
+            }
+
+            const message = await Message.findById(messageId);
+            if (!message) {
+                  return res.status(404).json({
+                        success: false,
+                        message: 'Message not found'
+                  });
+            }
+
+            // Only sender can edit
+            if (message.sender.toString() !== req.user.id) {
+                  return res.status(403).json({
+                        success: false,
+                        message: 'You can only edit your own messages'
+                  });
+            }
+
+            // Can only edit within 15 minutes
+            const fifteenMin = 15 * 60 * 1000;
+            if (Date.now() - message.createdAt.getTime() > fifteenMin) {
+                  return res.status(400).json({
+                        success: false,
+                        message: 'Messages can only be edited within 15 minutes'
+                  });
+            }
+
+            message.text = text.trim();
+            message.edited = true;
+            await message.save();
+
+            await message.populate('sender', 'username displayName avatar');
+            await message.populate('receiver', 'username displayName avatar');
+
+            // Update conversation lastMessage if this was the latest
+            await Conversation.findOneAndUpdate(
+                  {
+                        participants: { $all: [message.sender._id, message.receiver._id] },
+                        'lastMessage.createdAt': { $lte: message.createdAt }
+                  },
+                  {
+                        'lastMessage.text': text.trim()
+                  }
+            );
+
+            res.json({
+                  success: true,
+                  message: 'Message updated',
+                  data: { message }
+            });
+      } catch (error) {
+            console.error('editMessage error:', error);
+            res.status(500).json({
+                  success: false,
+                  message: 'Failed to edit message',
+                  error: error.message
+            });
+      }
+};
+
+// @desc    Delete a message
+// @route   DELETE /api/messages/delete/:messageId
+// @access  Private
+const deleteMessage = async (req, res) => {
+      try {
+            const { messageId } = req.params;
+
+            const message = await Message.findById(messageId);
+            if (!message) {
+                  return res.status(404).json({
+                        success: false,
+                        message: 'Message not found'
+                  });
+            }
+
+            // Only sender can delete
+            if (message.sender.toString() !== req.user.id) {
+                  return res.status(403).json({
+                        success: false,
+                        message: 'You can only delete your own messages'
+                  });
+            }
+
+            const senderId = message.sender;
+            const receiverId = message.receiver;
+
+            await Message.findByIdAndDelete(messageId);
+
+            // Update conversation's lastMessage to the previous message
+            const lastMsg = await Message.findOne({
+                  $or: [
+                        { sender: senderId, receiver: receiverId },
+                        { sender: receiverId, receiver: senderId }
+                  ]
+            }).sort({ createdAt: -1 });
+
+            if (lastMsg) {
+                  await Conversation.findOneAndUpdate(
+                        { participants: { $all: [senderId, receiverId] } },
+                        {
+                              lastMessage: {
+                                    text: lastMsg.text,
+                                    sender: lastMsg.sender,
+                                    createdAt: lastMsg.createdAt
+                              }
+                        }
+                  );
+            } else {
+                  // No messages left — delete conversation
+                  await Conversation.findOneAndDelete({
+                        participants: { $all: [senderId, receiverId] }
+                  });
+            }
+
+            res.json({
+                  success: true,
+                  message: 'Message deleted'
+            });
+      } catch (error) {
+            console.error('deleteMessage error:', error);
+            res.status(500).json({
+                  success: false,
+                  message: 'Failed to delete message',
+                  error: error.message
+            });
+      }
+};
+
 module.exports = {
       getConversations,
       getMessages,
       sendMessage,
       markAsRead,
-      getUnreadCount
+      getUnreadCount,
+      editMessage,
+      deleteMessage
 };

@@ -97,12 +97,6 @@ const Layout = () => {
                                                 <Link to="/settings" className={`nav-link ${isActive('/settings') ? 'active' : ''}`}>
                                                       ⚙️ {t('settings')}
                                                 </Link>
-                                                <Link to="/messages" className={`nav-link ${isActive('/messages') ? 'active' : ''}`} style={{ position: 'relative' }}>
-                                                      💬 Messages
-                                                      {unreadCount > 0 && (
-                                                            <span className="nav-unread-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
-                                                      )}
-                                                </Link>
                                                 {user?.role === 'admin' && (
                                                       <Link to="/admin" className="nav-link" style={{ color: 'var(--color-accent-pink)' }}>
                                                             👑 {t('admin')}
@@ -180,15 +174,6 @@ const Layout = () => {
                         <Link to="/settings" className={`bottom-nav-item ${isActive('/settings') ? 'active' : ''}`}>
                               <SettingsIcon />
                               <span style={{ fontSize: '10px' }}>{t('settings')}</span>
-                        </Link>
-                        <Link to="/messages" className={`bottom-nav-item ${isActive('/messages') ? 'active' : ''}`} style={{ position: 'relative' }}>
-                              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                                    <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z" />
-                              </svg>
-                              {unreadCount > 0 && (
-                                    <span className="bottom-nav-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
-                              )}
-                              <span style={{ fontSize: '10px' }}>Messages</span>
                         </Link>
                         <Link to="/profile" className={`bottom-nav-item ${isActive('/profile') ? 'active' : ''}`}>
                               <div style={{

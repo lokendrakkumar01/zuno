@@ -468,6 +468,13 @@ const Profile = () => {
                                                       >
                                                             {editing ? '❌ Cancel' : '✏️ Edit Profile'}
                                                       </button>
+                                                      <button
+                                                            onClick={() => navigate('/messages')}
+                                                            className="btn btn-secondary"
+                                                            style={{ position: 'relative' }}
+                                                      >
+                                                            💬 Messages
+                                                      </button>
                                                 </div>
                                           ) : isAuthenticated && (
                                                 <div className="flex gap-md">
