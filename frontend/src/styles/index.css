@@ -2243,40 +2243,54 @@ textarea.input {
 /* Three-dot menu button on messages */
 .chat-msg-menu-btn {
   position: absolute;
-  top: 4px;
-  right: 4px;
-  background: none;
+  top: 2px;
+  right: 2px;
+  background: rgba(0, 0, 0, 0.15);
   border: none;
   cursor: pointer;
-  font-size: 16px;
-  color: rgba(255, 255, 255, 0.6);
-  width: 24px;
-  height: 24px;
+  font-size: 18px;
+  font-weight: bold;
+  color: rgba(255, 255, 255, 0.85);
+  width: 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
   transition: all 0.2s;
-  opacity: 0;
+  opacity: 0.6;
   line-height: 1;
 }
 
-.chat-bubble:hover .chat-msg-menu-btn {
+.chat-bubble:hover .chat-msg-menu-btn,
+.chat-msg-menu-btn:active {
   opacity: 1;
+  background: rgba(0, 0, 0, 0.25);
 }
 
 .chat-msg-menu-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.3);
   color: white;
+  opacity: 1;
 }
 
+/* Received bubble — dark text on light background */
 .chat-bubble.received .chat-msg-menu-btn {
-  color: rgba(0, 0, 0, 0.4);
+  color: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.06);
 }
 
-.chat-bubble.received .chat-msg-menu-btn:hover {
-  background: rgba(0, 0, 0, 0.08);
-  color: rgba(0, 0, 0, 0.7);
+.chat-bubble.received .chat-msg-menu-btn:hover,
+.chat-bubble.received .chat-msg-menu-btn:active {
+  background: rgba(0, 0, 0, 0.12);
+  color: rgba(0, 0, 0, 0.8);
+}
+
+/* Always visible on mobile (no hover available) */
+@media (max-width: 768px) {
+  .chat-msg-menu-btn {
+    opacity: 0.7;
+  }
 }
 
 /* Context Menu Dropdown */
