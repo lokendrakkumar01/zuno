@@ -12,6 +12,7 @@ const contentRoutes = require('./routes/contentRoutes');
 const commentRoutes = require('./routes/commentRoutes');
 const feedRoutes = require('./routes/feedRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const messageRoutes = require('./routes/messageRoutes');
 
 const app = express();
 
@@ -47,6 +48,7 @@ app.use('/api/content', contentRoutes);
 app.use('/api/comments', commentRoutes);
 app.use('/api/feed', feedRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/messages', messageRoutes);
 
 // Root route - API Welcome
 app.get('/', (req, res) => {

@@ -104,21 +104,31 @@ const Upload = () => {
                         });
                   }
 
+                  // Use longer timeout for uploads (120 seconds for videos)
+                  const controller = new AbortController();
+                  const timeoutId = setTimeout(() => controller.abort(), 120000);
+
                   const res = await fetch(`${API_URL}/content`, {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${token}` },
-                        body: data
+                        body: data,
+                        signal: controller.signal
                   });
 
+                  clearTimeout(timeoutId);
                   const result = await res.json();
 
                   if (result.success) {
                         navigate('/');
                   } else {
-                        setError(result.message);
+                        setError(result.message || 'Upload failed. Please try again.');
                   }
             } catch (err) {
-                  setError('Upload failed. Please try again.');
+                  if (err.name === 'AbortError') {
+                        setError('Upload timed out. The file may be too large or your connection is slow. Please try again.');
+                  } else {
+                        setError('Upload failed. Please check your connection and try again.');
+                  }
             }
             setLoading(false);
       };

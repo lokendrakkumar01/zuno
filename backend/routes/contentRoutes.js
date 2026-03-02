@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
 const {
       createContent,
       getContent,
@@ -19,8 +20,33 @@ const { uploadLimiter } = require('../middleware/rateLimit');
 // Public routes
 router.get('/:id', getContent);
 
+// Multer error handler wrapper
+const handleUpload = (req, res, next) => {
+      uploadMultiple.array('media', 10)(req, res, (err) => {
+            if (err) {
+                  if (err instanceof multer.MulterError) {
+                        let message = 'Upload failed.';
+                        if (err.code === 'LIMIT_FILE_SIZE') {
+                              message = 'File is too large. Max size: 100MB for videos, 10MB for images.';
+                        } else if (err.code === 'LIMIT_FILE_COUNT') {
+                              message = 'Too many files. Maximum 10 files allowed.';
+                        } else if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+                              message = 'Unexpected file field. Please use the correct upload form.';
+                        }
+                        return res.status(400).json({ success: false, message });
+                  }
+                  // Custom file filter error or Cloudinary error
+                  return res.status(400).json({
+                        success: false,
+                        message: err.message || 'File upload failed. Please try again.'
+                  });
+            }
+            next();
+      });
+};
+
 // Protected routes
-router.post('/', protect, uploadLimiter, uploadMultiple.array('media', 10), createContent);
+router.post('/', protect, uploadLimiter, handleUpload, createContent);
 router.put('/:id', protect, updateContent);
 router.delete('/:id', protect, deleteContent);
 

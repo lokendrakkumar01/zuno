@@ -485,6 +485,13 @@ const Profile = () => {
                                                                   '+ Follow'
                                                             )}
                                                       </button>
+                                                      <button
+                                                            onClick={() => navigate(`/messages/${profileUser._id}`)}
+                                                            className="btn btn-secondary"
+                                                            style={{ minWidth: '100px' }}
+                                                      >
+                                                            💬 Message
+                                                      </button>
                                                 </div>
                                           )}
                                     </div>

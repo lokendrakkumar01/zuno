@@ -3,13 +3,15 @@ import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useState, useEffect } from 'react';
 import zunoLogo from '../../assets/zuno-logo.png';
+import { API_URL } from '../../config';
 
 const Layout = () => {
-      const { user, isAuthenticated, logout } = useAuth();
+      const { user, isAuthenticated, logout, token } = useAuth();
       const { t } = useLanguage();
       const navigate = useNavigate();
       const location = useLocation();
       const [scrolled, setScrolled] = useState(false);
+      const [unreadCount, setUnreadCount] = useState(0);
 
       useEffect(() => {
             const handleScroll = () => {
@@ -18,6 +20,23 @@ const Layout = () => {
             window.addEventListener('scroll', handleScroll);
             return () => window.removeEventListener('scroll', handleScroll);
       }, []);
+
+      // Fetch unread message count
+      useEffect(() => {
+            if (!isAuthenticated || !token) return;
+            const fetchUnread = async () => {
+                  try {
+                        const res = await fetch(`${API_URL}/messages/unread/count`, {
+                              headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                        const data = await res.json();
+                        if (data.success) setUnreadCount(data.data.unreadCount);
+                  } catch (err) { /* silently fail */ }
+            };
+            fetchUnread();
+            const interval = setInterval(fetchUnread, 30000);
+            return () => clearInterval(interval);
+      }, [isAuthenticated, token]);
 
       const handleLogout = () => {
             logout();
@@ -77,6 +96,12 @@ const Layout = () => {
                                                 </Link>
                                                 <Link to="/settings" className={`nav-link ${isActive('/settings') ? 'active' : ''}`}>
                                                       ⚙️ {t('settings')}
+                                                </Link>
+                                                <Link to="/messages" className={`nav-link ${isActive('/messages') ? 'active' : ''}`} style={{ position: 'relative' }}>
+                                                      💬 Messages
+                                                      {unreadCount > 0 && (
+                                                            <span className="nav-unread-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+                                                      )}
                                                 </Link>
                                                 {user?.role === 'admin' && (
                                                       <Link to="/admin" className="nav-link" style={{ color: 'var(--color-accent-pink)' }}>
@@ -155,6 +180,15 @@ const Layout = () => {
                         <Link to="/settings" className={`bottom-nav-item ${isActive('/settings') ? 'active' : ''}`}>
                               <SettingsIcon />
                               <span style={{ fontSize: '10px' }}>{t('settings')}</span>
+                        </Link>
+                        <Link to="/messages" className={`bottom-nav-item ${isActive('/messages') ? 'active' : ''}`} style={{ position: 'relative' }}>
+                              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z" />
+                              </svg>
+                              {unreadCount > 0 && (
+                                    <span className="bottom-nav-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+                              )}
+                              <span style={{ fontSize: '10px' }}>Messages</span>
                         </Link>
                         <Link to="/profile" className={`bottom-nav-item ${isActive('/profile') ? 'active' : ''}`}>
                               <div style={{

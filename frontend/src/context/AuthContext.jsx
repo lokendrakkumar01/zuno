@@ -32,7 +32,7 @@ export const AuthProvider = ({ children }) => {
             checkAuth();
       }, [token]);
 
-      const fetchWithTimeout = async (url, options = {}, timeout = 10000) => {
+      const fetchWithTimeout = async (url, options = {}, timeout = 45000) => {
             const controller = new AbortController();
             const id = setTimeout(() => controller.abort(), timeout);
             try {
@@ -49,14 +49,17 @@ export const AuthProvider = ({ children }) => {
       };
 
       const login = async (email, password) => {
-            try {
+            const attemptLogin = async () => {
                   const res = await fetchWithTimeout(`${API_URL}/auth/login`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ email, password })
                   });
-                  const data = await res.json();
+                  return await res.json();
+            };
 
+            try {
+                  const data = await attemptLogin();
                   if (data.success) {
                         setUser(data.data.user);
                         setToken(data.data.token);
@@ -65,11 +68,27 @@ export const AuthProvider = ({ children }) => {
                   }
                   return { success: false, message: data.message };
             } catch (error) {
+                  // First attempt failed — retry once (server may be waking up)
+                  if (error.name === 'AbortError' || error.message === 'Failed to fetch') {
+                        try {
+                              const data = await attemptLogin();
+                              if (data.success) {
+                                    setUser(data.data.user);
+                                    setToken(data.data.token);
+                                    localStorage.setItem('zuno_token', data.data.token);
+                                    return { success: true, message: data.message };
+                              }
+                              return { success: false, message: data.message };
+                        } catch (retryError) {
+                              return {
+                                    success: false,
+                                    message: 'Server is taking too long to respond. It may be waking up — please try again in a few seconds.'
+                              };
+                        }
+                  }
                   return {
                         success: false,
-                        message: error.name === 'AbortError'
-                              ? 'Request timed out. Please check your connection.'
-                              : 'Login failed. Please try again.'
+                        message: 'Login failed. Please check your connection and try again.'
                   };
             }
       };

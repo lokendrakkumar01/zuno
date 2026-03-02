@@ -21,6 +21,8 @@ import PasswordSecurity from './pages/Settings/PasswordSecurity';
 import CloseFriends from './pages/Settings/CloseFriends';
 import Search from './pages/Search/Search';
 import SavedContent from './pages/SavedContent';
+import Messages from './pages/Messages/Messages';
+import Chat from './pages/Messages/Chat';
 
 // Main App Router Component (inside AuthProvider)
 function AppRouter() {
@@ -77,6 +79,8 @@ function AppRouter() {
                         <Route path="settings/password-security" element={<PasswordSecurity />} />
                         <Route path="settings/close-friends" element={<CloseFriends />} />
                         <Route path="search" element={<Search />} />
+                        <Route path="messages" element={<Messages />} />
+                        <Route path="messages/:userId" element={<Chat />} />
                         <Route path="saved" element={<SavedContent />} />
                         <Route path="content/saved" element={<SavedContent />} />
                         <Route path="content/:id" element={<ContentView />} />
