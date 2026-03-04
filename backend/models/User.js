@@ -80,6 +80,16 @@ const userSchema = new mongoose.Schema({
             default: false
       },
 
+      // Online status
+      lastSeen: {
+            type: Date,
+            default: Date.now
+      },
+      isOnline: {
+            type: Boolean,
+            default: false
+      },
+
       // Preferred content types
       preferredContentTypes: [{
             type: String,

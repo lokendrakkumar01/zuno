@@ -52,7 +52,7 @@ const getMessages = async (req, res) => {
             const { page = 1, limit = 50 } = req.query;
 
             // Verify other user exists
-            const otherUser = await User.findById(userId).select('username displayName avatar');
+            const otherUser = await User.findById(userId).select('username displayName avatar lastSeen isOnline');
             if (!otherUser) {
                   return res.status(404).json({
                         success: false,
@@ -70,7 +70,9 @@ const getMessages = async (req, res) => {
                   .skip((page - 1) * limit)
                   .limit(parseInt(limit))
                   .populate('sender', 'username displayName avatar')
-                  .populate('receiver', 'username displayName avatar');
+                  .populate('receiver', 'username displayName avatar')
+                  .populate('replyTo', 'text sender media')
+                  .populate('reactions.user', 'username displayName');
 
             // Mark messages as read
             await Message.updateMany(
@@ -85,6 +87,12 @@ const getMessages = async (req, res) => {
                   },
                   { $set: { [`unreadCount.${req.user.id}`]: 0 } }
             );
+
+            // Update current user's online status
+            await User.findByIdAndUpdate(req.user.id, {
+                  lastSeen: new Date(),
+                  isOnline: true
+            });
 
             res.json({
                   success: true,
@@ -142,6 +150,12 @@ const sendMessage = async (req, res) => {
                   receiver: userId,
                   text: text ? text.trim() : ''
             };
+
+            // Add replyTo if present
+            const { replyTo } = req.body;
+            if (replyTo) {
+                  msgData.replyTo = replyTo;
+            }
 
             // Add media if present
             if (mediaUrl) {
@@ -409,6 +423,115 @@ const deleteMessage = async (req, res) => {
       }
 };
 
+// @desc    React to a message
+// @route   POST /api/messages/react/:messageId
+// @access  Private
+const reactToMessage = async (req, res) => {
+      try {
+            const { messageId } = req.params;
+            const { emoji } = req.body;
+
+            if (!emoji) {
+                  return res.status(400).json({ success: false, message: 'Emoji is required' });
+            }
+
+            const message = await Message.findById(messageId);
+            if (!message) {
+                  return res.status(404).json({ success: false, message: 'Message not found' });
+            }
+
+            // Toggle reaction — remove if same emoji already exists
+            const existingIdx = message.reactions.findIndex(
+                  r => r.user.toString() === req.user.id && r.emoji === emoji
+            );
+
+            if (existingIdx > -1) {
+                  message.reactions.splice(existingIdx, 1);
+            } else {
+                  // Remove any previous reaction from this user
+                  message.reactions = message.reactions.filter(
+                        r => r.user.toString() !== req.user.id
+                  );
+                  message.reactions.push({ user: req.user.id, emoji });
+            }
+
+            await message.save();
+            await message.populate('reactions.user', 'username displayName');
+
+            res.json({
+                  success: true,
+                  data: { reactions: message.reactions }
+            });
+      } catch (error) {
+            console.error('reactToMessage error:', error);
+            res.status(500).json({ success: false, message: 'Failed to react', error: error.message });
+      }
+};
+
+// @desc    Forward a message to another user
+// @route   POST /api/messages/forward/:messageId
+// @access  Private
+const forwardMessage = async (req, res) => {
+      try {
+            const { messageId } = req.params;
+            const { toUserId } = req.body;
+
+            if (!toUserId) {
+                  return res.status(400).json({ success: false, message: 'Target user is required' });
+            }
+
+            const original = await Message.findById(messageId);
+            if (!original) {
+                  return res.status(404).json({ success: false, message: 'Message not found' });
+            }
+
+            const receiver = await User.findById(toUserId);
+            if (!receiver) {
+                  return res.status(404).json({ success: false, message: 'User not found' });
+            }
+
+            // Create forwarded message
+            const forwarded = await Message.create({
+                  sender: req.user.id,
+                  receiver: toUserId,
+                  text: original.text,
+                  media: original.media,
+                  forwarded: true
+            });
+
+            await forwarded.populate('sender', 'username displayName avatar');
+            await forwarded.populate('receiver', 'username displayName avatar');
+
+            // Update conversation
+            const lastText = original.text || (original.media?.type === 'video' ? '🎬 Video' : '📷 Photo');
+            let conversation = await Conversation.findOne({
+                  participants: { $all: [req.user.id, toUserId] }
+            });
+
+            if (conversation) {
+                  conversation.lastMessage = { text: lastText, sender: req.user.id, createdAt: new Date() };
+                  const currentUnread = conversation.unreadCount?.get(toUserId) || 0;
+                  conversation.unreadCount.set(toUserId, currentUnread + 1);
+                  await conversation.save();
+            } else {
+                  conversation = await Conversation.create({
+                        participants: [req.user.id, toUserId],
+                        lastMessage: { text: lastText, sender: req.user.id, createdAt: new Date() },
+                        unreadCount: new Map([[toUserId, 1]])
+                  });
+            }
+
+            res.status(201).json({
+                  success: true,
+                  message: 'Message forwarded',
+                  data: { message: forwarded }
+            });
+      } catch (error) {
+            console.error('forwardMessage error:', error);
+            res.status(500).json({ success: false, message: 'Failed to forward', error: error.message });
+      }
+};
+
 module.exports = {
       getConversations,
       getMessages,
@@ -416,5 +539,7 @@ module.exports = {
       markAsRead,
       getUnreadCount,
       editMessage,
-      deleteMessage
+      deleteMessage,
+      reactToMessage,
+      forwardMessage
 };
