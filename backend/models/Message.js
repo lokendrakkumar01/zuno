@@ -21,22 +21,6 @@ const messageSchema = new mongoose.Schema({
             url: { type: String, default: '' },
             type: { type: String, enum: ['image', 'video', ''], default: '' }
       },
-      // Reply to another message
-      replyTo: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'Message',
-            default: null
-      },
-      // Forwarded flag
-      forwarded: {
-            type: Boolean,
-            default: false
-      },
-      // Emoji reactions
-      reactions: [{
-            user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-            emoji: { type: String }
-      }],
       read: {
             type: Boolean,
             default: false
@@ -68,6 +52,7 @@ const conversationSchema = new mongoose.Schema({
       }
 }, { timestamps: true });
 
+// Index for efficient participant queries
 conversationSchema.index({ participants: 1 });
 
 const Message = mongoose.model('Message', messageSchema);

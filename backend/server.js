@@ -13,8 +13,7 @@ const commentRoutes = require('./routes/commentRoutes');
 const feedRoutes = require('./routes/feedRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const messageRoutes = require('./routes/messageRoutes');
-
-const app = express();
+const { app, server } = require('./socket/socket');
 
 // Connect to MongoDB
 // Database connection is handled in startServer
@@ -104,7 +103,7 @@ const startServer = async () => {
     // Connect to Database first
     await connectDB();
 
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`🚀 ZUNO Server running on port ${PORT}`);
       console.log(`📍 Environment: ${process.env.NODE_ENV}`);
     });
