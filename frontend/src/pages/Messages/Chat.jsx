@@ -82,18 +82,93 @@ const Chat = () => {
             setLoading(false);
       };
 
+      // Compress image before upload (max 800px, JPEG quality 0.6)
+      const compressImage = (file) => {
+            return new Promise((resolve) => {
+                  // Skip compression for non-images
+                  if (!file.type.startsWith('image')) {
+                        resolve(file);
+                        return;
+                  }
+
+                  const img = new Image();
+                  const canvas = document.createElement('canvas');
+                  const reader = new FileReader();
+
+                  reader.onload = (e) => {
+                        img.onload = () => {
+                              let { width, height } = img;
+                              const MAX = 800;
+
+                              if (width > MAX || height > MAX) {
+                                    if (width > height) {
+                                          height = Math.round((height * MAX) / width);
+                                          width = MAX;
+                                    } else {
+                                          width = Math.round((width * MAX) / height);
+                                          height = MAX;
+                                    }
+                              }
+
+                              canvas.width = width;
+                              canvas.height = height;
+                              const ctx = canvas.getContext('2d');
+                              ctx.drawImage(img, 0, 0, width, height);
+
+                              canvas.toBlob(
+                                    (blob) => {
+                                          const compressed = new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), {
+                                                type: 'image/jpeg',
+                                                lastModified: Date.now()
+                                          });
+                                          resolve(compressed);
+                                    },
+                                    'image/jpeg',
+                                    0.6
+                              );
+                        };
+                        img.src = e.target.result;
+                  };
+                  reader.readAsDataURL(file);
+            });
+      };
+
       const handleSend = async (e) => {
             e.preventDefault();
             if ((!newMessage.trim() && !mediaFile) || sending) return;
 
+            const msgText = newMessage.trim();
+            const currentMedia = mediaFile;
+            const currentPreview = mediaPreview;
+
+            // Optimistic UI — show message immediately with local preview
+            const tempId = 'temp_' + Date.now();
+            const optimisticMsg = {
+                  _id: tempId,
+                  sender: user?._id || user,
+                  text: msgText,
+                  media: currentPreview ? { url: currentPreview.url, type: currentPreview.type } : null,
+                  read: false,
+                  edited: false,
+                  createdAt: new Date().toISOString(),
+                  _sending: true
+            };
+
+            setMessages(prev => [...prev, optimisticMsg]);
+            setNewMessage('');
+            setMediaFile(null);
+            setMediaPreview(null);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+
             setSending(true);
             try {
                   let res;
-                  if (mediaFile) {
-                        // Send with media file
+                  if (currentMedia) {
+                        // Compress image before uploading
+                        const fileToSend = await compressImage(currentMedia);
                         const formData = new FormData();
-                        formData.append('media', mediaFile);
-                        if (newMessage.trim()) formData.append('text', newMessage.trim());
+                        formData.append('media', fileToSend);
+                        if (msgText) formData.append('text', msgText);
 
                         res = await fetch(`${API_URL}/messages/${userId}`, {
                               method: 'POST',
@@ -101,25 +176,27 @@ const Chat = () => {
                               body: formData
                         });
                   } else {
-                        // Text only
                         res = await fetch(`${API_URL}/messages/${userId}`, {
                               method: 'POST',
                               headers: {
                                     'Content-Type': 'application/json',
                                     'Authorization': `Bearer ${token}`
                               },
-                              body: JSON.stringify({ text: newMessage.trim() })
+                              body: JSON.stringify({ text: msgText })
                         });
                   }
                   const data = await res.json();
                   if (data.success) {
-                        setMessages(prev => [...prev, data.data.message]);
-                        setNewMessage('');
-                        setMediaFile(null);
-                        setMediaPreview(null);
+                        // Replace optimistic message with real one
+                        setMessages(prev => prev.map(m => m._id === tempId ? data.data.message : m));
+                  } else {
+                        // Remove failed message
+                        setMessages(prev => prev.filter(m => m._id !== tempId));
                   }
             } catch (err) {
                   console.error('Failed to send message:', err);
+                  // Mark as failed
+                  setMessages(prev => prev.map(m => m._id === tempId ? { ...m, _failed: true, _sending: false } : m));
             }
             setSending(false);
       };
@@ -181,7 +258,7 @@ const Chat = () => {
             setNewMessage(prev => prev + emoji);
       };
 
-      const handleMediaSelect = (e) => {
+      const handleMediaSelect = async (e) => {
             const file = e.target.files[0];
             if (!file) return;
 
@@ -190,10 +267,11 @@ const Chat = () => {
                   return;
             }
 
-            setMediaFile(file);
+            // Show preview immediately (before compression)
             const reader = new FileReader();
             reader.onloadend = () => setMediaPreview({ url: reader.result, type: file.type.startsWith('video') ? 'video' : 'image' });
             reader.readAsDataURL(file);
+            setMediaFile(file);
       };
 
       const cancelMedia = () => {
