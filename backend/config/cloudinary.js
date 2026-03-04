@@ -18,19 +18,16 @@ const storage = new CloudinaryStorage({
             const isImage = file.mimetype.startsWith('image');
 
             return {
-                  folder: 'zuno', // All uploads go to 'zuno' folder in Cloudinary
+                  folder: 'zuno',
                   resource_type: isVideo ? 'video' : 'image',
                   allowed_formats: isVideo
                         ? ['mp4', 'webm', 'mov', 'avi', 'mkv']
                         : ['jpg', 'jpeg', 'png', 'gif', 'webp'],
                   transformation: isImage ? [
                         { width: 1200, height: 1200, crop: 'limit', quality: 'auto:good' }
-                  ] : undefined,
-                  // For videos, enable streaming
-                  eager: isVideo ? [
-                        { streaming_profile: 'full_hd', format: 'mp4' }
-                  ] : undefined,
-                  eager_async: true
+                  ] : isVideo ? [
+                        { quality: 'auto', fetch_format: 'mp4' }
+                  ] : undefined
             };
       }
 });
