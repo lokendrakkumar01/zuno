@@ -112,7 +112,7 @@ const sendMessage = async (req, res) => {
             const { text, mediaUrl, mediaType } = req.body;
 
             // Must have either text or media
-            if ((!text || !text.trim()) && !mediaUrl) {
+            if ((!text || !text.trim()) && !mediaUrl && !req.file) {
                   return res.status(400).json({
                         success: false,
                         message: 'Message text or media is required'
@@ -151,18 +151,16 @@ const sendMessage = async (req, res) => {
                   };
             }
 
-            // Handle file upload if present
+            // Handle file upload if present (multer middleware already processed it)
             if (req.file) {
                   const isCloudinary = !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET);
                   if (isCloudinary) {
-                        const { uploadToCloud } = require('../config/cloudinary');
-                        const result = await uploadToCloud(req.file.path, {
-                              folder: 'messages',
-                              resource_type: 'auto'
-                        });
+                        // Cloudinary multer storage already uploaded the file
+                        // req.file.path contains the Cloudinary URL
                         msgData.media = {
-                              url: result.secure_url,
-                              type: req.file.mimetype.startsWith('video') ? 'video' : 'image'
+                              url: req.file.path,
+                              type: req.file.mimetype && req.file.mimetype.startsWith('video') ? 'video'
+                                    : (req.file.originalname && /\.(mp4|webm|mov|avi|mkv)$/i.test(req.file.originalname) ? 'video' : 'image')
                         };
                   } else {
                         msgData.media = {
