@@ -16,13 +16,24 @@ export const SocketContextProvider = ({ children }) => {
 
       useEffect(() => {
             if (user) {
-                  const userId = user._id || user.id || user;
-                  const socketUrl = API_URL.replace(/\/api$/, ''); // Ensure we don't double slash if not needed
+                  // Ensure we use the base url without /api
+                  let socketUrl = API_URL.replace(/\/api$/, '');
+                  // For Render production, enforce secure websocket (wss://) if the URL is https
+                  if (socketUrl.startsWith('https://')) {
+                        socketUrl = socketUrl.replace('https://', 'wss://');
+                  } else if (socketUrl.startsWith('http://')) {
+                        socketUrl = socketUrl.replace('http://', 'ws://');
+                  }
 
+                  // In production (Render), ensure it uses secure websockets by letting socket.io handle it
                   const socketInstance = io(socketUrl, {
                         query: {
                               userId: userId
-                        }
+                        },
+                        transports: ['websocket', 'polling'], // Try websocket first, fallback to polling
+                        reconnection: true,
+                        reconnectionAttempts: 5,
+                        reconnectionDelay: 1000
                   });
 
                   setSocket(socketInstance);
