@@ -4,11 +4,19 @@ import { API_URL } from '../config';
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-      const [user, setUser] = useState(null);
+      // Load cached user from localStorage for instant startup
+      const [user, setUser] = useState(() => {
+            try {
+                  const cached = localStorage.getItem('zuno_user');
+                  return cached ? JSON.parse(cached) : null;
+            } catch {
+                  return null;
+            }
+      });
       const [token, setToken] = useState(localStorage.getItem('zuno_token'));
       const [loading, setLoading] = useState(true);
 
-      // Check if user is logged in on mount
+      // Check auth on mount — but DON'T logout on failure (server might be cold)
       useEffect(() => {
             const checkAuth = async () => {
                   if (token) {
@@ -19,12 +27,16 @@ export const AuthProvider = ({ children }) => {
                               const data = await res.json();
                               if (data.success) {
                                     setUser(data.data.user);
-                              } else {
+                                    // Update cached user data
+                                    localStorage.setItem('zuno_user', JSON.stringify(data.data.user));
+                              } else if (res.status === 401) {
+                                    // Token is truly invalid/expired — only then logout
                                     logout();
                               }
+                              // For other errors (500, network), keep cached user
                         } catch (error) {
-                              console.error('Auth check failed:', error);
-                              logout();
+                              console.error('Auth check failed (server may be starting):', error);
+                              // Keep cached user — don't logout on network errors
                         }
                   }
                   setLoading(false);
@@ -64,6 +76,7 @@ export const AuthProvider = ({ children }) => {
                         setUser(data.data.user);
                         setToken(data.data.token);
                         localStorage.setItem('zuno_token', data.data.token);
+                        localStorage.setItem('zuno_user', JSON.stringify(data.data.user));
                         return { success: true, message: data.message };
                   }
                   return { success: false, message: data.message };
@@ -76,6 +89,7 @@ export const AuthProvider = ({ children }) => {
                                     setUser(data.data.user);
                                     setToken(data.data.token);
                                     localStorage.setItem('zuno_token', data.data.token);
+                                    localStorage.setItem('zuno_user', JSON.stringify(data.data.user));
                                     return { success: true, message: data.message };
                               }
                               return { success: false, message: data.message };
@@ -106,6 +120,7 @@ export const AuthProvider = ({ children }) => {
                         setUser(data.data.user);
                         setToken(data.data.token);
                         localStorage.setItem('zuno_token', data.data.token);
+                        localStorage.setItem('zuno_user', JSON.stringify(data.data.user));
                         return { success: true, message: data.message };
                   }
                   return { success: false, message: data.message };
@@ -123,6 +138,7 @@ export const AuthProvider = ({ children }) => {
             setUser(null);
             setToken(null);
             localStorage.removeItem('zuno_token');
+            localStorage.removeItem('zuno_user');
       };
 
       const updateProfile = async (profileData) => {
@@ -138,7 +154,9 @@ export const AuthProvider = ({ children }) => {
                   const data = await res.json();
 
                   if (data.success) {
-                        setUser(prev => ({ ...prev, ...data.data.user }));
+                        const updatedUser = { ...user, ...data.data.user };
+                        setUser(updatedUser);
+                        localStorage.setItem('zuno_user', JSON.stringify(updatedUser));
                         return { success: true, message: data.message };
                   }
                   return { success: false, message: data.message };
