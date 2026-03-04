@@ -16,6 +16,7 @@ export const SocketContextProvider = ({ children }) => {
 
       useEffect(() => {
             if (user) {
+                  const userId = user._id || user.id || user;
                   // Ensure we use the base url without /api
                   let socketUrl = API_URL.replace(/\/api$/, '');
                   // For Render production, enforce secure websocket (wss://) if the URL is https
