@@ -61,17 +61,20 @@ const getMessages = async (req, res) => {
                   });
             }
 
-            const messages = await Message.find({
+            let messages = await Message.find({
                   $or: [
                         { sender: req.user.id, receiver: userId },
                         { sender: userId, receiver: req.user.id }
                   ]
             })
-                  .sort({ createdAt: 1 })
+                  .sort({ createdAt: -1 }) // Get newest first
                   .skip((page - 1) * limit)
                   .limit(parseInt(limit))
                   .populate('sender', 'username displayName avatar')
                   .populate('receiver', 'username displayName avatar');
+
+            // Reverse to display oldest to newest (top to bottom) in the UI
+            messages = messages.reverse();
 
             // Mark messages as read
             await Message.updateMany(
