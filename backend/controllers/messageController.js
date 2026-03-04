@@ -103,18 +103,19 @@ const getMessages = async (req, res) => {
       }
 };
 
-// @desc    Send a message to a user
+// @desc    Send a message to a user (text, image, or video)
 // @route   POST /api/messages/:userId
 // @access  Private
 const sendMessage = async (req, res) => {
       try {
             const { userId } = req.params;
-            const { text } = req.body;
+            const { text, mediaUrl, mediaType } = req.body;
 
-            if (!text || !text.trim()) {
+            // Must have either text or media
+            if ((!text || !text.trim()) && !mediaUrl) {
                   return res.status(400).json({
                         success: false,
-                        message: 'Message text is required'
+                        message: 'Message text or media is required'
                   });
             }
 
@@ -135,16 +136,51 @@ const sendMessage = async (req, res) => {
                   });
             }
 
-            // Create message
-            const message = await Message.create({
+            // Build message data
+            const msgData = {
                   sender: req.user.id,
                   receiver: userId,
-                  text: text.trim()
-            });
+                  text: text ? text.trim() : ''
+            };
+
+            // Add media if present
+            if (mediaUrl) {
+                  msgData.media = {
+                        url: mediaUrl,
+                        type: mediaType || 'image'
+                  };
+            }
+
+            // Handle file upload if present
+            if (req.file) {
+                  const isCloudinary = !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET);
+                  if (isCloudinary) {
+                        const { uploadToCloud } = require('../config/cloudinary');
+                        const result = await uploadToCloud(req.file.path, {
+                              folder: 'messages',
+                              resource_type: 'auto'
+                        });
+                        msgData.media = {
+                              url: result.secure_url,
+                              type: req.file.mimetype.startsWith('video') ? 'video' : 'image'
+                        };
+                  } else {
+                        msgData.media = {
+                              url: `/uploads/${req.file.filename}`,
+                              type: req.file.mimetype.startsWith('video') ? 'video' : 'image'
+                        };
+                  }
+            }
+
+            // Create message
+            const message = await Message.create(msgData);
 
             // Populate sender info
             await message.populate('sender', 'username displayName avatar');
             await message.populate('receiver', 'username displayName avatar');
+
+            // Conversation last message text
+            const lastText = text ? text.trim() : (msgData.media?.type === 'video' ? '🎬 Video' : '📷 Photo');
 
             // Update or create conversation
             let conversation = await Conversation.findOne({
@@ -153,7 +189,7 @@ const sendMessage = async (req, res) => {
 
             if (conversation) {
                   conversation.lastMessage = {
-                        text: text.trim(),
+                        text: lastText,
                         sender: req.user.id,
                         createdAt: new Date()
                   };
@@ -164,7 +200,7 @@ const sendMessage = async (req, res) => {
                   conversation = await Conversation.create({
                         participants: [req.user.id, userId],
                         lastMessage: {
-                              text: text.trim(),
+                              text: lastText,
                               sender: req.user.id,
                               createdAt: new Date()
                         },
@@ -320,11 +356,13 @@ const deleteMessage = async (req, res) => {
                   });
             }
 
-            // Only sender can delete
-            if (message.sender.toString() !== req.user.id) {
+            // Both sender and receiver can delete
+            const isSender = message.sender.toString() === req.user.id;
+            const isReceiver = message.receiver.toString() === req.user.id;
+            if (!isSender && !isReceiver) {
                   return res.status(403).json({
                         success: false,
-                        message: 'You can only delete your own messages'
+                        message: 'You can only delete messages in your conversations'
                   });
             }
 

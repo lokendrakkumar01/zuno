@@ -3,6 +3,15 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { API_URL } from '../../config';
 
+// Common emojis organized by category
+const EMOJI_DATA = {
+      '😀': ['😀', '😂', '🤣', '😊', '😍', '🥰', '😘', '😎', '🤩', '🥳', '😇', '🤗', '🤔', '😏', '😴', '🤤', '😋', '🤪', '😜', '😝'],
+      '❤️': ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '💕', '💖', '💗', '💘', '💝', '💞', '💓', '💔', '🫶', '🤝', '👍', '👎'],
+      '🎉': ['🎉', '🎊', '🎈', '🎁', '🎂', '🔥', '⭐', '✨', '💫', '🌟', '💯', '✅', '❌', '⚡', '💥', '💢', '💤', '🎵', '🎶', '🎯'],
+      '🙏': ['🙏', '💪', '✌️', '🤞', '👋', '👏', '🙌', '👐', '🤲', '🫡', '🫣', '🫢', '🤫', '🤭', '🫠', '😐', '😑', '😶', '🙄', '😬'],
+      '🍕': ['🍕', '🍔', '🍟', '🌮', '🍜', '🍩', '🍪', '🎂', '🧁', '🍰', '🍫', '🍬', '☕', '🧃', '🍷', '🍻', '🥤', '🍳', '🥗', '🍣']
+};
+
 const Chat = () => {
       const { userId } = useParams();
       const { token, user } = useAuth();
@@ -14,11 +23,22 @@ const Chat = () => {
       const [sending, setSending] = useState(false);
       const messagesEndRef = useRef(null);
       const pollRef = useRef(null);
+      const fileInputRef = useRef(null);
 
       // Edit & Delete states
-      const [activeMenu, setActiveMenu] = useState(null); // messageId of active context menu
+      const [activeMenu, setActiveMenu] = useState(null);
       const [editingId, setEditingId] = useState(null);
       const [editText, setEditText] = useState('');
+
+      // Emoji picker
+      const [showEmoji, setShowEmoji] = useState(false);
+
+      // Media preview
+      const [mediaPreview, setMediaPreview] = useState(null);
+      const [mediaFile, setMediaFile] = useState(null);
+
+      // Call modal
+      const [showCallModal, setShowCallModal] = useState(null); // 'voice' or 'video'
 
       useEffect(() => {
             fetchMessages();
@@ -32,9 +52,12 @@ const Chat = () => {
             scrollToBottom();
       }, [messages]);
 
-      // Close menu on click outside
+      // Close menu/emoji on click outside
       useEffect(() => {
-            const handleClickOutside = () => setActiveMenu(null);
+            const handleClickOutside = (e) => {
+                  if (!e.target.closest('.emoji-picker-container')) setShowEmoji(false);
+                  setActiveMenu(null);
+            };
             document.addEventListener('click', handleClickOutside);
             return () => document.removeEventListener('click', handleClickOutside);
       }, []);
@@ -61,22 +84,39 @@ const Chat = () => {
 
       const handleSend = async (e) => {
             e.preventDefault();
-            if (!newMessage.trim() || sending) return;
+            if ((!newMessage.trim() && !mediaFile) || sending) return;
 
             setSending(true);
             try {
-                  const res = await fetch(`${API_URL}/messages/${userId}`, {
-                        method: 'POST',
-                        headers: {
-                              'Content-Type': 'application/json',
-                              'Authorization': `Bearer ${token}`
-                        },
-                        body: JSON.stringify({ text: newMessage.trim() })
-                  });
+                  let res;
+                  if (mediaFile) {
+                        // Send with media file
+                        const formData = new FormData();
+                        formData.append('media', mediaFile);
+                        if (newMessage.trim()) formData.append('text', newMessage.trim());
+
+                        res = await fetch(`${API_URL}/messages/${userId}`, {
+                              method: 'POST',
+                              headers: { 'Authorization': `Bearer ${token}` },
+                              body: formData
+                        });
+                  } else {
+                        // Text only
+                        res = await fetch(`${API_URL}/messages/${userId}`, {
+                              method: 'POST',
+                              headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${token}`
+                              },
+                              body: JSON.stringify({ text: newMessage.trim() })
+                        });
+                  }
                   const data = await res.json();
                   if (data.success) {
                         setMessages(prev => [...prev, data.data.message]);
                         setNewMessage('');
+                        setMediaFile(null);
+                        setMediaPreview(null);
                   }
             } catch (err) {
                   console.error('Failed to send message:', err);
@@ -137,6 +177,31 @@ const Chat = () => {
             setActiveMenu(prev => prev === messageId ? null : messageId);
       };
 
+      const handleEmojiClick = (emoji) => {
+            setNewMessage(prev => prev + emoji);
+      };
+
+      const handleMediaSelect = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            if (file.size > 25 * 1024 * 1024) {
+                  alert('File must be less than 25MB');
+                  return;
+            }
+
+            setMediaFile(file);
+            const reader = new FileReader();
+            reader.onloadend = () => setMediaPreview({ url: reader.result, type: file.type.startsWith('video') ? 'video' : 'image' });
+            reader.readAsDataURL(file);
+      };
+
+      const cancelMedia = () => {
+            setMediaFile(null);
+            setMediaPreview(null);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+      };
+
       const formatTime = (dateStr) => {
             const date = new Date(dateStr);
             return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -147,7 +212,6 @@ const Chat = () => {
             const now = new Date();
             const diff = now - date;
             const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-
             if (days === 0) return 'Today';
             if (days === 1) return 'Yesterday';
             return date.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
@@ -160,12 +224,6 @@ const Chat = () => {
             return prev !== curr;
       };
 
-      // Check if message can be edited (within 15 minutes)
-      const canEdit = (msg) => {
-            const fifteenMin = 15 * 60 * 1000;
-            return Date.now() - new Date(msg.createdAt).getTime() < fifteenMin;
-      };
-
       return (
             <div className="chat-page">
                   {/* Chat Header */}
@@ -175,7 +233,7 @@ const Chat = () => {
                                     <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
                               </svg>
                         </button>
-                        <Link to={`/u/${otherUser?.username}`} className="chat-user-info">
+                        <Link to={`/u/${otherUser?.username}`} className="chat-user-info" style={{ flex: 1 }}>
                               <div className="msg-avatar msg-avatar-sm">
                                     {otherUser?.avatar ? (
                                           <img src={otherUser.avatar} alt={otherUser.displayName} />
@@ -188,6 +246,19 @@ const Chat = () => {
                                     <div className="text-xs text-muted">@{otherUser?.username || '...'}</div>
                               </div>
                         </Link>
+                        {/* Call Buttons */}
+                        <div className="chat-call-buttons">
+                              <button className="chat-call-btn" onClick={() => setShowCallModal('voice')} title="Voice Call">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                                          <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
+                                    </svg>
+                              </button>
+                              <button className="chat-call-btn" onClick={() => setShowCallModal('video')} title="Video Call">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                                          <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
+                                    </svg>
+                              </button>
+                        </div>
                   </div>
 
                   {/* Messages Area */}
@@ -232,7 +303,17 @@ const Chat = () => {
                                                                   </div>
                                                             ) : (
                                                                   <>
-                                                                        <p className="chat-bubble-text">{msg.text}</p>
+                                                                        {/* Media content */}
+                                                                        {msg.media?.url && (
+                                                                              <div className="chat-media">
+                                                                                    {msg.media.type === 'video' ? (
+                                                                                          <video src={msg.media.url} controls className="chat-media-content" />
+                                                                                    ) : (
+                                                                                          <img src={msg.media.url} alt="Shared media" className="chat-media-content" onClick={() => window.open(msg.media.url, '_blank')} />
+                                                                                    )}
+                                                                              </div>
+                                                                        )}
+                                                                        {msg.text && <p className="chat-bubble-text">{msg.text}</p>}
                                                                         <div className="chat-bubble-meta">
                                                                               {msg.edited && <span className="chat-edited-label">edited</span>}
                                                                               <span className="chat-bubble-time">{formatTime(msg.createdAt)}</span>
@@ -245,8 +326,8 @@ const Chat = () => {
                                                                   </>
                                                             )}
 
-                                                            {/* Three-dot menu for own messages (only if not editing) */}
-                                                            {isMine && editingId !== msg._id && (
+                                                            {/* Three-dot menu for ALL messages (own = edit+delete, received = delete only) */}
+                                                            {editingId !== msg._id && (
                                                                   <button
                                                                         className="chat-msg-menu-btn"
                                                                         onClick={(e) => toggleMenu(e, msg._id)}
@@ -259,10 +340,12 @@ const Chat = () => {
                                                             {/* Context Menu */}
                                                             {activeMenu === msg._id && (
                                                                   <div className="chat-msg-menu" onClick={(e) => e.stopPropagation()}>
-                                                                        <button onClick={() => startEditing(msg)} className="chat-msg-menu-item">
-                                                                              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" /></svg>
-                                                                              Edit
-                                                                        </button>
+                                                                        {isMine && (
+                                                                              <button onClick={() => startEditing(msg)} className="chat-msg-menu-item">
+                                                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" /></svg>
+                                                                                    Edit
+                                                                              </button>
+                                                                        )}
                                                                         <button
                                                                               onClick={() => { setActiveMenu(null); handleDelete(msg._id); }}
                                                                               className="chat-msg-menu-item delete"
@@ -289,8 +372,57 @@ const Chat = () => {
                         <div ref={messagesEndRef} />
                   </div>
 
+                  {/* Media Preview */}
+                  {mediaPreview && (
+                        <div className="chat-media-preview">
+                              <div className="chat-media-preview-inner">
+                                    {mediaPreview.type === 'video' ? (
+                                          <video src={mediaPreview.url} className="chat-media-preview-thumb" muted />
+                                    ) : (
+                                          <img src={mediaPreview.url} alt="Preview" className="chat-media-preview-thumb" />
+                                    )}
+                                    <span className="text-sm">{mediaFile?.name}</span>
+                                    <button onClick={cancelMedia} className="chat-media-preview-close">✕</button>
+                              </div>
+                        </div>
+                  )}
+
+                  {/* Emoji Picker */}
+                  {showEmoji && (
+                        <div className="emoji-picker" onClick={(e) => e.stopPropagation()}>
+                              <div className="emoji-grid">
+                                    {Object.values(EMOJI_DATA).flat().map((emoji, i) => (
+                                          <button key={i} className="emoji-btn" onClick={() => handleEmojiClick(emoji)}>
+                                                {emoji}
+                                          </button>
+                                    ))}
+                              </div>
+                        </div>
+                  )}
+
                   {/* Message Input */}
                   <form className="chat-input-area" onSubmit={handleSend}>
+                        <div className="chat-input-actions">
+                              {/* Emoji Button */}
+                              <div className="emoji-picker-container" onClick={(e) => e.stopPropagation()}>
+                                    <button type="button" className="chat-action-btn" onClick={() => setShowEmoji(!showEmoji)} title="Emojis">
+                                          😊
+                                    </button>
+                              </div>
+                              {/* Media Button */}
+                              <button type="button" className="chat-action-btn" onClick={() => fileInputRef.current?.click()} title="Send Photo/Video">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                          <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
+                                    </svg>
+                              </button>
+                              <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/*,video/*"
+                                    onChange={handleMediaSelect}
+                                    style={{ display: 'none' }}
+                              />
+                        </div>
                         <input
                               type="text"
                               className="chat-input"
@@ -298,12 +430,11 @@ const Chat = () => {
                               value={newMessage}
                               onChange={(e) => setNewMessage(e.target.value)}
                               maxLength={2000}
-                              autoFocus
                         />
                         <button
                               type="submit"
                               className="chat-send-btn"
-                              disabled={!newMessage.trim() || sending}
+                              disabled={(!newMessage.trim() && !mediaFile) || sending}
                         >
                               {sending ? (
                                     <span className="spinner" style={{ width: '20px', height: '20px' }}></span>
@@ -314,6 +445,26 @@ const Chat = () => {
                               )}
                         </button>
                   </form>
+
+                  {/* Call Coming Soon Modal */}
+                  {showCallModal && (
+                        <div className="chat-call-modal-overlay" onClick={() => setShowCallModal(null)}>
+                              <div className="chat-call-modal" onClick={(e) => e.stopPropagation()}>
+                                    <div className="chat-call-modal-icon">
+                                          {showCallModal === 'video' ? '📹' : '📞'}
+                                    </div>
+                                    <h3 className="text-lg font-bold mb-sm">
+                                          {showCallModal === 'video' ? 'Video Call' : 'Voice Call'}
+                                    </h3>
+                                    <p className="text-muted text-sm mb-lg">
+                                          {showCallModal === 'video' ? 'Video' : 'Voice'} calling feature is coming soon! Stay tuned for updates.
+                                    </p>
+                                    <button onClick={() => setShowCallModal(null)} className="btn btn-primary" style={{ width: '100%' }}>
+                                          OK, Got it!
+                                    </button>
+                              </div>
+                        </div>
+                  )}
             </div>
       );
 };

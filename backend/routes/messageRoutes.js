@@ -10,6 +10,7 @@ const {
       deleteMessage
 } = require('../controllers/messageController');
 const { protect } = require('../middleware/auth');
+const { uploadMultiple } = require('../middleware/upload');
 
 // All routes are protected
 router.use(protect);
@@ -26,7 +27,7 @@ router.delete('/delete/:messageId', deleteMessage);
 
 // Messages with a specific user
 router.get('/:userId', getMessages);
-router.post('/:userId', sendMessage);
+router.post('/:userId', uploadMultiple.single('media'), sendMessage);
 router.put('/:userId/read', markAsRead);
 
 module.exports = router;
