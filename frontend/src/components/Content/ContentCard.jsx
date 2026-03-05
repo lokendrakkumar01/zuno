@@ -360,52 +360,56 @@ const ContentCard = ({ content, onDelete }) => {
 
       // ... existing code ...
 
-      return (
-            <article className="content-card">
-                  {/* Header */}
-                  <div className="content-card-header flex items-center justify-between mb-sm">
-                        <div className="flex items-center gap-sm">
-                              <Link to={`/u/${content.creator?.username}`}>
-                                    <img
-                                          src={content.creator?.avatar || 'https://via.placeholder.com/40'}
-                                          alt={content.creator?.displayName}
-                                          className="avatar md rounded-full w-10 h-10 object-cover border border-gray-100"
-                                    />
-                              </Link>
-                              <div className="flex flex-col">
-                                    <h4 className="font-semibold text-sm leading-tight">
-                                          <Link to={`/u/${content.creator?.username}`} className="hover:underline text-gray-900">
-                                                {content.creator?.displayName || 'Anonymous'}
-                                          </Link>
-                                    </h4>
-                                    <span className="text-xs text-gray-500 mt-0.5" style={{ display: 'block' }}>
-                                          {content.purpose} • {new Date(content.createdAt).toLocaleDateString()}
-                                    </span>
-                              </div>
-                        </div>
+      const isVideo = content.media && content.media.length > 0 && content.media[0].type === 'video';
 
-                        {currentUser?._id !== content.creator?._id && (
-                              <button
-                                    onClick={handleFollow}
-                                    className={`text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1 transition-colors ${isFollowing
-                                          ? 'bg-gray-100 text-gray-600 border border-gray-200'
-                                          : 'bg-blue-500 text-white hover:bg-blue-600 shadow-sm'
-                                          }`}
-                              >
-                                    {isFollowing ? (
-                                          <>
-                                                <span>✕</span>
-                                                <span>Unfollow</span>
-                                          </>
-                                    ) : (
-                                          <>
-                                                <span>+</span>
-                                                <span>Follow</span>
-                                          </>
-                                    )}
-                              </button>
-                        )}
-                  </div>
+      return (
+            <article className={`content-card ${isVideo ? 'reel-card' : 'standard-card'}`}>
+                  {/* Header - Only hide on videos (Reels style) */}
+                  {!isVideo && (
+                        <div className="content-card-header flex items-center justify-between mb-sm">
+                              <div className="flex items-center gap-sm">
+                                    <Link to={`/u/${content.creator?.username}`}>
+                                          <img
+                                                src={content.creator?.avatar || 'https://via.placeholder.com/40'}
+                                                alt={content.creator?.displayName}
+                                                className="avatar md rounded-full w-10 h-10 object-cover border border-gray-100"
+                                          />
+                                    </Link>
+                                    <div className="flex flex-col">
+                                          <h4 className="font-semibold text-sm leading-tight">
+                                                <Link to={`/u/${content.creator?.username}`} className="hover:underline text-gray-900">
+                                                      {content.creator?.displayName || 'Anonymous'}
+                                                </Link>
+                                          </h4>
+                                          <span className="text-xs text-gray-500 mt-0.5" style={{ display: 'block' }}>
+                                                {content.purpose} • {new Date(content.createdAt).toLocaleDateString()}
+                                          </span>
+                                    </div>
+                              </div>
+
+                              {currentUser?._id !== content.creator?._id && (
+                                    <button
+                                          onClick={handleFollow}
+                                          className={`text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1 transition-colors ${isFollowing
+                                                ? 'bg-gray-100 text-gray-600 border border-gray-200'
+                                                : 'bg-blue-500 text-white hover:bg-blue-600 shadow-sm'
+                                                }`}
+                                    >
+                                          {isFollowing ? (
+                                                <>
+                                                      <span>✕</span>
+                                                      <span>Unfollow</span>
+                                                </>
+                                          ) : (
+                                                <>
+                                                      <span>+</span>
+                                                      <span>Follow</span>
+                                                </>
+                                          )}
+                                    </button>
+                              )}
+                        </div>
+                  )}
 
                   {/* Media */}
                   {content.media && content.media.length > 0 && (
@@ -484,10 +488,10 @@ const ContentCard = ({ content, onDelete }) => {
                                                 )}
                                           </>
                                     ) : (
-                                          /* Enhanced Video Player */
+                                          /* Enhanced Video Player - Reel Style */
                                           <div
-                                                className="video-player-container"
-                                                style={{ position: 'relative' }}
+                                                className="video-player-container reel-video-container"
+                                                style={{ position: 'relative', width: '100%', height: '100%', minHeight: '600px', backgroundColor: '#000', overflow: 'hidden', borderRadius: '12px' }}
                                                 onMouseEnter={() => setShowVideoControls(true)}
                                                 onMouseLeave={() => !isPlaying && setShowVideoControls(true)}
                                           >
@@ -495,246 +499,127 @@ const ContentCard = ({ content, onDelete }) => {
                                                       ref={videoRef}
                                                       key={mediaUrl}
                                                       src={getMediaUrl(mediaUrl)}
-                                                      controls
-                                                      controlsList="nodownload"
                                                       playsInline
                                                       preload="metadata"
                                                       poster={content.media[0].thumbnail}
-                                                      className="w-full h-auto bg-black"
-                                                      style={{ maxHeight: '600px' }}
+                                                      className="w-full h-full object-cover"
+                                                      style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
                                                       muted={isMuted}
+                                                      loop
+                                                      onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (isPlaying) {
+                                                                  videoRef.current.pause();
+                                                            } else {
+                                                                  videoRef.current.play();
+                                                            }
+                                                      }}
                                                       onPlay={() => setIsPlaying(true)}
                                                       onPause={() => setIsPlaying(false)}
                                                       onLoadedMetadata={(e) => setVideoDuration(e.target.duration)}
                                                       onTimeUpdate={(e) => setVideoProgress((e.target.currentTime / e.target.duration) * 100)}
-                                                      onError={(e) => {
-                                                            console.error('Video failed to load:', e);
-                                                      }}
+                                                      onError={(e) => console.error('Video failed to load:', e)}
                                                 />
 
-                                                {/* Floating Badges Container - Top Left */}
-                                                <div style={{
-                                                      position: 'absolute',
-                                                      top: '8px',
-                                                      left: '8px',
-                                                      display: 'flex',
-                                                      flexDirection: 'column',
-                                                      gap: '6px',
-                                                      zIndex: 10
-                                                }}>
-                                                      {/* Purpose Badge */}
-                                                      <div style={{
-                                                            background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.9), rgba(139, 92, 246, 0.9))',
-                                                            padding: '4px 10px',
-                                                            borderRadius: '20px',
-                                                            fontSize: '11px',
-                                                            color: 'white',
-                                                            fontWeight: '600',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: '4px',
-                                                            backdropFilter: 'blur(4px)',
-                                                            boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
-                                                      }}>
-                                                            <span>{getPurposeEmoji(content.purpose)}</span>
-                                                            <span style={{ textTransform: 'capitalize' }}>{content.purpose}</span>
-                                                      </div>
-
-                                                      {/* Topic Icons Row */}
-                                                      {content.topics && content.topics.length > 0 && (
-                                                            <div style={{
-                                                                  display: 'flex',
-                                                                  gap: '4px',
-                                                                  flexWrap: 'wrap'
-                                                            }}>
-                                                                  {content.topics.slice(0, 3).map((topic, idx) => (
-                                                                        <div key={idx} style={{
-                                                                              background: 'rgba(0,0,0,0.7)',
-                                                                              padding: '3px 8px',
-                                                                              borderRadius: '12px',
-                                                                              fontSize: '10px',
-                                                                              color: 'white',
-                                                                              display: 'flex',
-                                                                              alignItems: 'center',
-                                                                              gap: '3px',
-                                                                              backdropFilter: 'blur(4px)'
-                                                                        }}>
-                                                                              <span>{getTopicIcon(topic)}</span>
-                                                                              <span style={{ textTransform: 'capitalize' }}>{topic}</span>
-                                                                        </div>
-                                                                  ))}
-                                                            </div>
-                                                      )}
-                                                </div>
-
-                                                {/* Top Right Badges */}
-                                                <div style={{
-                                                      position: 'absolute',
-                                                      top: '8px',
-                                                      right: '8px',
-                                                      display: 'flex',
-                                                      flexDirection: 'column',
-                                                      alignItems: 'flex-end',
-                                                      gap: '6px',
-                                                      zIndex: 10
-                                                }}>
-                                                      {/* Content Type Badge */}
-                                                      <div style={{
-                                                            background: content.contentType === 'live'
-                                                                  ? 'linear-gradient(135deg, #ef4444, #dc2626)'
-                                                                  : 'rgba(0,0,0,0.75)',
-                                                            padding: '4px 10px',
-                                                            borderRadius: '20px',
-                                                            fontSize: '11px',
-                                                            color: 'white',
-                                                            fontWeight: '600',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: '4px',
-                                                            backdropFilter: 'blur(4px)'
-                                                      }}>
-                                                            <span>{getContentTypeIcon(content.contentType)}</span>
-                                                            <span>{content.contentType === 'short-video' ? 'Short' : content.contentType === 'long-video' ? 'Video' : content.contentType}</span>
-                                                      </div>
-
-                                                      {/* Duration Badge */}
-                                                      {(videoDuration > 0 || content.media[0]?.duration) && (
-                                                            <div style={{
-                                                                  background: 'rgba(0,0,0,0.75)',
-                                                                  padding: '3px 8px',
-                                                                  borderRadius: '12px',
-                                                                  fontSize: '10px',
-                                                                  color: 'white',
-                                                                  fontWeight: '500',
-                                                                  display: 'flex',
-                                                                  alignItems: 'center',
-                                                                  gap: '3px'
-                                                            }}>
-                                                                  <span>⏱️</span>
-                                                                  <span>{formatDuration(videoDuration || content.media[0]?.duration)}</span>
-                                                            </div>
-                                                      )}
-
-                                                      {/* Language Badge */}
-                                                      {content.language && (
-                                                            <div style={{
-                                                                  background: 'rgba(0,0,0,0.75)',
-                                                                  padding: '3px 8px',
-                                                                  borderRadius: '12px',
-                                                                  fontSize: '10px',
-                                                                  color: 'white'
-                                                            }}>
-                                                                  <span>{getLanguageIcon(content.language)}</span>
-                                                            </div>
-                                                      )}
-                                                </div>
-
-                                                {/* Bottom Right Quick Actions */}
-                                                <div style={{
-                                                      position: 'absolute',
-                                                      bottom: '50px',
-                                                      right: '8px',
-                                                      display: 'flex',
-                                                      flexDirection: 'column',
-                                                      gap: '8px',
-                                                      zIndex: 10
-                                                }}>
-                                                      {/* Mute/Unmute Button */}
-                                                      <button
-                                                            onClick={(e) => {
-                                                                  e.stopPropagation();
-                                                                  setIsMuted(!isMuted);
-                                                                  if (videoRef.current) {
-                                                                        videoRef.current.muted = !isMuted;
-                                                                  }
-                                                            }}
-                                                            style={{
-                                                                  width: '36px',
-                                                                  height: '36px',
-                                                                  borderRadius: '50%',
-                                                                  background: 'rgba(0,0,0,0.7)',
-                                                                  border: 'none',
-                                                                  color: 'white',
-                                                                  cursor: 'pointer',
-                                                                  display: 'flex',
-                                                                  alignItems: 'center',
-                                                                  justifyContent: 'center',
-                                                                  fontSize: '14px',
-                                                                  backdropFilter: 'blur(4px)',
-                                                                  transition: 'all 0.2s ease'
-                                                            }}
-                                                            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(99, 102, 241, 0.8)'}
-                                                            onMouseOut={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.7)'}
+                                                {/* Play/Pause Overlay Icon (shows when paused) */}
+                                                {!isPlaying && (
+                                                      <div
+                                                            style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'none', background: 'rgba(0,0,0,0.5)', borderRadius: '50%', padding: '20px', zIndex: 10 }}
                                                       >
+                                                            <svg width="40" height="40" viewBox="0 0 24 24" fill="white">
+                                                                  <path d="M8 5v14l11-7z" />
+                                                            </svg>
+                                                      </div>
+                                                )}
+
+                                                {/* Instagram Reel Style Overlay Gradient */}
+                                                <div className="reel-overlay-bottom" style={{
+                                                      position: 'absolute', bottom: 0, left: 0, width: '100%', height: '50%',
+                                                      background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 40%, transparent 100%)',
+                                                      pointerEvents: 'none', zIndex: 5
+                                                }} />
+
+                                                {/* Reel Bottom Left Info */}
+                                                <div style={{ position: 'absolute', bottom: '20px', left: '16px', right: '60px', zIndex: 10, color: 'white', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                      {/* Creator Line */}
+                                                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                            <Link to={`/u/${content.creator?.username}`} onClick={(e) => e.stopPropagation()}>
+                                                                  <img
+                                                                        src={content.creator?.avatar || 'https://via.placeholder.com/40'}
+                                                                        alt={content.creator?.displayName}
+                                                                        style={{ width: '40px', height: '40px', borderRadius: '50%', border: '2px solid white', objectFit: 'cover' }}
+                                                                  />
+                                                            </Link>
+                                                            <Link to={`/u/${content.creator?.username}`} onClick={(e) => e.stopPropagation()} style={{ color: 'white', fontWeight: 'bold', fontSize: '15px', textShadow: '1px 1px 3px rgba(0,0,0,0.8)' }}>
+                                                                  {content.creator?.username}
+                                                            </Link>
+                                                            {currentUser?._id !== content.creator?._id && (
+                                                                  <button
+                                                                        onClick={(e) => { e.stopPropagation(); handleFollow(); }}
+                                                                        style={{ background: 'transparent', border: '1px solid white', borderRadius: '6px', color: 'white', padding: '2px 8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+                                                                  >
+                                                                        {isFollowing ? 'Following' : 'Follow'}
+                                                                  </button>
+                                                            )}
+                                                      </div>
+
+                                                      {/* Title & Caption */}
+                                                      {(content.title || content.body) && (
+                                                            <div style={{ fontSize: '14px', textShadow: '1px 1px 2px rgba(0,0,0,0.8)', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                                                                  {content.title && <span style={{ fontWeight: 'bold', marginRight: '5px' }}>{content.title}</span>}
+                                                                  <span>{content.body}</span>
+                                                            </div>
+                                                      )}
+                                                </div>
+
+                                                {/* Instagram Reel Style Vertical Action Bar (Right side) */}
+                                                <div className="reel-actions" style={{ position: 'absolute', bottom: '20px', right: '12px', zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+
+                                                      {/* Like Vertical */}
+                                                      <button onClick={(e) => { e.stopPropagation(); handleHelpful(); }} style={{ background: 'transparent', border: 'none', color: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer', transform: animateHelpful ? 'scale(1.2)' : 'scale(1)', transition: 'transform 0.2s' }}>
+                                                            <svg width="28" height="28" viewBox="0 0 24 24" fill={isHelpful ? '#ef4444' : 'none'} stroke={isHelpful ? '#ef4444' : 'white'} strokeWidth="2" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}>
+                                                                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                                                            </svg>
+                                                            <span style={{ fontSize: '12px', fontWeight: 'bold', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>{likeCount}</span>
+                                                      </button>
+
+                                                      {/* Comment Vertical */}
+                                                      <button onClick={(e) => { e.stopPropagation(); setShowComments(!showComments); }} style={{ background: 'transparent', border: 'none', color: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer', transform: animateComment ? 'scale(1.2)' : 'scale(1)', transition: 'transform 0.2s' }}>
+                                                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))', transform: 'scaleX(-1)' }}>
+                                                                  <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                                                            </svg>
+                                                            <span style={{ fontSize: '12px', fontWeight: 'bold', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>{commentCount}</span>
+                                                      </button>
+
+                                                      {/* Share Vertical */}
+                                                      <button onClick={(e) => { e.stopPropagation(); handleShare(); }} style={{ background: 'transparent', border: 'none', color: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer', transform: animateShare ? 'scale(1.2) rotate(10deg)' : 'scale(1)', transition: 'transform 0.2s' }}>
+                                                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}>
+                                                                  <line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                                                            </svg>
+                                                            <span style={{ fontSize: '12px', fontWeight: 'bold', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>Share</span>
+                                                      </button>
+
+                                                      {/* Save/Bookmark Vertical */}
+                                                      <button onClick={(e) => { e.stopPropagation(); handleSave(); }} style={{ background: 'transparent', border: 'none', color: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer', transform: animateSave ? 'scale(1.2)' : 'scale(1)', transition: 'transform 0.2s' }}>
+                                                            <svg width="28" height="28" viewBox="0 0 24 24" fill={isSaved ? 'white' : 'none'} stroke="white" strokeWidth="2" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}>
+                                                                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                                                            </svg>
+                                                      </button>
+
+                                                      {/* Mute Vertical (Small) */}
+                                                      <button onClick={(e) => { e.stopPropagation(); setIsMuted(!isMuted); if (videoRef.current) { videoRef.current.muted = !isMuted; } }} style={{ background: 'rgba(0,0,0,0.4)', borderRadius: '50%', border: '1px solid rgba(255,255,255,0.2)', padding: '6px', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', marginTop: '10px' }}>
                                                             {isMuted ? '🔇' : '🔊'}
                                                       </button>
+                                                </div>
 
-                                                      {/* Fullscreen Button */}
-                                                      <button
-                                                            onClick={(e) => {
-                                                                  e.stopPropagation();
-                                                                  if (videoRef.current) {
-                                                                        if (document.fullscreenElement) {
-                                                                              document.exitFullscreen();
-                                                                        } else {
-                                                                              videoRef.current.requestFullscreen();
-                                                                        }
-                                                                  }
-                                                            }}
-                                                            style={{
-                                                                  width: '36px',
-                                                                  height: '36px',
-                                                                  borderRadius: '50%',
-                                                                  background: 'rgba(0,0,0,0.7)',
-                                                                  border: 'none',
-                                                                  color: 'white',
-                                                                  cursor: 'pointer',
-                                                                  display: 'flex',
-                                                                  alignItems: 'center',
-                                                                  justifyContent: 'center',
-                                                                  fontSize: '14px',
-                                                                  backdropFilter: 'blur(4px)',
-                                                                  transition: 'all 0.2s ease'
-                                                            }}
-                                                            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(99, 102, 241, 0.8)'}
-                                                            onMouseOut={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.7)'}
-                                                      >
-                                                            ⛶
-                                                      </button>
-
-                                                      {/* PiP Button */}
-                                                      <button
-                                                            onClick={(e) => {
-                                                                  e.stopPropagation();
-                                                                  if (videoRef.current && document.pictureInPictureEnabled) {
-                                                                        if (document.pictureInPictureElement) {
-                                                                              document.exitPictureInPicture();
-                                                                        } else {
-                                                                              videoRef.current.requestPictureInPicture();
-                                                                        }
-                                                                  }
-                                                            }}
-                                                            style={{
-                                                                  width: '36px',
-                                                                  height: '36px',
-                                                                  borderRadius: '50%',
-                                                                  background: 'rgba(0,0,0,0.7)',
-                                                                  border: 'none',
-                                                                  color: 'white',
-                                                                  cursor: 'pointer',
-                                                                  display: 'flex',
-                                                                  alignItems: 'center',
-                                                                  justifyContent: 'center',
-                                                                  fontSize: '14px',
-                                                                  backdropFilter: 'blur(4px)',
-                                                                  transition: 'all 0.2s ease'
-                                                            }}
-                                                            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(99, 102, 241, 0.8)'}
-                                                            onMouseOut={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.7)'}
-                                                      >
-                                                            📺
+                                                {/* Top Controls (Mute/Fullscreen/PiP) - Hidden in Reel style unless hovered/needed */}
+                                                <div style={{ position: 'absolute', top: '16px', right: '16px', display: 'flex', gap: '8px', zIndex: 10 }}>
+                                                      {/* More options (3 dots) inside video for Reels */}
+                                                      <button onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }} style={{ background: 'rgba(0,0,0,0.4)', borderRadius: '50%', border: 'none', padding: '8px', color: 'white', cursor: 'pointer', backdropFilter: 'blur(4px)' }}>
+                                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg>
                                                       </button>
                                                 </div>
+
                                           </div>
                                     )
                               )}
@@ -816,392 +701,238 @@ const ContentCard = ({ content, onDelete }) => {
                         </div>
                   )}
 
-                  {/* Body */}
-                  <div className="content-card-body">
-                        {content.title && (
-                              <h3 className="content-card-title">
-                                    <Link to={`/content/${content._id}`}>{content.title}</Link>
-                              </h3>
-                        )}
-                        {content.body && (
-                              <p className="content-card-text">
-                                    {content.body.length > 150
-                                          ? `${content.body.substring(0, 150)}...`
-                                          : content.body}
-                              </p>
-                        )}
-
-                        {/* Topics */}
-                        {content.topics && content.topics.length > 0 && (
-                              <div className="flex gap-sm flex-wrap mt-md">
-                                    {content.topics.slice(0, 3).map(topic => (
-                                          <span key={topic} className="tag tag-primary" style={{ fontSize: '0.7rem' }}>
-                                                {topic}
-                                          </span>
-                                    ))}
-                                    {content.topics.length > 3 && (
-                                          <span className="tag" style={{ fontSize: '0.7rem' }}>
-                                                +{content.topics.length - 3}
-                                          </span>
+                  {/* Body & Standard Footer (Hidden for Videos since they use overlays) */}
+                  {!isVideo && (
+                        <>
+                              <div className="content-card-body pb-2">
+                                    {content.title && (
+                                          <h3 className="font-bold text-sm mb-1">
+                                                <Link to={`/content/${content._id}`}>{content.title}</Link>
+                                          </h3>
+                                    )}
+                                    {content.body && (
+                                          <p className="text-sm text-gray-800">
+                                                <span className="font-bold mr-2">{content.creator?.username}</span>
+                                                {content.body}
+                                          </p>
                                     )}
                               </div>
-                        )}
-                  </div>
 
-                  {/* Footer - Social Actions */}
-                  <div className="content-card-footer p-3">
-                        {/* Caption/Body preview */}
-                        <div className="px-1 text-sm mb-3">
-                              <span className="font-bold mr-1">{content.creator?.username}</span>
-                              {content.body && (
-                                    <span>
-                                          {content.body.slice(0, 100)}
-                                          {content.body.length > 100 && '...'}
-                                    </span>
-                              )}
-                        </div>
+                              {/* Footer - Social Actions Standard (Instagram Post Style) */}
+                              <div className="content-card-footer px-4 py-3 flex items-center justify-between border-t border-gray-100">
+                                    <div className="flex items-center gap-4">
+                                          {/* Like Icon */}
+                                          <button onClick={handleHelpful} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: '6px', transform: animateHelpful ? 'scale(1.2)' : 'scale(1)', transition: 'transform 0.2s' }}>
+                                                <svg width="24" height="24" viewBox="0 0 24 24" fill={isHelpful ? '#ef4444' : 'none'} stroke={isHelpful ? '#ef4444' : '#262626'} strokeWidth="2">
+                                                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                                                </svg>
+                                                {likeCount > 0 && <span style={{ fontSize: '13px', fontWeight: 'bold' }}>{likeCount}</span>}
+                                          </button>
 
-                        <div className="flex items-center justify-between" style={{ padding: '12px 0', gap: '8px' }}>
-                              {/* Left Side Actions - Like, Dislike, Comment, Share */}
-                              <div className="flex items-center" style={{ gap: '4px', flexWrap: 'wrap' }}>
-                                    {/* Like Button */}
-                                    <button
-                                          onClick={handleHelpful}
-                                          title="Like"
-                                          style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '4px',
-                                                padding: '8px 12px',
-                                                borderRadius: '20px',
-                                                border: 'none',
-                                                cursor: 'pointer',
-                                                background: isHelpful ? 'linear-gradient(135deg, #ef4444, #dc2626)' : '#f3f4f6',
-                                                color: isHelpful ? 'white' : '#374151',
-                                                fontWeight: '600',
-                                                fontSize: '13px',
-                                                transition: 'all 0.2s ease',
-                                                transform: animateHelpful ? 'scale(1.1)' : 'scale(1)',
-                                                boxShadow: isHelpful ? '0 2px 8px rgba(239, 68, 68, 0.4)' : '0 1px 3px rgba(0,0,0,0.1)'
-                                          }}
-                                    >
-                                          <svg width="18" height="18" viewBox="0 0 24 24" fill={isHelpful ? 'white' : 'none'} stroke={isHelpful ? 'white' : '#374151'} strokeWidth="2.5">
-                                                <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>
-                                          </svg>
-                                          {likeCount > 0 && <span>{likeCount}</span>}
-                                    </button>
+                                          {/* Dislike Icon */}
+                                          <button onClick={handleDislike} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, transform: animateDislike ? 'scale(1.2)' : 'scale(1)', transition: 'transform 0.2s' }}>
+                                                <svg width="24" height="24" viewBox="0 0 24 24" fill={isDisliked ? '#6366f1' : 'none'} stroke={isDisliked ? '#6366f1' : '#262626'} strokeWidth="2" style={{ transform: 'rotate(180deg) scaleX(-1)' }}>
+                                                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                                                </svg>
+                                          </button>
 
-                                    {/* Dislike Button */}
-                                    <button
-                                          onClick={handleDislike}
-                                          title="Dislike"
-                                          style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '4px',
-                                                padding: '8px 12px',
-                                                borderRadius: '20px',
-                                                border: 'none',
-                                                cursor: 'pointer',
-                                                background: isDisliked ? 'linear-gradient(135deg, #6366f1, #4f46e5)' : '#f3f4f6',
-                                                color: isDisliked ? 'white' : '#374151',
-                                                fontWeight: '600',
-                                                fontSize: '13px',
-                                                transition: 'all 0.2s ease',
-                                                transform: animateDislike ? 'scale(1.1)' : 'scale(1)',
-                                                boxShadow: isDisliked ? '0 2px 8px rgba(99, 102, 241, 0.4)' : '0 1px 3px rgba(0,0,0,0.1)'
-                                          }}
-                                    >
-                                          <svg width="18" height="18" viewBox="0 0 24 24" fill={isDisliked ? 'white' : 'none'} stroke={isDisliked ? 'white' : '#374151'} strokeWidth="2.5" style={{ transform: 'rotate(180deg)' }}>
-                                                <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>
-                                          </svg>
-                                          {dislikeCount > 0 && <span>{dislikeCount}</span>}
-                                    </button>
+                                          {/* Comment Icon */}
+                                          <button onClick={() => setShowComments(!showComments)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', gap: '6px', transform: animateComment ? 'scale(1.2)' : 'scale(1)', transition: 'transform 0.2s' }}>
+                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#262626" strokeWidth="2" style={{ transform: 'scaleX(-1)' }}>
+                                                      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                                                </svg>
+                                                {commentCount > 0 && <span style={{ fontSize: '13px', fontWeight: 'bold' }}>{commentCount}</span>}
+                                          </button>
 
-                                    {/* Comment Button */}
-                                    <button
-                                          onClick={() => {
-                                                setAnimateComment(true);
-                                                setTimeout(() => setAnimateComment(false), 300);
-                                                setShowComments(!showComments);
-                                          }}
-                                          title="Comments"
-                                          style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '4px',
-                                                padding: '8px 12px',
-                                                borderRadius: '20px',
-                                                border: 'none',
-                                                cursor: 'pointer',
-                                                background: showComments ? 'linear-gradient(135deg, #10b981, #059669)' : '#f3f4f6',
-                                                color: showComments ? 'white' : '#374151',
-                                                fontWeight: '600',
-                                                fontSize: '13px',
-                                                transition: 'all 0.2s ease',
-                                                transform: animateComment ? 'scale(1.1)' : 'scale(1)',
-                                                boxShadow: showComments ? '0 2px 8px rgba(16, 185, 129, 0.4)' : '0 1px 3px rgba(0,0,0,0.1)'
-                                          }}
-                                    >
-                                          <svg width="18" height="18" viewBox="0 0 24 24" fill={showComments ? 'white' : 'none'} stroke={showComments ? 'white' : '#374151'} strokeWidth="2.5">
-                                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                                          </svg>
-                                          {commentCount > 0 && <span>{commentCount}</span>}
-                                    </button>
+                                          {/* Share Icon */}
+                                          <button onClick={handleShare} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, transform: animateShare ? 'scale(1.2) rotate(10deg)' : 'scale(1)', transition: 'transform 0.2s' }}>
+                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#262626" strokeWidth="2">
+                                                      <line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                                                </svg>
+                                          </button>
+                                    </div>
 
-                                    {/* Share Button */}
-                                    <button
-                                          onClick={handleShare}
-                                          title="Share"
-                                          style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '4px',
-                                                padding: '8px 12px',
-                                                borderRadius: '20px',
-                                                border: 'none',
-                                                cursor: 'pointer',
-                                                background: '#f3f4f6',
-                                                color: '#374151',
-                                                fontWeight: '600',
-                                                fontSize: '13px',
-                                                transition: 'all 0.2s ease',
-                                                transform: animateShare ? 'scale(1.1) rotate(5deg)' : 'scale(1)',
-                                                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-                                          }}
-                                    >
-                                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2.5">
-                                                <circle cx="18" cy="5" r="3"></circle>
-                                                <circle cx="6" cy="12" r="3"></circle>
-                                                <circle cx="18" cy="19" r="3"></circle>
-                                                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
-                                                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
-                                          </svg>
-                                          {shareCount > 0 && <span>{shareCount}</span>}
-                                    </button>
+                                    <div className="flex items-center gap-4 relative">
+                                          {/* Save/Bookmark Icon */}
+                                          <button onClick={handleSave} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, transform: animateSave ? 'scale(1.2)' : 'scale(1)', transition: 'transform 0.2s' }}>
+                                                <svg width="24" height="24" viewBox="0 0 24 24" fill={isSaved ? '#262626' : 'none'} stroke="#262626" strokeWidth="2">
+                                                      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                                                </svg>
+                                          </button>
+
+                                          {/* More Options */}
+                                          <button onClick={() => setShowMenu(!showMenu)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="#262626"><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg>
+                                          </button>
+
+                                          {/* More Menu Dropdown for Non-Videos (We'll re-use the existing logic below but attach it to this relative container) */}
+                                    </div>
                               </div>
+                        </>
+                  )}
 
-                              {/* Right Side Actions - Save, More */}
-                              <div className="flex items-center relative" style={{ gap: '4px' }}>
-                                    {/* Save/Bookmark Button */}
+                  {/* Universal More Menu Dropdown (Matches both layouts) */}
+                  {showMenu && (
+                        <div
+                              className="absolute bg-white rounded-xl shadow-2xl border border-gray-100 p-2 min-w-[180px] z-50"
+                              onClick={(e) => e.stopPropagation()}
+                              style={{
+                                    animation: 'fadeInUp 0.2s ease-out',
+                                    backdropFilter: 'blur(10px)',
+                                    background: 'rgba(255,255,255,0.95)',
+                                    right: '16px',
+                                    ...(isVideo ? { top: '50px' } : { bottom: '50px' })
+                              }}
+                        >
+                              {/* Download Option */}
+                              {content.media && content.media.length > 0 && (
                                     <button
-                                          onClick={handleSave}
-                                          title="Save for later"
-                                          style={{
+                                          onClick={async () => {
+                                                try {
+                                                      const media = content.media[0];
+                                                      const url = getMediaUrl(media.url);
+                                                      const filename = `zuno-${content._id}.${media.type === 'video' ? 'mp4' : 'jpg'}`;
+
+                                                      const res = await fetch(url);
+                                                      const blob = await res.blob();
+                                                      const blobUrl = window.URL.createObjectURL(blob);
+
+                                                      const link = document.createElement('a');
+                                                      link.href = blobUrl;
+                                                      link.download = filename;
+                                                      document.body.appendChild(link);
+                                                      link.click();
+
+                                                      document.body.removeChild(link);
+                                                      window.URL.revokeObjectURL(blobUrl);
+                                                      setShowMenu(false);
+                                                } catch (err) {
+                                                      console.error("Download failed", err);
+                                                      alert("Failed to download media");
+                                                }
+                                          }}
+                                          className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 rounded-lg flex items-center gap-3 transition-all"
+                                    >
+                                          <div style={{
+                                                background: 'linear-gradient(135deg, #3b82f6, #6366f1)',
+                                                borderRadius: '8px',
+                                                padding: '6px',
                                                 display: 'flex',
                                                 alignItems: 'center',
-                                                gap: '4px',
-                                                padding: '8px 12px',
-                                                borderRadius: '20px',
-                                                border: 'none',
-                                                cursor: 'pointer',
-                                                background: isSaved ? 'linear-gradient(135deg, #f59e0b, #d97706)' : '#f3f4f6',
-                                                color: isSaved ? 'white' : '#374151',
-                                                fontWeight: '600',
-                                                fontSize: '13px',
-                                                transition: 'all 0.2s ease',
-                                                transform: animateSave ? 'scale(1.1)' : 'scale(1)',
-                                                boxShadow: isSaved ? '0 2px 8px rgba(245, 158, 11, 0.4)' : '0 1px 3px rgba(0,0,0,0.1)'
-                                          }}
-                                    >
-                                          <svg width="18" height="18" viewBox="0 0 24 24" fill={isSaved ? 'white' : 'none'} stroke={isSaved ? 'white' : '#374151'} strokeWidth="2.5">
-                                                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
-                                          </svg>
-                                    </button>
-
-                                    {/* More Options Button */}
-                                    <button
-                                          onClick={(e) => {
-                                                e.stopPropagation();
-                                                setShowMenu(!showMenu);
-                                          }}
-                                          title="More options"
-                                          style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                padding: '8px',
-                                                borderRadius: '50%',
-                                                border: 'none',
-                                                cursor: 'pointer',
-                                                background: showMenu ? '#374151' : '#f3f4f6',
-                                                transition: 'all 0.2s ease',
-                                                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-                                          }}
-                                    >
-                                          <svg width="18" height="18" viewBox="0 0 24 24" fill={showMenu ? 'white' : '#374151'}>
-                                                <circle cx="12" cy="5" r="2"></circle>
-                                                <circle cx="12" cy="12" r="2"></circle>
-                                                <circle cx="12" cy="19" r="2"></circle>
-                                          </svg>
-                                    </button>
-
-                                    {/* More Menu Dropdown */}
-                                    {showMenu && (
-                                          <div
-                                                className="absolute bottom-full right-0 mb-2 bg-white rounded-xl shadow-2xl border border-gray-100 p-2 min-w-[180px] z-50"
-                                                onClick={(e) => e.stopPropagation()}
-                                                style={{
-                                                      animation: 'fadeInUp 0.2s ease-out',
-                                                      backdropFilter: 'blur(10px)',
-                                                      background: 'rgba(255,255,255,0.95)'
-                                                }}
-                                          >
-                                                {/* Download Option */}
-                                                {content.media && content.media.length > 0 && (
-                                                      <button
-                                                            onClick={async () => {
-                                                                  try {
-                                                                        const media = content.media[0];
-                                                                        const url = getMediaUrl(media.url);
-                                                                        const filename = `zuno-${content._id}.${media.type === 'video' ? 'mp4' : 'jpg'}`;
-
-                                                                        const res = await fetch(url);
-                                                                        const blob = await res.blob();
-                                                                        const blobUrl = window.URL.createObjectURL(blob);
-
-                                                                        const link = document.createElement('a');
-                                                                        link.href = blobUrl;
-                                                                        link.download = filename;
-                                                                        document.body.appendChild(link);
-                                                                        link.click();
-
-                                                                        document.body.removeChild(link);
-                                                                        window.URL.revokeObjectURL(blobUrl);
-                                                                        setShowMenu(false);
-                                                                  } catch (err) {
-                                                                        console.error("Download failed", err);
-                                                                        alert("Failed to download media");
-                                                                  }
-                                                            }}
-                                                            className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 rounded-lg flex items-center gap-3 transition-all"
-                                                      >
-                                                            <div style={{
-                                                                  background: 'linear-gradient(135deg, #3b82f6, #6366f1)',
-                                                                  borderRadius: '8px',
-                                                                  padding: '6px',
-                                                                  display: 'flex',
-                                                                  alignItems: 'center',
-                                                                  justifyContent: 'center'
-                                                            }}>
-                                                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-                                                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                                                        <polyline points="7 10 12 15 17 10"></polyline>
-                                                                        <line x1="12" y1="15" x2="12" y2="3"></line>
-                                                                  </svg>
-                                                            </div>
-                                                            <span style={{ fontWeight: '500' }}>Download</span>
-                                                      </button>
-                                                )}
-
-                                                {/* Copy Link */}
-                                                <button
-                                                      onClick={() => {
-                                                            navigator.clipboard.writeText(`${window.location.origin}/content/${content._id}`);
-                                                            alert('Link copied!');
-                                                            setShowMenu(false);
-                                                      }}
-                                                      className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gradient-to-r hover:from-green-50 hover:to-emerald-50 rounded-lg flex items-center gap-3 transition-all"
-                                                >
-                                                      <div style={{
-                                                            background: 'linear-gradient(135deg, #10b981, #059669)',
-                                                            borderRadius: '8px',
-                                                            padding: '6px',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            justifyContent: 'center'
-                                                      }}>
-                                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-                                                                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-                                                                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-                                                            </svg>
-                                                      </div>
-                                                      <span style={{ fontWeight: '500' }}>Copy Link</span>
-                                                </button>
-
-                                                {/* Not Interested */}
-                                                <button
-                                                      onClick={() => {
-                                                            alert('Noted! We will show less content like this.');
-                                                            setShowMenu(false);
-                                                      }}
-                                                      className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gradient-to-r hover:from-gray-50 hover:to-slate-50 rounded-lg flex items-center gap-3 transition-all"
-                                                >
-                                                      <div style={{
-                                                            background: 'linear-gradient(135deg, #6b7280, #4b5563)',
-                                                            borderRadius: '8px',
-                                                            padding: '6px',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            justifyContent: 'center'
-                                                      }}>
-                                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-                                                                  <circle cx="12" cy="12" r="10"></circle>
-                                                                  <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
-                                                            </svg>
-                                                      </div>
-                                                      <span style={{ fontWeight: '500' }}>Not Interested</span>
-                                                </button>
-
-                                                {currentUser?._id === content.creator?._id && (
-                                                      <button
-                                                            onClick={handleDelete}
-                                                            className="w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-gradient-to-r hover:from-red-50 hover:to-rose-50 rounded-lg flex items-center gap-3 transition-all"
-                                                      >
-                                                            <div style={{
-                                                                  background: 'linear-gradient(135deg, #ef4444, #dc2626)',
-                                                                  borderRadius: '8px',
-                                                                  padding: '6px',
-                                                                  display: 'flex',
-                                                                  alignItems: 'center',
-                                                                  justifyContent: 'center'
-                                                            }}>
-                                                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-                                                                        <polyline points="3 6 5 6 21 6"></polyline>
-                                                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                                                  </svg>
-                                                            </div>
-                                                            <span style={{ fontWeight: '500' }}>Delete</span>
-                                                      </button>
-                                                )}
-
-                                                <button
-                                                      onClick={() => {
-                                                            alert('Report feature coming soon');
-                                                            setShowMenu(false);
-                                                      }}
-                                                      className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gradient-to-r hover:from-orange-50 hover:to-amber-50 rounded-lg flex items-center gap-3 transition-all"
-                                                >
-                                                      <div style={{
-                                                            background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-                                                            borderRadius: '8px',
-                                                            padding: '6px',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            justifyContent: 'center'
-                                                      }}>
-                                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-                                                                  <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
-                                                                  <line x1="4" y1="22" x2="4" y2="15"></line>
-                                                            </svg>
-                                                      </div>
-                                                      <span style={{ fontWeight: '500' }}>Report</span>
-                                                </button>
+                                                justifyContent: 'center'
+                                          }}>
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+                                                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                                      <polyline points="7 10 12 15 17 10"></polyline>
+                                                      <line x1="12" y1="15" x2="12" y2="3"></line>
+                                                </svg>
                                           </div>
-                                    )}
-                              </div>
+                                          <span style={{ fontWeight: '500' }}>Download</span>
+                                    </button>
+                              )}
+
+                              {/* Copy Link */}
+                              <button
+                                    onClick={() => {
+                                          navigator.clipboard.writeText(`${window.location.origin}/content/${content._id}`);
+                                          alert('Link copied!');
+                                          setShowMenu(false);
+                                    }}
+                                    className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gradient-to-r hover:from-green-50 hover:to-emerald-50 rounded-lg flex items-center gap-3 transition-all"
+                              >
+                                    <div style={{
+                                          background: 'linear-gradient(135deg, #10b981, #059669)',
+                                          borderRadius: '8px',
+                                          padding: '6px',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center'
+                                    }}>
+                                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+                                                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                                                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                                          </svg>
+                                    </div>
+                                    <span style={{ fontWeight: '500' }}>Copy Link</span>
+                              </button>
+
+                              {/* Not Interested */}
+                              <button
+                                    onClick={() => {
+                                          alert('Noted! We will show less content like this.');
+                                          setShowMenu(false);
+                                    }}
+                                    className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gradient-to-r hover:from-gray-50 hover:to-slate-50 rounded-lg flex items-center gap-3 transition-all"
+                              >
+                                    <div style={{
+                                          background: 'linear-gradient(135deg, #6b7280, #4b5563)',
+                                          borderRadius: '8px',
+                                          padding: '6px',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center'
+                                    }}>
+                                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+                                                <circle cx="12" cy="12" r="10"></circle>
+                                                <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+                                          </svg>
+                                    </div>
+                                    <span style={{ fontWeight: '500' }}>Not Interested</span>
+                              </button>
+
+                              {currentUser?._id === content.creator?._id && (
+                                    <button
+                                          onClick={handleDelete}
+                                          className="w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-gradient-to-r hover:from-red-50 hover:to-rose-50 rounded-lg flex items-center gap-3 transition-all"
+                                    >
+                                          <div style={{
+                                                background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                                                borderRadius: '8px',
+                                                padding: '6px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center'
+                                          }}>
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+                                                      <polyline points="3 6 5 6 21 6"></polyline>
+                                                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                                </svg>
+                                          </div>
+                                          <span style={{ fontWeight: '500' }}>Delete</span>
+                                    </button>
+                              )}
+
+                              <button
+                                    onClick={() => {
+                                          alert('Report feature coming soon');
+                                          setShowMenu(false);
+                                    }}
+                                    className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gradient-to-r hover:from-orange-50 hover:to-amber-50 rounded-lg flex items-center gap-3 transition-all"
+                              >
+                                    <div style={{
+                                          background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                                          borderRadius: '8px',
+                                          padding: '6px',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center'
+                                    }}>
+                                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+                                                <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+                                                <line x1="4" y1="22" x2="4" y2="15"></line>
+                                          </svg>
+                                    </div>
+                                    <span style={{ fontWeight: '500' }}>Report</span>
+                              </button>
                         </div>
+                  )}
 
-                        {/* Caption/Body preview */}
-
-
-                        {/* Comment Section - shows when Comment button is clicked */}
-                        {showComments && (
-                              <div className="mt-3 pt-3 border-t border-gray-100">
-                                    <CommentSection contentId={content._id} />
-                              </div>
-                        )}
-                  </div>
+                  {/* Comment Section - shows when Comment button is clicked */}
+                  {showComments && (
+                        <div className="mt-3 pt-3 border-t border-gray-100">
+                              <CommentSection contentId={content._id} />
+                        </div>
+                  )}
             </article>
       );
 };
