@@ -34,13 +34,20 @@ const GlobalNotification = () => {
       const navigate = useNavigate();
 
       useEffect(() => {
+            // Request native notification permission on mount if supported
+            if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+                  Notification.requestPermission();
+            }
+      }, []);
+
+      useEffect(() => {
             if (!socket) return;
 
             const handleNewMessage = (newMessage) => {
                   // Don't show toast if we are currently chatting with this user
                   const isOnChatPage = location.pathname === `/messages/${newMessage.sender._id || newMessage.sender}`;
 
-                  if (!isOnChatPage) {
+                  if (!isOnChatPage || document.hidden) {
                         // Play a synthesized notification sound
                         playNotificationSound();
 
@@ -65,6 +72,21 @@ const GlobalNotification = () => {
                                     icon: "💬"
                               }
                         );
+
+                        // Fire native browser notification if granted and the tab is hidden or backgrounded
+                        if ('Notification' in window && Notification.permission === 'granted') {
+                              const nativeNotification = new Notification(`New message from ${senderName}`, {
+                                    body: textPreview,
+                                    icon: '/favicon.ico', // Update if there's a specific app icon
+                                    tag: 'zuno-chat',    // prevent spam
+                              });
+
+                              nativeNotification.onclick = () => {
+                                    window.focus(); // Focus the browser tab
+                                    navigate(`/messages/${newMessage.sender._id || newMessage.sender}`);
+                                    nativeNotification.close();
+                              };
+                        }
                   }
             };
 
