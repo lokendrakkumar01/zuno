@@ -194,11 +194,24 @@ a:hover {
 }
 
 /* Images */
-img,
-video {
+img {
   max-width: 100%;
   height: auto;
   display: block;
+}
+
+/* Base video styles - do NOT set height:auto globally as it breaks reel-style players */
+video {
+  max-width: 100%;
+  display: block;
+}
+
+/* Video inside containers with explicit height should fill the container */
+.video-player-container video,
+.reel-video-container video {
+  height: 100% !important;
+  width: 100% !important;
+  object-fit: cover;
 }
 
 /* ========================================
@@ -1159,7 +1172,7 @@ textarea.input {
   bottom: 0;
   left: 0;
   right: 0;
-  background: rgba(10, 10, 20, 0.95);
+  background: var(--color-bg-card);
   backdrop-filter: blur(20px);
   border-top: 1px solid var(--color-border);
   padding: var(--space-sm) 0;
@@ -2743,4 +2756,229 @@ video.chat-media-content {
     width: 18px;
     height: 18px;
   }
+}
+
+/* ========================================
+   Content Card Styles
+   ======================================== */
+.content-card {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: box-shadow 0.2s ease;
+  position: relative;
+}
+
+.content-card:hover {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.standard-card {
+  max-width: 100%;
+}
+
+/* Reel-style card for videos */
+.reel-card {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.content-card-header {
+  padding: 12px 16px 8px;
+}
+
+.content-card-body {
+  padding: 0 16px 4px;
+}
+
+.content-card-media {
+  position: relative;
+  background: var(--color-bg-tertiary);
+  overflow: hidden;
+}
+
+.content-card-footer {
+  padding: 10px 16px;
+  border-top: 1px solid var(--color-border);
+}
+
+/* Action buttons inside cards */
+.content-card button {
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.content-card button:hover {
+  opacity: 0.75;
+}
+
+.content-card button:active {
+  transform: scale(0.9) !important;
+}
+
+/* Video Player Container */
+.video-player-container,
+.reel-video-container {
+  position: relative;
+  width: 100%;
+  height: 560px;
+  min-height: 400px;
+  background: #000;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+@media (max-width: 480px) {
+
+  .video-player-container,
+  .reel-video-container {
+    height: 480px;
+    min-height: 320px;
+  }
+}
+
+/* Reel actions on the right side */
+.reel-actions button {
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ========================================
+   Bottom Navigation Improvements
+   ======================================== */
+.bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--color-bg-card);
+  border-top: 1px solid var(--color-border);
+  padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
+  z-index: 100;
+  justify-content: space-around;
+  align-items: center;
+}
+
+@media (max-width: 768px) {
+  .bottom-nav {
+    display: flex;
+  }
+}
+
+.bottom-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  transition: all 0.2s ease;
+  min-width: 56px;
+  min-height: 52px;
+}
+
+.bottom-nav-item svg {
+  color: var(--color-text-secondary);
+  width: 24px;
+  height: 24px;
+}
+
+.bottom-nav-item:hover {
+  color: var(--color-accent-primary);
+  background: rgba(0, 149, 246, 0.08);
+}
+
+.bottom-nav-item:hover svg {
+  color: var(--color-accent-primary);
+}
+
+.bottom-nav-item.active {
+  color: var(--color-accent-primary);
+}
+
+.bottom-nav-item.active svg {
+  color: var(--color-accent-primary);
+}
+
+/* Dark mode bottom nav */
+[data-theme="dark"] .bottom-nav {
+  background: #000;
+  border-top-color: #262626;
+}
+
+/* Ensure main content doesn't get hidden behind bottom nav on mobile */
+@media (max-width: 768px) {
+  .main {
+    padding-bottom: 80px;
+  }
+}
+
+/* ========================================
+   Content Grid Responsive
+   ======================================== */
+.content-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 1024px) {
+  .content-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .content-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+/* Dark mode icon fixes - ensure all SVG icons are visible */
+[data-theme="dark"] .content-card-footer svg[stroke="var(--color-text-primary)"],
+[data-theme="dark"] .content-card-footer svg[fill="var(--color-text-primary)"] {
+  opacity: 1;
+}
+
+/* Dropdown menu for more options */
+.content-card .dropdown-menu {
+  position: absolute;
+  right: 16px;
+  bottom: 60px;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  min-width: 180px;
+  z-index: 50;
+  overflow: hidden;
+  animation: fadeInUp 0.15s ease-out;
+}
+
+[data-theme="dark"] .dropdown-menu,
+[data-theme="dark"] div[class*="min-w"][class*="bg-white"] {
+  background: #1a1a1a !important;
+  border-color: #262626 !important;
+  color: #fafafa !important;
+}
+
+[data-theme="dark"] div[class*="min-w"][class*="bg-white"] span {
+  color: #fafafa !important;
+}
+
+[data-theme="dark"] div[class*="min-w"][class*="bg-white"] button {
+  color: #fafafa;
+}
+
+[data-theme="dark"] div[class*="min-w"][class*="bg-white"] button:hover {
+  background: #262626 !important;
 }

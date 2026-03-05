@@ -363,7 +363,7 @@ const ContentCard = ({ content, onDelete }) => {
       const isVideo = content.media && content.media.length > 0 && content.media[0].type === 'video';
 
       return (
-            <article className={`content-card ${isVideo ? 'reel-card' : 'standard-card'}`}>
+            <article className={`content-card ${isVideo ? 'reel-card' : 'standard-card'}`} style={{ position: 'relative' }}>
                   {/* Header - Only hide on videos (Reels style) */}
                   {!isVideo && (
                         <div className="content-card-header flex items-center justify-between mb-sm">
@@ -491,7 +491,7 @@ const ContentCard = ({ content, onDelete }) => {
                                           /* Enhanced Video Player - Reel Style */
                                           <div
                                                 className="video-player-container reel-video-container"
-                                                style={{ position: 'relative', width: '100%', height: '100%', minHeight: '600px', backgroundColor: '#000', overflow: 'hidden', borderRadius: '12px' }}
+                                                style={{ position: 'relative', width: '100%', height: '560px', minHeight: '400px', backgroundColor: '#000', overflow: 'hidden', borderRadius: '12px' }}
                                                 onMouseEnter={() => setShowVideoControls(true)}
                                                 onMouseLeave={() => !isPlaying && setShowVideoControls(true)}
                                           >
@@ -503,7 +503,7 @@ const ContentCard = ({ content, onDelete }) => {
                                                       preload="metadata"
                                                       poster={content.media[0].thumbnail}
                                                       className="w-full h-full object-cover"
-                                                      style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
+                                                      style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }}
                                                       muted={isMuted}
                                                       loop
                                                       onClick={(e) => {
@@ -719,53 +719,94 @@ const ContentCard = ({ content, onDelete }) => {
                               </div>
 
                               {/* Footer - Social Actions Standard (Instagram Post Style) */}
-                              <div className="content-card-footer px-4 py-3 flex items-center justify-between border-t border-gray-100">
-                                    <div className="flex items-center gap-4">
+                              <div className="content-card-footer" style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--color-border)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
                                           {/* Like Icon */}
-                                          <button onClick={handleHelpful} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: '6px', transform: animateHelpful ? 'scale(1.2)' : 'scale(1)', transition: 'transform 0.2s' }}>
-                                                <svg width="24" height="24" viewBox="0 0 24 24" fill={isHelpful ? '#ef4444' : 'none'} stroke={isHelpful ? '#ef4444' : '#262626'} strokeWidth="2">
-                                                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-                                                </svg>
-                                                {likeCount > 0 && <span style={{ fontSize: '13px', fontWeight: 'bold' }}>{likeCount}</span>}
+                                          <button onClick={handleHelpful} title="Like" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', display: 'flex', alignItems: 'center', gap: '5px', borderRadius: '8px', transform: animateHelpful ? 'scale(1.25)' : 'scale(1)', transition: 'transform 0.2s' }}>
+                                                <svg width="22" height="22" viewBox="0 0 24 24" fill={isHelpful ? '#ef4444' : 'none'} stroke={isHelpful ? '#ef4444' : 'var(--color-text-primary)'} strokeWidth="2">
+                                                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>
+                                                {likeCount > 0 && <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--color-text-primary)' }}>{likeCount}</span>}
                                           </button>
 
                                           {/* Dislike Icon */}
-                                          <button onClick={handleDislike} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, transform: animateDislike ? 'scale(1.2)' : 'scale(1)', transition: 'transform 0.2s' }}>
-                                                <svg width="24" height="24" viewBox="0 0 24 24" fill={isDisliked ? '#6366f1' : 'none'} stroke={isDisliked ? '#6366f1' : '#262626'} strokeWidth="2" style={{ transform: 'rotate(180deg) scaleX(-1)' }}>
-                                                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-                                                </svg>
+                                          <button onClick={handleDislike} title="Dislike" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', display: 'flex', alignItems: 'center', borderRadius: '8px', transform: animateDislike ? 'scale(1.25)' : 'scale(1)', transition: 'transform 0.2s' }}>
+                                                <svg width="22" height="22" viewBox="0 0 24 24" fill={isDisliked ? '#6366f1' : 'none'} stroke={isDisliked ? '#6366f1' : 'var(--color-text-primary)'} strokeWidth="2" style={{ transform: 'rotate(180deg) scaleX(-1)' }}>
+                                                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>
                                           </button>
 
                                           {/* Comment Icon */}
-                                          <button onClick={() => setShowComments(!showComments)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', gap: '6px', transform: animateComment ? 'scale(1.2)' : 'scale(1)', transition: 'transform 0.2s' }}>
-                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#262626" strokeWidth="2" style={{ transform: 'scaleX(-1)' }}>
-                                                      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
-                                                </svg>
-                                                {commentCount > 0 && <span style={{ fontSize: '13px', fontWeight: 'bold' }}>{commentCount}</span>}
+                                          <button onClick={() => setShowComments(!showComments)} title="Comment" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', display: 'flex', alignItems: 'center', gap: '5px', borderRadius: '8px', transform: animateComment ? 'scale(1.25)' : 'scale(1)', transition: 'transform 0.2s' }}>
+                                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-primary)" strokeWidth="2" style={{ transform: 'scaleX(-1)' }}>
+                                                      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
+                                                {commentCount > 0 && <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--color-text-primary)' }}>{commentCount}</span>}
                                           </button>
 
                                           {/* Share Icon */}
-                                          <button onClick={handleShare} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, transform: animateShare ? 'scale(1.2) rotate(10deg)' : 'scale(1)', transition: 'transform 0.2s' }}>
-                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#262626" strokeWidth="2">
-                                                      <line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                                                </svg>
+                                          <button onClick={handleShare} title="Share" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', display: 'flex', alignItems: 'center', borderRadius: '8px', transform: animateShare ? 'scale(1.25) rotate(10deg)' : 'scale(1)', transition: 'transform 0.2s' }}>
+                                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-primary)" strokeWidth="2">
+                                                      <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
                                           </button>
                                     </div>
 
-                                    <div className="flex items-center gap-4 relative">
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                          {/* Download Button (visible for media posts) */}
+                                          {content.media && content.media.length > 0 && (
+                                                <button
+                                                      title="Download"
+                                                      onClick={async () => {
+                                                            try {
+                                                                  const media = content.media[0];
+                                                                  const url = getMediaUrl(media.url);
+                                                                  const filename = `zuno-${content._id}.${media.type === 'video' ? 'mp4' : 'jpg'}`;
+                                                                  const res = await fetch(url);
+                                                                  const blob = await res.blob();
+                                                                  const blobUrl = window.URL.createObjectURL(blob);
+                                                                  const link = document.createElement('a');
+                                                                  link.href = blobUrl;
+                                                                  link.download = filename;
+                                                                  document.body.appendChild(link);
+                                                                  link.click();
+                                                                  document.body.removeChild(link);
+                                                                  window.URL.revokeObjectURL(blobUrl);
+                                                            } catch (err) {
+                                                                  console.error('Download failed', err);
+                                                                  alert('Failed to download media');
+                                                            }
+                                                      }}
+                                                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', display: 'flex', alignItems: 'center', borderRadius: '8px' }}
+                                                >
+                                                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-primary)" strokeWidth="2">
+                                                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                                            <polyline points="7 10 12 15 17 10" />
+                                                            <line x1="12" y1="15" x2="12" y2="3" />
+                                                      </svg>
+                                                </button>
+                                          )}
+
                                           {/* Save/Bookmark Icon */}
-                                          <button onClick={handleSave} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, transform: animateSave ? 'scale(1.2)' : 'scale(1)', transition: 'transform 0.2s' }}>
-                                                <svg width="24" height="24" viewBox="0 0 24 24" fill={isSaved ? '#262626' : 'none'} stroke="#262626" strokeWidth="2">
-                                                      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
-                                                </svg>
+                                          <button onClick={handleSave} title="Save" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', display: 'flex', alignItems: 'center', borderRadius: '8px', transform: animateSave ? 'scale(1.25)' : 'scale(1)', transition: 'transform 0.2s' }}>
+                                                <svg width="22" height="22" viewBox="0 0 24 24" fill={isSaved ? 'var(--color-text-primary)' : 'none'} stroke="var(--color-text-primary)" strokeWidth="2">
+                                                      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
                                           </button>
+
+                                          {/* Delete Button - Only for post owner */}
+                                          {currentUser?._id === content.creator?._id && (
+                                                <button
+                                                      title="Delete"
+                                                      onClick={handleDelete}
+                                                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', display: 'flex', alignItems: 'center', borderRadius: '8px' }}
+                                                >
+                                                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2">
+                                                            <polyline points="3 6 5 6 21 6" />
+                                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                                      </svg>
+                                                </button>
+                                          )}
 
                                           {/* More Options */}
-                                          <button onClick={() => setShowMenu(!showMenu)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="#262626"><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg>
+                                          <button onClick={() => setShowMenu(!showMenu)} title="More" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', display: 'flex', alignItems: 'center', borderRadius: '8px' }}>
+                                                <svg width="22" height="22" viewBox="0 0 24 24" fill="var(--color-text-primary)"><circle cx="12" cy="5" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="19" r="2" /></svg>
                                           </button>
-
-                                          {/* More Menu Dropdown for Non-Videos (We'll re-use the existing logic below but attach it to this relative container) */}
                                     </div>
                               </div>
                         </>
