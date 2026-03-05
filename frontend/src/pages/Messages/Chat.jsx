@@ -42,6 +42,13 @@ const Chat = () => {
       // Call modal
       const [showCallModal, setShowCallModal] = useState(null); // 'voice' or 'video'
 
+      // Typing Indicator
+      const [isTyping, setIsTyping] = useState(false);
+      const typingTimeoutRef = useRef(null);
+
+      // Replies
+      const [replyingTo, setReplyingTo] = useState(null);
+
       const isOnline = onlineUsers.includes(otherUser?._id);
 
       useEffect(() => {
@@ -52,10 +59,40 @@ const Chat = () => {
             socket?.on("newMessage", (newMessage) => {
                   if (newMessage.sender === userId || newMessage.sender._id === userId) {
                         setMessages((prev) => [...prev, newMessage]);
+                        // Mark as read and emit read event to sender
+                        if (document.visibilityState === 'visible') {
+                              fetch(`${API_URL}/messages/${userId}/read`, {
+                                    method: 'PUT',
+                                    headers: { 'Authorization': `Bearer ${token}` }
+                              }).catch(console.error);
+                              socket?.emit("messageRead", { receiverId: userId });
+                        }
                   }
             });
 
-            return () => socket?.off("newMessage");
+            socket?.on("typing", (data) => {
+                  if (data.senderId === userId) setIsTyping(true);
+            });
+
+            socket?.on("stopTyping", (data) => {
+                  if (data.senderId === userId) setIsTyping(false);
+            });
+
+            socket?.on("messageRead", () => {
+                  setMessages(prev => prev.map(m => (!m.read && m.receiver === userId) ? { ...m, read: true } : m));
+            });
+
+            socket?.on("messageReaction", (data) => {
+                  setMessages(prev => prev.map(m => m._id === data.messageId ? { ...m, reactions: data.reactions } : m));
+            });
+
+            return () => {
+                  socket?.off("newMessage");
+                  socket?.off("typing");
+                  socket?.off("stopTyping");
+                  socket?.off("messageRead");
+                  socket?.off("messageReaction");
+            };
       }, [socket, userId]);
 
       useEffect(() => {
@@ -85,6 +122,8 @@ const Chat = () => {
                   if (data.success) {
                         setMessages(data.data.messages);
                         setOtherUser(data.data.otherUser);
+                        // Once loaded, tell the other user we've read their stuff
+                        socket?.emit("messageRead", { receiverId: userId });
                   }
             } catch (err) {
                   console.error('Failed to fetch messages:', err);
@@ -150,6 +189,7 @@ const Chat = () => {
             const msgText = newMessage.trim();
             const currentMedia = mediaFile;
             const currentPreview = mediaPreview;
+            const currentReplyTarget = replyingTo;
 
             // Optimistic UI — show message immediately with local preview
             const tempId = 'temp_' + Date.now();
@@ -158,6 +198,7 @@ const Chat = () => {
                   sender: user?._id || user,
                   text: msgText,
                   media: currentPreview ? { url: currentPreview.url, type: currentPreview.type } : null,
+                  replyTo: currentReplyTarget,
                   read: false,
                   edited: false,
                   createdAt: new Date().toISOString(),
@@ -168,7 +209,10 @@ const Chat = () => {
             setNewMessage('');
             setMediaFile(null);
             setMediaPreview(null);
+            setReplyingTo(null);
             if (fileInputRef.current) fileInputRef.current.value = '';
+
+            socket?.emit("stopTyping", { receiverId: userId });
 
             setSending(true);
             try {
@@ -179,6 +223,7 @@ const Chat = () => {
                         const formData = new FormData();
                         formData.append('media', fileToSend);
                         if (msgText) formData.append('text', msgText);
+                        if (currentReplyTarget) formData.append('replyTo', currentReplyTarget._id);
 
                         res = await fetch(`${API_URL}/messages/${userId}`, {
                               method: 'POST',
@@ -186,13 +231,16 @@ const Chat = () => {
                               body: formData
                         });
                   } else {
+                        const payload = { text: msgText };
+                        if (currentReplyTarget) payload.replyTo = currentReplyTarget._id;
+
                         res = await fetch(`${API_URL}/messages/${userId}`, {
                               method: 'POST',
                               headers: {
                                     'Content-Type': 'application/json',
                                     'Authorization': `Bearer ${token}`
                               },
-                              body: JSON.stringify({ text: msgText })
+                              body: JSON.stringify(payload)
                         });
                   }
                   const data = await res.json();
@@ -253,6 +301,26 @@ const Chat = () => {
             }
       };
 
+      const handleReact = async (messageId, emoji) => {
+            try {
+                  const res = await fetch(`${API_URL}/messages/react/${messageId}`, {
+                        method: 'PUT',
+                        headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ emoji })
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                        setMessages(prev => prev.map(m => m._id === messageId ? data.data.message : m));
+                        setActiveMenu(null);
+                  }
+            } catch (err) {
+                  console.error('Failed to react:', err);
+            }
+      };
+
       const startEditing = (msg) => {
             setEditingId(msg._id);
             setEditText(msg.text);
@@ -265,7 +333,19 @@ const Chat = () => {
       };
 
       const handleEmojiClick = (emoji) => {
+            // If the emojis are for reacting to a message directly vs adding to input
             setNewMessage(prev => prev + emoji);
+      };
+
+      const handleTyping = (e) => {
+            setNewMessage(e.target.value);
+            if (socket) {
+                  socket.emit("typing", { receiverId: userId });
+                  clearTimeout(typingTimeoutRef.current);
+                  typingTimeoutRef.current = setTimeout(() => {
+                        socket.emit("stopTyping", { receiverId: userId });
+                  }, 2000);
+            }
       };
 
       const handleMediaSelect = async (e) => {
@@ -332,8 +412,14 @@ const Chat = () => {
                               <div>
                                     <div className="font-semibold">{otherUser?.displayName || otherUser?.username || 'Loading...'}</div>
                                     <div className="text-xs text-muted">
-                                          @{otherUser?.username || '...'}
-                                          {isOnline && <span className="ml-2" style={{ color: '#10b981', marginLeft: '8px' }}>• Online</span>}
+                                          {isTyping ? (
+                                                <span style={{ color: 'var(--color-primary)' }}>typing...</span>
+                                          ) : (
+                                                <>
+                                                      @{otherUser?.username || '...'}
+                                                      {isOnline && <span className="ml-2" style={{ color: '#10b981', marginLeft: '8px' }}>• Online</span>}
+                                                </>
+                                          )}
                                     </div>
                               </div>
                         </Link>
@@ -394,6 +480,18 @@ const Chat = () => {
                                                                   </div>
                                                             ) : (
                                                                   <>
+                                                                        {/* Replied Message Quote */}
+                                                                        {msg.replyTo && (
+                                                                              <div className="chat-reply-quote">
+                                                                                    <div className="chat-reply-quote-sender" style={{ fontWeight: 'bold', fontSize: '0.8rem', color: isMine ? '#e0e7ff' : '#4f46e5' }}>
+                                                                                          {msg.replyTo.sender?.displayName || msg.replyTo.sender?.username || 'User'}
+                                                                                    </div>
+                                                                                    <div className="chat-reply-quote-text" style={{ fontSize: '0.85rem', opacity: 0.9, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                                                          {msg.replyTo.text || 'Embedded Media'}
+                                                                                    </div>
+                                                                              </div>
+                                                                        )}
+
                                                                         {/* Media content */}
                                                                         {msg.media?.url && (
                                                                               <div className="chat-media">
@@ -409,11 +507,20 @@ const Chat = () => {
                                                                               {msg.edited && <span className="chat-edited-label">edited</span>}
                                                                               <span className="chat-bubble-time">{formatTime(msg.createdAt)}</span>
                                                                               {isMine && (
-                                                                                    <span className="chat-bubble-status">
+                                                                                    <span className={`chat-bubble-status ${msg.read ? 'read' : ''}`} style={msg.read ? { color: '#3b82f6' } : {}}>
                                                                                           {msg.read ? '✓✓' : '✓'}
                                                                                     </span>
                                                                               )}
                                                                         </div>
+
+                                                                        {/* Reactions */}
+                                                                        {msg.reactions && msg.reactions.length > 0 && (
+                                                                              <div className="chat-bubble-reactions" style={{ display: 'flex', gap: '2px', position: 'absolute', bottom: '-12px', right: isMine ? '0' : 'auto', left: isMine ? 'auto' : '0', background: 'var(--bg-card)', padding: '2px 4px', borderRadius: '12px', border: '1px solid var(--border-color)', fontSize: '0.8rem' }}>
+                                                                                    {msg.reactions.map((r, i) => (
+                                                                                          <span key={i} title={r.user?.username || 'User'}>{r.emoji}</span>
+                                                                                    ))}
+                                                                              </div>
+                                                                        )}
                                                                   </>
                                                             )}
 
@@ -431,6 +538,15 @@ const Chat = () => {
                                                             {/* Context Menu */}
                                                             {activeMenu === msg._id && (
                                                                   <div className="chat-msg-menu" onClick={(e) => e.stopPropagation()}>
+                                                                        <div className="chat-msg-menu-reactions" style={{ display: 'flex', gap: '8px', padding: '8px', borderBottom: '1px solid var(--border-color)' }}>
+                                                                              {['👍', '❤️', '😂', '😮', '😢', '🙏'].map(emoji => (
+                                                                                    <button key={emoji} onClick={() => handleReact(msg._id, emoji)} style={{ fontSize: '1.2rem', background: 'none', border: 'none', cursor: 'pointer' }}>{emoji}</button>
+                                                                              ))}
+                                                                        </div>
+                                                                        <button onClick={() => { setReplyingTo(msg); setActiveMenu(null); }} className="chat-msg-menu-item">
+                                                                              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z" /></svg>
+                                                                              Reply
+                                                                        </button>
                                                                         {isMine && (
                                                                               <button onClick={() => startEditing(msg)} className="chat-msg-menu-item">
                                                                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" /></svg>
@@ -491,6 +607,21 @@ const Chat = () => {
                         </div>
                   )}
 
+                  {/* Reply Preview */}
+                  {replyingTo && (
+                        <div className="chat-reply-preview" style={{ padding: '8px 16px', background: 'var(--bg-secondary)', borderLeft: '4px solid var(--color-primary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div className="chat-reply-preview-inner" style={{ overflow: 'hidden' }}>
+                                    <div style={{ fontWeight: 'bold', fontSize: '0.85rem', color: 'var(--color-primary)' }}>
+                                          Replying to {replyingTo.sender?.displayName || replyingTo.sender?.username || 'User'}
+                                    </div>
+                                    <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                          {replyingTo.text || 'Media'}
+                                    </div>
+                              </div>
+                              <button onClick={() => setReplyingTo(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
+                        </div>
+                  )}
+
                   {/* Message Input */}
                   <form className="chat-input-area" onSubmit={handleSend}>
                         <div className="chat-input-actions">
@@ -519,7 +650,7 @@ const Chat = () => {
                               className="chat-input"
                               placeholder="Type a message..."
                               value={newMessage}
-                              onChange={(e) => setNewMessage(e.target.value)}
+                              onChange={handleTyping}
                               maxLength={2000}
                         />
                         <button

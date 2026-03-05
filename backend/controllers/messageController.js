@@ -71,7 +71,11 @@ const getMessages = async (req, res) => {
                   .skip((page - 1) * limit)
                   .limit(parseInt(limit))
                   .populate('sender', 'username displayName avatar')
-                  .populate('receiver', 'username displayName avatar');
+                  .populate('receiver', 'username displayName avatar')
+                  .populate({
+                        path: 'replyTo',
+                        populate: { path: 'sender', select: 'username displayName' }
+                  });
 
             // Reverse to display oldest to newest (top to bottom) in the UI
             messages = messages.reverse();
@@ -113,7 +117,7 @@ const getMessages = async (req, res) => {
 const sendMessage = async (req, res) => {
       try {
             const { userId } = req.params;
-            const { text, mediaUrl, mediaType } = req.body;
+            const { text, mediaUrl, mediaType, replyTo } = req.body;
 
             // Must have either text or media
             if ((!text || !text.trim()) && !mediaUrl && !req.file) {
@@ -146,6 +150,10 @@ const sendMessage = async (req, res) => {
                   receiver: userId,
                   text: text ? text.trim() : ''
             };
+
+            if (replyTo) {
+                  msgData.replyTo = replyTo;
+            }
 
             // Add media if present
             if (mediaUrl) {
@@ -180,6 +188,12 @@ const sendMessage = async (req, res) => {
             // Populate sender info
             await message.populate('sender', 'username displayName avatar');
             await message.populate('receiver', 'username displayName avatar');
+            if (replyTo) {
+                  await message.populate({
+                        path: 'replyTo',
+                        populate: { path: 'sender', select: 'username displayName' }
+                  });
+            }
 
             // Conversation last message text
             const lastText = text ? text.trim() : (msgData.media?.type === 'video' ? '🎬 Video' : '📷 Photo');
@@ -420,6 +434,70 @@ const deleteMessage = async (req, res) => {
       }
 };
 
+// @desc    Add or remove reaction from a message
+// @route   PUT /api/messages/react/:messageId
+// @access  Private
+const reactToMessage = async (req, res) => {
+      try {
+            const { messageId } = req.params;
+            const { emoji } = req.body;
+
+            if (!emoji) {
+                  return res.status(400).json({ success: false, message: 'Emoji is required' });
+            }
+
+            const message = await Message.findById(messageId);
+            if (!message) {
+                  return res.status(404).json({ success: false, message: 'Message not found' });
+            }
+
+            // Must be sender or receiver
+            if (message.sender.toString() !== req.user.id && message.receiver.toString() !== req.user.id) {
+                  return res.status(403).json({ success: false, message: 'Not authorized' });
+            }
+
+            // Check if user already reacted with this emoji
+            const existingReactionIdx = message.reactions.findIndex(
+                  r => r.user.toString() === req.user.id && r.emoji === emoji
+            );
+
+            if (existingReactionIdx > -1) {
+                  // Remove reaction
+                  message.reactions.splice(existingReactionIdx, 1);
+            } else {
+                  // Add reaction
+                  message.reactions.push({ emoji, user: req.user.id });
+            }
+
+            await message.save();
+
+            // Populate sender info before returning
+            await message.populate('sender', 'username displayName avatar');
+            await message.populate('receiver', 'username displayName avatar');
+            await message.populate('reactions.user', 'username displayName avatar');
+
+            // Send via socket
+            const receiverId = message.sender.toString() === req.user.id ? message.receiver.toString() : message.sender.toString();
+            const receiverSocketId = getReceiverSocketId(receiverId);
+            if (receiverSocketId) {
+                  io.to(receiverSocketId).emit("messageReaction", { messageId, reactions: message.reactions });
+            }
+
+            res.json({
+                  success: true,
+                  message: 'Reaction updated',
+                  data: { message }
+            });
+      } catch (error) {
+            console.error('reactToMessage error:', error);
+            res.status(500).json({
+                  success: false,
+                  message: 'Failed to react to message',
+                  error: error.message
+            });
+      }
+};
+
 module.exports = {
       getConversations,
       getMessages,
@@ -427,5 +505,6 @@ module.exports = {
       markAsRead,
       getUnreadCount,
       editMessage,
-      deleteMessage
+      deleteMessage,
+      reactToMessage
 };

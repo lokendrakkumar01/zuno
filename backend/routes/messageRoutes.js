@@ -7,7 +7,8 @@ const {
       markAsRead,
       getUnreadCount,
       editMessage,
-      deleteMessage
+      deleteMessage,
+      reactToMessage
 } = require('../controllers/messageController');
 const { protect } = require('../middleware/auth');
 const { uploadMultiple } = require('../middleware/upload');
@@ -24,6 +25,7 @@ router.get('/unread/count', getUnreadCount);
 // Edit & Delete messages (must be before /:userId)
 router.put('/edit/:messageId', editMessage);
 router.delete('/delete/:messageId', deleteMessage);
+router.put('/react/:messageId', reactToMessage);
 
 // Messages with a specific user
 router.get('/:userId', getMessages);

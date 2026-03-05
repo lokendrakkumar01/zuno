@@ -33,6 +33,28 @@ io.on("connection", (socket) => {
       // Emit event to all connected clients
       io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
+      // Real-time Chat Features (WhatsApp-like)
+      socket.on("typing", (data) => {
+            const receiverSocketId = getReceiverSocketId(data.receiverId);
+            if (receiverSocketId) {
+                  io.to(receiverSocketId).emit("typing", { senderId: userId });
+            }
+      });
+
+      socket.on("stopTyping", (data) => {
+            const receiverSocketId = getReceiverSocketId(data.receiverId);
+            if (receiverSocketId) {
+                  io.to(receiverSocketId).emit("stopTyping", { senderId: userId });
+            }
+      });
+
+      socket.on("messageRead", (data) => {
+            const receiverSocketId = getReceiverSocketId(data.receiverId);
+            if (receiverSocketId) {
+                  io.to(receiverSocketId).emit("messageRead", { messageId: data.messageId, readerId: userId });
+            }
+      });
+
       socket.on("disconnect", () => {
             console.log("User disconnected", socket.id);
             if (userId && userSocketMap[userId]) {

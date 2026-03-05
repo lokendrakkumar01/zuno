@@ -37,16 +37,45 @@ const Home = () => {
       const { token, isAuthenticated, user } = useAuth();
       const { t } = useLanguage();
       const [mode, setMode] = useState('all');
-      const [contents, setContents] = useState([]);
-      const [loading, setLoading] = useState(true);
+      const [contents, setContents] = useState(() => {
+            try {
+                  const cached = localStorage.getItem('zuno_feedCache_all');
+                  return cached ? JSON.parse(cached) : [];
+            } catch {
+                  return [];
+            }
+      });
+      const [loading, setLoading] = useState(() => {
+            try {
+                  const cached = localStorage.getItem('zuno_feedCache_all');
+                  return !cached;
+            } catch {
+                  return true;
+            }
+      });
       const [error, setError] = useState(null);
       const [page, setPage] = useState(1);
       const [hasMore, setHasMore] = useState(true);
       const [stats, setStats] = useState({ users: '1K+', content: '500+', helpful: '10K+' });
 
       const fetchFeed = async (currentMode, currentPage, append = false) => {
-            setLoading(true);
+            // If it's a new mode and we have no contents for it yet, we can check cache
+            if (currentPage === 1 && !append && currentMode !== 'all') {
+                  try {
+                        const cached = localStorage.getItem(`zuno_feedCache_${currentMode}`);
+                        if (cached) {
+                              setContents(JSON.parse(cached));
+                        } else {
+                              setLoading(true);
+                        }
+                  } catch (e) {
+                        setLoading(true);
+                  }
+            } else if (contents.length === 0) {
+                  setLoading(true);
+            }
             setError(null);
+
             try {
                   const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
                   const res = await fetch(`${API_URL}/feed?mode=${currentMode}&page=${currentPage}&limit=9`, { headers });
@@ -54,17 +83,28 @@ const Home = () => {
 
                   if (data.success) {
                         if (append) {
-                              setContents(prev => [...prev, ...data.data.contents]);
+                              setContents(prev => {
+                                    const newContents = [...prev, ...data.data.contents];
+                                    return newContents;
+                              });
                         } else {
                               setContents(data.data.contents);
+                              try {
+                                    localStorage.setItem(`zuno_feedCache_${currentMode}`, JSON.stringify(data.data.contents));
+                              } catch (e) {
+                                    // Ignore quota exceeded
+                              }
                         }
                         setHasMore(data.data.pagination.hasMore);
-                  } else {
+                  } else if (contents.length === 0) {
                         setError('Failed to load content. Please try again.');
                   }
             } catch (err) {
                   console.error('Failed to fetch feed:', err);
-                  setError('Failed to load content. Please try again.');
+                  // Don't show error if we have cached content
+                  if (contents.length === 0) {
+                        setError('Failed to load content. Please try again.');
+                  }
             }
             setLoading(false);
       };

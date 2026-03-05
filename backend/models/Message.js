@@ -21,6 +21,15 @@ const messageSchema = new mongoose.Schema({
             url: { type: String, default: '' },
             type: { type: String, enum: ['image', 'video', ''], default: '' }
       },
+      replyTo: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Message',
+            default: null
+      },
+      reactions: [{
+            emoji: String,
+            user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+      }],
       read: {
             type: Boolean,
             default: false
