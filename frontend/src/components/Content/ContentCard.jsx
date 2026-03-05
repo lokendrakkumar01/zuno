@@ -360,7 +360,8 @@ const ContentCard = ({ content, onDelete }) => {
 
       // ... existing code ...
 
-      const isVideo = content.media && content.media.length > 0 && content.media[0].type === 'video';
+      const isVideo = (content.media && content.media.length > 0 && content.media[0].type === 'video') ||
+            (content.type && (content.type === 'short-video' || content.type === 'long-video'));
 
       return (
             <article className={`content-card ${isVideo ? 'reel-card' : 'standard-card'}`} style={{ position: 'relative' }}>
@@ -414,13 +415,14 @@ const ContentCard = ({ content, onDelete }) => {
                   {/* Media */}
                   {content.media && content.media.length > 0 && (
                         <div
-                              className="content-card-media"
+                              className={`content-card-media ${isVideo ? 'reel-video-container' : ''}`}
                               style={{
                                     position: 'relative',
                                     background: isVideo ? '#000' : 'var(--color-bg-tertiary)',
-                                    minHeight: isVideo ? '480px' : '200px',
+                                    minHeight: isVideo ? '400px' : '200px',
                                     width: '100%',
                                     overflow: 'hidden',
+                                    zIndex: 1
                               }}
                         >
                               {/* Uploading State */}
