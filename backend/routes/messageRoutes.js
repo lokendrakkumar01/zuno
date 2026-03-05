@@ -8,7 +8,8 @@ const {
       getUnreadCount,
       editMessage,
       deleteMessage,
-      reactToMessage
+      reactToMessage,
+      clearChat
 } = require('../controllers/messageController');
 const { protect } = require('../middleware/auth');
 const { uploadMultiple } = require('../middleware/upload');
@@ -26,6 +27,9 @@ router.get('/unread/count', getUnreadCount);
 router.put('/edit/:messageId', editMessage);
 router.delete('/delete/:messageId', deleteMessage);
 router.put('/react/:messageId', reactToMessage);
+
+// Clear chat with specific user
+router.delete('/clear/:userId', clearChat);
 
 // Messages with a specific user
 router.get('/:userId', getMessages);

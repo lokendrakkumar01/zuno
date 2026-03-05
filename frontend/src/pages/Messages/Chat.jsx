@@ -321,6 +321,23 @@ const Chat = () => {
             }
       };
 
+      const handleClearChat = async () => {
+            if (!window.confirm('Are you sure you want to clear all messages in this chat? This cannot be undone.')) return;
+            try {
+                  const res = await fetch(`${API_URL}/messages/clear/${userId}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                        setMessages([]);
+                        setActiveMenu(null);
+                  }
+            } catch (err) {
+                  console.error('Failed to clear chat:', err);
+            }
+      };
+
       const startEditing = (msg) => {
             setEditingId(msg._id);
             setEditText(msg.text);
@@ -435,6 +452,30 @@ const Chat = () => {
                                           <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
                                     </svg>
                               </button>
+
+                              {/* Header Menu (Clear Chat) */}
+                              <div style={{ position: 'relative' }}>
+                                    <button
+                                          className="chat-call-btn"
+                                          onClick={(e) => toggleMenu(e, 'header-menu')}
+                                          title="More Options"
+                                          style={{ marginLeft: '4px' }}
+                                    >
+                                          ⋮
+                                    </button>
+
+                                    {activeMenu === 'header-menu' && (
+                                          <div className="chat-msg-menu" style={{ right: 0, top: '100%', minWidth: '150px' }} onClick={(e) => e.stopPropagation()}>
+                                                <button
+                                                      onClick={() => { setActiveMenu(null); handleClearChat(); }}
+                                                      className="chat-msg-menu-item delete"
+                                                >
+                                                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: '8px' }}><path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1zM18 7H6v12c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7z" /></svg>
+                                                      Clear Chat
+                                                </button>
+                                          </div>
+                                    )}
+                              </div>
                         </div>
                   </div>
 

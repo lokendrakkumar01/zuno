@@ -498,6 +498,54 @@ const reactToMessage = async (req, res) => {
       }
 };
 
+// @desc    Clear all messages with a specific user
+// @route   DELETE /api/messages/clear/:userId
+// @access  Private
+const clearChat = async (req, res) => {
+      try {
+            const { userId } = req.params;
+            const currentUserId = req.user.id;
+
+            // Delete all messages between these two users
+            await Message.deleteMany({
+                  $or: [
+                        { sender: currentUserId, receiver: userId },
+                        { sender: userId, receiver: currentUserId }
+                  ]
+            });
+
+            // Update or delete the conversation
+            const conversation = await Conversation.findOne({
+                  participants: { $all: [currentUserId, userId] }
+            });
+
+            if (conversation) {
+                  // Option 1: Delete the conversation entirely
+                  // await Conversation.findByIdAndDelete(conversation._id);
+
+                  // Option 2: Clear lastMessage and unread counts
+                  conversation.lastMessage = { text: '', sender: null, createdAt: Date.now() };
+                  if (conversation.unreadCount) {
+                        conversation.unreadCount.set(currentUserId, 0);
+                        conversation.unreadCount.set(userId, 0);
+                  }
+                  await conversation.save();
+            }
+
+            res.json({
+                  success: true,
+                  message: 'Chat cleared successfully'
+            });
+      } catch (error) {
+            console.error('clearChat error:', error);
+            res.status(500).json({
+                  success: false,
+                  message: 'Failed to clear chat',
+                  error: error.message
+            });
+      }
+};
+
 module.exports = {
       getConversations,
       getMessages,
@@ -506,5 +554,6 @@ module.exports = {
       getUnreadCount,
       editMessage,
       deleteMessage,
-      reactToMessage
+      reactToMessage,
+      clearChat
 };
