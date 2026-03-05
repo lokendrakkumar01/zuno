@@ -623,8 +623,8 @@ const Chat = () => {
                                                                               {msg.edited && <span className="chat-edited-label">edited</span>}
                                                                               <span className="chat-bubble-time">{formatTime(msg.createdAt)}</span>
                                                                               {isMine && (
-                                                                                    <span className={`chat-bubble-status ${msg.read ? 'read' : ''}`} style={msg.read ? { color: '#3b82f6' } : {}}>
-                                                                                          {msg.read ? '✓✓' : '✓'}
+                                                                                    <span className={`chat-bubble-status ${msg.read ? 'read' : ''}`} style={(msg.read && !msg._sending) ? { color: '#3b82f6' } : {}}>
+                                                                                          {msg._sending ? <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>🕒</span> : (msg.read ? '✓✓' : '✓')}
                                                                                     </span>
                                                                               )}
                                                                         </div>

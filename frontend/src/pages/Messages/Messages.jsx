@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useSocketContext } from '../../context/SocketContext';
 import { API_URL } from '../../config';
 
 const Messages = () => {
       const { token, isAuthenticated, user } = useAuth();
+      const { onlineUsers } = useSocketContext();
       const navigate = useNavigate();
       const [conversations, setConversations] = useState([]);
       const [loading, setLoading] = useState(true);
@@ -152,13 +154,25 @@ const Messages = () => {
                                           to={`/messages/${conv.user?._id}`}
                                           className={`conversation-item ${conv.unreadCount > 0 ? 'unread' : ''}`}
                                     >
-                                          <div className="msg-avatar">
+                                          <div className="msg-avatar" style={{ position: 'relative' }}>
                                                 {conv.user?.avatar ? (
                                                       <img src={conv.user.avatar} alt={conv.user.displayName} />
                                                 ) : (
                                                       <span>
                                                             {conv.user?.displayName?.charAt(0) || conv.user?.username?.charAt(0) || 'U'}
                                                       </span>
+                                                )}
+                                                {onlineUsers.includes(conv.user?._id) && (
+                                                      <span style={{
+                                                            position: 'absolute',
+                                                            bottom: '0px',
+                                                            right: '0px',
+                                                            width: '12px',
+                                                            height: '12px',
+                                                            backgroundColor: '#10b981',
+                                                            borderRadius: '50%',
+                                                            border: '2px solid white'
+                                                      }}></span>
                                                 )}
                                           </div>
                                           <div className="conversation-info">
