@@ -363,7 +363,8 @@ const ContentCard = ({ content, onDelete }) => {
       const isVideo = (content.media && content.media.length > 0 &&
             (content.media[0].type === 'video' ||
                   /\.(mp4|mov|wmv|avi|flv|mkv|webm)$/i.test(content.media[0].url))) ||
-            (content.type && (content.type === 'short-video' || content.type === 'long-video'));
+            (content.type && (content.type === 'short-video' || content.type === 'long-video')) ||
+            (content.contentType && (content.contentType === 'short-video' || content.contentType === 'long-video'));
 
       return (
             <article className={`content-card ${isVideo ? 'reel-card' : 'standard-card'}`} style={{ position: 'relative' }}>
