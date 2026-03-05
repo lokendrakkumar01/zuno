@@ -360,7 +360,9 @@ const ContentCard = ({ content, onDelete }) => {
 
       // ... existing code ...
 
-      const isVideo = (content.media && content.media.length > 0 && content.media[0].type === 'video') ||
+      const isVideo = (content.media && content.media.length > 0 &&
+            (content.media[0].type === 'video' ||
+                  /\.(mp4|mov|wmv|avi|flv|mkv|webm)$/i.test(content.media[0].url))) ||
             (content.type && (content.type === 'short-video' || content.type === 'long-video'));
 
       return (
@@ -443,7 +445,7 @@ const ContentCard = ({ content, onDelete }) => {
 
                               {/* Ready State */}
                               {mediaStatus === 'ready' && (
-                                    content.media[0].type === 'image' ? (
+                                    !isVideo ? (
                                           <>
                                                 {/* Loading Spinner for Image */}
                                                 {!imageLoaded && !imageError && (
