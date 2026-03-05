@@ -42,6 +42,59 @@ const Chat = () => {
       // Call modal
       const [showCallModal, setShowCallModal] = useState(null); // 'voice' or 'video'
 
+      // Customization
+      const [showCustomizeModal, setShowCustomizeModal] = useState(false);
+      const defaultCustomization = { themeColor: '#6366f1', bgImage: null };
+      const [chatCustomization, setChatCustomization] = useState(defaultCustomization);
+
+      const THEMES = [
+            { id: 'indigo', color: '#6366f1' },
+            { id: 'rose', color: '#f43f5e' },
+            { id: 'emerald', color: '#10b981' },
+            { id: 'amber', color: '#f59e0b' },
+            { id: 'purple', color: '#a855f7' },
+            { id: 'blue', color: '#3b82f6' },
+            { id: 'dark', color: '#334155' }
+      ];
+
+      // Load customization on mount
+      useEffect(() => {
+            if (user && user._id) {
+                  const saved = localStorage.getItem(`zuno_chat_prefs_${user._id}`);
+                  if (saved) {
+                        try {
+                              setChatCustomization(JSON.parse(saved));
+                        } catch (e) {
+                              console.error('Failed to parse chat preferences');
+                        }
+                  }
+            }
+      }, [user]);
+
+      // Save customization
+      const saveCustomization = (newPrefs) => {
+            setChatCustomization(newPrefs);
+            if (user && user._id) {
+                  localStorage.setItem(`zuno_chat_prefs_${user._id}`, JSON.stringify(newPrefs));
+            }
+      };
+
+      const handleBgImageUpload = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            if (file.size > 5 * 1024 * 1024) {
+                  alert('Background image must be less than 5MB');
+                  return;
+            }
+
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                  saveCustomization({ ...chatCustomization, bgImage: reader.result });
+            };
+            reader.readAsDataURL(file);
+      };
+
       // Typing Indicator
       const [isTyping, setIsTyping] = useState(false);
       const typingTimeoutRef = useRef(null);
@@ -453,7 +506,7 @@ const Chat = () => {
                                     </svg>
                               </button>
 
-                              {/* Header Menu (Clear Chat) */}
+                              {/* Header Menu (Clear Chat / Customize) */}
                               <div style={{ position: 'relative' }}>
                                     <button
                                           className="chat-call-btn"
@@ -466,6 +519,12 @@ const Chat = () => {
 
                                     {activeMenu === 'header-menu' && (
                                           <div className="chat-msg-menu" style={{ right: 0, top: '100%', minWidth: '150px' }} onClick={(e) => e.stopPropagation()}>
+                                                <button
+                                                      onClick={() => { setActiveMenu(null); setShowCustomizeModal(true); }}
+                                                      className="chat-msg-menu-item"
+                                                >
+                                                      🎨 Customize Chat
+                                                </button>
                                                 <button
                                                       onClick={() => { setActiveMenu(null); handleClearChat(); }}
                                                       className="chat-msg-menu-item delete"
@@ -480,7 +539,14 @@ const Chat = () => {
                   </div>
 
                   {/* Messages Area */}
-                  <div className="chat-messages">
+                  <div className="chat-messages" style={
+                        chatCustomization.bgImage ? {
+                              backgroundImage: `url(${chatCustomization.bgImage})`,
+                              backgroundSize: 'cover',
+                              backgroundPosition: 'center',
+                              backgroundAttachment: 'fixed'
+                        } : {}
+                  }>
                         {loading ? (
                               <div className="empty-state">
                                     <span className="spinner"></span>
@@ -497,7 +563,16 @@ const Chat = () => {
                                                       </div>
                                                 )}
                                                 <div className={`chat-bubble-wrapper ${isMine ? 'sent' : 'received'}`}>
-                                                      <div className={`chat-bubble ${isMine ? 'sent' : 'received'}`} style={{ position: 'relative' }}>
+                                                      <div
+                                                            className={`chat-bubble ${isMine ? 'sent' : 'received'}`}
+                                                            style={{
+                                                                  position: 'relative',
+                                                                  ...(isMine && chatCustomization.themeColor !== '#6366f1' ? {
+                                                                        background: chatCustomization.themeColor,
+                                                                        borderColor: chatCustomization.themeColor
+                                                                  } : {})
+                                                            }}
+                                                      >
 
                                                             {/* Edit Mode */}
                                                             {editingId === msg._id ? (
@@ -664,7 +739,7 @@ const Chat = () => {
                   )}
 
                   {/* Message Input */}
-                  <form className="chat-input-area" onSubmit={handleSend}>
+                  <form className="chat-input-area" onSubmit={handleSend} style={{ zIndex: 10 }}>
                         <div className="chat-input-actions">
                               {/* Emoji Button */}
                               <div className="emoji-picker-container" onClick={(e) => e.stopPropagation()}>
@@ -725,6 +800,72 @@ const Chat = () => {
                                     <button onClick={() => setShowCallModal(null)} className="btn btn-primary" style={{ width: '100%' }}>
                                           OK, Got it!
                                     </button>
+                              </div>
+                        </div>
+                  )}
+
+                  {/* Customize Chat Modal */}
+                  {showCustomizeModal && (
+                        <div className="modal-overlay" onClick={() => setShowCustomizeModal(false)} style={{ zIndex: 1000, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+                              <div className="card modal-content" onClick={(e) => e.stopPropagation()} style={{ width: '90%', maxWidth: '400px', maxHeight: '90vh', overflowY: 'auto' }}>
+                                    <div className="flex items-center justify-between mb-lg">
+                                          <h3 className="text-lg font-bold">🎨 Customize Chat</h3>
+                                          <button onClick={() => setShowCustomizeModal(false)} className="btn btn-ghost" style={{ padding: '4px 8px' }}>✕</button>
+                                    </div>
+
+                                    <div className="mb-lg">
+                                          <h4 className="font-semibold mb-sm">Theme Color</h4>
+                                          <div className="flex gap-sm flex-wrap">
+                                                {THEMES.map(theme => (
+                                                      <div
+                                                            key={theme.id}
+                                                            onClick={() => saveCustomization({ ...chatCustomization, themeColor: theme.color })}
+                                                            style={{
+                                                                  width: '36px', height: '36px',
+                                                                  borderRadius: '50%',
+                                                                  backgroundColor: theme.color,
+                                                                  cursor: 'pointer',
+                                                                  border: chatCustomization.themeColor === theme.color ? '3px solid white' : 'none',
+                                                                  outline: chatCustomization.themeColor === theme.color ? `2px solid ${theme.color}` : 'none',
+                                                                  boxShadow: 'var(--shadow-sm)'
+                                                            }}
+                                                      />
+                                                ))}
+                                          </div>
+                                    </div>
+
+                                    <div className="mb-lg">
+                                          <h4 className="font-semibold mb-sm">Background Image</h4>
+                                          {chatCustomization.bgImage ? (
+                                                <div style={{ position: 'relative', height: '150px', borderRadius: 'var(--radius-md)', overflow: 'hidden', marginBottom: '8px' }}>
+                                                      <img src={chatCustomization.bgImage} alt="Background Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                      <button
+                                                            onClick={() => saveCustomization({ ...chatCustomization, bgImage: null })}
+                                                            style={{ position: 'absolute', top: '8px', right: '8px', background: 'rgba(0,0,0,0.5)', color: 'white', border: 'none', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                                                      >✕</button>
+                                                </div>
+                                          ) : (
+                                                <div
+                                                      style={{ height: '100px', border: '2px dashed var(--border-color)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: 'var(--bg-secondary)' }}
+                                                      onClick={() => document.getElementById('chat-bg-upload').click()}
+                                                >
+                                                      <span className="text-muted">+ Add Wallpaper</span>
+                                                </div>
+                                          )}
+                                          <input type="file" id="chat-bg-upload" accept="image/*" style={{ display: 'none' }} onChange={handleBgImageUpload} />
+                                    </div>
+
+                                    <div className="flex mt-xl">
+                                          <button
+                                                onClick={() => {
+                                                      saveCustomization(defaultCustomization);
+                                                }}
+                                                className="btn btn-ghost text-red-500" style={{ flex: 1 }}
+                                          >
+                                                Reset to Default
+                                          </button>
+                                          <button onClick={() => setShowCustomizeModal(false)} className="btn btn-primary" style={{ flex: 1 }}>Done</button>
+                                    </div>
                               </div>
                         </div>
                   )}
