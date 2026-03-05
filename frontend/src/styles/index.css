@@ -1496,6 +1496,8 @@ textarea.input {
 /* Specific styling for the Reels container */
 .reel-card {
   background: #000;
+  width: 100%;
+  /* Fix width collapse */
   max-width: 450px;
   margin: 0 auto 30px auto;
   border-radius: 12px;
