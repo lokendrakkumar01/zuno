@@ -24,6 +24,9 @@ import Search from './pages/Search/Search';
 import SavedContent from './pages/SavedContent';
 import Messages from './pages/Messages/Messages';
 import Chat from './pages/Messages/Chat';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import GlobalNotification from './components/GlobalNotification';
 
 // Main App Router Component (inside AuthProvider)
 function AppRouter() {
@@ -61,36 +64,40 @@ function AppRouter() {
       }
 
       return (
-            <Routes>
-                  {/* Auth routes - no layout */}
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/register" element={<Register />} />
+            <>
+                  <GlobalNotification />
+                  <ToastContainer theme="colored" autoClose={4000} />
+                  <Routes>
+                        {/* Auth routes - no layout */}
+                        <Route path="/login" element={<Login />} />
+                        <Route path="/register" element={<Register />} />
 
-                  {/* Main routes with layout */}
-                  <Route path="/" element={<Layout />}>
-                        <Route index element={<Home />} />
-                        <Route path="upload" element={<Upload />} />
-                        <Route path="profile" element={<Profile />} />
-                        <Route path="settings" element={<Settings />} />
-                        <Route path="settings/appearance" element={<Appearance />} />
-                        <Route path="settings/privacy" element={<Privacy />} />
-                        <Route path="settings/language" element={<Language />} />
-                        <Route path="settings/notifications" element={<Notifications />} />
-                        <Route path="settings/time-management" element={<TimeManagement />} />
-                        <Route path="settings/password-security" element={<PasswordSecurity />} />
-                        <Route path="settings/close-friends" element={<CloseFriends />} />
-                        <Route path="search" element={<Search />} />
-                        <Route path="messages" element={<Messages />} />
-                        <Route path="messages/:userId" element={<Chat />} />
-                        <Route path="saved" element={<SavedContent />} />
-                        <Route path="content/saved" element={<SavedContent />} />
-                        <Route path="content/:id" element={<ContentView />} />
-                        <Route path="u/:username" element={<Profile />} />
-                  </Route>
+                        {/* Main routes with layout */}
+                        <Route path="/" element={<Layout />}>
+                              <Route index element={<Home />} />
+                              <Route path="upload" element={<Upload />} />
+                              <Route path="profile" element={<Profile />} />
+                              <Route path="settings" element={<Settings />} />
+                              <Route path="settings/appearance" element={<Appearance />} />
+                              <Route path="settings/privacy" element={<Privacy />} />
+                              <Route path="settings/language" element={<Language />} />
+                              <Route path="settings/notifications" element={<Notifications />} />
+                              <Route path="settings/time-management" element={<TimeManagement />} />
+                              <Route path="settings/password-security" element={<PasswordSecurity />} />
+                              <Route path="settings/close-friends" element={<CloseFriends />} />
+                              <Route path="search" element={<Search />} />
+                              <Route path="messages" element={<Messages />} />
+                              <Route path="messages/:userId" element={<Chat />} />
+                              <Route path="saved" element={<SavedContent />} />
+                              <Route path="content/saved" element={<SavedContent />} />
+                              <Route path="content/:id" element={<ContentView />} />
+                              <Route path="u/:username" element={<Profile />} />
+                        </Route>
 
-                  {/* Admin routes */}
-                  <Route path="/admin/*" element={<AdminDashboard />} />
-            </Routes>
+                        {/* Admin routes */}
+                        <Route path="/admin/*" element={<AdminDashboard />} />
+                  </Routes>
+            </>
       );
 }
 
