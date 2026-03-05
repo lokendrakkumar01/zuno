@@ -413,7 +413,16 @@ const ContentCard = ({ content, onDelete }) => {
 
                   {/* Media */}
                   {content.media && content.media.length > 0 && (
-                        <div className="content-card-media relative bg-gray-100" style={{ minHeight: '200px' }}>
+                        <div
+                              className="content-card-media"
+                              style={{
+                                    position: 'relative',
+                                    background: isVideo ? '#000' : 'var(--color-bg-tertiary)',
+                                    minHeight: isVideo ? '480px' : '200px',
+                                    width: '100%',
+                                    overflow: 'hidden',
+                              }}
+                        >
                               {/* Uploading State */}
                               {mediaStatus === 'uploading' && (
                                     <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500">
@@ -489,12 +498,8 @@ const ContentCard = ({ content, onDelete }) => {
                                           </>
                                     ) : (
                                           /* Enhanced Video Player - Reel Style */
-                                          <div
-                                                className="video-player-container reel-video-container"
-                                                style={{ position: 'relative', width: '100%', height: '560px', minHeight: '400px', backgroundColor: '#000', overflow: 'hidden', borderRadius: '12px' }}
-                                                onMouseEnter={() => setShowVideoControls(true)}
-                                                onMouseLeave={() => !isPlaying && setShowVideoControls(true)}
-                                          >
+                                          <>
+                                                {/* Video Element fills parent which has position:relative + dark bg */}
                                                 <video
                                                       ref={videoRef}
                                                       key={mediaUrl}
@@ -502,8 +507,15 @@ const ContentCard = ({ content, onDelete }) => {
                                                       playsInline
                                                       preload="metadata"
                                                       poster={content.media[0].thumbnail}
-                                                      className="w-full h-full object-cover"
-                                                      style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+                                                      style={{
+                                                            position: 'absolute',
+                                                            top: 0,
+                                                            left: 0,
+                                                            width: '100%',
+                                                            height: '100%',
+                                                            objectFit: 'cover',
+                                                            display: 'block',
+                                                      }}
                                                       muted={isMuted}
                                                       loop
                                                       onClick={(e) => {
@@ -524,103 +536,107 @@ const ContentCard = ({ content, onDelete }) => {
                                                 {/* Play/Pause Overlay Icon (shows when paused) */}
                                                 {!isPlaying && (
                                                       <div
-                                                            style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'none', background: 'rgba(0,0,0,0.5)', borderRadius: '50%', padding: '20px', zIndex: 10 }}
+                                                            onClick={(e) => { e.stopPropagation(); videoRef.current?.play(); }}
+                                                            style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'rgba(0,0,0,0.55)', borderRadius: '50%', padding: '18px', zIndex: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                                       >
-                                                            <svg width="40" height="40" viewBox="0 0 24 24" fill="white">
+                                                            <svg width="36" height="36" viewBox="0 0 24 24" fill="white">
                                                                   <path d="M8 5v14l11-7z" />
                                                             </svg>
                                                       </div>
                                                 )}
 
-                                                {/* Instagram Reel Style Overlay Gradient */}
-                                                <div className="reel-overlay-bottom" style={{
-                                                      position: 'absolute', bottom: 0, left: 0, width: '100%', height: '50%',
-                                                      background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 40%, transparent 100%)',
+                                                {/* Gradient Overlay (Bottom) */}
+                                                <div style={{
+                                                      position: 'absolute', bottom: 0, left: 0, width: '100%', height: '55%',
+                                                      background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.35) 50%, transparent 100%)',
                                                       pointerEvents: 'none', zIndex: 5
                                                 }} />
 
-                                                {/* Reel Bottom Left Info */}
-                                                <div style={{ position: 'absolute', bottom: '20px', left: '16px', right: '60px', zIndex: 10, color: 'white', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                                      {/* Creator Line */}
-                                                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                {/* Bottom Left: Creator + Caption */}
+                                                <div style={{ position: 'absolute', bottom: '16px', left: '14px', right: '72px', zIndex: 10, color: 'white' }}>
+                                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
                                                             <Link to={`/u/${content.creator?.username}`} onClick={(e) => e.stopPropagation()}>
                                                                   <img
-                                                                        src={content.creator?.avatar || 'https://via.placeholder.com/40'}
+                                                                        src={content.creator?.avatar || 'https://via.placeholder.com/36'}
                                                                         alt={content.creator?.displayName}
-                                                                        style={{ width: '40px', height: '40px', borderRadius: '50%', border: '2px solid white', objectFit: 'cover' }}
+                                                                        style={{ width: '36px', height: '36px', borderRadius: '50%', border: '2px solid white', objectFit: 'cover', display: 'block' }}
                                                                   />
                                                             </Link>
-                                                            <Link to={`/u/${content.creator?.username}`} onClick={(e) => e.stopPropagation()} style={{ color: 'white', fontWeight: 'bold', fontSize: '15px', textShadow: '1px 1px 3px rgba(0,0,0,0.8)' }}>
+                                                            <Link to={`/u/${content.creator?.username}`} onClick={(e) => e.stopPropagation()} style={{ color: 'white', fontWeight: '700', fontSize: '14px', textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}>
                                                                   {content.creator?.username}
                                                             </Link>
                                                             {currentUser?._id !== content.creator?._id && (
                                                                   <button
                                                                         onClick={(e) => { e.stopPropagation(); handleFollow(); }}
-                                                                        style={{ background: 'transparent', border: '1px solid white', borderRadius: '6px', color: 'white', padding: '2px 8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+                                                                        style={{ background: 'transparent', border: '1.5px solid white', borderRadius: '6px', color: 'white', padding: '2px 10px', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}
                                                                   >
                                                                         {isFollowing ? 'Following' : 'Follow'}
                                                                   </button>
                                                             )}
                                                       </div>
-
-                                                      {/* Title & Caption */}
                                                       {(content.title || content.body) && (
-                                                            <div style={{ fontSize: '14px', textShadow: '1px 1px 2px rgba(0,0,0,0.8)', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                                                                  {content.title && <span style={{ fontWeight: 'bold', marginRight: '5px' }}>{content.title}</span>}
+                                                            <div style={{ fontSize: '13px', textShadow: '0 1px 2px rgba(0,0,0,0.9)', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', lineHeight: '1.4' }}>
+                                                                  {content.title && <span style={{ fontWeight: '700', marginRight: '4px' }}>{content.title}</span>}
                                                                   <span>{content.body}</span>
                                                             </div>
                                                       )}
                                                 </div>
 
-                                                {/* Instagram Reel Style Vertical Action Bar (Right side) */}
-                                                <div className="reel-actions" style={{ position: 'absolute', bottom: '20px', right: '12px', zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
-
-                                                      {/* Like Vertical */}
-                                                      <button onClick={(e) => { e.stopPropagation(); handleHelpful(); }} style={{ background: 'transparent', border: 'none', color: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer', transform: animateHelpful ? 'scale(1.2)' : 'scale(1)', transition: 'transform 0.2s' }}>
-                                                            <svg width="28" height="28" viewBox="0 0 24 24" fill={isHelpful ? '#ef4444' : 'none'} stroke={isHelpful ? '#ef4444' : 'white'} strokeWidth="2" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}>
-                                                                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                                                {/* Right Side: Action Buttons (Instagram Reel Style) */}
+                                                <div className="reel-actions" style={{ position: 'absolute', bottom: '16px', right: '12px', zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '18px' }}>
+                                                      {/* Like */}
+                                                      <button onClick={(e) => { e.stopPropagation(); handleHelpful(); }} style={{ background: 'transparent', border: 'none', color: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px', cursor: 'pointer', transform: animateHelpful ? 'scale(1.25)' : 'scale(1)', transition: 'transform 0.2s' }}>
+                                                            <svg width="28" height="28" viewBox="0 0 24 24" fill={isHelpful ? '#ef4444' : 'none'} stroke={isHelpful ? '#ef4444' : 'white'} strokeWidth="2" style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.7))' }}>
+                                                                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
                                                             </svg>
-                                                            <span style={{ fontSize: '12px', fontWeight: 'bold', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>{likeCount}</span>
+                                                            <span style={{ fontSize: '11px', fontWeight: '700', textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}>{likeCount || ''}</span>
                                                       </button>
 
-                                                      {/* Comment Vertical */}
-                                                      <button onClick={(e) => { e.stopPropagation(); setShowComments(!showComments); }} style={{ background: 'transparent', border: 'none', color: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer', transform: animateComment ? 'scale(1.2)' : 'scale(1)', transition: 'transform 0.2s' }}>
-                                                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))', transform: 'scaleX(-1)' }}>
-                                                                  <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                                                      {/* Comment */}
+                                                      <button onClick={(e) => { e.stopPropagation(); setShowComments(!showComments); }} style={{ background: 'transparent', border: 'none', color: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px', cursor: 'pointer', transition: 'transform 0.2s' }}>
+                                                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.7))', transform: 'scaleX(-1)' }}>
+                                                                  <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
                                                             </svg>
-                                                            <span style={{ fontSize: '12px', fontWeight: 'bold', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>{commentCount}</span>
+                                                            <span style={{ fontSize: '11px', fontWeight: '700', textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}>{commentCount || ''}</span>
                                                       </button>
 
-                                                      {/* Share Vertical */}
-                                                      <button onClick={(e) => { e.stopPropagation(); handleShare(); }} style={{ background: 'transparent', border: 'none', color: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer', transform: animateShare ? 'scale(1.2) rotate(10deg)' : 'scale(1)', transition: 'transform 0.2s' }}>
-                                                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}>
-                                                                  <line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                                                      {/* Share */}
+                                                      <button onClick={(e) => { e.stopPropagation(); handleShare(); }} style={{ background: 'transparent', border: 'none', color: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px', cursor: 'pointer', transform: animateShare ? 'scale(1.25)' : 'scale(1)', transition: 'transform 0.2s' }}>
+                                                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.7))' }}>
+                                                                  <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
                                                             </svg>
-                                                            <span style={{ fontSize: '12px', fontWeight: 'bold', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>Share</span>
+                                                            <span style={{ fontSize: '11px', fontWeight: '700', textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}>Share</span>
                                                       </button>
 
-                                                      {/* Save/Bookmark Vertical */}
-                                                      <button onClick={(e) => { e.stopPropagation(); handleSave(); }} style={{ background: 'transparent', border: 'none', color: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer', transform: animateSave ? 'scale(1.2)' : 'scale(1)', transition: 'transform 0.2s' }}>
-                                                            <svg width="28" height="28" viewBox="0 0 24 24" fill={isSaved ? 'white' : 'none'} stroke="white" strokeWidth="2" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}>
-                                                                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                                                      {/* Save */}
+                                                      <button onClick={(e) => { e.stopPropagation(); handleSave(); }} style={{ background: 'transparent', border: 'none', color: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px', cursor: 'pointer', transform: animateSave ? 'scale(1.25)' : 'scale(1)', transition: 'transform 0.2s' }}>
+                                                            <svg width="28" height="28" viewBox="0 0 24 24" fill={isSaved ? 'white' : 'none'} stroke="white" strokeWidth="2" style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.7))' }}>
+                                                                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
                                                             </svg>
                                                       </button>
 
-                                                      {/* Mute Vertical (Small) */}
-                                                      <button onClick={(e) => { e.stopPropagation(); setIsMuted(!isMuted); if (videoRef.current) { videoRef.current.muted = !isMuted; } }} style={{ background: 'rgba(0,0,0,0.4)', borderRadius: '50%', border: '1px solid rgba(255,255,255,0.2)', padding: '6px', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', marginTop: '10px' }}>
-                                                            {isMuted ? '🔇' : '🔊'}
+                                                      {/* Mute Toggle */}
+                                                      <button
+                                                            onClick={(e) => { e.stopPropagation(); const newMuted = !isMuted; setIsMuted(newMuted); if (videoRef.current) videoRef.current.muted = newMuted; }}
+                                                            style={{ background: 'rgba(0,0,0,0.5)', borderRadius: '50%', border: '1px solid rgba(255,255,255,0.3)', padding: '7px', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', marginTop: '4px' }}
+                                                      >
+                                                            {isMuted
+                                                                  ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><line x1="23" y1="9" x2="17" y2="15" /><line x1="17" y1="9" x2="23" y2="15" /></svg>
+                                                                  : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" /></svg>
+                                                            }
+                                                      </button>
+
+                                                      {/* More/Delete for owner */}
+                                                      <button onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }} style={{ background: 'rgba(0,0,0,0.4)', borderRadius: '50%', border: 'none', padding: '8px', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><circle cx="12" cy="5" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="19" r="2" /></svg>
                                                       </button>
                                                 </div>
 
-                                                {/* Top Controls (Mute/Fullscreen/PiP) - Hidden in Reel style unless hovered/needed */}
-                                                <div style={{ position: 'absolute', top: '16px', right: '16px', display: 'flex', gap: '8px', zIndex: 10 }}>
-                                                      {/* More options (3 dots) inside video for Reels */}
-                                                      <button onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }} style={{ background: 'rgba(0,0,0,0.4)', borderRadius: '50%', border: 'none', padding: '8px', color: 'white', cursor: 'pointer', backdropFilter: 'blur(4px)' }}>
-                                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg>
-                                                      </button>
+                                                {/* Video Progress Bar */}
+                                                <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: '3px', background: 'rgba(255,255,255,0.2)', zIndex: 10 }}>
+                                                      <div style={{ height: '100%', width: `${videoProgress}%`, background: 'white', transition: 'width 0.1s linear' }} />
                                                 </div>
-
-                                          </div>
+                                          </>
                                     )
                               )}
 
