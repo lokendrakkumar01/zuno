@@ -391,6 +391,28 @@ const Chat = () => {
             }
       };
 
+      const handleDownloadMedia = async (url, type) => {
+            try {
+                  const res = await fetch(url);
+                  const blob = await res.blob();
+                  const objectUrl = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = objectUrl;
+                  const extension = type === 'video' ? 'mp4' : 'jpg';
+                  a.download = `zuno_media_${Date.now()}.${extension}`;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(objectUrl);
+                  setActiveMenu(null);
+            } catch (err) {
+                  console.error('Failed to download media:', err);
+                  // fallback
+                  window.open(url, '_blank');
+                  setActiveMenu(null);
+            }
+      };
+
       const startEditing = (msg) => {
             setEditingId(msg._id);
             setEditText(msg.text);
@@ -667,6 +689,15 @@ const Chat = () => {
                                                                               <button onClick={() => { navigator.clipboard?.writeText(msg.text).catch(() => { }); setActiveMenu(null); }} className="chat-msg-menu-item">
                                                                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" /></svg>
                                                                                     Copy
+                                                                              </button>
+                                                                        )}
+                                                                        {msg.media?.url && (
+                                                                              <button
+                                                                                    onClick={() => handleDownloadMedia(msg.media.url, msg.media.type)}
+                                                                                    className="chat-msg-menu-item"
+                                                                              >
+                                                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" /></svg>
+                                                                                    Download
                                                                               </button>
                                                                         )}
                                                                         {isMine && (

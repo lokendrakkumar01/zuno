@@ -2355,9 +2355,19 @@ textarea.input {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   z-index: 50;
-  min-width: 130px;
+  min-width: 150px;
   overflow: hidden;
   animation: menuSlide 0.15s ease-out;
+}
+
+.chat-bubble.received .chat-msg-menu {
+  left: 0;
+  right: auto;
+}
+
+.chat-bubble.sent .chat-msg-menu {
+  right: 0;
+  left: auto;
 }
 
 @keyframes menuSlide {
