@@ -503,7 +503,7 @@ const ContentCard = ({ content, onDelete }) => {
                                           </>
                                     ) : (
                                           /* Enhanced Video Player - Reel Style */
-                                          <>
+                                          <div style={{ width: '100%', height: '100%', minHeight: '400px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                                                 {/* Video Element fills parent which has position:relative + dark bg */}
                                                 <video
                                                       ref={videoRef}
@@ -641,7 +641,7 @@ const ContentCard = ({ content, onDelete }) => {
                                                 <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: '3px', background: 'rgba(255,255,255,0.2)', zIndex: 10 }}>
                                                       <div style={{ height: '100%', width: `${videoProgress}%`, background: 'white', transition: 'width 0.1s linear' }} />
                                                 </div>
-                                          </>
+                                          </div>
                                     )
                               )}
 
