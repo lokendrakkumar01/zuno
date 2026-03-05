@@ -142,6 +142,7 @@ contentSchema.index({ creator: 1, createdAt: -1 });
 contentSchema.index({ contentType: 1, status: 1, createdAt: -1 });
 contentSchema.index({ topics: 1, status: 1, qualityScore: -1 });
 contentSchema.index({ purpose: 1, status: 1 });
+contentSchema.index({ status: 1, visibility: 1, isApproved: 1, createdAt: -1, qualityScore: -1 });
 
 // Calculate quality score before save
 contentSchema.pre('save', function (next) {

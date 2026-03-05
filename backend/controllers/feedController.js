@@ -70,11 +70,12 @@ const getFeed = async (req, res) => {
                   .populate('creator', 'username displayName avatar role')
                   .sort(sortOptions)
                   .skip((page - 1) * limit)
-                  .limit(parseInt(limit));
+                  .limit(parseInt(limit))
+                  .lean();
 
             // Remove metrics if silentMode is on for each content
             const processedContents = contents.map(c => {
-                  const content = c.toObject();
+                  const content = { ...c };
                   if (content.silentMode) {
                         delete content.metrics;
                   }
@@ -125,7 +126,8 @@ const getFeedByTopic = async (req, res) => {
                   .populate('creator', 'username displayName avatar role')
                   .sort({ qualityScore: -1, createdAt: -1 })
                   .skip((page - 1) * limit)
-                  .limit(parseInt(limit));
+                  .limit(parseInt(limit))
+                  .lean();
 
             const total = await Content.countDocuments(query);
 
@@ -178,7 +180,8 @@ const getCreatorFeed = async (req, res) => {
                   .populate('creator', 'username displayName avatar role')
                   .sort({ createdAt: -1 })
                   .skip((page - 1) * limit)
-                  .limit(parseInt(limit));
+                  .limit(parseInt(limit))
+                  .lean();
 
             const total = await Content.countDocuments(query);
 
@@ -233,7 +236,8 @@ const searchContent = async (req, res) => {
                   .populate('creator', 'username displayName avatar role')
                   .sort({ qualityScore: -1, createdAt: -1 })
                   .skip((page - 1) * limit)
-                  .limit(parseInt(limit));
+                  .limit(parseInt(limit))
+                  .lean();
 
             const total = await Content.countDocuments(query);
 
@@ -271,7 +275,8 @@ const getActiveStories = async (req, res) => {
                   visibility: 'public' // Respect privacy? For now public.
             })
                   .populate('creator', 'username displayName avatar isPrivate')
-                  .sort({ createdAt: 1 });
+                  .sort({ createdAt: 1 })
+                  .lean();
 
             // Group by creator
             const groupedStories = {};
