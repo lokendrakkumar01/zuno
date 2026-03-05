@@ -2207,8 +2207,12 @@ textarea.input {
 /* Mobile adjustments for chat */
 @media (max-width: 768px) {
   .chat-page {
-    height: calc(100vh - 130px);
-    /* account for bottom nav */
+    height: calc(100vh - 70px);
+  }
+
+  .chat-input-area {
+    padding-bottom: calc(var(--space-md) + 60px);
+    /* Push input above bottom nav */
   }
 
   .chat-bubble {
