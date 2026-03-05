@@ -2939,7 +2939,15 @@ video.chat-media-content {
 @media (max-width: 640px) {
   .content-grid {
     grid-template-columns: 1fr;
-    gap: 12px;
+    gap: 0;
+  }
+
+  .content-grid>div {
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .content-grid>div:last-child {
+    border-bottom: none;
   }
 }
 

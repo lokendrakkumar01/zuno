@@ -770,11 +770,13 @@ const ContentCard = ({ content, onDelete }) => {
                                                 <button
                                                       title="Download"
                                                       onClick={async () => {
+                                                            const media = content.media[0];
+                                                            const url = getMediaUrl(media.url);
+                                                            const filename = `zuno-${content._id}.${media.type === 'video' ? 'mp4' : 'jpg'}`;
                                                             try {
-                                                                  const media = content.media[0];
-                                                                  const url = getMediaUrl(media.url);
-                                                                  const filename = `zuno-${content._id}.${media.type === 'video' ? 'mp4' : 'jpg'}`;
-                                                                  const res = await fetch(url);
+                                                                  // Try blob download first (works on browser)
+                                                                  const res = await fetch(url, { mode: 'cors' });
+                                                                  if (!res.ok) throw new Error('Fetch failed');
                                                                   const blob = await res.blob();
                                                                   const blobUrl = window.URL.createObjectURL(blob);
                                                                   const link = document.createElement('a');
@@ -785,8 +787,9 @@ const ContentCard = ({ content, onDelete }) => {
                                                                   document.body.removeChild(link);
                                                                   window.URL.revokeObjectURL(blobUrl);
                                                             } catch (err) {
-                                                                  console.error('Download failed', err);
-                                                                  alert('Failed to download media');
+                                                                  // Fallback: open directly in new tab (works in-app WebView)
+                                                                  console.warn('Blob download failed, opening in new tab:', err);
+                                                                  window.open(url, '_blank');
                                                             }
                                                       }}
                                                       style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', display: 'flex', alignItems: 'center', borderRadius: '8px' }}
