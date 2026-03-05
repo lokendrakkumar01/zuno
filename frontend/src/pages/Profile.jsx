@@ -24,7 +24,11 @@ const Profile = () => {
       const navigate = useNavigate();
       const fileInputRef = useRef(null);
 
-      const [profileUser, setProfileUser] = useState(null);
+      const [profileUser, setProfileUser] = useState(() => {
+            const targetUsername = username || user?.username;
+            if (user && targetUsername === user.username) return user;
+            return null;
+      });
       const [userPosts, setUserPosts] = useState([]);
       const [loading, setLoading] = useState(true);
       const [editing, setEditing] = useState(false);
@@ -34,6 +38,7 @@ const Profile = () => {
       const [activeTab, setActiveTab] = useState('profile');
       const [isFollowing, setIsFollowing] = useState(false);
       const [followLoading, setFollowLoading] = useState(false);
+      const [showPhotoModal, setShowPhotoModal] = useState(false);
 
       // Followers/Following modal states
       const [showFollowersModal, setShowFollowersModal] = useState(false);
@@ -352,9 +357,9 @@ const Profile = () => {
                                           <div style={{ position: 'relative' }}>
                                                 <div
                                                       className="avatar avatar-xl"
-                                                      onClick={handlePhotoClick}
+                                                      onClick={() => profileUser.avatar ? setShowPhotoModal(true) : null}
                                                       style={{
-                                                            cursor: isOwnProfile ? 'pointer' : 'default',
+                                                            cursor: profileUser.avatar ? 'pointer' : 'default',
                                                             transition: 'all 0.3s ease',
                                                             border: '3px solid rgba(99, 102, 241, 0.5)'
                                                       }}
@@ -630,6 +635,65 @@ const Profile = () => {
                               )}
                         </div>
                   </div>
+
+                  {/* Photo Modal */}
+                  {showPhotoModal && profileUser?.avatar && (
+                        <div
+                              className="modal-overlay"
+                              style={{
+                                    position: 'fixed',
+                                    top: 0,
+                                    left: 0,
+                                    right: 0,
+                                    bottom: 0,
+                                    background: 'rgba(0,0,0,0.8)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    zIndex: 2000,
+                                    backdropFilter: 'blur(4px)'
+                              }}
+                              onClick={() => setShowPhotoModal(false)}
+                        >
+                              <div
+                                    style={{
+                                          position: 'relative',
+                                          maxWidth: '90%',
+                                          maxHeight: '90vh'
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                              >
+                                    <button
+                                          onClick={() => setShowPhotoModal(false)}
+                                          className="btn btn-ghost"
+                                          style={{
+                                                position: 'absolute',
+                                                top: '-40px',
+                                                right: '0',
+                                                color: 'white',
+                                                background: 'rgba(0,0,0,0.5)',
+                                                borderRadius: '50%',
+                                                width: '40px',
+                                                height: '40px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                padding: '0'
+                                          }}
+                                    >✕</button>
+                                    <img
+                                          src={profileUser.avatar}
+                                          alt="Profile"
+                                          style={{
+                                                maxWidth: '100%',
+                                                maxHeight: '90vh',
+                                                objectFit: 'contain',
+                                                borderRadius: 'var(--radius-lg)'
+                                          }}
+                                    />
+                              </div>
+                        </div>
+                  )}
 
                   {/* Followers Modal */}
                   {showFollowersModal && (
