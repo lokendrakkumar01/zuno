@@ -14,7 +14,12 @@ export const AuthProvider = ({ children }) => {
             }
       });
       const [token, setToken] = useState(localStorage.getItem('zuno_token'));
-      const [loading, setLoading] = useState(true);
+      const [loading, setLoading] = useState(() => {
+            // If we have a token and cached user, don't show initial loading
+            const hasToken = localStorage.getItem('zuno_token');
+            const hasUser = localStorage.getItem('zuno_user');
+            return !(hasToken && hasUser);
+      });
 
       // Check auth on mount — but DON'T logout on failure (server might be cold)
       useEffect(() => {
@@ -70,17 +75,17 @@ export const AuthProvider = ({ children }) => {
       };
 
       const login = async (email, password) => {
-            const attemptLogin = async () => {
+            const attemptLogin = async (currentTimeout = 60000) => {
                   const res = await fetchWithTimeout(`${API_URL}/auth/login`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ email, password })
-                  });
+                  }, currentTimeout);
                   return await res.json();
             };
 
             try {
-                  const data = await attemptLogin();
+                  const data = await attemptLogin(60000); // 1 minute for waking up
                   if (data.success) {
                         setUser(data.data.user);
                         setToken(data.data.token);
@@ -90,28 +95,17 @@ export const AuthProvider = ({ children }) => {
                   }
                   return { success: false, message: data.message };
             } catch (error) {
-                  // First attempt failed — retry once (server may be waking up)
+                  // If it's a timeout or network error, it's likely the server cold start
                   if (error.name === 'AbortError' || error.message === 'Failed to fetch') {
-                        try {
-                              const data = await attemptLogin();
-                              if (data.success) {
-                                    setUser(data.data.user);
-                                    setToken(data.data.token);
-                                    localStorage.setItem('zuno_token', data.data.token);
-                                    localStorage.setItem('zuno_user', JSON.stringify(data.data.user));
-                                    return { success: true, message: data.message };
-                              }
-                              return { success: false, message: data.message };
-                        } catch (retryError) {
-                              return {
-                                    success: false,
-                                    message: 'Server is taking too long to respond. It may be waking up — please try again in a few seconds.'
-                              };
-                        }
+                        return {
+                              success: false,
+                              status: 'waking_up',
+                              message: 'Server is taking longer than usual to respond. It is likely waking up — please wait a moment and try again.'
+                        };
                   }
                   return {
                         success: false,
-                        message: 'Login failed. Please check your connection and try again.'
+                        message: 'Login failed. Please check your credentials and try again.'
                   };
             }
       };

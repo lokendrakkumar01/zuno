@@ -178,10 +178,38 @@ const followUser = async (req, res) => {
 
             if (userToFollow.isPrivate) {
                   await userToFollow.updateOne({ $push: { followRequests: req.user.id } });
+
+                  // Notify the private user about a new follow request
+                  const receiverSocketId = getReceiverSocketId(req.params.id);
+                  if (receiverSocketId) {
+                        io.to(receiverSocketId).emit("newFollowRequest", {
+                              sender: {
+                                    _id: req.user.id,
+                                    username: currentUser.username,
+                                    displayName: currentUser.displayName,
+                                    avatar: currentUser.avatar
+                              }
+                        });
+                  }
+
                   return res.json({ success: true, message: "Follow request sent", status: "requested" });
             } else {
                   await currentUser.updateOne({ $push: { following: req.params.id } });
                   await userToFollow.updateOne({ $push: { followers: req.user.id } });
+
+                  // Notify the user about a new follower
+                  const receiverSocketId = getReceiverSocketId(req.params.id);
+                  if (receiverSocketId) {
+                        io.to(receiverSocketId).emit("newFollow", {
+                              sender: {
+                                    _id: req.user.id,
+                                    username: currentUser.username,
+                                    displayName: currentUser.displayName,
+                                    avatar: currentUser.avatar
+                              }
+                        });
+                  }
+
                   return res.json({ success: true, message: "User followed", status: "following" });
             }
       } catch (error) {
@@ -243,6 +271,20 @@ const acceptFollowRequest = async (req, res) => {
                   $push: { followers: req.params.id }
             });
             await userToAccept.updateOne({ $push: { following: req.user.id } });
+
+            // Notify user that their request was accepted
+            const { getReceiverSocketId, io } = require('../socket/socket');
+            const receiverSocketId = getReceiverSocketId(req.params.id);
+            if (receiverSocketId) {
+                  io.to(receiverSocketId).emit("followAccepted", {
+                        sender: {
+                              _id: req.user.id,
+                              username: currentUser.username,
+                              displayName: currentUser.displayName,
+                              avatar: currentUser.avatar
+                        }
+                  });
+            }
 
             res.json({ success: true, message: "Request accepted" });
       } catch (error) {

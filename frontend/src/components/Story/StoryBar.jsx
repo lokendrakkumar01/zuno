@@ -168,7 +168,14 @@ const StoryViewer = ({ group, onClose }) => {
 };
 
 const StoryBar = () => {
-      const [storyGroups, setStoryGroups] = useState([]);
+      const [storyGroups, setStoryGroups] = useState(() => {
+            try {
+                  const cached = localStorage.getItem('zuno_stories_cache');
+                  return cached ? JSON.parse(cached) : [];
+            } catch {
+                  return [];
+            }
+      });
       const [selectedGroup, setSelectedGroup] = useState(null);
       const { user, isAuthenticated } = useAuth();
 
@@ -179,6 +186,7 @@ const StoryBar = () => {
                         const data = await res.json();
                         if (data.success) {
                               setStoryGroups(data.data);
+                              localStorage.setItem('zuno_stories_cache', JSON.stringify(data.data));
                         }
                   } catch (error) {
                         console.error("Failed to fetch stories", error);
@@ -186,7 +194,7 @@ const StoryBar = () => {
             };
             fetchStories();
       }, []);
-
+      鼓
       // Instagram-style gradient ring
       const gradientRingStyle = {
             background: 'linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)',

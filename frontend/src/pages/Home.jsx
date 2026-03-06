@@ -59,20 +59,15 @@ const Home = () => {
       const [stats, setStats] = useState({ users: '1K+', content: '500+', helpful: '10K+' });
 
       const fetchFeed = async (currentMode, currentPage, append = false) => {
-            // If it's a new mode and we have no contents for it yet, we can check cache
-            if (currentPage === 1 && !append && currentMode !== 'all') {
-                  try {
-                        const cached = localStorage.getItem(`zuno_feedCache_${currentMode}`);
-                        if (cached) {
-                              setContents(JSON.parse(cached));
-                        } else {
-                              setLoading(true);
-                        }
-                  } catch (e) {
+            // Only show loading if we have absolutely NO content to show
+            if (currentPage === 1 && !append) {
+                  const cached = localStorage.getItem(`zuno_feedCache_${currentMode}`);
+                  if (cached) {
+                        setContents(JSON.parse(cached));
+                        setLoading(false);
+                  } else {
                         setLoading(true);
                   }
-            } else if (contents.length === 0) {
-                  setLoading(true);
             }
             setError(null);
 
@@ -83,17 +78,12 @@ const Home = () => {
 
                   if (data.success) {
                         if (append) {
-                              setContents(prev => {
-                                    const newContents = [...prev, ...data.data.contents];
-                                    return newContents;
-                              });
+                              setContents(prev => [...prev, ...data.data.contents]);
                         } else {
                               setContents(data.data.contents);
                               try {
                                     localStorage.setItem(`zuno_feedCache_${currentMode}`, JSON.stringify(data.data.contents));
-                              } catch (e) {
-                                    // Ignore quota exceeded
-                              }
+                              } catch (e) { }
                         }
                         setHasMore(data.data.pagination.hasMore);
                   } else if (contents.length === 0) {
@@ -101,12 +91,12 @@ const Home = () => {
                   }
             } catch (err) {
                   console.error('Failed to fetch feed:', err);
-                  // Don't show error if we have cached content
                   if (contents.length === 0) {
                         setError('Failed to load content. Please try again.');
                   }
+            } finally {
+                  setLoading(false);
             }
-            setLoading(false);
       };
 
       useEffect(() => {

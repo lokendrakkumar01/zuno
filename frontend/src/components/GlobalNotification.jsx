@@ -48,10 +48,7 @@ const GlobalNotification = () => {
                   const isOnChatPage = location.pathname === `/messages/${newMessage.sender._id || newMessage.sender}`;
 
                   if (!isOnChatPage || document.hidden) {
-                        // Play a synthesized notification sound
                         playNotificationSound();
-
-                        // Show a styled toast
                         const senderName = newMessage.sender?.displayName || newMessage.sender?.username || 'Someone';
                         const textPreview = newMessage.text ?
                               (newMessage.text.length > 30 ? newMessage.text.substring(0, 30) + '...' : newMessage.text) :
@@ -62,38 +59,84 @@ const GlobalNotification = () => {
                                     <strong style={{ display: 'block' }}>{senderName}</strong>
                                     <span style={{ fontSize: '0.9em', opacity: 0.9 }}>{textPreview}</span>
                               </div>,
-                              {
-                                    position: "top-right",
-                                    autoClose: 4000,
-                                    hideProgressBar: false,
-                                    closeOnClick: true,
-                                    pauseOnHover: true,
-                                    draggable: true,
-                                    icon: "💬"
-                              }
+                              { position: "top-right", autoClose: 4000, icon: "💬" }
                         );
 
-                        // Fire native browser notification if granted and the tab is hidden or backgrounded
-                        if ('Notification' in window && Notification.permission === 'granted') {
-                              const nativeNotification = new Notification(`New message from ${senderName}`, {
-                                    body: textPreview,
-                                    icon: '/favicon.ico', // Update if there's a specific app icon
-                                    tag: 'zuno-chat',    // prevent spam
-                              });
-
-                              nativeNotification.onclick = () => {
-                                    window.focus(); // Focus the browser tab
-                                    navigate(`/messages/${newMessage.sender._id || newMessage.sender}`);
-                                    nativeNotification.close();
-                              };
+                        if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
+                              new Notification(`New message from ${senderName}`, { body: textPreview, tag: 'zuno-chat' });
                         }
                   }
             };
 
+            const handleNewFollow = (data) => {
+                  playNotificationSound();
+                  toast.success(
+                        <div onClick={() => navigate(`/profile/${data.sender.username}`)} style={{ cursor: 'pointer' }}>
+                              <strong>New Follower!</strong>
+                              <p style={{ fontSize: '0.85em' }}>{data.sender.displayName || data.sender.username} followed you</p>
+                        </div>,
+                        { position: "top-right", autoClose: 5000, icon: "👤" }
+                  );
+            };
+
+            const handleNewFollowRequest = (data) => {
+                  playNotificationSound();
+                  toast.info(
+                        <div onClick={() => navigate(`/settings?tab=requests`)} style={{ cursor: 'pointer' }}>
+                              <strong>Follow Request</strong>
+                              <p style={{ fontSize: '0.85em' }}>{data.sender.displayName || data.sender.username} wants to follow you</p>
+                        </div>,
+                        { position: "top-right", autoClose: 5000, icon: "🔒" }
+                  );
+            };
+
+            const handleFollowAccepted = (data) => {
+                  playNotificationSound();
+                  toast.success(
+                        <div onClick={() => navigate(`/profile/${data.sender.username}`)} style={{ cursor: 'pointer' }}>
+                              <strong>Request Accepted!</strong>
+                              <p style={{ fontSize: '0.85em' }}>{data.sender.displayName || data.sender.username} accepted your follow request</p>
+                        </div>,
+                        { position: "top-right", autoClose: 5000, icon: "✅" }
+                  );
+            };
+
+            const handleNewInteraction = (data) => {
+                  playNotificationSound();
+                  toast.success(
+                        <div onClick={() => navigate(`/content/${data.contentId}`)} style={{ cursor: 'pointer' }}>
+                              <strong>Helpful Tip!</strong>
+                              <p style={{ fontSize: '0.85em' }}>{data.sender.displayName || data.sender.username} marked your post "{data.title}" as helpful</p>
+                        </div>,
+                        { position: "top-right", autoClose: 5000, icon: "💎" }
+                  );
+            };
+
+            const handleNewComment = (data) => {
+                  playNotificationSound();
+                  toast.info(
+                        <div onClick={() => navigate(`/content/${data.contentId}`)} style={{ cursor: 'pointer' }}>
+                              <strong>New Comment</strong>
+                              <p style={{ fontSize: '0.85em' }}>{data.comment.user.displayName || data.comment.user.username} commented on "{data.contentTitle}"</p>
+                        </div>,
+                        { position: "top-right", autoClose: 5000, icon: "💬" }
+                  );
+            };
+
             socket.on("newMessage", handleNewMessage);
+            socket.on("newFollow", handleNewFollow);
+            socket.on("newFollowRequest", handleNewFollowRequest);
+            socket.on("followAccepted", handleFollowAccepted);
+            socket.on("newInteraction", handleNewInteraction);
+            socket.on("newComment", handleNewComment);
 
             return () => {
                   socket.off("newMessage", handleNewMessage);
+                  socket.off("newFollow", handleNewFollow);
+                  socket.off("newFollowRequest", handleNewFollowRequest);
+                  socket.off("followAccepted", handleFollowAccepted);
+                  socket.off("newInteraction", handleNewInteraction);
+                  socket.off("newComment", handleNewComment);
             };
       }, [socket, location.pathname, navigate]);
 

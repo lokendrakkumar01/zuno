@@ -36,30 +36,38 @@ import CallOverlay from './components/CallOverlay';
 // Main App Router Component (inside AuthProvider)
 function AppRouter() {
       const { isAuthenticated, loading } = useAuth();
-      const [showSplash, setShowSplash] = useState(true);
+      const [showSplash, setShowSplash] = useState(() => {
+            const shown = localStorage.getItem('zuno_splash_shown');
+            const time = localStorage.getItem('zuno_splash_time');
+            if (shown === 'true' && time && (Date.now() - parseInt(time) < 24 * 60 * 60 * 1000)) {
+                  return false;
+            }
+            return true;
+      });
       const navigate = useNavigate();
 
       useEffect(() => {
-            // Check if splash has been shown this session
-            const splashShown = sessionStorage.getItem('zuno_splash_shown');
+            // Check if splash has been shown recently
+            const splashShown = localStorage.getItem('zuno_splash_shown');
+            const splashTimestamp = localStorage.getItem('zuno_splash_time');
+            const now = Date.now();
 
-            if (splashShown === 'true') {
+            // Only show splash once every 24 hours
+            if (splashShown === 'true' && splashTimestamp && (now - parseInt(splashTimestamp)) < 24 * 60 * 60 * 1000) {
                   setShowSplash(false);
             }
       }, []);
 
       const handleSplashComplete = () => {
-            // Mark splash as shown for this session
-            sessionStorage.setItem('zuno_splash_shown', 'true');
+            // Mark splash as shown
+            localStorage.setItem('zuno_splash_shown', 'true');
+            localStorage.setItem('zuno_splash_time', Date.now().toString());
             setShowSplash(false);
 
-            // Route based on authentication status
-            if (!loading) {
-                  if (isAuthenticated) {
-                        navigate('/');
-                  } else {
-                        navigate('/login');
-                  }
+            // Navigate if not already on a route
+            if (location.pathname === '/' || location.pathname === '/login') {
+                  if (isAuthenticated) navigate('/');
+                  else navigate('/login');
             }
       };
 

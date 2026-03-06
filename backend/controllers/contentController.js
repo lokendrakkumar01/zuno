@@ -282,6 +282,25 @@ const markHelpful = async (req, res) => {
 
             await content.save();
 
+            // Notify creator that someone marked their content as helpful
+            if (existing?.type !== 'helpful') { // Only on new helpful mark
+                  const { getReceiverSocketId, io } = require('../socket/socket');
+                  const receiverSocketId = getReceiverSocketId(content.creator.toString());
+                  if (receiverSocketId && content.creator.toString() !== req.user.id) {
+                        io.to(receiverSocketId).emit("newInteraction", {
+                              type: 'helpful',
+                              contentId: content._id,
+                              title: content.title,
+                              sender: {
+                                    _id: req.user.id,
+                                    username: req.user.username,
+                                    displayName: req.user.displayName,
+                                    avatar: req.user.avatar
+                              }
+                        });
+                  }
+            }
+
             // Update creator's helpful received stat
             await User.findByIdAndUpdate(content.creator, {
                   $inc: { 'stats.helpfulReceived': existing?.type === 'helpful' ? -1 : 1 }

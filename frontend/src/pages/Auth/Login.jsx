@@ -23,7 +23,12 @@ const Login = () => {
             if (result.success) {
                   navigate('/');
             } else {
-                  setError(result.message);
+                  if (result.status === 'waking_up') {
+                        setError(result.message);
+                        // Optional: Keep loading spinner while it wakes up
+                  } else {
+                        setError(result.message);
+                  }
             }
             setLoading(false);
       };

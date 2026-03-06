@@ -1,23 +1,27 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import zunoLogo from '../assets/zuno-logo.png';
 import '../styles/splash.css';
 
 const SplashScreen = ({ onComplete }) => {
+      const [exit, setExit] = useState(false);
+
       useEffect(() => {
-            // Auto-navigate after 2.5 seconds
+            // Faster exit animation
             const timer = setTimeout(() => {
-                  onComplete();
-            }, 2500);
+                  setExit(true);
+                  setTimeout(onComplete, 400); // 400ms for exit animation
+            }, 1500); // Show for 1.5s total
 
             return () => clearTimeout(timer);
       }, [onComplete]);
 
       const handleSkip = () => {
-            onComplete();
+            setExit(true);
+            setTimeout(onComplete, 200);
       };
 
       return (
-            <div className="splash-screen" onClick={handleSkip}>
+            <div className={`splash-screen ${exit ? 'exit' : ''}`} onClick={handleSkip}>
                   <div className="splash-content">
                         <div className="splash-logo-container">
                               <img
@@ -30,7 +34,6 @@ const SplashScreen = ({ onComplete }) => {
                         <h1 className="splash-title">ZUNO</h1>
                         <div className="splash-tagline">Your Creative Universe</div>
 
-                        {/* Optional progress indicator */}
                         <div className="splash-progress">
                               <div className="splash-progress-bar"></div>
                         </div>

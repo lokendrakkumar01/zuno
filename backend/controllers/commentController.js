@@ -24,6 +24,17 @@ const addComment = async (req, res) => {
 
             const populatedComment = await Comment.findById(comment._id).populate('user', 'username displayName avatar');
 
+            // Notify content creator about new comment
+            const { getReceiverSocketId, io } = require('../socket/socket');
+            const receiverSocketId = getReceiverSocketId(content.creator.toString());
+            if (receiverSocketId && content.creator.toString() !== req.user.id) {
+                  io.to(receiverSocketId).emit("newComment", {
+                        contentId: content._id,
+                        comment: populatedComment,
+                        contentTitle: content.title
+                  });
+            }
+
             res.status(201).json({
                   success: true,
                   data: { comment: populatedComment }
