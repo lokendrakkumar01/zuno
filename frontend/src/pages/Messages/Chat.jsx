@@ -420,7 +420,8 @@ const Chat = () => {
                                           sessionStorage.setItem(`zuno_chat_cache_${userId}`, JSON.stringify(updated.slice(-100)));
                                     } catch (e) { }
                               }, 0);
-                              return updated;
+
+                              return updated; // <--- CRITICAL FIX: actually return the new state array!
                         });
                   } else {
                         // Remove failed message
