@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const { getReceiverSocketId, io } = require('../socket/socket');
 
 // @desc    Get user profile by MongoDB ID
 // @route   GET /api/users/id/:id
@@ -176,8 +177,6 @@ const followUser = async (req, res) => {
                   return res.status(400).json({ success: false, message: "You cannot follow yourself" });
             }
 
-            const { getReceiverSocketId, io } = require('../socket/socket');
-
             const userToFollow = await User.findById(req.params.id);
             const currentUser = await User.findById(req.user.id);
 
@@ -230,6 +229,7 @@ const followUser = async (req, res) => {
                   return res.json({ success: true, message: "User followed", status: "following" });
             }
       } catch (error) {
+            console.error('followUser error:', error.message, error.stack);
             res.status(500).json({ success: false, message: "Failed to follow user", error: error.message });
       }
 };
