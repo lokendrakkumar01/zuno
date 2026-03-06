@@ -18,13 +18,13 @@ const CallOverlay = () => {
                   {(isCalling || callAccepted) && !callEnded && (
                         <div className="chat-call-overlay" style={{
                               position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                              background: 'var(--bg-card)', zIndex: 9999, display: 'flex', flexDirection: 'column'
+                              background: 'var(--color-bg-primary)', zIndex: 999999, display: 'flex', flexDirection: 'column'
                         }}>
-                              <div className="chat-call-header" style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.5)', color: 'white' }}>
-                                    <div className="font-bold">{isCalling && !callAccepted ? 'Calling...' : `${callType === 'video' ? 'Video' : 'Voice'} Call`}</div>
-                                    <div className="font-semibold">{otherUser?.displayName || otherUser?.username || 'User'}</div>
+                              <div className="chat-call-header" style={{ padding: '24px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--color-bg-secondary)', color: 'var(--color-text-primary)', borderBottom: '1px solid var(--color-border)' }}>
+                                    <div className="font-bold text-lg">{isCalling && !callAccepted ? 'Calling...' : `${callType === 'video' ? 'Video' : 'Voice'} Call`}</div>
+                                    <div className="font-semibold text-lg">{otherUser?.displayName || otherUser?.username || 'User'}</div>
                               </div>
-                              <div className="chat-call-video-container" style={{ flex: 1, position: 'relative', background: '#000' }}>
+                              <div className="chat-call-video-container" style={{ flex: 1, position: 'relative', background: 'var(--color-bg-primary)' }}>
                                     {/* Main Video (Remote User) */}
                                     {callAccepted && (
                                           <video
@@ -53,20 +53,20 @@ const CallOverlay = () => {
 
                                     {/* Avatar placeholder if voice call or video not connected or video paused */}
                                     {(!callAccepted || callType === 'voice' || (callAccepted && isVideoOff)) && (
-                                          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', background: '#111' }}>
-                                                <div className="msg-avatar" style={{ width: '100px', height: '100px', fontSize: '3rem', marginBottom: '16px' }}>
+                                          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', background: 'var(--color-bg-tertiary)' }}>
+                                                <div className="msg-avatar" style={{ width: '120px', height: '120px', fontSize: '4rem', marginBottom: '24px', boxShadow: 'var(--shadow-lg)' }}>
                                                       {otherUser?.avatar ? <img src={otherUser.avatar} alt="Avatar" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : (otherUser?.displayName?.charAt(0) || otherUser?.username?.charAt(0) || 'U')}
                                                 </div>
-                                                {isCalling && !callAccepted && <div style={{ color: 'white', animation: 'pulse 1.5s infinite' }}>Ringing...</div>}
-                                                {callAccepted && isVideoOff && <div style={{ color: 'white', opacity: 0.8 }}>Camera Paused</div>}
+                                                {isCalling && !callAccepted && <div style={{ color: 'var(--color-accent-primary)', fontSize: '1.2rem', animation: 'pulse 1.5s infinite', fontWeight: 'bold' }}>Ringing...</div>}
+                                                {callAccepted && isVideoOff && <div style={{ color: 'var(--color-text-secondary)', fontSize: '1.2rem' }}>Camera Paused</div>}
                                           </div>
                                     )}
                               </div>
-                              <div className="chat-call-controls" style={{ padding: '24px', display: 'flex', justifyContent: 'center', gap: '24px', background: 'var(--bg-card)' }}>
+                              <div className="chat-call-controls" style={{ padding: '32px 24px', display: 'flex', justifyContent: 'center', gap: '32px', background: 'var(--color-bg-secondary)', borderTop: '1px solid var(--color-border)' }}>
                                     {/* Mute/Unmute Button */}
                                     <button onClick={toggleMute} title={isMuted ? "Unmute" : "Mute"} style={{
-                                          width: '56px', height: '56px', borderRadius: '50%', background: isMuted ? '#6b7280' : 'var(--bg-secondary)',
-                                          color: isMuted ? 'white' : 'var(--text-primary)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.2s'
+                                          width: '64px', height: '64px', borderRadius: '50%', background: isMuted ? 'var(--color-accent-primary)' : 'var(--color-bg-hover)',
+                                          color: isMuted ? 'white' : 'var(--color-text-primary)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.2s', boxShadow: 'var(--shadow-md)'
                                     }}>
                                           {isMuted ? (
                                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
@@ -82,8 +82,8 @@ const CallOverlay = () => {
                                     {/* Video Toggle Button (Only show if it's a video call) */}
                                     {callType === 'video' && (
                                           <button onClick={toggleVideo} title={isVideoOff ? "Turn Camera On" : "Turn Camera Off"} style={{
-                                                width: '56px', height: '56px', borderRadius: '50%', background: isVideoOff ? '#6b7280' : 'var(--bg-secondary)',
-                                                color: isVideoOff ? 'white' : 'var(--text-primary)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.2s'
+                                                width: '64px', height: '64px', borderRadius: '50%', background: isVideoOff ? 'var(--color-accent-primary)' : 'var(--color-bg-hover)',
+                                                color: isVideoOff ? 'white' : 'var(--color-text-primary)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.2s', boxShadow: 'var(--shadow-md)'
                                           }}>
                                                 {isVideoOff ? (
                                                       <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
@@ -98,8 +98,8 @@ const CallOverlay = () => {
                                     )}
 
                                     <button onClick={() => leaveCall(true)} className="chat-call-end-btn" style={{
-                                          width: '56px', height: '56px', borderRadius: '50%', background: '#ef4444',
-                                          color: 'white', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                          width: '64px', height: '64px', borderRadius: '50%', background: '#ef4444',
+                                          color: 'white', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-md)'
                                     }}>
                                           <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
                                                 <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z" />
@@ -111,8 +111,8 @@ const CallOverlay = () => {
 
                   {/* Incoming Call Modal */}
                   {showCallModal === 'incoming' && !callAccepted && (
-                        <div className="chat-call-modal-overlay" style={{ zIndex: 9999, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
-                              <div className="chat-call-modal" onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-card)', padding: '24px', borderRadius: '16px', textAlign: 'center', minWidth: '300px' }}>
+                        <div className="chat-call-modal-overlay" style={{ zIndex: 999999, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+                              <div className="chat-call-modal" onClick={(e) => e.stopPropagation()} style={{ background: 'var(--color-bg-card)', padding: '32px', borderRadius: '24px', textAlign: 'center', minWidth: '320px', boxShadow: 'var(--shadow-xl)' }}>
                                     <div className="chat-call-modal-icon" style={{ fontSize: '3rem', marginBottom: '16px' }}>
                                           {callType === 'video' ? '📹' : '📞'}
                                     </div>

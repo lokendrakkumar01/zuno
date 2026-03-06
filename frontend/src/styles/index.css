@@ -8,8 +8,8 @@
 :root {
   /* Primary Colors - Clean White & Instagram Blue */
   --color-bg-primary: #ffffff;
-  --color-bg-secondary: #fafafa;
-  --color-bg-tertiary: #efefef;
+  --color-bg-secondary: #ffffff;
+  --color-bg-tertiary: #ffffff;
   --color-bg-card: #ffffff;
   --color-bg-hover: #f0f0f0;
 
@@ -101,8 +101,8 @@
 /* Light Mode */
 [data-theme="light"] {
   --color-bg-primary: #ffffff;
-  --color-bg-secondary: #fafafa;
-  --color-bg-tertiary: #efefef;
+  --color-bg-secondary: #ffffff;
+  --color-bg-tertiary: #ffffff;
   --color-bg-card: #ffffff;
   --color-bg-hover: #f0f0f0;
   --color-text-primary: #262626;
@@ -115,8 +115,8 @@
 /* System Theme - follows OS preference */
 [data-theme="system"] {
   --color-bg-primary: #ffffff;
-  --color-bg-secondary: #fafafa;
-  --color-bg-tertiary: #efefef;
+  --color-bg-secondary: #ffffff;
+  --color-bg-tertiary: #ffffff;
   --color-bg-card: #ffffff;
   --color-bg-hover: #f0f0f0;
   --color-text-primary: #262626;

@@ -7,13 +7,17 @@ import zunoLogo from '../../assets/zuno-logo.png';
 import { API_URL } from '../../config';
 
 const Layout = () => {
+      // 1. All hooks at the very top
       const { user, isAuthenticated, logout, token } = useAuth();
+      const { socket } = useSocketContext();
       const { t } = useLanguage();
       const navigate = useNavigate();
-      const { socket } = useSocketContext();
       const location = useLocation();
       const [scrolled, setScrolled] = useState(false);
       const [unreadCount, setUnreadCount] = useState(0);
+
+      // Console log for debugging production builds
+      console.log('🏗️ Layout Render:', { isAuthenticated, hasSocket: !!socket, scrolled, unreadCount });
 
       useEffect(() => {
             const handleScroll = () => {
