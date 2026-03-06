@@ -159,12 +159,27 @@ const Chat = () => {
       useEffect(() => {
             if (!socket) return;
 
-            socket.on("newMessage", (newMessage) => {
+            const handleNewMessage = (newMessage) => {
                   const incomingSenderId = (newMessage.sender?._id || newMessage.sender || '').toString();
-                  if (incomingSenderId === userId?.toString()) {
-                        setMessages((prev) => [...prev, newMessage]);
-                        // Mark as read and emit read event to sender
-                        if (document.visibilityState === 'visible') {
+                  const incomingReceiverId = (newMessage.receiver?._id || newMessage.receiver || '').toString();
+                  const currentUserId = (user?._id || user?.id || '').toString();
+
+                  // Show message if it's from the other user in THIS chat
+                  // OR if it's sent by me to the other user (multi-tab / cross-window support)
+                  const isFromOtherUser = incomingSenderId === userId?.toString();
+                  const isFromMe = incomingSenderId === currentUserId && incomingReceiverId === userId?.toString();
+
+                  if (isFromOtherUser || isFromMe) {
+                        setMessages((prev) => {
+                              // Deduplication: skip if message with same _id already exists
+                              if (prev.some(m => m._id === newMessage._id)) return prev;
+                              // Replace optimistic (temp_) message if it matches
+                              const existsAsTemp = prev.some(m => m._sending && m.text === newMessage.text);
+                              if (existsAsTemp && isFromMe) return prev; // Already shown via optimistic UI
+                              return [...prev, newMessage];
+                        });
+                        // Mark as read only when the other user sends to us
+                        if (isFromOtherUser && document.visibilityState === 'visible') {
                               fetch(`${API_URL}/messages/${userId}/read`, {
                                     method: 'PUT',
                                     headers: { 'Authorization': `Bearer ${token}` }
@@ -172,32 +187,38 @@ const Chat = () => {
                               socket.emit("messageRead", { receiverId: userId });
                         }
                   }
-            });
+            };
 
-            socket.on("typing", (data) => {
+            const handleTyping = (data) => {
                   if (data.senderId === userId) setIsTyping(true);
-            });
+            };
 
-            socket.on("stopTyping", (data) => {
+            const handleStopTyping = (data) => {
                   if (data.senderId === userId) setIsTyping(false);
-            });
+            };
 
-            socket.on("messageRead", () => {
+            const handleMessageRead = () => {
                   setMessages(prev => prev.map(m => (!m.read && m.receiver === userId) ? { ...m, read: true } : m));
-            });
+            };
 
-            socket.on("messageReaction", (data) => {
+            const handleMessageReaction = (data) => {
                   setMessages(prev => prev.map(m => m._id === data.messageId ? { ...m, reactions: data.reactions } : m));
-            });
+            };
+
+            socket.on("newMessage", handleNewMessage);
+            socket.on("typing", handleTyping);
+            socket.on("stopTyping", handleStopTyping);
+            socket.on("messageRead", handleMessageRead);
+            socket.on("messageReaction", handleMessageReaction);
 
             return () => {
-                  socket.off("newMessage");
-                  socket.off("typing");
-                  socket.off("stopTyping");
-                  socket.off("messageRead");
-                  socket.off("messageReaction");
+                  socket.off("newMessage", handleNewMessage);
+                  socket.off("typing", handleTyping);
+                  socket.off("stopTyping", handleStopTyping);
+                  socket.off("messageRead", handleMessageRead);
+                  socket.off("messageReaction", handleMessageReaction);
             };
-      }, [socket, userId, token]);
+      }, [socket, userId, token, user]);
 
       useEffect(() => {
             scrollToBottom();

@@ -234,6 +234,12 @@ const sendMessage = async (req, res) => {
                   io.to(receiverSocketId).emit("newMessage", message);
             }
 
+            // Also emit back to sender (for multi-tab / other windows of same user)
+            const senderSocketId = getReceiverSocketId(req.user.id);
+            if (senderSocketId) {
+                  io.to(senderSocketId).emit("newMessage", message);
+            }
+
             res.status(201).json({
                   success: true,
                   message: 'Message sent',

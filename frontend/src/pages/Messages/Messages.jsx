@@ -22,6 +22,12 @@ const Messages = () => {
             }
       }, [isAuthenticated]);
 
+      // Reset search when navigating back to this page
+      useEffect(() => {
+            setSearchQuery('');
+            setSearchResults([]);
+      }, []);
+
       // Socket listener for real-time updates
       useEffect(() => {
             if (socket) {
