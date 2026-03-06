@@ -493,6 +493,7 @@ module.exports = {
       getFollowers,
       getFollowing,
       getCloseFriends,
+      addCloseFriend,
       removeCloseFriend,
       searchUsers,
       deleteAccount
