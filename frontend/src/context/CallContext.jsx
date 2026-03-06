@@ -2,6 +2,7 @@ import { createContext, useState, useEffect, useRef, useContext } from "react";
 import Peer from "simple-peer";
 import { useSocketContext } from "./SocketContext";
 import { useAuth } from "./AuthContext";
+import { API_URL } from "../config";
 import { useNavigate } from "react-router-dom";
 
 const CallContext = createContext();
@@ -18,7 +19,7 @@ export const useCallContext = () => useContext(CallContext);
 
 export const CallProvider = ({ children }) => {
       const { socket } = useSocketContext();
-      const { user } = useAuth();
+      const { user, token } = useAuth();
       const navigate = useNavigate();
 
       const [stream, setStream] = useState(null);
@@ -38,6 +39,7 @@ export const CallProvider = ({ children }) => {
       const myVideo = useRef();
       const userVideo = useRef();
       const connectionRef = useRef();
+      const callStartTime = useRef(null);
 
       useEffect(() => {
             if (!socket) return;
@@ -52,6 +54,7 @@ export const CallProvider = ({ children }) => {
 
             const handleCallAccepted = (signal) => {
                   setCallAccepted(true);
+                  callStartTime.current = Date.now();
                   if (connectionRef.current) {
                         connectionRef.current.signal(signal);
                   }
@@ -157,6 +160,7 @@ export const CallProvider = ({ children }) => {
       const answerCall = async () => {
             setShowCallModal(null);
             setCallAccepted(true);
+            callStartTime.current = Date.now();
 
             try {
                   const mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -215,7 +219,38 @@ export const CallProvider = ({ children }) => {
             }
       };
 
-      const leaveCall = (emitEvent = true) => {
+      const leaveCall = async (emitEvent = true) => {
+            // Build Call Log if initiator
+            if (isCalling && caller) {
+                  let callLogMessage = '';
+                  const typeLabel = callType === 'video' ? '📹 Video' : '📞 Voice';
+
+                  if (callAccepted && callStartTime.current) {
+                        const durationSeconds = Math.floor((Date.now() - callStartTime.current) / 1000);
+                        const mins = Math.floor(durationSeconds / 60);
+                        const secs = durationSeconds % 60;
+                        const durationStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+                        callLogMessage = `${typeLabel} Call • ${durationStr}`;
+                  } else {
+                        callLogMessage = `❌ Missed ${typeLabel} Call`;
+                  }
+
+                  const otherPartyId = caller._id || caller.id || caller;
+
+                  try {
+                        await fetch(`${API_URL}/messages/${otherPartyId}`, {
+                              method: 'POST',
+                              headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${token}`
+                              },
+                              body: JSON.stringify({ text: callLogMessage })
+                        });
+                  } catch (err) {
+                        console.error('Failed to save call log:', err);
+                  }
+            }
+
             setCallEnded(true);
             setIsCalling(false);
             setReceivingCall(false);
@@ -247,6 +282,7 @@ export const CallProvider = ({ children }) => {
                   setCallerSignal(null);
                   setIsMuted(false);
                   setIsVideoOff(false);
+                  callStartTime.current = null;
             }, 1000);
       };
 

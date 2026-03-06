@@ -577,6 +577,33 @@ const Chat = () => {
                         ) : messages.length > 0 ? (
                               messages.map((msg, index) => {
                                     const isMine = msg.sender?._id === user?._id || msg.sender === user?._id;
+                                    const isCallLog = msg.text?.startsWith('📞') || msg.text?.startsWith('📹') || msg.text?.startsWith('❌ Missed');
+
+                                    if (isCallLog) {
+                                          return (
+                                                <div key={msg._id} style={{ display: 'flex', justifyContent: 'center', margin: '12px 0' }}>
+                                                      {shouldShowDateSeparator(msg, index) && (
+                                                            <div className="chat-date-separator" style={{ position: 'absolute', top: '-30px' }}>
+                                                                  <span>{formatDateSeparator(msg.createdAt)}</span>
+                                                            </div>
+                                                      )}
+                                                      <div style={{
+                                                            background: 'var(--bg-secondary)',
+                                                            padding: '8px 16px',
+                                                            borderRadius: '16px',
+                                                            fontSize: '0.85rem',
+                                                            color: 'var(--text-secondary)',
+                                                            border: '1px solid var(--border-color)',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '8px'
+                                                      }}>
+                                                            <span>{msg.text}</span>
+                                                            <span style={{ fontSize: '0.75rem', opacity: 0.6, marginLeft: '4px' }}>{formatTime(msg.createdAt)}</span>
+                                                      </div>
+                                                </div>
+                                          )
+                                    }
 
                                     return (
                                           <div key={msg._id}>
