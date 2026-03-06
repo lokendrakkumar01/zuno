@@ -15,7 +15,6 @@ const Settings = () => {
 
       // Modal states
       const [showActivity, setShowActivity] = useState(false);
-      const [showInsights, setShowInsights] = useState(false);
       const [showCloseFriends, setShowCloseFriends] = useState(false);
       const [showArchive, setShowArchive] = useState(false);
       const [showCreatorTools, setShowCreatorTools] = useState(false);
@@ -111,7 +110,7 @@ const Settings = () => {
                               icon="📈"
                               label={t('insights')}
                               subtitle="View your content analytics"
-                              onClick={() => setShowInsights(true)}
+                              onClick={() => navigate('/settings/insights')}
                         />
                         <SettingsOption
                               icon="✓"
@@ -218,11 +217,6 @@ const Settings = () => {
                         <ActivityModal onClose={() => setShowActivity(false)} />
                   )}
 
-                  {/* Modal for Insights */}
-                  {showInsights && (
-                        <InsightsModal onClose={() => setShowInsights(false)} />
-                  )}
-
                   {/* Modal for Close Friends */}
                   {showCloseFriends && (
                         <CloseFriendsModal onClose={() => setShowCloseFriends(false)} />
@@ -242,21 +236,6 @@ const Settings = () => {
 };
 
 // Simple Modal Components (placeholders for now)
-
-const InsightsModal = ({ onClose }) => (
-      <ModalWrapper title="Insights" onClose={onClose}>
-            <div style={{ padding: '20px' }}>
-                  <div style={{ fontSize: '48px', textAlign: 'center', marginBottom: '16px' }}>📈</div>
-                  <h3 style={{ textAlign: 'center', marginBottom: '24px', color: 'var(--color-text-primary)' }}>Content Analytics</h3>
-                  <div>
-                        <StatCard label="Total Reach" value="1,234" icon="👥" />
-                        <StatCard label="Engagement Rate" value="8.5%" icon="💓" />
-                        <StatCard label="Profile Visits" value="456" icon="👁️" />
-                        <StatCard label="New Followers" value="89" icon="➕" />
-                  </div>
-            </div>
-      </ModalWrapper>
-);
 
 const CloseFriendsModal = ({ onClose }) => (
       <ModalWrapper title="Close Friends" onClose={onClose}>

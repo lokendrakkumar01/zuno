@@ -22,6 +22,7 @@ import PasswordSecurity from './pages/Settings/PasswordSecurity';
 import CloseFriends from './pages/Settings/CloseFriends';
 import Activity from './pages/Settings/Activity';
 import ScheduledContent from './pages/Settings/ScheduledContent';
+import Insights from './pages/Settings/Insights';
 import Search from './pages/Search/Search';
 import SavedContent from './pages/SavedContent';
 import Messages from './pages/Messages/Messages';
@@ -89,6 +90,7 @@ function AppRouter() {
                               <Route path="settings/close-friends" element={<CloseFriends />} />
                               <Route path="settings/activity" element={<Activity />} />
                               <Route path="settings/scheduled-content" element={<ScheduledContent />} />
+                              <Route path="settings/insights" element={<Insights />} />
                               <Route path="search" element={<Search />} />
                               <Route path="messages" element={<Messages />} />
                               <Route path="messages/:userId" element={<Chat />} />
