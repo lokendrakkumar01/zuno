@@ -120,6 +120,14 @@ const Chat = () => {
       const isOnline = onlineUsers.some(id => id.toString() === userId?.toString());
 
       useEffect(() => {
+            // Reset and load from cache immediately when userId changes
+            setMessages([]);
+            setOtherUser(() => {
+                  try {
+                        const cached = localStorage.getItem(`zuno_user_cache_${userId}`);
+                        return cached ? JSON.parse(cached) : null;
+                  } catch { return null; }
+            });
             fetchMessages();
       }, [userId]);
 
@@ -127,7 +135,8 @@ const Chat = () => {
             if (!socket) return;
 
             socket.on("newMessage", (newMessage) => {
-                  if (newMessage.sender === userId || newMessage.sender._id === userId) {
+                  const incomingSenderId = (newMessage.sender?._id || newMessage.sender || '').toString();
+                  if (incomingSenderId === userId?.toString()) {
                         setMessages((prev) => [...prev, newMessage]);
                         // Mark as read and emit read event to sender
                         if (document.visibilityState === 'visible') {

@@ -16,31 +16,23 @@ export const SocketContextProvider = ({ children }) => {
 
       useEffect(() => {
             if (user) {
-                  const userId = user._id || user.id || user;
-                  // Ensure we use the base url without /api
-                  let socketUrl = API_URL.replace(/\/api$/, '');
-                  // For Render production, enforce secure websocket (wss://) if the URL is https
-                  if (socketUrl.startsWith('https://')) {
-                        socketUrl = socketUrl.replace('https://', 'wss://');
-                  } else if (socketUrl.startsWith('http://')) {
-                        socketUrl = socketUrl.replace('http://', 'ws://');
-                  }
+                  const userId = (user._id || user.id || user).toString();
+                  // Simplified URL logic - let socket.io handle protocol switching
+                  const socketUrl = API_URL.replace(/\/api$/, '');
 
-                  // In production (Render), ensure it uses secure websockets by letting socket.io handle it
                   const socketInstance = io(socketUrl, {
                         query: {
-                              userId: userId
+                              userId
                         },
-                        transports: ['websocket'], // Force websocket for speed
+                        transports: ['websocket'],
                         reconnection: true,
                         reconnectionAttempts: 10,
-                        reconnectionDelay: 500, // Faster reconnection attempts
+                        reconnectionDelay: 500,
                         timeout: 20000
                   });
 
                   setSocket(socketInstance);
 
-                  // socket.on is used to listen to the events. can be used both on client and server side
                   socketInstance.on("getOnlineUsers", (users) => {
                         setOnlineUsers(users);
                   });
