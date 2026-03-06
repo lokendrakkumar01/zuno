@@ -31,6 +31,10 @@ export const CallProvider = ({ children }) => {
       const [isCalling, setIsCalling] = useState(false);
       const [showCallModal, setShowCallModal] = useState(null);
 
+      // Hardware Controls
+      const [isMuted, setIsMuted] = useState(false);
+      const [isVideoOff, setIsVideoOff] = useState(false);
+
       const myVideo = useRef();
       const userVideo = useRef();
       const connectionRef = useRef();
@@ -193,6 +197,24 @@ export const CallProvider = ({ children }) => {
             }
       };
 
+      const toggleMute = () => {
+            if (stream) {
+                  stream.getAudioTracks().forEach((track) => {
+                        track.enabled = !track.enabled;
+                  });
+                  setIsMuted(!stream.getAudioTracks()[0].enabled);
+            }
+      };
+
+      const toggleVideo = () => {
+            if (stream) {
+                  stream.getVideoTracks().forEach((track) => {
+                        track.enabled = !track.enabled;
+                  });
+                  setIsVideoOff(!stream.getVideoTracks()[0].enabled);
+            }
+      };
+
       const leaveCall = (emitEvent = true) => {
             setCallEnded(true);
             setIsCalling(false);
@@ -223,6 +245,8 @@ export const CallProvider = ({ children }) => {
                   setCallType(null);
                   setCaller(null);
                   setCallerSignal(null);
+                  setIsMuted(false);
+                  setIsVideoOff(false);
             }, 1000);
       };
 
@@ -232,7 +256,9 @@ export const CallProvider = ({ children }) => {
                   receivingCall, caller, callerSignal,
                   callAccepted, callEnded, callType,
                   isCalling, showCallModal, setShowCallModal,
-                  startCall, answerCall, leaveCall
+                  isMuted, isVideoOff,
+                  startCall, answerCall, leaveCall,
+                  toggleMute, toggleVideo
             }}>
                   {children}
             </CallContext.Provider>
