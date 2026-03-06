@@ -204,9 +204,27 @@ const Settings = () => {
                         <SettingsOption
                               icon="🗑️"
                               label={t('deleteAccount')}
-                              onClick={() => {
-                                    if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
-                                          toast.info('Contact support to delete your account');
+                              onClick={async () => {
+                                    if (window.confirm('Are you sure you want to permanently delete your account? This action cannot be undone.')) {
+                                          try {
+                                                const res = await fetch(`${API_URL}/users/account`, {
+                                                      method: 'DELETE',
+                                                      headers: {
+                                                            'Authorization': `Bearer ${token}`
+                                                      }
+                                                });
+                                                const data = await res.json();
+
+                                                if (data.success) {
+                                                      toast.info('Your account has been deleted.');
+                                                      logout();
+                                                      navigate('/login');
+                                                } else {
+                                                      toast.error(data.message || 'Failed to delete account');
+                                                }
+                                          } catch (error) {
+                                                toast.error('Failed to connect to the server.');
+                                          }
                                     }
                               }}
                         />

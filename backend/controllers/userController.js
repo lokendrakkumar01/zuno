@@ -441,6 +441,44 @@ const searchUsers = async (req, res) => {
       }
 };
 
+// @desc    Delete user account
+// @route   DELETE /api/users/account
+// @access  Private
+const deleteAccount = async (req, res) => {
+      try {
+            const Content = require('../models/Content');
+            const Comment = require('../models/Comment');
+
+            const userId = req.user.id;
+
+            // Delete user's content (posts/videos)
+            await Content.deleteMany({ author: userId });
+
+            // Delete user's comments
+            await Comment.deleteMany({ user: userId });
+
+            // Additionally remove from followers/following of others (optional, robust cleanup)
+            await User.updateMany(
+                  { $or: [{ followers: userId }, { following: userId }, { closeFriends: userId }] },
+                  { $pull: { followers: userId, following: userId, closeFriends: userId } }
+            );
+
+            // Finally, delete the user themselves
+            await User.findByIdAndDelete(userId);
+
+            res.json({
+                  success: true,
+                  message: 'Account deleted successfully'
+            });
+      } catch (error) {
+            res.status(500).json({
+                  success: false,
+                  message: 'Failed to delete account',
+                  error: error.message
+            });
+      }
+};
+
 module.exports = {
       getUserProfile,
       updateProfile,
@@ -455,7 +493,7 @@ module.exports = {
       getFollowers,
       getFollowing,
       getCloseFriends,
-      addCloseFriend,
       removeCloseFriend,
-      searchUsers
+      searchUsers,
+      deleteAccount
 };

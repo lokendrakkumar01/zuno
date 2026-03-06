@@ -16,7 +16,8 @@ const {
       getCloseFriends,
       addCloseFriend,
       removeCloseFriend,
-      searchUsers
+      searchUsers,
+      deleteAccount
 } = require('../controllers/userController');
 const { protect } = require('../middleware/auth');
 
@@ -34,6 +35,7 @@ router.put('/profile', protect, updateProfile);
 router.put('/interests', protect, updateInterests);
 router.put('/feed-preferences', protect, updateFeedPreferences);
 router.put('/focus-mode', protect, toggleFocusMode);
+router.delete('/account', protect, deleteAccount);
 
 // Social
 router.post('/:id/follow', protect, followUser);
