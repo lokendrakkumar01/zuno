@@ -209,7 +209,10 @@ const sendMessage = async (req, res) => {
                         sender: req.user.id,
                         createdAt: new Date()
                   };
-                  const currentUnread = conversation.unreadCount?.get(userId) || 0;
+                  if (!conversation.unreadCount) {
+                        conversation.unreadCount = new Map();
+                  }
+                  const currentUnread = conversation.unreadCount.get(userId) || 0;
                   conversation.unreadCount.set(userId, currentUnread + 1);
                   await conversation.save();
             } else {
