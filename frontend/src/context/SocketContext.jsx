@@ -21,15 +21,14 @@ export const SocketContextProvider = ({ children }) => {
                   const socketUrl = API_URL.replace(/\/api$/, '');
 
                   const socketInstance = io(socketUrl, {
-                        query: {
-                              userId
-                        },
-                        transports: ['websocket', 'polling'],  // polling fallback if ws fails
-                        upgrade: true,
+                        query: { userId },
+                        transports: ['websocket'],  // Skip slow polling, force WebSocket immediately
+                        upgrade: false,             // 'upgrade' is only needed if starting with polling
                         reconnection: true,
-                        reconnectionAttempts: 15,
-                        reconnectionDelay: 500,
-                        timeout: 20000
+                        reconnectionAttempts: Infinity,
+                        reconnectionDelay: 1000,
+                        reconnectionDelayMax: 5000,
+                        timeout: 10000              // Match backend pingTimeout
                   });
 
                   setSocket(socketInstance);

@@ -10,7 +10,10 @@ const io = new Server(server, {
             methods: ["GET", "POST", "PUT", "DELETE"],
             credentials: false
       },
-      allowEIO3: true  // backward-compat with older socket.io clients
+      allowEIO3: true,  // backward-compat with older socket.io clients
+      pingTimeout: 10000, // Faster disconnect detection (10s instead of 45s)
+      pingInterval: 5000, // Ping every 5s instead of 25s
+      transports: ['websocket', 'polling'] // Allow both, but client will force websocket
 });
 
 const userSocketMap = {}; // {userId: socketId}
