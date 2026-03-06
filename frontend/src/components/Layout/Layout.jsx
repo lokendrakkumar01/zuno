@@ -12,6 +12,16 @@ const Layout = () => {
       const navigate = useNavigate();
       const { socket } = useSocketContext();
       const location = useLocation();
+      const [scrolled, setScrolled] = useState(false);
+      const [unreadCount, setUnreadCount] = useState(0);
+
+      useEffect(() => {
+            const handleScroll = () => {
+                  setScrolled(window.scrollY > 20);
+            };
+            window.addEventListener('scroll', handleScroll);
+            return () => window.removeEventListener('scroll', handleScroll);
+      }, []);
 
       // Fetch unread message count
       const fetchUnread = async () => {
