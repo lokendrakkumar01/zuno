@@ -44,8 +44,9 @@ const GlobalNotification = () => {
             if (!socket) return;
 
             const handleNewMessage = (newMessage) => {
-                  // Don't show toast if we are currently chatting with this user
-                  const isOnChatPage = location.pathname === `/messages/${newMessage.sender._id || newMessage.sender}`;
+                  const senderId = (newMessage.sender?._id || newMessage.sender || '').toString();
+                  const pathUserId = location.pathname.split('/').pop();
+                  const isOnChatPage = location.pathname.startsWith('/messages/') && pathUserId === senderId;
 
                   if (!isOnChatPage || document.hidden) {
                         playNotificationSound();
