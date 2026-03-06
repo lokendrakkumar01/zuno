@@ -21,6 +21,7 @@ export const AuthProvider = ({ children }) => {
             const checkAuth = async () => {
                   if (token) {
                         try {
+                              // Perform check in background
                               const res = await fetch(`${API_URL}/auth/me`, {
                                     headers: { 'Authorization': `Bearer ${token}` }
                               });
@@ -33,15 +34,23 @@ export const AuthProvider = ({ children }) => {
                                     // Token is truly invalid/expired — only then logout
                                     logout();
                               }
-                              // For other errors (500, network), keep cached user
                         } catch (error) {
                               console.error('Auth check failed (server may be starting):', error);
                               // Keep cached user — don't logout on network errors
                         }
                   }
+                  // Even if check fails, we stop loading if we have cached data
                   setLoading(false);
             };
-            checkAuth();
+
+            if (user && token) {
+                  // If we already have cached data, stop loading immediately
+                  setLoading(false);
+                  // Still check in background to refresh data
+                  checkAuth();
+            } else {
+                  checkAuth();
+            }
       }, [token]);
 
       const fetchWithTimeout = async (url, options = {}, timeout = 45000) => {

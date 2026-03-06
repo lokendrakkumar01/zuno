@@ -31,10 +31,11 @@ export const SocketContextProvider = ({ children }) => {
                         query: {
                               userId: userId
                         },
-                        transports: ['websocket', 'polling'], // Try websocket first, fallback to polling
+                        transports: ['websocket'], // Force websocket for speed
                         reconnection: true,
-                        reconnectionAttempts: 5,
-                        reconnectionDelay: 1000
+                        reconnectionAttempts: 10,
+                        reconnectionDelay: 500, // Faster reconnection attempts
+                        timeout: 20000
                   });
 
                   setSocket(socketInstance);

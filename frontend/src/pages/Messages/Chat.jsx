@@ -19,10 +19,24 @@ const Chat = () => {
       const { token, user } = useAuth();
       const { socket, onlineUsers } = useSocketContext();
       const navigate = useNavigate();
-      const [messages, setMessages] = useState([]);
-      const [otherUser, setOtherUser] = useState(null);
+      const [messages, setMessages] = useState(() => {
+            try {
+                  const cached = localStorage.getItem(`zuno_chat_cache_${userId}`);
+                  return cached ? JSON.parse(cached) : [];
+            } catch {
+                  return [];
+            }
+      });
+      const [otherUser, setOtherUser] = useState(() => {
+            try {
+                  const cached = localStorage.getItem(`zuno_user_cache_${userId}`);
+                  return cached ? JSON.parse(cached) : null;
+            } catch {
+                  return null;
+            }
+      });
       const [newMessage, setNewMessage] = useState('');
-      const [loading, setLoading] = useState(true);
+      const [loading, setLoading] = useState(!localStorage.getItem(`zuno_chat_cache_${userId}`));
       const [sending, setSending] = useState(false);
       const messagesEndRef = useRef(null);
       const pollRef = useRef(null);
@@ -176,6 +190,13 @@ const Chat = () => {
                   if (data.success) {
                         setMessages(data.data.messages);
                         setOtherUser(data.data.otherUser);
+                        // Cache for instant loading next time
+                        try {
+                              localStorage.setItem(`zuno_chat_cache_${userId}`, JSON.stringify(data.data.messages));
+                              localStorage.setItem(`zuno_user_cache_${userId}`, JSON.stringify(data.data.otherUser));
+                        } catch (e) {
+                              console.warn('Cache quota exceeded');
+                        }
                         // Once loaded, tell the other user we've read their stuff
                         socket?.emit("messageRead", { receiverId: userId });
                   }
@@ -300,7 +321,13 @@ const Chat = () => {
                   const data = await res.json();
                   if (data.success) {
                         // Replace optimistic message with real one
-                        setMessages(prev => prev.map(m => m._id === tempId ? data.data.message : m));
+                        setMessages(prev => {
+                              const updated = prev.map(m => m._id === tempId ? data.data.message : m);
+                              try {
+                                    localStorage.setItem(`zuno_chat_cache_${userId}`, JSON.stringify(updated.slice(-50))); // Keep last 50
+                              } catch (e) { }
+                              return updated;
+                        });
                   } else {
                         // Remove failed message
                         setMessages(prev => prev.filter(m => m._id !== tempId));
