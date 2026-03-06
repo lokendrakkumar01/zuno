@@ -68,7 +68,8 @@ const Profile = () => {
             const targetUsername = username || user?.username;
             if (targetUsername) {
                   try {
-                        const res = await fetch(`${API_URL}/users/${targetUsername}`);
+                        const encodedUsername = encodeURIComponent(targetUsername);
+                        const res = await fetch(`${API_URL}/users/${encodedUsername}`);
                         const data = await res.json();
                         if (data.success) {
                               setProfileUser(data.data.user);
@@ -87,7 +88,8 @@ const Profile = () => {
                   const targetUsername = username || user?.username;
                   if (targetUsername) {
                         try {
-                              const res = await fetch(`${API_URL}/users/${targetUsername}`);
+                              const encodedUsername = encodeURIComponent(targetUsername);
+                              const res = await fetch(`${API_URL}/users/${encodedUsername}`);
                               const data = await res.json();
                               if (data.success) {
                                     setProfileUser(data.data.user);
@@ -117,7 +119,8 @@ const Profile = () => {
       const fetchUserPosts = async (uname) => {
             try {
                   const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-                  const res = await fetch(`${API_URL}/feed/creator/${uname}`, { headers });
+                  const encodedUname = encodeURIComponent(uname);
+                  const res = await fetch(`${API_URL}/feed/creator/${encodedUname}`, { headers });
                   const data = await res.json();
                   if (data.success) {
                         // API returns { data: { contents: [...], creator: {...}, pagination: {...} } }
@@ -142,7 +145,8 @@ const Profile = () => {
             setFollowersList([]);
 
             try {
-                  const res = await fetch(`${API_URL}/users/${targetUsername}/followers`);
+                  const encodedUsername = encodeURIComponent(targetUsername);
+                  const res = await fetch(`${API_URL}/users/${encodedUsername}/followers`);
                   const data = await res.json();
 
                   if (data.success) {
@@ -172,7 +176,8 @@ const Profile = () => {
             setFollowingList([]);
 
             try {
-                  const res = await fetch(`${API_URL}/users/${targetUsername}/following`);
+                  const encodedUsername = encodeURIComponent(targetUsername);
+                  const res = await fetch(`${API_URL}/users/${encodedUsername}/following`);
                   const data = await res.json();
 
                   if (data.success) {
