@@ -398,12 +398,23 @@ const Chat = () => {
                   }
                   const data = await res.json();
                   if (data.success) {
-                        // Track the real message ID (as string) so socket echo doesn't duplicate it
-                        sentMsgIds.current.add(data.data.message._id?.toString());
-                        // Replace optimistic message with real one
+                        const realMsgListId = data.data.message._id?.toString();
+                        // Track the real message ID
+                        sentMsgIds.current.add(realMsgListId);
+
+                        // Replace optimistic message with real one, OR remove optimistic if real already exists (socket won the race)
                         setMessages(prev => {
-                              const updated = prev.map(m => m._id === tempId ? data.data.message : m);
-                              // Async update storage to not block main thread
+                              const alreadyHasReal = prev.some(m => m._id?.toString() === realMsgListId);
+                              let updated;
+
+                              if (alreadyHasReal) {
+                                    // Socket came first! The real message is already added. Just remove the temp optimistic one.
+                                    updated = prev.filter(m => m._id !== tempId);
+                              } else {
+                                    // HTTP came first. Replace temp with real.
+                                    updated = prev.map(m => m._id === tempId ? data.data.message : m);
+                              }
+
                               setTimeout(() => {
                                     try {
                                           sessionStorage.setItem(`zuno_chat_cache_${userId}`, JSON.stringify(updated.slice(-100)));
