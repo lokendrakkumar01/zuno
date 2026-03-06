@@ -17,6 +17,10 @@ const Appearance = () => {
             setTheme(newTheme);
             document.documentElement.setAttribute('data-theme', newTheme);
             localStorage.setItem('theme', newTheme);
+
+            // Dispatch custom event for other components to listen
+            window.dispatchEvent(new Event('storage'));
+
             setMessage('✅ Theme updated!');
             setTimeout(() => setMessage(''), 2000);
       };

@@ -156,6 +156,12 @@ const Settings = () => {
                               onClick={() => navigate('/settings/appearance')}
                         />
                         <SettingsOption
+                              icon="💬"
+                              label={t('messages')}
+                              subtitle="Manage your chats and messages"
+                              onClick={() => navigate('/messages')}
+                        />
+                        <SettingsOption
                               icon="🌍"
                               label={t('language')}
                               value={user?.language === 'hi' ? 'Hindi' : 'English'}
