@@ -466,34 +466,33 @@ const Profile = () => {
 
                                           {/* Action Buttons */}
                                           {isOwnProfile ? (
-                                                <div className="flex gap-md flex-wrap">
+                                                <div className="flex gap-md flex-wrap w-full mt-sm">
                                                       <button
                                                             onClick={() => setEditing(!editing)}
-                                                            className={`btn ${editing ? 'btn-ghost' : 'btn-secondary'}`}
+                                                            className={`btn ${editing ? 'btn-ghost' : 'btn-secondary'} flex-1 min-w-[120px]`}
                                                       >
                                                             {editing ? '❌ Cancel' : '✏️ Edit Profile'}
                                                       </button>
                                                       <button
                                                             onClick={() => navigate('/messages')}
-                                                            className="btn btn-secondary"
+                                                            className="btn btn-secondary flex-1 min-w-[120px]"
                                                             style={{ position: 'relative' }}
                                                       >
                                                             💬 Messages
                                                       </button>
                                                       <button
                                                             onClick={() => navigate('/settings')}
-                                                            className="btn btn-secondary"
+                                                            className="btn btn-secondary flex-1 min-w-[120px]"
                                                       >
                                                             ⚙️ Settings
                                                       </button>
                                                 </div>
                                           ) : isAuthenticated && (
-                                                <div className="flex gap-md">
+                                                <div className="flex gap-md flex-wrap w-full mt-sm">
                                                       <button
                                                             onClick={handleFollow}
                                                             disabled={followLoading}
-                                                            className={`btn ${isFollowing ? 'btn-secondary' : 'btn-primary'}`}
-                                                            style={{ minWidth: '120px' }}
+                                                            className={`btn ${isFollowing ? 'btn-secondary' : 'btn-primary'} flex-1 min-w-[120px]`}
                                                       >
                                                             {followLoading ? (
                                                                   <span className="spinner" style={{ width: '16px', height: '16px' }}></span>
@@ -505,8 +504,7 @@ const Profile = () => {
                                                       </button>
                                                       <button
                                                             onClick={() => navigate(`/messages/${profileUser._id}`)}
-                                                            className="btn btn-secondary"
-                                                            style={{ minWidth: '100px' }}
+                                                            className="btn btn-secondary flex-1 min-w-[120px]"
                                                       >
                                                             💬 Message
                                                       </button>

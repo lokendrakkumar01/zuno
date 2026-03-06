@@ -176,6 +176,8 @@ const followUser = async (req, res) => {
                   return res.status(400).json({ success: false, message: "You cannot follow yourself" });
             }
 
+            const { getReceiverSocketId, io } = require('../socket/socket');
+
             const userToFollow = await User.findById(req.params.id);
             const currentUser = await User.findById(req.user.id);
 
