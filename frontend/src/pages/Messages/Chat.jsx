@@ -35,6 +35,7 @@ const Chat = () => {
                   return null;
             }
       });
+      const [newMessage, setNewMessage] = useState('');
       const [loading, setLoading] = useState(!sessionStorage.getItem(`zuno_chat_cache_${userId}`));
       const [sending, setSending] = useState(false);
       const messagesEndRef = useRef(null);
