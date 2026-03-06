@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useSocketContext } from '../context/SocketContext';
 import { useCallContext } from '../context/CallContext';
+import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
 
 const playNotificationSound = () => {
@@ -27,6 +28,7 @@ const playNotificationSound = () => {
 const GlobalNotification = () => {
       const { socket } = useSocketContext();
       const { answerCall, leaveCall } = useCallContext();
+      const { user } = useAuth();
       const location = useLocation();
       const navigate = useNavigate();
       const callToastId = useRef(null);
@@ -43,8 +45,14 @@ const GlobalNotification = () => {
 
             const handleNewMessage = (newMessage) => {
                   const senderId = (newMessage.sender?._id || newMessage.sender || '').toString();
-                  const pathUserId = location.pathname.split('/').pop();
-                  const isOnChatPage = location.pathname.startsWith('/messages/') && pathUserId === senderId;
+                  const currentUserId = (user?._id || user?.id || '').toString();
+
+                  // Do not notify for our OWN messages!
+                  if (senderId === currentUserId) return;
+
+                  const pathSegments = location.pathname.split('/').filter(Boolean);
+                  const pathUserId = pathSegments[pathSegments.length - 1];
+                  const isOnChatPage = location.pathname.startsWith('/messages') && pathUserId === senderId;
 
                   // Only notify if not currently viewing this chat
                   if (!isOnChatPage) {
