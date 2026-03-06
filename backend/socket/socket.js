@@ -72,6 +72,14 @@ io.on("connection", (socket) => {
             }
       });
 
+      socket.on("cancelCall", (data) => {
+            // Caller cancelled before callee answered
+            const receiverSocketId = getReceiverSocketId(data.to);
+            if (receiverSocketId) {
+                  io.to(receiverSocketId).emit("callCancelled");
+            }
+      });
+
       socket.on("leaveCall", (data) => {
             const receiverSocketId = getReceiverSocketId(data.to);
             if (receiverSocketId) {

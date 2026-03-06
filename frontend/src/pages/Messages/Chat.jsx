@@ -41,6 +41,7 @@ const Chat = () => {
       const messagesEndRef = useRef(null);
       const pollRef = useRef(null);
       const fileInputRef = useRef(null);
+      const sentMsgIds = useRef(new Set()); // Track confirmed sent message IDs to avoid duplicates
 
       // Edit & Delete states
       const [activeMenu, setActiveMenu] = useState(null);
@@ -164,20 +165,19 @@ const Chat = () => {
                   const incomingReceiverId = (newMessage.receiver?._id || newMessage.receiver || '').toString();
                   const currentUserId = (user?._id || user?.id || '').toString();
 
-                  // Show message if it's from the other user in THIS chat
-                  // OR if it's sent by me to the other user (multi-tab / cross-window support)
                   const isFromOtherUser = incomingSenderId === userId?.toString();
                   const isFromMe = incomingSenderId === currentUserId && incomingReceiverId === userId?.toString();
 
                   if (isFromOtherUser || isFromMe) {
+                        // Skip if we already confirmed this message (sent by us via optimistic UI)
+                        if (isFromMe && sentMsgIds.current.has(newMessage._id)) return;
+
                         setMessages((prev) => {
-                              // Deduplication: skip if message with same _id already exists
+                              // Skip if already in list by _id
                               if (prev.some(m => m._id === newMessage._id)) return prev;
-                              // Replace optimistic (temp_) message if it matches
-                              const existsAsTemp = prev.some(m => m._sending && m.text === newMessage.text);
-                              if (existsAsTemp && isFromMe) return prev; // Already shown via optimistic UI
                               return [...prev, newMessage];
                         });
+
                         // Mark as read only when the other user sends to us
                         if (isFromOtherUser && document.visibilityState === 'visible') {
                               fetch(`${API_URL}/messages/${userId}/read`, {
@@ -386,6 +386,8 @@ const Chat = () => {
                   }
                   const data = await res.json();
                   if (data.success) {
+                        // Track the real message ID so the socket echo doesn't duplicate it
+                        sentMsgIds.current.add(data.data.message._id);
                         // Replace optimistic message with real one
                         setMessages(prev => {
                               const updated = prev.map(m => m._id === tempId ? data.data.message : m);
@@ -803,10 +805,10 @@ const Chat = () => {
 
                                                             {/* Context Menu */}
                                                             {activeMenu === msg._id && (
-                                                                  <div className="chat-msg-menu" onClick={(e) => e.stopPropagation()}>
+                                                                  <div className="chat-msg-menu" style={{ [isMine ? 'right' : 'left']: 0 }} onClick={(e) => e.stopPropagation()}>
                                                                         <div className="chat-msg-menu-reactions" style={{ display: 'flex', gap: '8px', padding: '8px', borderBottom: '1px solid var(--border-color)' }}>
                                                                               {['👍', '❤️', '😂', '😮', '😢', '🙏'].map(emoji => (
-                                                                                    <button key={emoji} onClick={() => handleReact(msg._id, emoji)} style={{ fontSize: '1.2rem', background: 'none', border: 'none', cursor: 'pointer' }}>{emoji}</button>
+                                                                                    <button key={emoji} onClick={(e) => { e.stopPropagation(); handleReact(msg._id, emoji); }} style={{ fontSize: '1.2rem', background: 'none', border: 'none', cursor: 'pointer' }}>{emoji}</button>
                                                                               ))}
                                                                         </div>
                                                                         <button onClick={() => { setReplyingTo(msg); setActiveMenu(null); }} className="chat-msg-menu-item">

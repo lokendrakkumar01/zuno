@@ -3,15 +3,25 @@ import Peer from "simple-peer";
 import { useSocketContext } from "./SocketContext";
 import { useAuth } from "./AuthContext";
 import { API_URL } from "../config";
-import { useNavigate } from "react-router-dom";
 
 const CallContext = createContext();
 
-// Free public STUN servers for faster and more reliable hole punching
+// Public STUN + free TURN servers for reliable NAT traversal
 const ICE_SERVERS = {
       iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:global.stun.twilio.com:3478' }
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:global.stun.twilio.com:3478' },
+            {
+                  urls: 'turn:openrelay.metered.ca:80',
+                  username: 'openrelayproject',
+                  credential: 'openrelayproject'
+            },
+            {
+                  urls: 'turn:openrelay.metered.ca:443',
+                  username: 'openrelayproject',
+                  credential: 'openrelayproject'
+            }
       ]
 };
 
@@ -20,7 +30,6 @@ export const useCallContext = () => useContext(CallContext);
 export const CallProvider = ({ children }) => {
       const { socket } = useSocketContext();
       const { user, token } = useAuth();
-      const navigate = useNavigate();
 
       const [stream, setStream] = useState(null);
       const [receivingCall, setReceivingCall] = useState(false);
@@ -40,13 +49,15 @@ export const CallProvider = ({ children }) => {
       const userVideo = useRef();
       const connectionRef = useRef();
       const callStartTime = useRef(null);
+      const targetUserIdRef = useRef(null); // Store target ID for cleanup
+      const callTimeoutRef = useRef(null);  // Call auto-cancel after 45s
 
       useEffect(() => {
             if (!socket) return;
 
             const handleCallUser = (data) => {
                   setReceivingCall(true);
-                  setCaller(data.from); // Ideally data.from should be an object: {_id, displayName, avatar, username} -> let's assume it is!
+                  setCaller(data.from);
                   setCallerSignal(data.signal);
                   setCallType(data.callType);
                   setShowCallModal('incoming');
@@ -55,26 +66,43 @@ export const CallProvider = ({ children }) => {
             const handleCallAccepted = (signal) => {
                   setCallAccepted(true);
                   callStartTime.current = Date.now();
+                  // Clear the ring timeout - call was answered
+                  if (callTimeoutRef.current) {
+                        clearTimeout(callTimeoutRef.current);
+                        callTimeoutRef.current = null;
+                  }
                   if (connectionRef.current) {
                         connectionRef.current.signal(signal);
                   }
             };
 
+            // Caller cancelled before callee answered
+            const handleCallCancelled = () => {
+                  setShowCallModal(null);
+                  setReceivingCall(false);
+                  setCallerSignal(null);
+                  setCaller(null);
+                  setCallType(null);
+            };
+
             const handleCallEndedEvent = () => {
-                  leaveCall(false); // Don't emit to other user because they sent the end signal
+                  leaveCall(false);
             };
 
             socket.on("callUser", handleCallUser);
             socket.on("callAccepted", handleCallAccepted);
+            socket.on("callCancelled", handleCallCancelled);
             socket.on("callEnded", handleCallEndedEvent);
 
             return () => {
                   socket.off("callUser", handleCallUser);
                   socket.off("callAccepted", handleCallAccepted);
+                  socket.off("callCancelled", handleCallCancelled);
                   socket.off("callEnded", handleCallEndedEvent);
             };
       }, [socket]);
 
+      // Ringtone for incoming call
       const playRingtone = () => {
             try {
                   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -83,7 +111,7 @@ export const CallProvider = ({ children }) => {
 
                   oscillator.type = 'sine';
                   oscillator.frequency.setValueAtTime(440, audioCtx.currentTime);
-                  oscillator.frequency.setValueAtTime(480, audioCtx.currentTime + 0.1);
+                  oscillator.frequency.setValueAtTime(480, audioCtx.currentTime + 0.15);
 
                   gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
                   gainNode.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.1);
@@ -91,7 +119,6 @@ export const CallProvider = ({ children }) => {
 
                   oscillator.connect(gainNode);
                   gainNode.connect(audioCtx.destination);
-
                   oscillator.start();
                   oscillator.stop(audioCtx.currentTime + 1.5);
             } catch (e) {
@@ -99,12 +126,11 @@ export const CallProvider = ({ children }) => {
             }
       };
 
-      // Play ringtone while ringing
       useEffect(() => {
             let interval;
             if (showCallModal === 'incoming') {
                   playRingtone();
-                  interval = setInterval(playRingtone, 2000);
+                  interval = setInterval(playRingtone, 2500);
             }
             return () => {
                   if (interval) clearInterval(interval);
@@ -114,7 +140,8 @@ export const CallProvider = ({ children }) => {
       const startCall = async (targetUserId, type, otherUserData) => {
             setCallType(type);
             setIsCalling(true);
-            setCaller(otherUserData); // Store the person we are calling to display their info
+            setCaller(otherUserData);
+            targetUserIdRef.current = targetUserId; // Save for cleanup
 
             try {
                   const mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -128,17 +155,17 @@ export const CallProvider = ({ children }) => {
 
                   const peer = new Peer({
                         initiator: true,
-                        trickle: true, // Enable trickle for faster connection
+                        trickle: false,   // ✅ Single SDP offer — no race condition
                         stream: mediaStream,
                         config: ICE_SERVERS
                   });
 
-                  // With trickle: true, this will fire multiple times
+                  // With trickle: false, this fires exactly ONCE with the full offer
                   peer.on("signal", (data) => {
                         socket.emit("callUser", {
                               userToCall: targetUserId,
                               signalData: data,
-                              from: user, // pass our full user object (or at least ID, username, avatar)
+                              from: user,
                               callType: type
                         });
                   });
@@ -149,11 +176,24 @@ export const CallProvider = ({ children }) => {
                         }
                   });
 
+                  peer.on("error", (err) => {
+                        console.error("Peer error:", err);
+                  });
+
                   connectionRef.current = peer;
+
+                  // Auto-cancel after 45 seconds if unanswered
+                  callTimeoutRef.current = setTimeout(() => {
+                        if (!callAccepted) {
+                              leaveCall(true);
+                        }
+                  }, 45000);
+
             } catch (err) {
-                  console.error('Failed to get local stream. Please check permissions.', err);
+                  console.error('Failed to get local stream:', err);
                   setIsCalling(false);
-                  alert('Could not access microphone/camera. Please ensure permissions are granted in your browser or device settings.');
+                  targetUserIdRef.current = null;
+                  alert('Could not access microphone/camera. Please check permissions.');
             }
       };
 
@@ -174,13 +214,13 @@ export const CallProvider = ({ children }) => {
 
                   const peer = new Peer({
                         initiator: false,
-                        trickle: true, // Enable trickle for faster connection
+                        trickle: false,  // ✅ Single SDP answer
                         stream: mediaStream,
                         config: ICE_SERVERS
                   });
 
+                  // Fires exactly once with the full answer SDP
                   peer.on("signal", (data) => {
-                        // Determine caller ID (could be ._id or just an ID string depending on implementation)
                         const callerId = caller?._id || caller?.id || caller;
                         socket.emit("answerCall", { signal: data, to: callerId });
                   });
@@ -191,13 +231,18 @@ export const CallProvider = ({ children }) => {
                         }
                   });
 
+                  peer.on("error", (err) => {
+                        console.error("Peer error:", err);
+                  });
+
+                  // Signal the peer with the stored offer
                   peer.signal(callerSignal);
                   connectionRef.current = peer;
             } catch (err) {
-                  console.error('Failed to answer call. Please check permissions.', err);
+                  console.error('Failed to answer call:', err);
                   setCallAccepted(false);
                   setReceivingCall(false);
-                  alert('Could not access microphone/camera. Please ensure permissions are granted in your browser or device settings.');
+                  alert('Could not access microphone/camera. Please check permissions.');
             }
       };
 
@@ -206,7 +251,7 @@ export const CallProvider = ({ children }) => {
                   stream.getAudioTracks().forEach((track) => {
                         track.enabled = !track.enabled;
                   });
-                  setIsMuted(!stream.getAudioTracks()[0].enabled);
+                  setIsMuted(!stream.getAudioTracks()[0]?.enabled);
             }
       };
 
@@ -215,16 +260,36 @@ export const CallProvider = ({ children }) => {
                   stream.getVideoTracks().forEach((track) => {
                         track.enabled = !track.enabled;
                   });
-                  setIsVideoOff(!stream.getVideoTracks()[0].enabled);
+                  setIsVideoOff(!stream.getVideoTracks()[0]?.enabled);
             }
       };
 
       const leaveCall = async (emitEvent = true) => {
-            // Build Call Log if initiator
-            if (isCalling && caller) {
+            // Clear the ring timeout
+            if (callTimeoutRef.current) {
+                  clearTimeout(callTimeoutRef.current);
+                  callTimeoutRef.current = null;
+            }
+
+            // Determine the other party's ID
+            const otherPartyId = targetUserIdRef.current
+                  || caller?._id || caller?.id
+                  || (typeof caller === 'string' ? caller : null);
+
+            // Emit cancel (if caller hung up before answer) or end (if call was active)
+            if (emitEvent && socket && otherPartyId) {
+                  if (isCalling && !callAccepted) {
+                        // Caller is cancelling before the callee answered
+                        socket.emit("cancelCall", { to: otherPartyId });
+                  } else {
+                        socket.emit("leaveCall", { to: otherPartyId });
+                  }
+            }
+
+            // Log call duration to chat if the caller initiated it
+            if (isCalling && otherPartyId) {
                   let callLogMessage = '';
                   const typeLabel = callType === 'video' ? '📹 Video' : '📞 Voice';
-
                   if (callAccepted && callStartTime.current) {
                         const durationSeconds = Math.floor((Date.now() - callStartTime.current) / 1000);
                         const mins = Math.floor(durationSeconds / 60);
@@ -234,8 +299,6 @@ export const CallProvider = ({ children }) => {
                   } else {
                         callLogMessage = `❌ Missed ${typeLabel} Call`;
                   }
-
-                  const otherPartyId = caller._id || caller.id || caller;
 
                   try {
                         await fetch(`${API_URL}/messages/${otherPartyId}`, {
@@ -251,6 +314,7 @@ export const CallProvider = ({ children }) => {
                   }
             }
 
+            // Clean up state
             setCallEnded(true);
             setIsCalling(false);
             setReceivingCall(false);
@@ -262,19 +326,11 @@ export const CallProvider = ({ children }) => {
                   connectionRef.current = null;
             }
             if (stream) {
-                  stream.getTracks().forEach(track => {
-                        track.stop();
-                  });
+                  stream.getTracks().forEach(track => track.stop());
                   setStream(null);
             }
-            if (emitEvent && socket) {
-                  const otherPartyId = caller?._id || caller?.id || caller;
-                  if (otherPartyId) {
-                        socket.emit("leaveCall", { to: otherPartyId });
-                  }
-            }
 
-            // Re-render cleanup
+            // Delayed cleanup so the UI can show "call ended" briefly
             setTimeout(() => {
                   setCallEnded(false);
                   setCallType(null);
@@ -283,7 +339,8 @@ export const CallProvider = ({ children }) => {
                   setIsMuted(false);
                   setIsVideoOff(false);
                   callStartTime.current = null;
-            }, 1000);
+                  targetUserIdRef.current = null;
+            }, 800);
       };
 
       return (

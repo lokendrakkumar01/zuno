@@ -1,41 +1,39 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useSocketContext } from '../context/SocketContext';
+import { useCallContext } from '../context/CallContext';
 import { toast } from 'react-toastify';
 
 const playNotificationSound = () => {
       try {
             const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-
-            // Soft pleasant chime (D5 to A5)
-            oscillator.type = 'sine';
-            oscillator.frequency.setValueAtTime(587.33, audioCtx.currentTime);
-            oscillator.frequency.exponentialRampToValueAtTime(880.00, audioCtx.currentTime + 0.1);
-
-            gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
-            gainNode.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + 0.05);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
-
-            oscillator.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-
-            oscillator.start();
-            oscillator.stop(audioCtx.currentTime + 0.3);
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(587.33, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(880.00, audioCtx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + 0.05);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.3);
       } catch (e) {
-            console.log('Audio play blocked by browser or unsupported:', e);
+            console.log('Audio blocked:', e);
       }
 };
 
 const GlobalNotification = () => {
       const { socket } = useSocketContext();
+      const { answerCall, leaveCall } = useCallContext();
       const location = useLocation();
       const navigate = useNavigate();
+      const callToastId = useRef(null);
 
       useEffect(() => {
-            // Request native notification permission on mount if supported
-            if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+            // Request native notification permission on mount
+            if ('Notification' in window && Notification.permission === 'default') {
                   Notification.requestPermission();
             }
       }, []);
@@ -48,12 +46,12 @@ const GlobalNotification = () => {
                   const pathUserId = location.pathname.split('/').pop();
                   const isOnChatPage = location.pathname.startsWith('/messages/') && pathUserId === senderId;
 
-                  // Show notification if not currently viewing this chat
+                  // Only notify if not currently viewing this chat
                   if (!isOnChatPage) {
                         playNotificationSound();
                         const senderName = newMessage.sender?.displayName || newMessage.sender?.username || 'Someone';
                         const textPreview = newMessage.text
-                              ? (newMessage.text.length > 30 ? newMessage.text.substring(0, 30) + '...' : newMessage.text)
+                              ? (newMessage.text.length > 40 ? newMessage.text.substring(0, 40) + '...' : newMessage.text)
                               : (newMessage.media?.type === 'video' ? '🎬 Video message' : '📷 Photo message');
 
                         const navigateId = senderId || (typeof newMessage.sender === 'string' ? newMessage.sender : '');
@@ -66,8 +64,16 @@ const GlobalNotification = () => {
                               { position: "top-right", autoClose: 4000, icon: "💬" }
                         );
 
+                        // Native notification if tab is hidden
                         if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
-                              new Notification(`New message from ${senderName}`, { body: textPreview, tag: 'zuno-chat' });
+                              const n = new Notification(`New message from ${senderName}`, {
+                                    body: textPreview,
+                                    tag: `zuno-msg-${senderId}`
+                              });
+                              n.onclick = () => {
+                                    window.focus();
+                                    navigate(`/messages/${navigateId}`);
+                              };
                         }
                   }
             };
@@ -76,26 +82,79 @@ const GlobalNotification = () => {
                   const callerName = data.from?.displayName || data.from?.username || 'Someone';
                   const callTypeLabel = data.callType === 'video' ? '📹 Video Call' : '📞 Voice Call';
 
-                  // Show a persistent toast for incoming call
-                  toast.info(
-                        <div style={{ cursor: 'pointer' }}>
-                              <strong style={{ display: 'block', fontSize: '1em' }}>
-                                    {callTypeLabel} Incoming!
+                  // Play ringtone notification
+                  playNotificationSound();
+
+                  // Persistent toast with Accept / Decline buttons
+                  callToastId.current = toast.info(
+                        <div style={{ lineHeight: 1.5 }}>
+                              <strong style={{ display: 'block', fontSize: '1em', marginBottom: '4px' }}>
+                                    {callTypeLabel} — {callerName}
                               </strong>
-                              <span style={{ fontSize: '0.9em', opacity: 0.9 }}>
-                                    {callerName} is calling you...
-                              </span>
+                              <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                                    <button
+                                          onClick={() => {
+                                                toast.dismiss(callToastId.current);
+                                                leaveCall(true);
+                                          }}
+                                          style={{
+                                                flex: 1, background: '#ef4444', color: 'white',
+                                                border: 'none', borderRadius: '8px', padding: '6px',
+                                                cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem'
+                                          }}
+                                    >
+                                          Decline
+                                    </button>
+                                    <button
+                                          onClick={() => {
+                                                toast.dismiss(callToastId.current);
+                                                answerCall();
+                                          }}
+                                          style={{
+                                                flex: 1, background: '#10b981', color: 'white',
+                                                border: 'none', borderRadius: '8px', padding: '6px',
+                                                cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem'
+                                          }}
+                                    >
+                                          Answer
+                                    </button>
+                              </div>
                         </div>,
-                        { position: "top-right", autoClose: 15000, icon: data.callType === 'video' ? '📹' : '📞', toastId: 'incoming-call' }
+                        {
+                              position: "top-right",
+                              autoClose: 45000,   // Auto-dismiss after 45s (matches call timeout)
+                              closeOnClick: false,
+                              closeButton: false,
+                              icon: data.callType === 'video' ? '📹' : '📞',
+                              toastId: 'incoming-call'
+                        }
                   );
 
                   // Native browser notification if tab is hidden
                   if ('Notification' in window && Notification.permission === 'granted') {
-                        new Notification(`${callTypeLabel} from ${callerName}`, {
+                        const n = new Notification(`${callTypeLabel} from ${callerName}`, {
                               body: 'Open ZUNO to answer',
-                              tag: 'zuno-call'
+                              tag: 'zuno-call',
+                              requireInteraction: true
                         });
+                        n.onclick = () => {
+                              window.focus();
+                              n.close();
+                        };
                   }
+            };
+
+            // When the caller cancels before we answer — dismiss the call toast
+            const handleCallCancelled = () => {
+                  toast.dismiss('incoming-call');
+                  callToastId.current = null;
+                  toast.info('Caller hung up.', { autoClose: 2000, icon: '📵' });
+            };
+
+            // When call ends (after being answered)
+            const handleCallEnded = () => {
+                  toast.dismiss('incoming-call');
+                  callToastId.current = null;
             };
 
             const handleNewFollow = (data) => {
@@ -155,6 +214,8 @@ const GlobalNotification = () => {
 
             socket.on("newMessage", handleNewMessage);
             socket.on("callUser", handleIncomingCall);
+            socket.on("callCancelled", handleCallCancelled);
+            socket.on("callEnded", handleCallEnded);
             socket.on("newFollow", handleNewFollow);
             socket.on("newFollowRequest", handleNewFollowRequest);
             socket.on("followAccepted", handleFollowAccepted);
@@ -164,15 +225,17 @@ const GlobalNotification = () => {
             return () => {
                   socket.off("newMessage", handleNewMessage);
                   socket.off("callUser", handleIncomingCall);
+                  socket.off("callCancelled", handleCallCancelled);
+                  socket.off("callEnded", handleCallEnded);
                   socket.off("newFollow", handleNewFollow);
                   socket.off("newFollowRequest", handleNewFollowRequest);
                   socket.off("followAccepted", handleFollowAccepted);
                   socket.off("newInteraction", handleNewInteraction);
                   socket.off("newComment", handleNewComment);
             };
-      }, [socket, location.pathname, navigate]);
+      }, [socket, location.pathname, navigate, answerCall, leaveCall]);
 
-      return null; // This component just handles logic, UI is via toast
+      return null;
 };
 
 export default GlobalNotification;
