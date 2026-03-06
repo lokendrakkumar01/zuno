@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useSocketContext } from '../../context/SocketContext';
 import { API_URL } from '../../config';
+import Peer from 'simple-peer';
 
 // Common emojis organized by category
 const EMOJI_DATA = {
@@ -39,8 +40,20 @@ const Chat = () => {
       const [mediaPreview, setMediaPreview] = useState(null);
       const [mediaFile, setMediaFile] = useState(null);
 
-      // Call modal
-      const [showCallModal, setShowCallModal] = useState(null); // 'voice' or 'video'
+      // WebRTC Call State
+      const [stream, setStream] = useState(null);
+      const [receivingCall, setReceivingCall] = useState(false);
+      const [caller, setCaller] = useState("");
+      const [callerSignal, setCallerSignal] = useState(null);
+      const [callAccepted, setCallAccepted] = useState(false);
+      const [callEnded, setCallEnded] = useState(false);
+      const [callType, setCallType] = useState(null); // 'voice' or 'video'
+      const [isCalling, setIsCalling] = useState(false);
+      const [showCallModal, setShowCallModal] = useState(null); // Used for incoming call modal now
+
+      const myVideo = useRef(null);
+      const userVideo = useRef(null);
+      const connectionRef = useRef(null);
 
       // Customization
       const [showCustomizeModal, setShowCustomizeModal] = useState(false);
@@ -139,12 +152,35 @@ const Chat = () => {
                   setMessages(prev => prev.map(m => m._id === data.messageId ? { ...m, reactions: data.reactions } : m));
             });
 
+            // WebRTC Listeners
+            socket?.on("callUser", (data) => {
+                  setReceivingCall(true);
+                  setCaller(data.from);
+                  setCallerSignal(data.signal);
+                  setCallType(data.callType);
+                  setShowCallModal('incoming');
+            });
+
+            socket?.on("callAccepted", (signal) => {
+                  setCallAccepted(true);
+                  if (connectionRef.current) {
+                        connectionRef.current.signal(signal);
+                  }
+            });
+
+            socket?.on("callEnded", () => {
+                  leaveCall(false); // don't emit to other user because they sent it
+            });
+
             return () => {
                   socket?.off("newMessage");
                   socket?.off("typing");
                   socket?.off("stopTyping");
                   socket?.off("messageRead");
                   socket?.off("messageReaction");
+                  socket?.off("callUser");
+                  socket?.off("callAccepted");
+                  socket?.off("callEnded");
             };
       }, [socket, userId]);
 
@@ -462,6 +498,114 @@ const Chat = () => {
             if (fileInputRef.current) fileInputRef.current.value = '';
       };
 
+      // --- WebRTC Call Functions --- //
+      const startCall = async (type) => {
+            setCallType(type);
+            setIsCalling(true);
+            try {
+                  const mediaStream = await navigator.mediaDevices.getUserMedia({
+                        video: type === 'video',
+                        audio: true
+                  });
+                  setStream(mediaStream);
+                  if (myVideo.current) {
+                        myVideo.current.srcObject = mediaStream;
+                  }
+
+                  const peer = new Peer({
+                        initiator: true,
+                        trickle: false,
+                        stream: mediaStream
+                  });
+
+                  peer.on("signal", (data) => {
+                        socket.emit("callUser", {
+                              userToCall: userId,
+                              signalData: data,
+                              from: user._id || user,
+                              callType: type
+                        });
+                  });
+
+                  peer.on("stream", (remoteStream) => {
+                        if (userVideo.current) {
+                              userVideo.current.srcObject = remoteStream;
+                        }
+                  });
+
+                  connectionRef.current = peer;
+            } catch (err) {
+                  console.error('Failed to get local stream', err);
+                  setIsCalling(false);
+                  alert('Could not access microphone/camera');
+            }
+      };
+
+      const answerCall = async () => {
+            setShowCallModal(null);
+            setCallAccepted(true);
+            try {
+                  const mediaStream = await navigator.mediaDevices.getUserMedia({
+                        video: callType === 'video',
+                        audio: true
+                  });
+                  setStream(mediaStream);
+                  if (myVideo.current) {
+                        myVideo.current.srcObject = mediaStream;
+                  }
+
+                  const peer = new Peer({
+                        initiator: false,
+                        trickle: false,
+                        stream: mediaStream
+                  });
+
+                  peer.on("signal", (data) => {
+                        socket.emit("answerCall", { signal: data, to: caller });
+                  });
+
+                  peer.on("stream", (remoteStream) => {
+                        if (userVideo.current) {
+                              userVideo.current.srcObject = remoteStream;
+                        }
+                  });
+
+                  peer.signal(callerSignal);
+                  connectionRef.current = peer;
+            } catch (err) {
+                  console.error('Failed to answer call', err);
+                  setCallAccepted(false);
+                  setReceivingCall(false);
+            }
+      };
+
+      const leaveCall = (emitEvent = true) => {
+            setCallEnded(true);
+            setIsCalling(false);
+            setReceivingCall(false);
+            setCallAccepted(false);
+            setShowCallModal(null);
+
+            if (connectionRef.current) {
+                  connectionRef.current.destroy();
+                  connectionRef.current = null;
+            }
+            if (stream) {
+                  stream.getTracks().forEach(track => track.stop());
+                  setStream(null);
+            }
+            if (emitEvent && socket) {
+                  // Notify the other user (if we initiated the hang up)
+                  // `caller` state only exists if we RECEIVED the call. 
+                  // If we INITIATED it, `userId` is the other person.
+                  const otherParty = receivingCall ? caller : userId;
+                  socket.emit("leaveCall", { to: otherParty });
+            }
+
+            // Re-render cleanup
+            setTimeout(() => { setCallEnded(false); setCallType(null); }, 1000);
+      };
+
       const formatTime = (dateStr) => {
             const date = new Date(dateStr);
             return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -517,12 +661,12 @@ const Chat = () => {
                         </Link>
                         {/* Call Buttons */}
                         <div className="chat-call-buttons">
-                              <button className="chat-call-btn" onClick={() => setShowCallModal('voice')} title="Voice Call">
+                              <button className="chat-call-btn" onClick={() => startCall('voice')} title="Voice Call" disabled={isCalling || callAccepted}>
                                     <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
                                           <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
                                     </svg>
                               </button>
-                              <button className="chat-call-btn" onClick={() => setShowCallModal('video')} title="Video Call">
+                              <button className="chat-call-btn" onClick={() => startCall('video')} title="Video Call" disabled={isCalling || callAccepted}>
                                     <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
                                           <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
                                     </svg>
@@ -821,91 +965,162 @@ const Chat = () => {
                         </button>
                   </form>
 
-                  {/* Call Coming Soon Modal */}
-                  {showCallModal && (
-                        <div className="chat-call-modal-overlay" onClick={() => setShowCallModal(null)}>
-                              <div className="chat-call-modal" onClick={(e) => e.stopPropagation()}>
-                                    <div className="chat-call-modal-icon">
-                                          {showCallModal === 'video' ? '📹' : '📞'}
+                  {/* WebRTC Active Call UI Overlay */}
+                  {
+                        (isCalling || callAccepted) && !callEnded && (
+                              <div className="chat-call-overlay" style={{
+                                    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                                    background: 'var(--bg-card)', zIndex: 100, display: 'flex', flexDirection: 'column'
+                              }}>
+                                    <div className="chat-call-header" style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.5)', color: 'white' }}>
+                                          <div className="font-bold">{isCalling && !callAccepted ? 'Calling...' : `${callType === 'video' ? 'Video' : 'Voice'} Call`}</div>
+                                          <div className="font-semibold">{otherUser?.displayName || otherUser?.username}</div>
                                     </div>
-                                    <h3 className="text-lg font-bold mb-sm">
-                                          {showCallModal === 'video' ? 'Video Call' : 'Voice Call'}
-                                    </h3>
-                                    <p className="text-muted text-sm mb-lg">
-                                          {showCallModal === 'video' ? 'Video' : 'Voice'} calling feature is coming soon! Stay tuned for updates.
-                                    </p>
-                                    <button onClick={() => setShowCallModal(null)} className="btn btn-primary" style={{ width: '100%' }}>
-                                          OK, Got it!
-                                    </button>
-                              </div>
-                        </div>
-                  )}
+                                    <div className="chat-call-video-container" style={{ flex: 1, position: 'relative', background: '#000' }}>
+                                          {/* Main Video (Remote User) */}
+                                          {callAccepted && (
+                                                <video
+                                                      playsInline
+                                                      ref={userVideo}
+                                                      autoPlay
+                                                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                                />
+                                          )}
+                                          {/* PIP Video (Local User) */}
+                                          {stream && (
+                                                <video
+                                                      playsInline
+                                                      muted
+                                                      ref={myVideo}
+                                                      autoPlay
+                                                      style={{
+                                                            position: 'absolute', bottom: '20px', right: '20px',
+                                                            width: '120px', height: '160px', objectFit: 'cover',
+                                                            borderRadius: '12px', border: '2px solid white',
+                                                            boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                                                            display: callType === 'video' ? 'block' : 'none'
+                                                      }}
+                                                />
+                                          )}
 
-                  {/* Customize Chat Modal */}
-                  {showCustomizeModal && (
-                        <div className="modal-overlay" onClick={() => setShowCustomizeModal(false)} style={{ zIndex: 1000, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
-                              <div className="card modal-content" onClick={(e) => e.stopPropagation()} style={{ width: '90%', maxWidth: '400px', maxHeight: '90vh', overflowY: 'auto' }}>
-                                    <div className="flex items-center justify-between mb-lg">
-                                          <h3 className="text-lg font-bold">🎨 Customize Chat</h3>
-                                          <button onClick={() => setShowCustomizeModal(false)} className="btn btn-ghost" style={{ padding: '4px 8px' }}>✕</button>
-                                    </div>
-
-                                    <div className="mb-lg">
-                                          <h4 className="font-semibold mb-sm">Theme Color</h4>
-                                          <div className="flex gap-sm flex-wrap">
-                                                {THEMES.map(theme => (
-                                                      <div
-                                                            key={theme.id}
-                                                            onClick={() => saveCustomization({ ...chatCustomization, themeColor: theme.color })}
-                                                            style={{
-                                                                  width: '36px', height: '36px',
-                                                                  borderRadius: '50%',
-                                                                  backgroundColor: theme.color,
-                                                                  cursor: 'pointer',
-                                                                  border: chatCustomization.themeColor === theme.color ? '3px solid white' : 'none',
-                                                                  outline: chatCustomization.themeColor === theme.color ? `2px solid ${theme.color}` : 'none',
-                                                                  boxShadow: 'var(--shadow-sm)'
-                                                            }}
-                                                      />
-                                                ))}
-                                          </div>
-                                    </div>
-
-                                    <div className="mb-lg">
-                                          <h4 className="font-semibold mb-sm">Background Image</h4>
-                                          {chatCustomization.bgImage ? (
-                                                <div style={{ position: 'relative', height: '150px', borderRadius: 'var(--radius-md)', overflow: 'hidden', marginBottom: '8px' }}>
-                                                      <img src={chatCustomization.bgImage} alt="Background Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                                      <button
-                                                            onClick={() => saveCustomization({ ...chatCustomization, bgImage: null })}
-                                                            style={{ position: 'absolute', top: '8px', right: '8px', background: 'rgba(0,0,0,0.5)', color: 'white', border: 'none', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                                                      >✕</button>
-                                                </div>
-                                          ) : (
-                                                <div
-                                                      style={{ height: '100px', border: '2px dashed var(--border-color)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: 'var(--bg-secondary)' }}
-                                                      onClick={() => document.getElementById('chat-bg-upload').click()}
-                                                >
-                                                      <span className="text-muted">+ Add Wallpaper</span>
+                                          {/* Avatar placeholder if voice call or video not connected */}
+                                          {(!callAccepted || callType === 'voice') && (
+                                                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
+                                                      <div className="msg-avatar" style={{ width: '100px', height: '100px', fontSize: '3rem', marginBottom: '16px' }}>
+                                                            {otherUser?.avatar ? <img src={otherUser.avatar} alt="Avatar" /> : (otherUser?.displayName?.charAt(0) || 'U')}
+                                                      </div>
+                                                      {isCalling && !callAccepted && <div style={{ color: 'white', animation: 'pulse 1.5s infinite' }}>Ringing...</div>}
                                                 </div>
                                           )}
-                                          <input type="file" id="chat-bg-upload" accept="image/*" style={{ display: 'none' }} onChange={handleBgImageUpload} />
                                     </div>
-
-                                    <div className="flex mt-xl">
-                                          <button
-                                                onClick={() => {
-                                                      saveCustomization(defaultCustomization);
-                                                }}
-                                                className="btn btn-ghost text-red-500" style={{ flex: 1 }}
-                                          >
-                                                Reset to Default
+                                    <div className="chat-call-controls" style={{ padding: '24px', display: 'flex', justifyContent: 'center', gap: '24px', background: 'var(--bg-card)' }}>
+                                          <button onClick={() => leaveCall(true)} className="chat-call-end-btn" style={{
+                                                width: '56px', height: '56px', borderRadius: '50%', background: '#ef4444',
+                                                color: 'white', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                          }}>
+                                                <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
+                                                      <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z" />
+                                                </svg>
                                           </button>
-                                          <button onClick={() => setShowCustomizeModal(false)} className="btn btn-primary" style={{ flex: 1 }}>Done</button>
                                     </div>
                               </div>
-                        </div>
-                  )}
+                        )
+                  }
+
+                  {/* Incoming Call Modal */}
+                  {
+                        showCallModal === 'incoming' && !callAccepted && (
+                              <div className="chat-call-modal-overlay" style={{ zIndex: 1000, position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+                                    <div className="chat-call-modal" onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-card)', padding: '24px', borderRadius: '16px', textAlign: 'center', minWidth: '300px' }}>
+                                          <div className="chat-call-modal-icon" style={{ fontSize: '3rem', marginBottom: '16px' }}>
+                                                {callType === 'video' ? '📹' : '📞'}
+                                          </div>
+                                          <h3 className="text-lg font-bold mb-sm">
+                                                Incoming {callType === 'video' ? 'Video' : 'Voice'} Call
+                                          </h3>
+                                          <p className="text-muted text-sm mb-lg">
+                                                {otherUser?.displayName || otherUser?.username || 'Someone'} is calling you.
+                                          </p>
+                                          <div style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
+                                                <button onClick={() => { leaveCall(true); }} className="btn" style={{ flex: 1, background: '#ef4444', color: 'white', border: 'none' }}>
+                                                      Decline
+                                                </button>
+                                                <button onClick={answerCall} className="btn" style={{ flex: 1, background: '#10b981', color: 'white', border: 'none' }}>
+                                                      Answer
+                                                </button>
+                                          </div>
+                                    </div>
+                              </div>
+                        )
+                  }
+
+                  {/* Customize Chat Modal */}
+                  {
+                        showCustomizeModal && (
+                              <div className="modal-overlay" onClick={() => setShowCustomizeModal(false)} style={{ zIndex: 1000, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+                                    <div className="card modal-content" onClick={(e) => e.stopPropagation()} style={{ width: '90%', maxWidth: '400px', maxHeight: '90vh', overflowY: 'auto' }}>
+                                          <div className="flex items-center justify-between mb-lg">
+                                                <h3 className="text-lg font-bold">🎨 Customize Chat</h3>
+                                                <button onClick={() => setShowCustomizeModal(false)} className="btn btn-ghost" style={{ padding: '4px 8px' }}>✕</button>
+                                          </div>
+
+                                          <div className="mb-lg">
+                                                <h4 className="font-semibold mb-sm">Theme Color</h4>
+                                                <div className="flex gap-sm flex-wrap">
+                                                      {THEMES.map(theme => (
+                                                            <div
+                                                                  key={theme.id}
+                                                                  onClick={() => saveCustomization({ ...chatCustomization, themeColor: theme.color })}
+                                                                  style={{
+                                                                        width: '36px', height: '36px',
+                                                                        borderRadius: '50%',
+                                                                        backgroundColor: theme.color,
+                                                                        cursor: 'pointer',
+                                                                        border: chatCustomization.themeColor === theme.color ? '3px solid white' : 'none',
+                                                                        outline: chatCustomization.themeColor === theme.color ? `2px solid ${theme.color}` : 'none',
+                                                                        boxShadow: 'var(--shadow-sm)'
+                                                                  }}
+                                                            />
+                                                      ))}
+                                                </div>
+                                          </div>
+
+                                          <div className="mb-lg">
+                                                <h4 className="font-semibold mb-sm">Background Image</h4>
+                                                {chatCustomization.bgImage ? (
+                                                      <div style={{ position: 'relative', height: '150px', borderRadius: 'var(--radius-md)', overflow: 'hidden', marginBottom: '8px' }}>
+                                                            <img src={chatCustomization.bgImage} alt="Background Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                            <button
+                                                                  onClick={() => saveCustomization({ ...chatCustomization, bgImage: null })}
+                                                                  style={{ position: 'absolute', top: '8px', right: '8px', background: 'rgba(0,0,0,0.5)', color: 'white', border: 'none', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                                                            >✕</button>
+                                                      </div>
+                                                ) : (
+                                                      <div
+                                                            style={{ height: '100px', border: '2px dashed var(--border-color)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: 'var(--bg-secondary)' }}
+                                                            onClick={() => document.getElementById('chat-bg-upload').click()}
+                                                      >
+                                                            <span className="text-muted">+ Add Wallpaper</span>
+                                                      </div>
+                                                )}
+                                                <input type="file" id="chat-bg-upload" accept="image/*" style={{ display: 'none' }} onChange={handleBgImageUpload} />
+                                          </div>
+
+                                          <div className="flex mt-xl">
+                                                <button
+                                                      onClick={() => {
+                                                            saveCustomization(defaultCustomization);
+                                                      }}
+                                                      className="btn btn-ghost text-red-500" style={{ flex: 1 }}
+                                                >
+                                                      Reset to Default
+                                                </button>
+                                                <button onClick={() => setShowCustomizeModal(false)} className="btn btn-primary" style={{ flex: 1 }}>Done</button>
+                                          </div>
+                                    </div>
+                              </div>
+                        )
+                  }
             </div>
       );
 };

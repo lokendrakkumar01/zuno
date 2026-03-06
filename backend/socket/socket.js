@@ -55,6 +55,32 @@ io.on("connection", (socket) => {
             }
       });
 
+      // WebRTC Call Signaling
+      socket.on("callUser", (data) => {
+            const receiverSocketId = getReceiverSocketId(data.userToCall);
+            if (receiverSocketId) {
+                  io.to(receiverSocketId).emit("callUser", {
+                        signal: data.signalData,
+                        from: data.from,
+                        callType: data.callType // 'voice' or 'video'
+                  });
+            }
+      });
+
+      socket.on("answerCall", (data) => {
+            const receiverSocketId = getReceiverSocketId(data.to);
+            if (receiverSocketId) {
+                  io.to(receiverSocketId).emit("callAccepted", data.signal);
+            }
+      });
+
+      socket.on("leaveCall", (data) => {
+            const receiverSocketId = getReceiverSocketId(data.to);
+            if (receiverSocketId) {
+                  io.to(receiverSocketId).emit("callEnded");
+            }
+      });
+
       socket.on("disconnect", () => {
             console.log("User disconnected", socket.id);
             if (userId && userSocketMap[userId]) {
