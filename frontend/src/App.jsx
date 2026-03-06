@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SocketContextProvider } from './context/SocketContext';
+import { CallProvider } from './context/CallContext';
 import { LanguageProvider } from './context/LanguageContext';
 import SplashScreen from './components/SplashScreen';
 import Layout from './components/Layout/Layout';
@@ -30,6 +31,7 @@ import Chat from './pages/Messages/Chat';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import GlobalNotification from './components/GlobalNotification';
+import CallOverlay from './components/CallOverlay';
 
 // Main App Router Component (inside AuthProvider)
 function AppRouter() {
@@ -69,6 +71,7 @@ function AppRouter() {
       return (
             <>
                   <GlobalNotification />
+                  <CallOverlay />
                   <ToastContainer theme="colored" autoClose={4000} />
                   <Routes>
                         {/* Auth routes - no layout */}
@@ -117,11 +120,13 @@ function App() {
       return (
             <AuthProvider>
                   <SocketContextProvider>
-                        <LanguageProvider>
-                              <Router>
-                                    <AppRouter />
-                              </Router>
-                        </LanguageProvider>
+                        <CallProvider>
+                              <LanguageProvider>
+                                    <Router>
+                                          <AppRouter />
+                                    </Router>
+                              </LanguageProvider>
+                        </CallProvider>
                   </SocketContextProvider>
             </AuthProvider>
       );
