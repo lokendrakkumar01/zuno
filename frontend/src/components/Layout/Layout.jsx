@@ -116,15 +116,9 @@ const Layout = () => {
                                                 <Link to="/upload" className={`nav-link ${isActive('/upload') ? 'active' : ''}`}>
                                                       ➕ {t('upload')}
                                                 </Link>
-                                                <Link to="/messages" className={`nav-link ${isActive('/messages') ? 'active' : ''}`} style={{ position: 'relative' }}>
-                                                      💬 {t('messages')}
-                                                      {unreadCount > 0 && <span className="nav-unread-badge">{unreadCount}</span>}
-                                                </Link>
-                                                <Link to="/profile" className={`nav-link ${isActive('/profile') ? 'active' : ''}`}>
+                                                <Link to="/profile" className={`nav-link ${isActive('/profile') ? 'active' : ''}`} style={{ position: 'relative' }}>
                                                       👤 {t('profile')}
-                                                </Link>
-                                                <Link to="/settings" className={`nav-link ${isActive('/settings') ? 'active' : ''}`}>
-                                                      ⚙️ {t('settings')}
+                                                      {unreadCount > 0 && <span className="nav-unread-badge">{unreadCount}</span>}
                                                 </Link>
                                                 {user?.role === 'admin' && (
                                                       <Link to="/admin" className="nav-link" style={{ color: 'var(--color-accent-pink)' }}>
@@ -200,17 +194,7 @@ const Layout = () => {
                                     <span style={{ fontSize: '10px' }}>Login</span>
                               </Link>
                         )}
-                        <Link to="/messages" className={`bottom-nav-item ${isActive('/messages') ? 'active' : ''}`} style={{ position: 'relative' }}>
-                              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                                    <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
-                              </svg>
-                              <span style={{ fontSize: '10px' }}>{t('messages')}</span>
-                              {unreadCount > 0 && <span className="bottom-nav-badge">{unreadCount}</span>}
-                        </Link>
-                        <Link to="/settings" className={`bottom-nav-item ${isActive('/settings') ? 'active' : ''}`}>
-                              <SettingsIcon />
-                              <span style={{ fontSize: '10px' }}>{t('settings')}</span>
-                        </Link>
+
                         <Link to="/profile" className={`bottom-nav-item ${isActive('/profile') ? 'active' : ''}`}>
                               <div style={{
                                     width: '32px',

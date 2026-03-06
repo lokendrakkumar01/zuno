@@ -466,7 +466,7 @@ const Profile = () => {
 
                                           {/* Action Buttons */}
                                           {isOwnProfile ? (
-                                                <div className="flex gap-md">
+                                                <div className="flex gap-md flex-wrap">
                                                       <button
                                                             onClick={() => setEditing(!editing)}
                                                             className={`btn ${editing ? 'btn-ghost' : 'btn-secondary'}`}
@@ -479,6 +479,12 @@ const Profile = () => {
                                                             style={{ position: 'relative' }}
                                                       >
                                                             💬 Messages
+                                                      </button>
+                                                      <button
+                                                            onClick={() => navigate('/settings')}
+                                                            className="btn btn-secondary"
+                                                      >
+                                                            ⚙️ Settings
                                                       </button>
                                                 </div>
                                           ) : isAuthenticated && (

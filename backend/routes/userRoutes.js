@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const {
+      getUserById,
       getUserProfile,
       updateProfile,
       updateInterests,
@@ -20,6 +21,9 @@ const {
       deleteAccount
 } = require('../controllers/userController');
 const { protect } = require('../middleware/auth');
+
+// Get user by MongoDB ID (used by Chat component for fast lookup)
+router.get('/id/:id', protect, getUserById);
 
 // Search users (must be before /:username to avoid conflict)
 router.get('/search', protect, searchUsers);

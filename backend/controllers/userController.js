@@ -1,5 +1,20 @@
 const User = require('../models/User');
 
+// @desc    Get user profile by MongoDB ID
+// @route   GET /api/users/id/:id
+// @access  Private
+const getUserById = async (req, res) => {
+      try {
+            const user = await User.findById(req.params.id).select('username displayName avatar bio isVerified');
+            if (!user) {
+                  return res.status(404).json({ success: false, message: 'User not found' });
+            }
+            res.json({ success: true, data: { user } });
+      } catch (error) {
+            res.status(500).json({ success: false, message: 'Failed to get user', error: error.message });
+      }
+};
+
 // @desc    Get user profile (public info)
 // @route   GET /api/users/:username
 // @access  Public
@@ -522,6 +537,7 @@ const deleteAccount = async (req, res) => {
 };
 
 module.exports = {
+      getUserById,
       getUserProfile,
       updateProfile,
       updateInterests,

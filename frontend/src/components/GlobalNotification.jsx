@@ -72,6 +72,32 @@ const GlobalNotification = () => {
                   }
             };
 
+            const handleIncomingCall = (data) => {
+                  const callerName = data.from?.displayName || data.from?.username || 'Someone';
+                  const callTypeLabel = data.callType === 'video' ? '📹 Video Call' : '📞 Voice Call';
+
+                  // Show a persistent toast for incoming call
+                  toast.info(
+                        <div style={{ cursor: 'pointer' }}>
+                              <strong style={{ display: 'block', fontSize: '1em' }}>
+                                    {callTypeLabel} Incoming!
+                              </strong>
+                              <span style={{ fontSize: '0.9em', opacity: 0.9 }}>
+                                    {callerName} is calling you...
+                              </span>
+                        </div>,
+                        { position: "top-right", autoClose: 15000, icon: data.callType === 'video' ? '📹' : '📞', toastId: 'incoming-call' }
+                  );
+
+                  // Native browser notification if tab is hidden
+                  if ('Notification' in window && Notification.permission === 'granted') {
+                        new Notification(`${callTypeLabel} from ${callerName}`, {
+                              body: 'Open ZUNO to answer',
+                              tag: 'zuno-call'
+                        });
+                  }
+            };
+
             const handleNewFollow = (data) => {
                   playNotificationSound();
                   toast.success(
@@ -128,6 +154,7 @@ const GlobalNotification = () => {
             };
 
             socket.on("newMessage", handleNewMessage);
+            socket.on("callUser", handleIncomingCall);
             socket.on("newFollow", handleNewFollow);
             socket.on("newFollowRequest", handleNewFollowRequest);
             socket.on("followAccepted", handleFollowAccepted);
@@ -136,6 +163,7 @@ const GlobalNotification = () => {
 
             return () => {
                   socket.off("newMessage", handleNewMessage);
+                  socket.off("callUser", handleIncomingCall);
                   socket.off("newFollow", handleNewFollow);
                   socket.off("newFollowRequest", handleNewFollowRequest);
                   socket.off("followAccepted", handleFollowAccepted);

@@ -120,15 +120,40 @@ const Chat = () => {
       const isOnline = onlineUsers.some(id => id.toString() === userId?.toString());
 
       useEffect(() => {
-            // Reset and load from cache immediately when userId changes
+            // Reset state immediately when userId changes
             setMessages([]);
-            setOtherUser(() => {
+            setLoading(true);
+
+            // Try loading user from cache first for instant display
+            try {
+                  const cached = localStorage.getItem(`zuno_user_cache_${userId}`);
+                  if (cached) {
+                        setOtherUser(JSON.parse(cached));
+                  } else {
+                        setOtherUser(null);
+                  }
+            } catch { setOtherUser(null); }
+
+            // Fetch user info immediately (for fast name display)
+            const fetchUser = async () => {
                   try {
-                        const cached = localStorage.getItem(`zuno_user_cache_${userId}`);
-                        return cached ? JSON.parse(cached) : null;
-                  } catch { return null; }
-            });
-            fetchMessages();
+                        const res = await fetch(`${API_URL}/users/id/${userId}`, {
+                              headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                        const data = await res.json();
+                        if (data.success && data.data.user) {
+                              setOtherUser(data.data.user);
+                              try {
+                                    localStorage.setItem(`zuno_user_cache_${userId}`, JSON.stringify(data.data.user));
+                              } catch (e) { }
+                        }
+                  } catch (err) {
+                        console.log('User prefetch failed, will use messages API', err);
+                  }
+            };
+
+            fetchUser(); // fast lookup
+            fetchMessages(); // full messages + user (sets otherUser again via API)
       }, [userId]);
 
       useEffect(() => {
