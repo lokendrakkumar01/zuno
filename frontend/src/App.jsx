@@ -120,13 +120,13 @@ function App() {
       return (
             <AuthProvider>
                   <SocketContextProvider>
-                        <CallProvider>
-                              <LanguageProvider>
-                                    <Router>
+                        <LanguageProvider>
+                              <Router>
+                                    <CallProvider>
                                           <AppRouter />
-                                    </Router>
-                              </LanguageProvider>
-                        </CallProvider>
+                                    </CallProvider>
+                              </Router>
+                        </LanguageProvider>
                   </SocketContextProvider>
             </AuthProvider>
       );
