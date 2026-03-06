@@ -6,7 +6,7 @@ services:
     plan: free
     buildCommand: cd backend && npm install
     preDeployCommand: cd backend && node scripts/fix-media-urls.js || true
-    startCommand: cd backend && node server.js
+    startCommand: cd backend && node --max-old-space-size=400 --expose-gc server.js
     envVars:
       - key: PORT
         value: 5000
