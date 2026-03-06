@@ -336,21 +336,29 @@ const ContentCard = ({ content, onDelete }) => {
                   return '';
             }
 
+            // Normalize path by replacing backslashes with forward slashes
+            const normalizedUrl = url.replace(/\\/g, '/');
+
             // If it's already a full URL, return as-is
-            if (url.startsWith('http://') || url.startsWith('https://')) {
-                  console.log('getMediaUrl: Full URL detected:', url);
-                  return url;
+            if (normalizedUrl.startsWith('http://') || normalizedUrl.startsWith('https://')) {
+                  console.log('getMediaUrl: Full URL detected:', normalizedUrl);
+                  return normalizedUrl;
             }
 
             // If it's a data URL, return as-is  
-            if (url.startsWith('data:')) {
+            if (normalizedUrl.startsWith('data:')) {
                   console.log('getMediaUrl: Data URL detected');
-                  return url;
+                  return normalizedUrl;
             }
 
-            // Otherwise, prepend the API base URL
-            // Ensure no double slashes
-            const cleanUrl = url.startsWith('/') ? url : `/${url}`;
+            // Otherwise, fix and prepend the API base URL
+            let cleanUrl = normalizedUrl;
+            if (cleanUrl.includes('uploads/') && !cleanUrl.startsWith('/uploads/')) {
+                  cleanUrl = '/' + cleanUrl.substring(cleanUrl.indexOf('uploads/'));
+            } else if (!cleanUrl.startsWith('/')) {
+                  cleanUrl = `/${cleanUrl}`;
+            }
+
             const fullUrl = `${API_BASE_URL}${cleanUrl}`;
             console.log('getMediaUrl: Constructed URL:', fullUrl, '(from:', url, ')');
             return fullUrl;
