@@ -58,6 +58,10 @@ const Messages = () => {
                   setSearchResults([]);
                   return;
             }
+            if (query.trim().length < 2) {
+                  setSearchResults([]);
+                  return; // Wait for 2+ chars (backend requires it)
+            }
             setSearching(true);
             try {
                   const res = await fetch(`${API_URL}/users/search?q=${encodeURIComponent(query)}`, {
@@ -128,6 +132,10 @@ const Messages = () => {
                                           <div className="search-result-item" style={{ justifyContent: 'center' }}>
                                                 <span className="spinner"></span>
                                           </div>
+                                    ) : searchQuery.trim().length < 2 ? (
+                                          <div className="search-result-item" style={{ justifyContent: 'center', color: 'var(--text-muted)' }}>
+                                                Type at least 2 characters to search...
+                                          </div>
                                     ) : searchResults.length > 0 ? (
                                           searchResults.map(u => (
                                                 <Link
@@ -151,7 +159,7 @@ const Messages = () => {
                                           ))
                                     ) : (
                                           <div className="search-result-item" style={{ justifyContent: 'center', color: 'var(--text-muted)' }}>
-                                                No users found
+                                                No users found for "{searchQuery}"
                                           </div>
                                     )}
                               </div>

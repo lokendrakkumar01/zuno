@@ -24,9 +24,10 @@ export const SocketContextProvider = ({ children }) => {
                         query: {
                               userId
                         },
-                        transports: ['websocket'],
+                        transports: ['websocket', 'polling'],  // polling fallback if ws fails
+                        upgrade: true,
                         reconnection: true,
-                        reconnectionAttempts: 10,
+                        reconnectionAttempts: 15,
                         reconnectionDelay: 500,
                         timeout: 20000
                   });

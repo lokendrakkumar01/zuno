@@ -48,15 +48,18 @@ const GlobalNotification = () => {
                   const pathUserId = location.pathname.split('/').pop();
                   const isOnChatPage = location.pathname.startsWith('/messages/') && pathUserId === senderId;
 
-                  if (!isOnChatPage || document.hidden) {
+                  // Show notification if not currently viewing this chat
+                  if (!isOnChatPage) {
                         playNotificationSound();
                         const senderName = newMessage.sender?.displayName || newMessage.sender?.username || 'Someone';
-                        const textPreview = newMessage.text ?
-                              (newMessage.text.length > 30 ? newMessage.text.substring(0, 30) + '...' : newMessage.text) :
-                              (newMessage.media?.type === 'video' ? '🎬 Video message' : '📷 Photo message');
+                        const textPreview = newMessage.text
+                              ? (newMessage.text.length > 30 ? newMessage.text.substring(0, 30) + '...' : newMessage.text)
+                              : (newMessage.media?.type === 'video' ? '🎬 Video message' : '📷 Photo message');
+
+                        const navigateId = senderId || (typeof newMessage.sender === 'string' ? newMessage.sender : '');
 
                         toast.info(
-                              <div onClick={() => navigate(`/messages/${newMessage.sender._id || newMessage.sender}`)} style={{ cursor: 'pointer' }}>
+                              <div onClick={() => navigate(`/messages/${navigateId}`)} style={{ cursor: 'pointer' }}>
                                     <strong style={{ display: 'block' }}>{senderName}</strong>
                                     <span style={{ fontSize: '0.9em', opacity: 0.9 }}>{textPreview}</span>
                               </div>,
