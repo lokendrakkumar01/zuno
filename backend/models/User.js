@@ -132,6 +132,17 @@ const userSchema = new mongoose.Schema({
             type: String,
             enum: ['en', 'hi', 'both'],
             default: 'both'
+      },
+
+      // Notification settings
+      notificationSettings: {
+            pushNotifications: { type: Boolean, default: true },
+            emailNotifications: { type: Boolean, default: true },
+            likesNotifications: { type: Boolean, default: true },
+            commentsNotifications: { type: Boolean, default: true },
+            followsNotifications: { type: Boolean, default: true },
+            mentionsNotifications: { type: Boolean, default: true },
+            sharesNotifications: { type: Boolean, default: true }
       }
 
 }, { timestamps: true });

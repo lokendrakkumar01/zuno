@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { API_URL } from '../../config';
+import { toast } from 'react-toastify';
 
 const Notifications = () => {
       const navigate = useNavigate();
@@ -15,7 +16,6 @@ const Notifications = () => {
             mentionsNotifications: true,
             sharesNotifications: true
       });
-      const [message, setMessage] = useState('');
       const [loading, setLoading] = useState(false);
 
       useEffect(() => {
@@ -31,7 +31,6 @@ const Notifications = () => {
 
       const handleSave = async () => {
             setLoading(true);
-            setMessage('');
 
             try {
                   const res = await fetch(`${API_URL}/users/profile`, {
@@ -45,13 +44,12 @@ const Notifications = () => {
                   const data = await res.json();
 
                   if (data.success) {
-                        setMessage('✅ Notification settings updated!');
-                        setTimeout(() => setMessage(''), 3000);
+                        toast.success('Notification settings updated!');
                   } else {
-                        setMessage(`❌ ${data.message || 'Update failed'}`);
+                        toast.error(data.message || 'Update failed');
                   }
             } catch (error) {
-                  setMessage('❌ Failed to update settings');
+                  toast.error('Failed to update settings');
             }
             setLoading(false);
       };
@@ -103,19 +101,6 @@ const Notifications = () => {
                         </button>
                         <h1 style={{ fontSize: '28px', fontWeight: '700', margin: 0 }}>Notifications</h1>
                   </div>
-
-                  {message && (
-                        <div style={{
-                              margin: '0 16px 16px 16px',
-                              padding: '12px 16px',
-                              borderRadius: '12px',
-                              backgroundColor: message.includes('✅') ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                              border: `1px solid ${message.includes('✅') ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
-                              color: 'var(--color-text-primary)'
-                        }}>
-                              {message}
-                        </div>
-                  )}
 
                   <div style={{
                         backgroundColor: 'var(--color-bg-card)',
@@ -186,7 +171,7 @@ const Notifications = () => {
                   >
                         {loading ? '⏳ Saving...' : '💾 Save Settings'}
                   </button>
-            </div>
+            </div >
       );
 };
 

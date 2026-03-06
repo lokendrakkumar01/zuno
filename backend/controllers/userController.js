@@ -36,7 +36,7 @@ const updateProfile = async (req, res) => {
                   'displayName', 'bio', 'avatar', 'interests',
                   'preferredContentTypes', 'preferredFeedMode',
                   'focusModeEnabled', 'dailyUsageLimit', 'language',
-                  'profileVisibility', 'isPrivate'
+                  'profileVisibility', 'isPrivate', 'notificationSettings'
             ];
 
             const updates = {};

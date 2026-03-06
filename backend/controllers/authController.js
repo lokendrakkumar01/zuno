@@ -131,7 +131,8 @@ const getMe = async (req, res) => {
                               dailyUsageLimit: user.dailyUsageLimit,
                               language: user.language,
                               following: user.following, // send following list for frontend checks
-                              stats: user.stats
+                              stats: user.stats,
+                              notificationSettings: user.notificationSettings
                         }
                   }
             });

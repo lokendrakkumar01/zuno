@@ -90,7 +90,7 @@ const Settings = () => {
                               icon="📊"
                               label={t('activity')}
                               subtitle="Time spent, posts viewed, and more"
-                              onClick={() => setShowActivity(true)}
+                              onClick={() => navigate('/settings/activity')}
                         />
                         <SettingsOption
                               icon="🔔"
@@ -115,16 +115,16 @@ const Settings = () => {
                         />
                         <SettingsOption
                               icon="✓"
-                              label="Meta Verified"
+                              label="ZUNO Verify"
                               badge="Not subscribed"
                               subtitle="Get the blue checkmark"
-                              onClick={() => toast.info('Meta Verified subscription - Coming soon!')}
+                              onClick={() => toast.info('ZUNO Verify subscription - Coming soon!')}
                         />
                         <SettingsOption
                               icon="📅"
                               label="Scheduled content"
                               subtitle="Schedule posts for later"
-                              onClick={() => toast.info('Scheduled content - Coming soon!')}
+                              onClick={() => navigate('/settings/scheduled-content')}
                         />
                         <SettingsOption
                               icon="🛠️"
@@ -242,21 +242,6 @@ const Settings = () => {
 };
 
 // Simple Modal Components (placeholders for now)
-const ActivityModal = ({ onClose }) => (
-      <ModalWrapper title="Your Activity" onClose={onClose}>
-            <div style={{ padding: '20px', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
-                  <div style={{ fontSize: '48px', marginBottom: '16px' }}>📊</div>
-                  <h3 style={{ marginBottom: '8px', color: 'var(--color-text-primary)' }}>Activity Dashboard</h3>
-                  <p>Track your time spent, posts viewed, and interactions</p>
-                  <div style={{ marginTop: '24px', textAlign: 'left' }}>
-                        <StatCard label="Time Today" value="2h 34m" icon="⏱️" />
-                        <StatCard label="Posts Viewed" value="45" icon="👁️" />
-                        <StatCard label="Likes Given" value="23" icon="❤️" />
-                        <StatCard label="Comments" value="8" icon="💬" />
-                  </div>
-            </div>
-      </ModalWrapper>
-);
 
 const InsightsModal = ({ onClose }) => (
       <ModalWrapper title="Insights" onClose={onClose}>

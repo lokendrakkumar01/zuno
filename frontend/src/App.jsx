@@ -20,6 +20,8 @@ import Notifications from './pages/Settings/Notifications';
 import TimeManagement from './pages/Settings/TimeManagement';
 import PasswordSecurity from './pages/Settings/PasswordSecurity';
 import CloseFriends from './pages/Settings/CloseFriends';
+import Activity from './pages/Settings/Activity';
+import ScheduledContent from './pages/Settings/ScheduledContent';
 import Search from './pages/Search/Search';
 import SavedContent from './pages/SavedContent';
 import Messages from './pages/Messages/Messages';
@@ -85,6 +87,8 @@ function AppRouter() {
                               <Route path="settings/time-management" element={<TimeManagement />} />
                               <Route path="settings/password-security" element={<PasswordSecurity />} />
                               <Route path="settings/close-friends" element={<CloseFriends />} />
+                              <Route path="settings/activity" element={<Activity />} />
+                              <Route path="settings/scheduled-content" element={<ScheduledContent />} />
                               <Route path="search" element={<Search />} />
                               <Route path="messages" element={<Messages />} />
                               <Route path="messages/:userId" element={<Chat />} />

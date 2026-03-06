@@ -1,19 +1,38 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { API_URL } from '../../config';
+import { toast } from 'react-toastify';
 
 const TimeManagement = () => {
       const navigate = useNavigate();
-      const { user } = useAuth();
+      const { user, token } = useAuth();
       const [dailyLimit, setDailyLimit] = useState(user?.dailyUsageLimit || 120); // minutes
       const [breakReminders, setBreakReminders] = useState(true);
-      const [message, setMessage] = useState('');
+      const [loading, setLoading] = useState(false);
 
-      const handleSave = () => {
-            localStorage.setItem('dailyTimeLimit', dailyLimit.toString());
-            localStorage.setItem('breakReminders', breakReminders.toString());
-            setMessage('✅ Time limits saved!');
-            setTimeout(() => setMessage(''), 2000);
+      const handleSave = async () => {
+            setLoading(true);
+            try {
+                  const res = await fetch(`${API_URL}/users/profile`, {
+                        method: 'PUT',
+                        headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ dailyUsageLimit: dailyLimit })
+                  });
+                  const data = await res.json();
+
+                  if (data.success) {
+                        toast.success('Time limits saved!');
+                  } else {
+                        toast.error(data.message || 'Update failed');
+                  }
+            } catch (error) {
+                  toast.error('Failed to update time limit');
+            }
+            setLoading(false);
       };
 
       return (
@@ -31,19 +50,6 @@ const TimeManagement = () => {
                         </button>
                         <h1 style={{ fontSize: '28px', fontWeight: '700', margin: 0 }}>⏰ Time Management</h1>
                   </div>
-
-                  {message && (
-                        <div style={{
-                              margin: '0 16px 16px 16px',
-                              padding: '12px 16px',
-                              borderRadius: '12px',
-                              backgroundColor: 'rgba(34, 197, 94, 0.1)',
-                              border: '1px solid rgba(34, 197, 94, 0.3)',
-                              color: 'var(--color-text-primary)'
-                        }}>
-                              {message}
-                        </div>
-                  )}
 
                   <div style={{
                         backgroundColor: 'var(--color-bg-card)',
@@ -108,20 +114,21 @@ const TimeManagement = () => {
 
                   <button
                         onClick={handleSave}
+                        disabled={loading}
                         style={{
                               width: 'calc(100% - 32px)',
                               margin: '0 16px',
                               padding: '14px',
                               borderRadius: '12px',
                               border: 'none',
-                              background: 'var(--gradient-primary)',
+                              background: loading ? 'var(--color-bg-secondary)' : 'var(--gradient-primary)',
                               color: 'white',
                               fontWeight: '600',
                               fontSize: '16px',
-                              cursor: 'pointer'
+                              cursor: loading ? 'not-allowed' : 'pointer'
                         }}
                   >
-                        💾 Save Time Limits
+                        {loading ? '⏳ Saving...' : '💾 Save Time Limits'}
                   </button>
 
                   <div style={{
@@ -137,7 +144,7 @@ const TimeManagement = () => {
                   }}>
                         💡 You'll receive a notification when you reach your daily limit. This helps maintain a healthy balance!
                   </div>
-            </div>
+            </div >
       );
 };
 
