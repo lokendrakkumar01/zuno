@@ -13,7 +13,7 @@ const getConversations = async (req, res) => {
                   .populate('participants', 'username displayName avatar')
                   .populate('lastMessage.sender', 'username displayName')
                   .sort({ updatedAt: -1 });
-
+            // NOTE: No .lean() here — unreadCount is a Mongoose Map and needs .get()
             // Format conversations for frontend
             const formatted = conversations.map(conv => {
                   const otherUser = conv.participants.find(

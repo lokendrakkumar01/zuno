@@ -155,6 +155,9 @@ const Chat = () => {
 
             fetchUser(); // fast lookup
             fetchMessages(); // full messages + user (sets otherUser again via API)
+
+            // Clear sent IDs set when switching chats
+            sentMsgIds.current = new Set();
       }, [userId]);
 
       useEffect(() => {
@@ -164,28 +167,31 @@ const Chat = () => {
                   const incomingSenderId = (newMessage.sender?._id || newMessage.sender || '').toString();
                   const incomingReceiverId = (newMessage.receiver?._id || newMessage.receiver || '').toString();
                   const currentUserId = (user?._id || user?.id || '').toString();
+                  const chatWithUserId = userId?.toString();
 
-                  const isFromOtherUser = incomingSenderId === userId?.toString();
-                  const isFromMe = incomingSenderId === currentUserId && incomingReceiverId === userId?.toString();
+                  // Is this message part of THIS conversation?
+                  const isFromOtherUser = incomingSenderId === chatWithUserId;
+                  const isMyEcho = incomingSenderId === currentUserId && incomingReceiverId === chatWithUserId;
 
-                  if (isFromOtherUser || isFromMe) {
-                        // Skip if we already confirmed this message (sent by us via optimistic UI)
-                        if (isFromMe && sentMsgIds.current.has(newMessage._id)) return;
+                  if (!isFromOtherUser && !isMyEcho) return; // Not our conversation, ignore
 
-                        setMessages((prev) => {
-                              // Skip if already in list by _id
-                              if (prev.some(m => m._id === newMessage._id)) return prev;
-                              return [...prev, newMessage];
-                        });
+                  // For our OWN message echo from server — skip if we already handled it via optimistic UI
+                  if (isMyEcho && sentMsgIds.current.has(newMessage._id?.toString())) return;
 
-                        // Mark as read only when the other user sends to us
-                        if (isFromOtherUser && document.visibilityState === 'visible') {
-                              fetch(`${API_URL}/messages/${userId}/read`, {
-                                    method: 'PUT',
-                                    headers: { 'Authorization': `Bearer ${token}` }
-                              }).catch(console.error);
-                              socket.emit("messageRead", { receiverId: userId });
-                        }
+                  setMessages((prev) => {
+                        const newId = newMessage._id?.toString();
+                        // Skip if already in the list
+                        if (prev.some(m => (m._id?.toString()) === newId)) return prev;
+                        return [...prev, newMessage];
+                  });
+
+                  // Auto mark as read when the other user sends to us and we're viewing
+                  if (isFromOtherUser && document.visibilityState === 'visible') {
+                        fetch(`${API_URL}/messages/${userId}/read`, {
+                              method: 'PUT',
+                              headers: { 'Authorization': `Bearer ${token}` }
+                        }).catch(console.error);
+                        socket.emit('messageRead', { receiverId: userId });
                   }
             };
 
@@ -198,7 +204,13 @@ const Chat = () => {
             };
 
             const handleMessageRead = () => {
-                  setMessages(prev => prev.map(m => (!m.read && m.receiver === userId) ? { ...m, read: true } : m));
+                  // Mark all my sent messages in this chat as read
+                  setMessages(prev => prev.map(m => {
+                        const senderId = (m.sender?._id || m.sender || '').toString();
+                        const currentUserId = (user?._id || user?.id || '').toString();
+                        const isMySentMsg = senderId === currentUserId;
+                        return (isMySentMsg && !m.read) ? { ...m, read: true } : m;
+                  }));
             };
 
             const handleMessageReaction = (data) => {
@@ -386,8 +398,8 @@ const Chat = () => {
                   }
                   const data = await res.json();
                   if (data.success) {
-                        // Track the real message ID so the socket echo doesn't duplicate it
-                        sentMsgIds.current.add(data.data.message._id);
+                        // Track the real message ID (as string) so socket echo doesn't duplicate it
+                        sentMsgIds.current.add(data.data.message._id?.toString());
                         // Replace optimistic message with real one
                         setMessages(prev => {
                               const updated = prev.map(m => m._id === tempId ? data.data.message : m);
