@@ -14,11 +14,28 @@ const Messages = () => {
       const [searchResults, setSearchResults] = useState([]);
       const [searching, setSearching] = useState(false);
 
+      const { socket } = useSocketContext();
+
       useEffect(() => {
             if (isAuthenticated) {
                   fetchConversations();
             }
       }, [isAuthenticated]);
+
+      // Socket listener for real-time updates
+      useEffect(() => {
+            if (socket) {
+                  const handleUpdate = () => {
+                        fetchConversations();
+                  };
+                  socket.on('newMessage', handleUpdate);
+                  socket.on('messageRead', handleUpdate);
+                  return () => {
+                        socket.off('newMessage', handleUpdate);
+                        socket.off('messageRead', handleUpdate);
+                  };
+            }
+      }, [socket]);
 
       const fetchConversations = async () => {
             try {
@@ -162,7 +179,7 @@ const Messages = () => {
                                                             {conv.user?.displayName?.charAt(0) || conv.user?.username?.charAt(0) || 'U'}
                                                       </span>
                                                 )}
-                                                {onlineUsers.includes(conv.user?._id) && (
+                                                {onlineUsers.some(id => id.toString() === conv.user?._id?.toString()) && (
                                                       <span style={{
                                                             position: 'absolute',
                                                             bottom: '0px',

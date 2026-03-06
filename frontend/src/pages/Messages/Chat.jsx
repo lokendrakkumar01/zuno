@@ -117,14 +117,16 @@ const Chat = () => {
       // Replies
       const [replyingTo, setReplyingTo] = useState(null);
 
-      const isOnline = onlineUsers.includes(otherUser?._id);
+      const isOnline = onlineUsers.some(id => id.toString() === userId?.toString());
 
       useEffect(() => {
             fetchMessages();
       }, [userId]);
 
       useEffect(() => {
-            socket?.on("newMessage", (newMessage) => {
+            if (!socket) return;
+
+            socket.on("newMessage", (newMessage) => {
                   if (newMessage.sender === userId || newMessage.sender._id === userId) {
                         setMessages((prev) => [...prev, newMessage]);
                         // Mark as read and emit read event to sender
@@ -133,35 +135,35 @@ const Chat = () => {
                                     method: 'PUT',
                                     headers: { 'Authorization': `Bearer ${token}` }
                               }).catch(console.error);
-                              socket?.emit("messageRead", { receiverId: userId });
+                              socket.emit("messageRead", { receiverId: userId });
                         }
                   }
             });
 
-            socket?.on("typing", (data) => {
+            socket.on("typing", (data) => {
                   if (data.senderId === userId) setIsTyping(true);
             });
 
-            socket?.on("stopTyping", (data) => {
+            socket.on("stopTyping", (data) => {
                   if (data.senderId === userId) setIsTyping(false);
             });
 
-            socket?.on("messageRead", () => {
+            socket.on("messageRead", () => {
                   setMessages(prev => prev.map(m => (!m.read && m.receiver === userId) ? { ...m, read: true } : m));
             });
 
-            socket?.on("messageReaction", (data) => {
+            socket.on("messageReaction", (data) => {
                   setMessages(prev => prev.map(m => m._id === data.messageId ? { ...m, reactions: data.reactions } : m));
             });
 
             return () => {
-                  socket?.off("newMessage");
-                  socket?.off("typing");
-                  socket?.off("stopTyping");
-                  socket?.off("messageRead");
-                  socket?.off("messageReaction");
+                  socket.off("newMessage");
+                  socket.off("typing");
+                  socket.off("stopTyping");
+                  socket.off("messageRead");
+                  socket.off("messageReaction");
             };
-      }, [socket, userId]);
+      }, [socket, userId, token]);
 
       useEffect(() => {
             scrollToBottom();
@@ -182,6 +184,7 @@ const Chat = () => {
       };
 
       const fetchMessages = async () => {
+            setLoading(true);
             try {
                   const res = await fetch(`${API_URL}/messages/${userId}`, {
                         headers: { 'Authorization': `Bearer ${token}` }
@@ -199,11 +202,19 @@ const Chat = () => {
                         }
                         // Once loaded, tell the other user we've read their stuff
                         socket?.emit("messageRead", { receiverId: userId });
+                  } else {
+                        throw new Error(data.message || 'Failed to load messages');
                   }
             } catch (err) {
                   console.error('Failed to fetch messages:', err);
+                  // Load from cache if API fails
+                  const cachedMsgs = localStorage.getItem(`zuno_chat_cache_${userId}`);
+                  if (cachedMsgs) setMessages(JSON.parse(cachedMsgs));
+                  const cachedUser = localStorage.getItem(`zuno_user_cache_${userId}`);
+                  if (cachedUser) setOtherUser(JSON.parse(cachedUser));
+            } finally {
+                  setLoading(false);
             }
-            setLoading(false);
       };
 
       // Compress image before upload (max 800px, JPEG quality 0.6)
@@ -537,7 +548,11 @@ const Chat = () => {
                                           ) : (
                                                 <>
                                                       @{otherUser?.username || '...'}
-                                                      {isOnline && <span className="ml-2" style={{ color: '#10b981', marginLeft: '8px' }}>• Online</span>}
+                                                      {isOnline ? (
+                                                            <span className="ml-2" style={{ color: '#10b981', marginLeft: '8px' }}>• Online</span>
+                                                      ) : (
+                                                            <span className="ml-2" style={{ opacity: 0.6, marginLeft: '8px' }}>• Offline</span>
+                                                      )}
                                                 </>
                                           )}
                                     </div>

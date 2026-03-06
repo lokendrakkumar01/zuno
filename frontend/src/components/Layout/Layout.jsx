@@ -9,34 +9,44 @@ const Layout = () => {
       const { user, isAuthenticated, logout, token } = useAuth();
       const { t } = useLanguage();
       const navigate = useNavigate();
+      const { socket } = useSocketContext();
       const location = useLocation();
-      const [scrolled, setScrolled] = useState(false);
-      const [unreadCount, setUnreadCount] = useState(0);
-
-      useEffect(() => {
-            const handleScroll = () => {
-                  setScrolled(window.scrollY > 20);
-            };
-            window.addEventListener('scroll', handleScroll);
-            return () => window.removeEventListener('scroll', handleScroll);
-      }, []);
 
       // Fetch unread message count
-      useEffect(() => {
+      const fetchUnread = async () => {
             if (!isAuthenticated || !token) return;
-            const fetchUnread = async () => {
-                  try {
-                        const res = await fetch(`${API_URL}/messages/unread/count`, {
-                              headers: { 'Authorization': `Bearer ${token}` }
-                        });
-                        const data = await res.json();
-                        if (data.success) setUnreadCount(data.data.unreadCount);
-                  } catch (err) { /* silently fail */ }
-            };
+            try {
+                  const res = await fetch(`${API_URL}/messages/unread/count`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                  });
+                  const data = await res.json();
+                  if (data.success) setUnreadCount(data.data.unreadCount);
+            } catch (err) { /* silently fail */ }
+      };
+
+      useEffect(() => {
             fetchUnread();
+            // Polling as fallback
             const interval = setInterval(fetchUnread, 30000);
             return () => clearInterval(interval);
       }, [isAuthenticated, token]);
+
+      // Socket listener for real-time updates
+      useEffect(() => {
+            if (socket) {
+                  const handleNewMessage = () => {
+                        // Small delay to let backend update DB if needed, 
+                        // though count is a direct DB query usually.
+                        setTimeout(fetchUnread, 500);
+                  };
+                  socket.on('newMessage', handleNewMessage);
+                  socket.on('messageRead', fetchUnread);
+                  return () => {
+                        socket.off('newMessage', handleNewMessage);
+                        socket.off('messageRead', fetchUnread);
+                  };
+            }
+      }, [socket, isAuthenticated]);
 
       const handleLogout = () => {
             logout();
