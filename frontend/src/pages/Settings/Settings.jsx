@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useNavigate } from 'react-router-dom';
 import { API_URL } from '../../config';
+import { toast } from 'react-toastify';
 import SettingsOption from '../../components/Settings/SettingsOption';
 
 const Settings = () => {
@@ -14,7 +15,6 @@ const Settings = () => {
 
       // Modal states
       const [showActivity, setShowActivity] = useState(false);
-      const [showTimeManagement, setShowTimeManagement] = useState(false);
       const [showInsights, setShowInsights] = useState(false);
       const [showCloseFriends, setShowCloseFriends] = useState(false);
       const [showArchive, setShowArchive] = useState(false);
@@ -102,7 +102,7 @@ const Settings = () => {
                               icon="⏰"
                               label={t('timeManagement')}
                               subtitle="Set daily time limits and reminders"
-                              onClick={() => setShowTimeManagement(true)}
+                              onClick={() => navigate('/settings/time-management')}
                         />
 
                         {/* For Professionals Section */}
@@ -118,13 +118,13 @@ const Settings = () => {
                               label="Meta Verified"
                               badge="Not subscribed"
                               subtitle="Get the blue checkmark"
-                              onClick={() => alert('Meta Verified subscription - Coming soon!')}
+                              onClick={() => toast.info('Meta Verified subscription - Coming soon!')}
                         />
                         <SettingsOption
                               icon="📅"
                               label="Scheduled content"
                               subtitle="Schedule posts for later"
-                              onClick={() => alert('Scheduled content - Coming soon!')}
+                              onClick={() => toast.info('Scheduled content - Coming soon!')}
                         />
                         <SettingsOption
                               icon="🛠️"
@@ -169,19 +169,19 @@ const Settings = () => {
                               icon="🛡️"
                               label={t('accountStatus')}
                               subtitle="Check your standing on ZUNO"
-                              onClick={() => alert('Account status: All good! ✅')}
+                              onClick={() => toast.success('Account status: All good! ✅')}
                         />
                         <SettingsOption
                               icon="📥"
                               label={t('downloadInfo')}
                               subtitle="Get a copy of your ZUNO data"
-                              onClick={() => alert('Information download request submitted.')}
+                              onClick={() => toast.success('Information download request submitted.')}
                         />
                         <SettingsOption
                               icon="❓"
                               label={t('support')}
                               subtitle="Get help or report a problem"
-                              onClick={() => alert('Opening Help Center...')}
+                              onClick={() => toast.info('Opening Help Center...')}
                         />
 
                         {/* Account Section */}
@@ -195,7 +195,7 @@ const Settings = () => {
                         <SettingsOption
                               icon="🔐"
                               label="Password and security"
-                              onClick={() => alert('Password settings - Coming soon!')}
+                              onClick={() => navigate('/settings/password-security')}
                         />
                         <SettingsOption
                               icon="🚪"
@@ -207,7 +207,7 @@ const Settings = () => {
                               label={t('deleteAccount')}
                               onClick={() => {
                                     if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
-                                          alert('Contact support to delete your account');
+                                          toast.info('Contact support to delete your account');
                                     }
                               }}
                         />
@@ -216,11 +216,6 @@ const Settings = () => {
                   {/* Modal for Your Activity */}
                   {showActivity && (
                         <ActivityModal onClose={() => setShowActivity(false)} />
-                  )}
-
-                  {/* Modal for Time Management */}
-                  {showTimeManagement && (
-                        <TimeManagementModal onClose={() => setShowTimeManagement(false)} />
                   )}
 
                   {/* Modal for Insights */}
@@ -259,38 +254,6 @@ const ActivityModal = ({ onClose }) => (
                         <StatCard label="Likes Given" value="23" icon="❤️" />
                         <StatCard label="Comments" value="8" icon="💬" />
                   </div>
-            </div>
-      </ModalWrapper>
-);
-
-const TimeManagementModal = ({ onClose }) => (
-      <ModalWrapper title="Time Management" onClose={onClose}>
-            <div style={{ padding: '20px' }}>
-                  <div style={{ fontSize: '48px', textAlign: 'center', marginBottom: '16px' }}>⏰</div>
-                  <h3 style={{ textAlign: 'center', marginBottom: '24px', color: 'var(--color-text-primary)' }}>Set Daily Limit</h3>
-                  <div style={{ marginBottom: '16px' }}>
-                        <label style={{ display: 'block', marginBottom: '8px', color: 'var(--color-text-secondary)' }}>Daily time limit (hours)</label>
-                        <input type="number" min="0" max="12" defaultValue="2" style={{
-                              width: '100%',
-                              padding: '12px',
-                              borderRadius: '8px',
-                              border: '1px solid var(--color-border)',
-                              backgroundColor: 'var(--color-bg-secondary)',
-                              color: 'var(--color-text-primary)'
-                        }} />
-                  </div>
-                  <button style={{
-                        width: '100%',
-                        padding: '14px',
-                        borderRadius: '12px',
-                        border: 'none',
-                        background: 'var(--gradient-primary)',
-                        color: 'white',
-                        fontWeight: '600',
-                        cursor: 'pointer'
-                  }}>
-                        Save Limit
-                  </button>
             </div>
       </ModalWrapper>
 );
