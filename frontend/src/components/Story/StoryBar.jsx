@@ -194,7 +194,7 @@ const StoryBar = () => {
             };
             fetchStories();
       }, []);
-      鼓
+
       // Instagram-style gradient ring
       const gradientRingStyle = {
             background: 'linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)',
