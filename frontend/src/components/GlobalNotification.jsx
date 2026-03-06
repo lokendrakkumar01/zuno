@@ -28,6 +28,31 @@ const playNotificationSound = () => {
       }
 };
 
+const playRingtoneSound = () => {
+      try {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            // Ringing tone
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(440, audioCtx.currentTime); // A4
+            oscillator.frequency.setValueAtTime(480, audioCtx.currentTime + 0.1);
+
+            gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.1);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1.5);
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 1.5);
+      } catch (e) {
+            console.log('Audio play blocked:', e);
+      }
+};
+
 const GlobalNotification = () => {
       const { socket } = useSocketContext();
       const location = useLocation();
@@ -90,10 +115,58 @@ const GlobalNotification = () => {
                   }
             };
 
+            const handleIncomingCall = (data) => {
+                  playRingtoneSound();
+
+                  // Show persistent toast for call
+                  const callerName = data.from?.displayName || data.from?.username || 'Someone';
+                  toast.info(
+                        <div onClick={() => navigate(`/messages/${data.from._id || data.from}`)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <div style={{ fontSize: '2rem', animation: 'pulse 1.5s infinite' }}>{data.callType === 'video' ? '📹' : '📞'}</div>
+                              <div>
+                                    <strong style={{ display: 'block' }}>Incoming {data.callType === 'video' ? 'Video' : 'Voice'} Call</strong>
+                                    <span style={{ fontSize: '0.9em', opacity: 0.9 }}>from {callerName}</span>
+                                    <div style={{ fontSize: '0.8em', color: '#10b981', marginTop: '4px' }}>Click to answer</div>
+                              </div>
+                        </div>,
+                        {
+                              position: "top-center",
+                              autoClose: false, // Don't auto close calls
+                              hideProgressBar: true,
+                              closeOnClick: true,
+                              pauseOnHover: true,
+                              draggable: true,
+                              toastId: `call-${data.from._id || data.from}`
+                        }
+                  );
+
+                  if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
+                        const callNotification = new Notification(`Incoming ${data.callType} call from ${callerName}`, {
+                              body: 'Click to answer',
+                              icon: '/favicon.ico',
+                              tag: 'zuno-call',
+                        });
+                        callNotification.onclick = () => {
+                              window.focus();
+                              navigate(`/messages/${data.from._id || data.from}`);
+                              callNotification.close();
+                        };
+                  }
+            };
+
+            const handleCallEnded = () => {
+                  // Dismiss all call toasts
+                  toast.dismiss();
+            };
+
             socket.on("newMessage", handleNewMessage);
+            socket.on("callUser", handleIncomingCall);
+            socket.on("callEnded", handleCallEnded);
 
             return () => {
                   socket.off("newMessage", handleNewMessage);
+                  socket.off("callUser", handleIncomingCall);
+                  socket.off("callEnded", handleCallEnded);
             };
       }, [socket, location.pathname, navigate]);
 

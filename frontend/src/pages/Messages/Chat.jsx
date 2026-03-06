@@ -969,8 +969,8 @@ const Chat = () => {
                   {
                         (isCalling || callAccepted) && !callEnded && (
                               <div className="chat-call-overlay" style={{
-                                    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-                                    background: 'var(--bg-card)', zIndex: 100, display: 'flex', flexDirection: 'column'
+                                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, // Changed absolute to fixed
+                                    background: 'var(--bg-card)', zIndex: 9999, display: 'flex', flexDirection: 'column' // Increased z-index
                               }}>
                                     <div className="chat-call-header" style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.5)', color: 'white' }}>
                                           <div className="font-bold">{isCalling && !callAccepted ? 'Calling...' : `${callType === 'video' ? 'Video' : 'Voice'} Call`}</div>
@@ -1030,7 +1030,7 @@ const Chat = () => {
                   {/* Incoming Call Modal */}
                   {
                         showCallModal === 'incoming' && !callAccepted && (
-                              <div className="chat-call-modal-overlay" style={{ zIndex: 1000, position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+                              <div className="chat-call-modal-overlay" style={{ zIndex: 9999, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
                                     <div className="chat-call-modal" onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-card)', padding: '24px', borderRadius: '16px', textAlign: 'center', minWidth: '300px' }}>
                                           <div className="chat-call-modal-icon" style={{ fontSize: '3rem', marginBottom: '16px' }}>
                                                 {callType === 'video' ? '📹' : '📞'}

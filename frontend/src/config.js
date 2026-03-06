@@ -11,8 +11,9 @@ const getApiBaseUrl = () => {
             return import.meta.env.VITE_API_URL;
       }
       // Development fallback
-      console.log('🌐 Using LOCAL API:', 'http://localhost:5000');
-      return 'http://localhost:5000';
+      const localUrl = import.meta.env?.DEV ? window.location.origin : 'http://localhost:5000';
+      console.log('🌐 Using LOCAL API:', localUrl);
+      return localUrl;
 };
 
 export const API_BASE_URL = getApiBaseUrl();
