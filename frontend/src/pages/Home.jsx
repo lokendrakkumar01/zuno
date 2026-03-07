@@ -98,11 +98,20 @@ const Home = () => {
                         setError(null); // clear any old error
                   }
                   // If not success, keep showing cached content silently - no error
+                  if (!data.success && contents.length === 0) {
+                        setError('Failed to load feed.');
+                  }
             } catch (err) {
                   clearTimeout(timeoutId);
                   console.error('Feed fetch failed (silent):', err);
-                  // DON'T show error to user if we already have cached content
-                  // Only show retry if we have NO content at all
+                  // Only show error to user if we have NO content at all
+                  if (contents.length === 0 || (typeof contents === 'function' && contents().length === 0)) {
+                        if (err.name === 'AbortError') {
+                              setError('Server is waking up. Please refresh the page.');
+                        } else {
+                              setError('Connection error. Could not load feed.');
+                        }
+                  }
             } finally {
                   setSilentRefreshing(false);
             }
@@ -298,8 +307,17 @@ const Home = () => {
                                     </p>
                               </div>
 
-                              {/* Content Grid - only shows spinner if we have NO cached content at all and are fetching */}
-                              {contents.length === 0 && silentRefreshing ? (
+                              {/* Error State - Server Timeout */}
+                              {contents.length === 0 && error ? (
+                                    <div className="card p-xl text-center" style={{ maxWidth: '600px', margin: '40px auto', background: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
+                                          <div className="empty-state-icon mb-md">⚠️</div>
+                                          <h3 className="text-xl font-bold text-red-500 mb-sm">Connection Issue</h3>
+                                          <p className="text-muted mb-lg">{error}</p>
+                                          <button onClick={() => fetchFeed(mode, 1, false)} className="btn btn-primary mx-auto flex">
+                                                🔄 Retry Connection
+                                          </button>
+                                    </div>
+                              ) : contents.length === 0 && silentRefreshing ? (
                                     <div className="empty-state">
                                           <div className="spinner" style={{ margin: '0 auto' }}></div>
                                           <p className="mt-md">Loading amazing content...</p>
