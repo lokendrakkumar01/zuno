@@ -121,19 +121,28 @@ const Chat = () => {
       const isOnline = onlineUsers.some(id => id.toString() === userId?.toString());
 
       useEffect(() => {
-            // Reset state immediately when userId changes
-            setMessages([]);
-            setLoading(true);
-
-            // Try loading user from cache first for instant display
+            // Load messages from cache for instant display when switching or mounting
             try {
-                  const cached = localStorage.getItem(`zuno_user_cache_${userId}`);
-                  if (cached) {
-                        setOtherUser(JSON.parse(cached));
+                  const cachedMsgs = localStorage.getItem(`zuno_chat_cache_${userId}`);
+                  if (cachedMsgs) {
+                        setMessages(JSON.parse(cachedMsgs));
+                        setLoading(false);
+                  } else {
+                        setMessages([]);
+                        setLoading(true);
+                  }
+
+                  const cachedUser = localStorage.getItem(`zuno_user_cache_${userId}`);
+                  if (cachedUser) {
+                        setOtherUser(JSON.parse(cachedUser));
                   } else {
                         setOtherUser(null);
                   }
-            } catch { setOtherUser(null); }
+            } catch {
+                  setMessages([]);
+                  setOtherUser(null);
+                  setLoading(true);
+            }
 
             // Fetch user info immediately (for fast name display)
             const fetchUser = async () => {
@@ -251,7 +260,7 @@ const Chat = () => {
       };
 
       const fetchMessages = async () => {
-            setLoading(true);
+            setLoading(prev => messages.length === 0 ? true : prev);
             try {
                   const res = await fetch(`${API_URL}/messages/${userId}`, {
                         headers: { 'Authorization': `Bearer ${token}` }
