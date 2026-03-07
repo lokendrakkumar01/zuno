@@ -213,9 +213,12 @@ const sendMessage = async (req, res) => {
                   }
                   const currentUnread = conversation.unreadCount.get(userId) || 0;
                   conversation.unreadCount.set(userId, currentUnread + 1);
-                  await conversation.save();
+
+                  // Fire and forget conversation update to speed up socket delivery
+                  conversation.save().catch(err => console.error("Conversation save err:", err));
             } else {
-                  conversation = await Conversation.create({
+                  // Fire and forget
+                  Conversation.create({
                         participants: [req.user.id, userId],
                         lastMessage: {
                               text: lastText,
@@ -223,7 +226,7 @@ const sendMessage = async (req, res) => {
                               createdAt: new Date()
                         },
                         unreadCount: new Map([[userId, 1]])
-                  });
+                  }).catch(err => console.error("Conversation create err:", err));
             }
 
             // SOCKET.IO functionality

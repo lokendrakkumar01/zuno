@@ -337,7 +337,7 @@ const Chat = () => {
 
       const handleSend = async (e) => {
             e.preventDefault();
-            if ((!newMessage.trim() && !mediaFile) || sending) return;
+            if ((!newMessage.trim() && !mediaFile) || (sending && !!mediaFile)) return;
 
             const msgText = newMessage.trim();
             const currentMedia = mediaFile;
@@ -963,9 +963,9 @@ const Chat = () => {
                         <button
                               type="submit"
                               className="chat-send-btn"
-                              disabled={(!newMessage.trim() && !mediaFile) || sending}
+                              disabled={(!newMessage.trim() && !mediaFile) || (sending && !!mediaFile)}
                         >
-                              {sending ? (
+                              {(sending && !!mediaFile) ? (
                                     <span className="spinner" style={{ width: '20px', height: '20px' }}></span>
                               ) : (
                                     <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">

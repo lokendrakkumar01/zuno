@@ -13,7 +13,7 @@ const io = new Server(server, {
       allowEIO3: true,  // backward-compat with older socket.io clients
       pingTimeout: 60000, // 60s timeout — tolerates Render cold starts
       pingInterval: 25000, // Standard ping every 25s
-      transports: ['websocket', 'polling'], // Allow both transports
+      transports: ['websocket'], // FORCE websocket only for instant delivery
       perMessageDeflate: false // Disable compression for faster small message delivery
 });
 
