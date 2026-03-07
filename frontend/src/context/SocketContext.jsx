@@ -22,12 +22,12 @@ export const SocketContextProvider = ({ children }) => {
 
                   const socketInstance = io(socketUrl, {
                         query: { userId },
-                        transports: ['websocket'], // WebSocket ONLY for fastest possible connection
+                        transports: ['websocket', 'polling'], // Fallback to polling ensures delivery on bad networks
                         reconnection: true,
                         reconnectionAttempts: Infinity,
                         reconnectionDelay: 1000,
-                        reconnectionDelayMax: 10000,
-                        timeout: 20000               // 20s connection timeout
+                        reconnectionDelayMax: 5000, // Quicker max delay for faster retries
+                        timeout: 10000              // 10s connection timeout instead of 20s
                   });
 
                   setSocket(socketInstance);

@@ -489,7 +489,8 @@ const searchUsers = async (req, res) => {
                   ]
             })
                   .select('username displayName avatar bio isVerified')
-                  .limit(20);
+                  .limit(10)
+                  .lean();
 
             res.json({
                   success: true,

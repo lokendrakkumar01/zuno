@@ -162,8 +162,16 @@ export const CallProvider = ({ children }) => {
 
             try {
                   const mediaStream = await navigator.mediaDevices.getUserMedia({
-                        video: type === 'video',
-                        audio: true
+                        video: type === 'video' ? {
+                              width: { ideal: 1280, max: 1920 },
+                              height: { ideal: 720, max: 1080 },
+                              frameRate: { ideal: 30, max: 60 }
+                        } : false,
+                        audio: {
+                              echoCancellation: true,
+                              noiseSuppression: true,
+                              autoGainControl: true
+                        }
                   });
                   setStream(mediaStream);
                   if (myVideo.current) {
@@ -231,8 +239,16 @@ export const CallProvider = ({ children }) => {
 
             try {
                   const mediaStream = await navigator.mediaDevices.getUserMedia({
-                        video: callType === 'video',
-                        audio: true
+                        video: callType === 'video' ? {
+                              width: { ideal: 1280, max: 1920 },
+                              height: { ideal: 720, max: 1080 },
+                              frameRate: { ideal: 30, max: 60 }
+                        } : false,
+                        audio: {
+                              echoCancellation: true,
+                              noiseSuppression: true,
+                              autoGainControl: true
+                        }
                   });
                   setStream(mediaStream);
                   if (myVideo.current) {

@@ -11,9 +11,9 @@ const io = new Server(server, {
             credentials: false
       },
       allowEIO3: true,  // backward-compat with older socket.io clients
-      pingTimeout: 60000, // 60s timeout — tolerates Render cold starts
-      pingInterval: 25000, // Standard ping every 25s
-      transports: ['websocket'], // FORCE websocket only for instant delivery
+      pingTimeout: 30000, // 30s timeout — tolerates short drops but faster than 60s
+      pingInterval: 10000, // Fast ping every 10s to keep connection extremely active
+      transports: ['websocket', 'polling'], // Allow polling fallback for networks blocking strict WebSockets
       perMessageDeflate: false // Disable compression for faster small message delivery
 });
 
