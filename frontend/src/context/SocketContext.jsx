@@ -22,8 +22,7 @@ export const SocketContextProvider = ({ children }) => {
 
                   const socketInstance = io(socketUrl, {
                         query: { userId },
-                        transports: ['websocket', 'polling'], // WebSocket preferred; polling fallback
-                        upgrade: true,               // Upgrade from polling to websocket if possible
+                        transports: ['websocket'], // WebSocket ONLY for fastest possible connection
                         reconnection: true,
                         reconnectionAttempts: Infinity,
                         reconnectionDelay: 1000,
