@@ -72,9 +72,9 @@ const Home = () => {
                   setSilentRefreshing(true); // tiny indicator, not a blocker
             }
 
-            // Timeout: 20 seconds for Render's cold start
+            // Timeout: 45 seconds to allow Render's slow cold start
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 20000);
+            const timeoutId = setTimeout(() => controller.abort(), 45000);
 
             try {
                   const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
