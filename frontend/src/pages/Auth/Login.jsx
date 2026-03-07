@@ -109,7 +109,7 @@ const Login = () => {
                                     disabled={loading}
                                     style={{ width: '100%' }}
                               >
-                                    {loading ? <span className="spinner"></span> : `✨ ${t('login')}`}
+                                    {loading ? <span style={{ fontSize: '18px' }}>⏳</span> : `✨ ${t('login')}`}
                               </button>
                         </form>
 

@@ -175,9 +175,8 @@ const Messages = () => {
                         {searchQuery && (
                               <div className="search-results-dropdown">
                                     {searching && searchResults.length === 0 ? (
-                                          <div className="search-result-item" style={{ justifyContent: 'center' }}>
-                                                <span className="spinner" style={{ width: '20px', height: '20px' }}></span>
-                                                <span style={{ marginLeft: '10px', color: 'var(--text-muted)' }}>Searching...</span>
+                                          <div className="search-result-item" style={{ justifyContent: 'center', color: 'var(--text-muted)' }}>
+                                                Searching...
                                           </div>
                                     ) : searchQuery.trim().length < 2 ? (
                                           <div className="search-result-item" style={{ justifyContent: 'center', color: 'var(--text-muted)' }}>
@@ -219,7 +218,7 @@ const Messages = () => {
                   <div className="conversations-list">
                         {loading ? (
                               <div className="empty-state">
-                                    <span className="spinner"></span>
+                                    {/* Silent loading */}
                               </div>
                         ) : conversations.length > 0 ? (
                               conversations.map(conv => (

@@ -87,7 +87,7 @@ const DashboardHome = ({ token }) => {
       }, [token]);
 
       if (loading) {
-            return <div className="empty-state"><div className="spinner" style={{ margin: '0 auto' }}></div></div>;
+            return <div className="empty-state">{/* Silent loading */}</div>;
       }
 
       return (
@@ -201,7 +201,7 @@ const UsersManagement = ({ token }) => {
                   </div>
 
                   {loading ? (
-                        <div className="spinner" style={{ margin: '0 auto' }}></div>
+                        <div className="text-center py-xl"><span style={{ fontSize: '1.5rem' }}>⏳</span></div>
                   ) : (
                         <div className="card">
                               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -303,7 +303,7 @@ const ContentManagement = ({ token }) => {
                   <h1 className="text-2xl font-bold mb-lg">Content Moderation</h1>
 
                   {loading ? (
-                        <div className="spinner" style={{ margin: '0 auto' }}></div>
+                        <div className="text-center py-xl"><span style={{ fontSize: '1.5rem' }}>⏳</span></div>
                   ) : (
                         <div className="content-grid">
                               {contents.map(c => (
@@ -419,7 +419,7 @@ const ConfigManagement = ({ token }) => {
                   )}
 
                   {loading ? (
-                        <div className="spinner" style={{ margin: '0 auto' }}></div>
+                        <div className="text-center py-xl"><span style={{ fontSize: '1.5rem' }}>⏳</span></div>
                   ) : configs.length === 0 ? (
                         <div className="card text-center p-xl">
                               <p className="text-muted mb-md">No configs found. Click "Initialize Defaults" to set them up.</p>

@@ -325,8 +325,7 @@ const Home = () => {
                                     </div>
                               ) : contents.length === 0 && silentRefreshing ? (
                                     <div className="empty-state">
-                                          <div className="spinner" style={{ margin: '0 auto' }}></div>
-                                          <p className="mt-md">Loading amazing content...</p>
+                                          {/* Silent loading */}
                                     </div>
                               ) : contents.length === 0 ? (
                                     <div className="empty-state animate-fadeIn">

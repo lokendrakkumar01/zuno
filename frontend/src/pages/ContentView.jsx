@@ -147,7 +147,7 @@ const ContentView = () => {
       if (loading) {
             return (
                   <div className="empty-state">
-                        <div className="spinner" style={{ margin: '0 auto' }}></div>
+                        {/* Silent loading */}
                   </div>
             );
       }

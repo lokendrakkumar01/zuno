@@ -106,7 +106,7 @@ const Search = () => {
                                           />
                                     </div>
                                     <button type="submit" className="btn btn-primary" disabled={loading}>
-                                          {loading ? <span className="spinner"></span> : '🔍 Search'}
+                                          {loading ? <span style={{ fontSize: '18px' }}>⏳</span> : '🔍 Search'}
                                     </button>
                               </div>
 
@@ -139,8 +139,7 @@ const Search = () => {
                         {/* Results */}
                         {loading && (
                               <div className="empty-state">
-                                    <div className="spinner" style={{ margin: '0 auto' }}></div>
-                                    <p className="mt-md">Searching...</p>
+                                    <p className="mt-md text-muted">Searching...</p>
                               </div>
                         )}
 

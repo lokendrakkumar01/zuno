@@ -359,7 +359,7 @@ const Profile = () => {
             return (
                   <div className="container" style={{ paddingTop: 'var(--space-2xl)' }}>
                         <div className="empty-state">
-                              <div className="spinner" style={{ margin: '0 auto' }}></div>
+                              {/* Silent loading */}
                         </div>
                   </div>
             );
@@ -402,7 +402,7 @@ const Profile = () => {
                                                       onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
                                                 >
                                                       {uploadingPhoto ? (
-                                                            <div className="spinner"></div>
+                                                            <span style={{ fontSize: '1.5rem' }}>⏳</span>
                                                       ) : profileUser.avatar ? (
                                                             <img src={profileUser.avatar} alt={profileUser.displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                                       ) : (
@@ -530,7 +530,7 @@ const Profile = () => {
                                                             className={`btn ${isFollowing ? 'btn-secondary' : 'btn-primary'} flex-1 min-w-[120px]`}
                                                       >
                                                             {followLoading ? (
-                                                                  <span className="spinner" style={{ width: '16px', height: '16px' }}></span>
+                                                                  <span style={{ fontSize: '16px' }}>⏳</span>
                                                             ) : isFollowing ? (
                                                                   '✓ Following'
                                                             ) : (
@@ -781,7 +781,7 @@ const Profile = () => {
                                     </div>
                                     {modalLoading ? (
                                           <div className="text-center py-lg">
-                                                <div className="spinner" style={{ margin: '0 auto' }}></div>
+                                                <span style={{ fontSize: '1.5rem' }}>⏳</span>
                                           </div>
                                     ) : followersList.length > 0 ? (
                                           <div className="flex flex-col gap-md">
@@ -870,7 +870,7 @@ const Profile = () => {
                                     </div>
                                     {modalLoading ? (
                                           <div className="text-center py-lg">
-                                                <div className="spinner" style={{ margin: '0 auto' }}></div>
+                                                <span style={{ fontSize: '1.5rem' }}>⏳</span>
                                           </div>
                                     ) : followingList.length > 0 ? (
                                           <div className="flex flex-col gap-md">

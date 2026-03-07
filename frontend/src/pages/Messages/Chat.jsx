@@ -735,7 +735,7 @@ const Chat = () => {
                   }>
                         {loading ? (
                               <div className="empty-state">
-                                    <span className="spinner"></span>
+                                    {/* Silent loading */}
                               </div>
                         ) : messages.length > 0 ? (
                               messages.map((msg, index) => {
@@ -1004,7 +1004,7 @@ const Chat = () => {
                               disabled={(!newMessage.trim() && !mediaFile) || (sending && !!mediaFile)}
                         >
                               {(sending && !!mediaFile) ? (
-                                    <span className="spinner" style={{ width: '20px', height: '20px' }}></span>
+                                    <span style={{ fontSize: '18px' }}>⏳</span>
                               ) : (
                                     <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
                                           <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />

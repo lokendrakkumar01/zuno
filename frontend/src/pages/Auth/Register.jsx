@@ -226,7 +226,7 @@ const Register = () => {
                                                       ← Back
                                                 </button>
                                                 <button type="submit" className="btn btn-primary flex-1" disabled={loading}>
-                                                      {loading ? <span className="spinner"></span> : `🚀 ${t('createAccount')}`}
+                                                      {loading ? <span style={{ fontSize: '18px' }}>⏳</span> : `🚀 ${t('createAccount')}`}
                                                 </button>
                                           </div>
                                     </div>
