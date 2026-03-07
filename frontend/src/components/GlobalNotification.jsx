@@ -241,7 +241,7 @@ const GlobalNotification = () => {
                   socket.off("newInteraction", handleNewInteraction);
                   socket.off("newComment", handleNewComment);
             };
-      }, [socket, location.pathname, navigate, answerCall, leaveCall]);
+      }, [socket, location.pathname, navigate, answerCall, leaveCall, user?._id]);
 
       return null;
 };
