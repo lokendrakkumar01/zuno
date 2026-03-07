@@ -238,7 +238,13 @@ const Chat = () => {
             };
 
             const handleMessageReaction = (data) => {
-                  setMessages(prev => prev.map(m => m._id === data.messageId ? { ...m, reactions: data.reactions } : m));
+                  setMessages(prev => {
+                        const updated = prev.map(m => m._id === data.messageId ? { ...m, reactions: data.reactions } : m);
+                        try {
+                              localStorage.setItem(`zuno_chat_cache_${userId}`, JSON.stringify(updated.slice(-100)));
+                        } catch (e) { }
+                        return updated;
+                  });
             };
 
             socket.on("newMessage", handleNewMessage);
@@ -514,7 +520,13 @@ const Chat = () => {
                   });
                   const data = await res.json();
                   if (data.success) {
-                        setMessages(prev => prev.map(m => m._id === messageId ? data.data.message : m));
+                        setMessages(prev => {
+                              const updated = prev.map(m => m._id === messageId ? data.data.message : m);
+                              try {
+                                    localStorage.setItem(`zuno_chat_cache_${userId}`, JSON.stringify(updated.slice(-100)));
+                              } catch (e) { }
+                              return updated;
+                        });
                         setActiveMenu(null);
                   }
             } catch (err) {
@@ -763,11 +775,12 @@ const Chat = () => {
                                                             <span>{formatDateSeparator(msg.createdAt)}</span>
                                                       </div>
                                                 )}
-                                                <div className={`chat-bubble-wrapper ${isMine ? 'sent' : 'received'}`}>
+                                                <div className={`chat-bubble-wrapper ${isMine ? 'sent' : 'received'}`} style={{ marginBottom: (msg.reactions && msg.reactions.length > 0) ? '18px' : '2px' }}>
                                                       <div
                                                             className={`chat-bubble ${isMine ? 'sent' : 'received'}`}
                                                             style={{
                                                                   position: 'relative',
+                                                                  zIndex: (msg.reactions && msg.reactions.length > 0) ? 1 : 'auto',
                                                                   ...(isMine && chatCustomization.themeColor !== '#6366f1' ? {
                                                                         background: chatCustomization.themeColor,
                                                                         borderColor: chatCustomization.themeColor
@@ -832,7 +845,7 @@ const Chat = () => {
 
                                                                         {/* Reactions */}
                                                                         {msg.reactions && msg.reactions.length > 0 && (
-                                                                              <div className="chat-bubble-reactions" style={{ display: 'flex', gap: '2px', position: 'absolute', bottom: '-12px', right: isMine ? '0' : 'auto', left: isMine ? 'auto' : '0', background: 'var(--bg-card)', padding: '2px 4px', borderRadius: '12px', border: '1px solid var(--border-color)', fontSize: '0.8rem' }}>
+                                                                              <div className="chat-bubble-reactions" style={{ zIndex: 1, display: 'flex', gap: '2px', position: 'absolute', bottom: '-12px', right: isMine ? '0' : 'auto', left: isMine ? 'auto' : '0', background: 'var(--bg-card)', padding: '2px 4px', borderRadius: '12px', border: '1px solid var(--border-color)', fontSize: '0.8rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
                                                                                     {msg.reactions.map((r, i) => (
                                                                                           <span key={i} title={r.user?.username || 'User'}>{r.emoji}</span>
                                                                                     ))}

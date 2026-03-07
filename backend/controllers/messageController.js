@@ -502,10 +502,12 @@ const reactToMessage = async (req, res) => {
 
             // Send via socket
             const receiverId = message.sender.toString() === req.user.id ? message.receiver.toString() : message.sender.toString();
-            const receiverSocketId = getReceiverSocketId(receiverId);
-            if (receiverSocketId) {
-                  io.to(receiverSocketId).emit("messageReaction", { messageId, reactions: message.reactions });
-            }
+
+            // Broadcast to the other user's specific room
+            io.to(receiverId).emit("messageReaction", { messageId, reactions: message.reactions });
+
+            // Also broadcast to the current user's room (so their other open tabs instantly sync)
+            io.to(req.user.id).emit("messageReaction", { messageId, reactions: message.reactions });
 
             res.json({
                   success: true,
