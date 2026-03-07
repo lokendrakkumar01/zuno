@@ -184,68 +184,76 @@ const sendMessage = async (req, res) => {
             // Create message
             const message = await Message.create(msgData);
 
-            // Populate sender info
-            await message.populate('sender', 'username displayName avatar');
-            await message.populate('receiver', 'username displayName avatar');
-            if (replyTo) {
-                  await message.populate({
-                        path: 'replyTo',
-                        populate: { path: 'sender', select: 'username displayName' }
-                  });
-            }
-
             // Conversation last message text
             const lastText = text ? text.trim() : (msgData.media?.type === 'video' ? '🎬 Video' : '📷 Photo');
 
-            // Update or create conversation
-            let conversation = await Conversation.findOne({
+            // Fire and forget conversation update to speed up socket delivery
+            Conversation.findOne({
                   participants: { $all: [req.user.id, userId] }
-            });
-
-            if (conversation) {
-                  conversation.lastMessage = {
-                        text: lastText,
-                        sender: req.user.id,
-                        createdAt: new Date()
-                  };
-                  if (!conversation.unreadCount) {
-                        conversation.unreadCount = new Map();
-                  }
-                  const currentUnread = conversation.unreadCount.get(userId) || 0;
-                  conversation.unreadCount.set(userId, currentUnread + 1);
-
-                  // Fire and forget conversation update to speed up socket delivery
-                  conversation.save().catch(err => console.error("Conversation save err:", err));
-            } else {
-                  // Fire and forget
-                  Conversation.create({
-                        participants: [req.user.id, userId],
-                        lastMessage: {
+            }).then(conversation => {
+                  if (conversation) {
+                        conversation.lastMessage = {
                               text: lastText,
                               sender: req.user.id,
                               createdAt: new Date()
-                        },
-                        unreadCount: new Map([[userId, 1]])
-                  }).catch(err => console.error("Conversation create err:", err));
-            }
+                        };
+                        if (!conversation.unreadCount) {
+                              conversation.unreadCount = new Map();
+                        }
+                        const currentUnread = conversation.unreadCount.get(userId) || 0;
+                        conversation.unreadCount.set(userId, currentUnread + 1);
+                        return conversation.save();
+                  } else {
+                        return Conversation.create({
+                              participants: [req.user.id, userId],
+                              lastMessage: {
+                                    text: lastText,
+                                    sender: req.user.id,
+                                    createdAt: new Date()
+                              },
+                              unreadCount: new Map([[userId, 1]])
+                        });
+                  }
+            }).catch(err => console.error("Conversation err:", err));
 
-            // SOCKET.IO functionality
+            // Populate sender info asynchronously for HTTP response
+            const responseMessagePromise = message.populate('sender', 'username displayName avatar')
+                  .then(m => m.populate('receiver', 'username displayName avatar'))
+                  .then(m => replyTo ? m.populate({ path: 'replyTo', populate: { path: 'sender', select: 'username displayName' } }) : m);
+
+            // Construct manual populated payload for INSTANT socket delivery
+            const socketPayload = message.toObject();
+            socketPayload.sender = {
+                  _id: req.user._id || req.user.id,
+                  username: req.user.username,
+                  displayName: req.user.displayName,
+                  avatar: req.user.avatar
+            };
+            socketPayload.receiver = {
+                  _id: receiver._id,
+                  username: receiver.username,
+                  displayName: receiver.displayName,
+                  avatar: receiver.avatar
+            };
+
+            // SOCKET.IO functionality — fires instantly, no awaiting db
             const receiverSocketId = getReceiverSocketId(userId);
             if (receiverSocketId) {
-                  // io.to(<socket_id>).emit() used to send events to specific client
-                  io.to(receiverSocketId).emit("newMessage", message);
+                  io.to(receiverSocketId).emit("newMessage", socketPayload);
             }
 
-            // Also emit back to sender (for multi-tab / other windows of same user)
             const senderSocketId = getReceiverSocketId(req.user.id);
             if (senderSocketId) {
-                  io.to(senderSocketId).emit("newMessage", message);
+                  io.to(senderSocketId).emit("newMessage", socketPayload);
             }
+
+            // Await the population ONLY for the final HTTP response
+            const finalMessage = await responseMessagePromise;
 
             res.status(201).json({
                   success: true,
                   message: 'Message sent',
-                  data: { message }
+                  data: { message: finalMessage }
             });
       } catch (error) {
             console.error('sendMessage error:', error);
