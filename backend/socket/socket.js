@@ -17,19 +17,16 @@ const io = new Server(server, {
       perMessageDeflate: false // Disable compression for faster small message delivery
 });
 
-const userSocketMap = {}; // {userId: socketId}
-
-const getReceiverSocketId = (receiverId) => {
-      if (!receiverId) return undefined;
-      return userSocketMap[receiverId.toString()];
-};
+const userSocketMap = {}; // {userId: count} - track online status simply
 
 io.on("connection", (socket) => {
       console.log("A user connected", socket.id);
 
       const userId = socket.handshake.query.userId;
       if (userId && userId !== "undefined") {
-            userSocketMap[userId] = socket.id;
+            // Join a personal room to receive events across all their devices/tabs
+            socket.join(userId);
+            userSocketMap[userId] = (userSocketMap[userId] || 0) + 1;
       }
 
       // Emit event to all connected clients
@@ -37,31 +34,27 @@ io.on("connection", (socket) => {
 
       // Real-time Chat Features (WhatsApp-like)
       socket.on("typing", (data) => {
-            const receiverSocketId = getReceiverSocketId(data.receiverId);
-            if (receiverSocketId) {
-                  io.to(receiverSocketId).emit("typing", { senderId: userId });
+            if (data.receiverId) {
+                  io.to(data.receiverId).emit("typing", { senderId: userId });
             }
       });
 
       socket.on("stopTyping", (data) => {
-            const receiverSocketId = getReceiverSocketId(data.receiverId);
-            if (receiverSocketId) {
-                  io.to(receiverSocketId).emit("stopTyping", { senderId: userId });
+            if (data.receiverId) {
+                  io.to(data.receiverId).emit("stopTyping", { senderId: userId });
             }
       });
 
       socket.on("messageRead", (data) => {
-            const receiverSocketId = getReceiverSocketId(data.receiverId);
-            if (receiverSocketId) {
-                  io.to(receiverSocketId).emit("messageRead", { messageId: data.messageId, readerId: userId });
+            if (data.receiverId) {
+                  io.to(data.receiverId).emit("messageRead", { messageId: data.messageId, readerId: userId });
             }
       });
 
       // WebRTC Call Signaling
       socket.on("callUser", (data) => {
-            const receiverSocketId = getReceiverSocketId(data.userToCall);
-            if (receiverSocketId) {
-                  io.to(receiverSocketId).emit("callUser", {
+            if (data.userToCall) {
+                  io.to(data.userToCall).emit("callUser", {
                         signal: data.signalData,
                         from: data.from,
                         callType: data.callType // 'voice' or 'video'
@@ -70,34 +63,40 @@ io.on("connection", (socket) => {
       });
 
       socket.on("answerCall", (data) => {
-            const receiverSocketId = getReceiverSocketId(data.to);
-            if (receiverSocketId) {
-                  io.to(receiverSocketId).emit("callAccepted", data.signal);
+            if (data.to) {
+                  io.to(data.to).emit("callAccepted", data.signal);
             }
       });
 
       socket.on("cancelCall", (data) => {
-            // Caller cancelled before callee answered
-            const receiverSocketId = getReceiverSocketId(data.to);
-            if (receiverSocketId) {
-                  io.to(receiverSocketId).emit("callCancelled");
+            if (data.to) {
+                  io.to(data.to).emit("callCancelled");
             }
       });
 
       socket.on("leaveCall", (data) => {
-            const receiverSocketId = getReceiverSocketId(data.to);
-            if (receiverSocketId) {
-                  io.to(receiverSocketId).emit("callEnded");
+            if (data.to) {
+                  io.to(data.to).emit("callEnded");
             }
       });
 
       socket.on("disconnect", () => {
             console.log("User disconnected", socket.id);
-            if (userId && userSocketMap[userId] === socket.id) {
-                  delete userSocketMap[userId];
+            if (userId && userSocketMap[userId]) {
+                  userSocketMap[userId]--;
+                  if (userSocketMap[userId] === 0) {
+                        delete userSocketMap[userId];
+                  }
             }
             io.emit("getOnlineUsers", Object.keys(userSocketMap));
       });
 });
+
+// Helper for when external code (like HTTP controllers) needs to emit to a user
+const getReceiverSocketId = (receiverId) => {
+      // Return the room name (which is just the user's ID)
+      if (!receiverId) return undefined;
+      return receiverId.toString();
+};
 
 module.exports = { app, io, server, getReceiverSocketId };

@@ -225,6 +225,9 @@ const sendMessage = async (req, res) => {
 
             // Construct manual populated payload for INSTANT socket delivery
             const socketPayload = message.toObject();
+            if (req.body.clientMsgId) {
+                  socketPayload.clientMsgId = req.body.clientMsgId;
+            }
             socketPayload.sender = {
                   _id: req.user._id || req.user.id,
                   username: req.user.username,

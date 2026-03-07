@@ -184,8 +184,23 @@ const Chat = () => {
 
                   if (!isFromOtherUser && !isMyEcho) return; // Not our conversation, ignore
 
-                  // For our OWN message echo from server — skip if we already handled it via optimistic UI
-                  if (isMyEcho && sentMsgIds.current.has(newMessage._id?.toString())) return;
+                  // For our OWN message echo from server
+                  if (isMyEcho) {
+                        if (sentMsgIds.current.has(newMessage._id?.toString())) return;
+
+                        // Identify the original optimistic message if clientMsgId was sent back
+                        if (newMessage.clientMsgId) {
+                              setMessages(prev => {
+                                    const alreadyHasReal = prev.some(m => m._id?.toString() === newMessage._id?.toString());
+                                    if (alreadyHasReal) return prev;
+
+                                    // Tracking the real message ID so HTTP handler ignores it
+                                    sentMsgIds.current.add(newMessage._id?.toString());
+                                    return prev.map(m => m._id === newMessage.clientMsgId ? newMessage : m);
+                              });
+                              return;
+                        }
+                  }
 
                   setMessages((prev) => {
                         const newId = newMessage._id?.toString();
@@ -384,6 +399,7 @@ const Chat = () => {
                         const fileToSend = await compressImage(currentMedia);
                         const formData = new FormData();
                         formData.append('media', fileToSend);
+                        formData.append('clientMsgId', tempId);
                         if (msgText) formData.append('text', msgText);
                         if (currentReplyTarget) formData.append('replyTo', currentReplyTarget._id);
 
@@ -393,7 +409,7 @@ const Chat = () => {
                               body: formData
                         });
                   } else {
-                        const payload = { text: msgText };
+                        const payload = { text: msgText, clientMsgId: tempId };
                         if (currentReplyTarget) payload.replyTo = currentReplyTarget._id;
 
                         res = await fetch(`${API_URL}/messages/${userId}`, {
