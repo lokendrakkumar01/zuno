@@ -49,8 +49,16 @@ export const CallProvider = ({ children }) => {
       const userVideo = useRef();
       const connectionRef = useRef();
       const callStartTime = useRef(null);
-      const targetUserIdRef = useRef(null); // Store target ID for cleanup
-      const callTimeoutRef = useRef(null);  // Call auto-cancel after 45s
+      const targetUserIdRef = useRef(null);  // Target user ID for the call
+      const callTimeoutRef = useRef(null);   // Call auto-cancel after 45s
+
+      // Use refs to avoid stale closure bugs in timeout callbacks
+      const callAcceptedRef = useRef(false);
+      const isCallingRef = useRef(false);
+
+      // Keep refs in sync with state
+      useEffect(() => { callAcceptedRef.current = callAccepted; }, [callAccepted]);
+      useEffect(() => { isCallingRef.current = isCalling; }, [isCalling]);
 
       useEffect(() => {
             if (!socket) return;
@@ -61,10 +69,16 @@ export const CallProvider = ({ children }) => {
                   setCallerSignal(data.signal);
                   setCallType(data.callType);
                   setShowCallModal('incoming');
+                  // Store caller ID so leaveCall can reach them
+                  const callerId = data.from?._id || data.from?.id || data.from;
+                  if (callerId && !targetUserIdRef.current) {
+                        targetUserIdRef.current = callerId.toString();
+                  }
             };
 
             const handleCallAccepted = (signal) => {
                   setCallAccepted(true);
+                  callAcceptedRef.current = true;
                   callStartTime.current = Date.now();
                   // Clear the ring timeout - call was answered
                   if (callTimeoutRef.current) {
@@ -83,6 +97,7 @@ export const CallProvider = ({ children }) => {
                   setCallerSignal(null);
                   setCaller(null);
                   setCallType(null);
+                  targetUserIdRef.current = null;
             };
 
             const handleCallEndedEvent = () => {
@@ -140,8 +155,10 @@ export const CallProvider = ({ children }) => {
       const startCall = async (targetUserId, type, otherUserData) => {
             setCallType(type);
             setIsCalling(true);
+            isCallingRef.current = true;
             setCaller(otherUserData);
-            targetUserIdRef.current = targetUserId; // Save for cleanup
+            targetUserIdRef.current = targetUserId?.toString(); // ✅ Save for cleanup
+            setShowCallModal('calling'); // ✅ Show outgoing call screen
 
             try {
                   const mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -155,7 +172,7 @@ export const CallProvider = ({ children }) => {
 
                   const peer = new Peer({
                         initiator: true,
-                        trickle: false,   // ✅ Single SDP offer — no race condition
+                        trickle: false,   // Single SDP offer — no race conditions
                         stream: mediaStream,
                         config: ICE_SERVERS
                   });
@@ -178,13 +195,20 @@ export const CallProvider = ({ children }) => {
 
                   peer.on("error", (err) => {
                         console.error("Peer error:", err);
+                        // Clean up on peer error
+                        leaveCall(true);
+                  });
+
+                  peer.on("close", () => {
+                        console.log("Peer connection closed");
                   });
 
                   connectionRef.current = peer;
 
                   // Auto-cancel after 45 seconds if unanswered
+                  // Use ref to avoid stale closure bug
                   callTimeoutRef.current = setTimeout(() => {
-                        if (!callAccepted) {
+                        if (!callAcceptedRef.current) {
                               leaveCall(true);
                         }
                   }, 45000);
@@ -192,6 +216,8 @@ export const CallProvider = ({ children }) => {
             } catch (err) {
                   console.error('Failed to get local stream:', err);
                   setIsCalling(false);
+                  isCallingRef.current = false;
+                  setShowCallModal(null);
                   targetUserIdRef.current = null;
                   alert('Could not access microphone/camera. Please check permissions.');
             }
@@ -200,6 +226,7 @@ export const CallProvider = ({ children }) => {
       const answerCall = async () => {
             setShowCallModal(null);
             setCallAccepted(true);
+            callAcceptedRef.current = true;
             callStartTime.current = Date.now();
 
             try {
@@ -214,14 +241,16 @@ export const CallProvider = ({ children }) => {
 
                   const peer = new Peer({
                         initiator: false,
-                        trickle: false,  // ✅ Single SDP answer
+                        trickle: false,  // Single SDP answer
                         stream: mediaStream,
                         config: ICE_SERVERS
                   });
 
                   // Fires exactly once with the full answer SDP
                   peer.on("signal", (data) => {
-                        const callerId = caller?._id || caller?.id || caller;
+                        const callerId = targetUserIdRef.current
+                              || caller?._id || caller?.id
+                              || (typeof caller === 'string' ? caller : null);
                         socket.emit("answerCall", { signal: data, to: callerId });
                   });
 
@@ -233,6 +262,11 @@ export const CallProvider = ({ children }) => {
 
                   peer.on("error", (err) => {
                         console.error("Peer error:", err);
+                        leaveCall(false);
+                  });
+
+                  peer.on("close", () => {
+                        console.log("Peer connection closed");
                   });
 
                   // Signal the peer with the stored offer
@@ -241,7 +275,9 @@ export const CallProvider = ({ children }) => {
             } catch (err) {
                   console.error('Failed to answer call:', err);
                   setCallAccepted(false);
+                  callAcceptedRef.current = false;
                   setReceivingCall(false);
+                  setShowCallModal(null);
                   alert('Could not access microphone/camera. Please check permissions.');
             }
       };
@@ -271,14 +307,14 @@ export const CallProvider = ({ children }) => {
                   callTimeoutRef.current = null;
             }
 
-            // Determine the other party's ID
+            // Determine the other party's ID (use ref — always fresh)
             const otherPartyId = targetUserIdRef.current
-                  || caller?._id || caller?.id
+                  || caller?._id?.toString() || caller?.id?.toString()
                   || (typeof caller === 'string' ? caller : null);
 
             // Emit cancel (if caller hung up before answer) or end (if call was active)
             if (emitEvent && socket && otherPartyId) {
-                  if (isCalling && !callAccepted) {
+                  if (isCallingRef.current && !callAcceptedRef.current) {
                         // Caller is cancelling before the callee answered
                         socket.emit("cancelCall", { to: otherPartyId });
                   } else {
@@ -287,10 +323,10 @@ export const CallProvider = ({ children }) => {
             }
 
             // Log call duration to chat if the caller initiated it
-            if (isCalling && otherPartyId) {
+            if (isCallingRef.current && otherPartyId) {
                   let callLogMessage = '';
                   const typeLabel = callType === 'video' ? '📹 Video' : '📞 Voice';
-                  if (callAccepted && callStartTime.current) {
+                  if (callAcceptedRef.current && callStartTime.current) {
                         const durationSeconds = Math.floor((Date.now() - callStartTime.current) / 1000);
                         const mins = Math.floor(durationSeconds / 60);
                         const secs = durationSeconds % 60;
@@ -317,8 +353,10 @@ export const CallProvider = ({ children }) => {
             // Clean up state
             setCallEnded(true);
             setIsCalling(false);
+            isCallingRef.current = false;
             setReceivingCall(false);
             setCallAccepted(false);
+            callAcceptedRef.current = false;
             setShowCallModal(null);
 
             if (connectionRef.current) {

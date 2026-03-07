@@ -76,6 +76,10 @@ const Search = () => {
             const timer = setTimeout(() => {
                   if (searchQuery.trim()) {
                         handleSearch();
+                  } else {
+                        setContents([]);
+                        setUsers([]);
+                        setHasSearched(false);
                   }
             }, 500);
             return () => clearTimeout(timer);

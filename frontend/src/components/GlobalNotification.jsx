@@ -168,7 +168,7 @@ const GlobalNotification = () => {
             const handleNewFollow = (data) => {
                   playNotificationSound();
                   toast.success(
-                        <div onClick={() => navigate(`/profile/${data.sender.username}`)} style={{ cursor: 'pointer' }}>
+                        <div onClick={() => navigate(`/u/${data.sender.username}`)} style={{ cursor: 'pointer' }}>
                               <strong>New Follower!</strong>
                               <p style={{ fontSize: '0.85em' }}>{data.sender.displayName || data.sender.username} followed you</p>
                         </div>,
@@ -190,7 +190,7 @@ const GlobalNotification = () => {
             const handleFollowAccepted = (data) => {
                   playNotificationSound();
                   toast.success(
-                        <div onClick={() => navigate(`/profile/${data.sender.username}`)} style={{ cursor: 'pointer' }}>
+                        <div onClick={() => navigate(`/u/${data.sender.username}`)} style={{ cursor: 'pointer' }}>
                               <strong>Request Accepted!</strong>
                               <p style={{ fontSize: '0.85em' }}>{data.sender.displayName || data.sender.username} accepted your follow request</p>
                         </div>,

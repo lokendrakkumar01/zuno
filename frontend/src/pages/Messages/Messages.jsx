@@ -58,30 +58,38 @@ const Messages = () => {
             setLoading(false);
       };
 
-      const handleSearch = async (query) => {
+      const handleSearch = (query) => {
             setSearchQuery(query);
-            if (!query.trim()) {
-                  setSearchResults([]);
-                  return;
-            }
-            if (query.trim().length < 2) {
-                  setSearchResults([]);
-                  return; // Wait for 2+ chars (backend requires it)
-            }
-            setSearching(true);
-            try {
-                  const res = await fetch(`${API_URL}/users/search?q=${encodeURIComponent(query)}`, {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                  });
-                  const data = await res.json();
-                  if (data.success) {
-                        setSearchResults(data.data.users.filter(u => u._id !== user?._id));
-                  }
-            } catch (err) {
-                  console.error('Search failed:', err);
-            }
-            setSearching(false);
       };
+
+      useEffect(() => {
+            const timer = setTimeout(() => {
+                  if (!searchQuery.trim() || searchQuery.trim().length < 2) {
+                        setSearchResults([]);
+                        return;
+                  }
+
+                  const performSearch = async () => {
+                        setSearching(true);
+                        try {
+                              const res = await fetch(`${API_URL}/users/search?q=${encodeURIComponent(searchQuery)}`, {
+                                    headers: { 'Authorization': `Bearer ${token}` }
+                              });
+                              const data = await res.json();
+                              if (data.success) {
+                                    setSearchResults(data.data.users.filter(u => u._id !== user?._id));
+                              }
+                        } catch (err) {
+                              console.error('Search failed:', err);
+                        }
+                        setSearching(false);
+                  };
+
+                  performSearch();
+            }, 400);
+
+            return () => clearTimeout(timer);
+      }, [searchQuery, token, user?._id]);
 
       const formatTime = (dateStr) => {
             if (!dateStr) return '';
@@ -217,9 +225,9 @@ const Messages = () => {
                                                 </div>
                                                 <div className="conversation-bottom">
                                                       <span className="conversation-preview">
-                                                            {conv.lastMessage?.sender?.toString() === user?._id
-                                                                  ? `You: ${conv.lastMessage?.text}`
-                                                                  : conv.lastMessage?.text
+                                                            {(conv.lastMessage?.sender?._id || conv.lastMessage?.sender)?.toString() === user?._id
+                                                                  ? `You: ${conv.lastMessage?.text || '📎 Media'}`
+                                                                  : conv.lastMessage?.text || '📎 Media'
                                                             }
                                                       </span>
                                                       {conv.unreadCount > 0 && (

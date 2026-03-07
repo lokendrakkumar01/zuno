@@ -180,9 +180,13 @@ const getCreatorFeed = async (req, res) => {
             const query = {
                   creator: creator._id,
                   status: 'published',
-                  visibility: 'public',
                   isApproved: true
             };
+
+            // Only show public content if viewer is NOT the creator
+            if (!req.user || req.user._id.toString() !== creator._id.toString()) {
+                  query.visibility = 'public';
+            }
 
             const contents = await Content.find(query)
                   .populate('creator', 'username displayName avatar role')

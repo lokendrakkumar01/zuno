@@ -42,4 +42,4 @@ services:
         value: public, max-age=0, must-revalidate
     envVars:
       - key: VITE_API_URL
-        value: https://zuno-backend.onrender.com
+        value: https://zuno-backend-bevi.onrender.com

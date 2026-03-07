@@ -61,15 +61,23 @@ const Home = () => {
             // 2. Fetch fresh data silently in background
             // 3. Swap content smoothly when fresh data arrives
 
+            let hasCachedContent = false; // track locally to avoid stale closure
+
             if (currentPage === 1 && !append) {
                   // Load from cache instantly
                   try {
                         const cached = localStorage.getItem(`zuno_feedCache_${currentMode}`);
                         if (cached) {
-                              setContents(JSON.parse(cached));
+                              const parsedCache = JSON.parse(cached);
+                              if (parsedCache.length > 0) {
+                                    setContents(parsedCache);
+                                    hasCachedContent = true;
+                              }
                         }
                   } catch { }
                   setSilentRefreshing(true); // tiny indicator, not a blocker
+            } else {
+                  hasCachedContent = true; // on page > 1 we always have content already
             }
 
             // Timeout: 45 seconds to allow Render's slow cold start
@@ -96,16 +104,14 @@ const Home = () => {
                         }
                         setHasMore(data.data.pagination.hasMore);
                         setError(null); // clear any old error
-                  }
-                  // If not success, keep showing cached content silently - no error
-                  if (!data.success && contents.length === 0) {
+                  } else if (!hasCachedContent) {
                         setError('Failed to load feed.');
                   }
             } catch (err) {
                   clearTimeout(timeoutId);
                   console.error('Feed fetch failed (silent):', err);
-                  // Only show error to user if we have NO content at all
-                  if (contents.length === 0 || (typeof contents === 'function' && contents().length === 0)) {
+                  // Only show error to user if we have NO cached content at all
+                  if (!hasCachedContent) {
                         if (err.name === 'AbortError') {
                               setError('Server is waking up. Please refresh the page.');
                         } else {

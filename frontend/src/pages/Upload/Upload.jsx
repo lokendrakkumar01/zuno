@@ -119,10 +119,12 @@ const Upload = () => {
                   const result = await res.json();
 
                   if (result.success) {
-                        // Clear caches so the new item shows up immediately on home page
+                        // Clear ALL feed caches so new content appears immediately
+                        const FEED_MODES_TO_CLEAR = ['all', 'learning', 'calm', 'video', 'reading', 'problem-solving'];
                         try {
-                              localStorage.removeItem('zuno_feedCache_all');
-                              localStorage.removeItem(`zuno_feedCache_${formData.purpose}`);
+                              FEED_MODES_TO_CLEAR.forEach(mode => {
+                                    localStorage.removeItem(`zuno_feedCache_${mode}`);
+                              });
                         } catch (e) { }
                         navigate('/');
                   } else {

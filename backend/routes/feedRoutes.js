@@ -31,6 +31,6 @@ router.get('/', optionalAuth, getFeed);
 router.get('/stories', optionalAuth, getActiveStories);
 router.get('/search', searchContent);
 router.get('/topic/:topic', getFeedByTopic);
-router.get('/creator/:username', getCreatorFeed);
+router.get('/creator/:username', optionalAuth, getCreatorFeed);
 
 module.exports = router;

@@ -11,9 +11,9 @@ const io = new Server(server, {
             credentials: false
       },
       allowEIO3: true,  // backward-compat with older socket.io clients
-      pingTimeout: 10000, // Faster disconnect detection (10s instead of 45s)
-      pingInterval: 5000, // Ping every 5s instead of 25s
-      transports: ['websocket', 'polling'] // Allow both, but client will force websocket
+      pingTimeout: 60000, // 60s timeout — tolerates Render cold starts
+      pingInterval: 25000, // Standard ping every 25s
+      transports: ['websocket', 'polling'] // Allow both transports
 });
 
 const userSocketMap = {}; // {userId: socketId}

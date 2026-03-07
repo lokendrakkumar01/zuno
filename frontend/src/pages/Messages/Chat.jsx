@@ -21,7 +21,7 @@ const Chat = () => {
       const navigate = useNavigate();
       const [messages, setMessages] = useState(() => {
             try {
-                  const cached = sessionStorage.getItem(`zuno_chat_cache_${userId}`); // Use sessionStorage for temporary fast access
+                  const cached = localStorage.getItem(`zuno_chat_cache_${userId}`); // localStorage persists on refresh
                   return cached ? JSON.parse(cached) : [];
             } catch {
                   return [];
@@ -36,7 +36,7 @@ const Chat = () => {
             }
       });
       const [newMessage, setNewMessage] = useState('');
-      const [loading, setLoading] = useState(!sessionStorage.getItem(`zuno_chat_cache_${userId}`));
+      const [loading, setLoading] = useState(!localStorage.getItem(`zuno_chat_cache_${userId}`));
       const [sending, setSending] = useState(false);
       const messagesEndRef = useRef(null);
       const pollRef = useRef(null);
@@ -260,9 +260,9 @@ const Chat = () => {
                   if (data.success) {
                         setMessages(data.data.messages);
                         setOtherUser(data.data.otherUser);
-                        // Cache for instant loading next time
+                        // Cache for instant loading next time (localStorage persists on refresh)
                         try {
-                              sessionStorage.setItem(`zuno_chat_cache_${userId}`, JSON.stringify(data.data.messages.slice(-100))); // Store up to 100 messages
+                              localStorage.setItem(`zuno_chat_cache_${userId}`, JSON.stringify(data.data.messages.slice(-100))); // Store up to 100 messages
                               localStorage.setItem(`zuno_user_cache_${userId}`, JSON.stringify(data.data.otherUser));
                         } catch (e) {
                               console.warn('Cache quota exceeded');
@@ -275,7 +275,7 @@ const Chat = () => {
             } catch (err) {
                   console.error('Failed to fetch messages:', err);
                   // Load from cache if API fails
-                  const cachedMsgs = sessionStorage.getItem(`zuno_chat_cache_${userId}`);
+                  const cachedMsgs = localStorage.getItem(`zuno_chat_cache_${userId}`);
                   if (cachedMsgs) setMessages(JSON.parse(cachedMsgs));
                   const cachedUser = localStorage.getItem(`zuno_user_cache_${userId}`);
                   if (cachedUser) setOtherUser(JSON.parse(cachedUser));
@@ -417,7 +417,7 @@ const Chat = () => {
 
                               setTimeout(() => {
                                     try {
-                                          sessionStorage.setItem(`zuno_chat_cache_${userId}`, JSON.stringify(updated.slice(-100)));
+                                          localStorage.setItem(`zuno_chat_cache_${userId}`, JSON.stringify(updated.slice(-100)));
                                     } catch (e) { }
                               }, 0);
 
