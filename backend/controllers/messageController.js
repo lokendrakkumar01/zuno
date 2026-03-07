@@ -183,8 +183,8 @@ const sendMessage = async (req, res) => {
                   }
             }
 
-            // Create message
-            const message = await Message.create(msgData);
+            // Create message instance but DO NOT await save yet
+            const message = new Message(msgData);
 
             // Conversation last message text
             const lastText = text ? text.trim() : (msgData.media?.type === 'video' ? '🎬 Video' : '📷 Photo');
@@ -218,11 +218,6 @@ const sendMessage = async (req, res) => {
                   }
             }).catch(err => console.error("Conversation err:", err));
 
-            // Populate sender info asynchronously for HTTP response
-            const responseMessagePromise = message.populate('sender', 'username displayName avatar')
-                  .then(m => m.populate('receiver', 'username displayName avatar'))
-                  .then(m => replyTo ? m.populate({ path: 'replyTo', populate: { path: 'sender', select: 'username displayName' } }) : m);
-
             // Construct manual populated payload for INSTANT socket delivery
             const socketPayload = message.toObject();
             if (req.body.clientMsgId) {
@@ -251,6 +246,14 @@ const sendMessage = async (req, res) => {
             if (senderSocketId) {
                   io.to(senderSocketId).emit("newMessage", socketPayload);
             }
+
+            // NOW save to DB
+            await message.save();
+
+            // Populate sender info asynchronously for HTTP response
+            const responseMessagePromise = message.populate('sender', 'username displayName avatar')
+                  .then(m => m.populate('receiver', 'username displayName avatar'))
+                  .then(m => replyTo ? m.populate({ path: 'replyTo', populate: { path: 'sender', select: 'username displayName' } }) : m);
 
             // Await the population ONLY for the final HTTP response
             const finalMessage = await responseMessagePromise;

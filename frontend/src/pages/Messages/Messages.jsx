@@ -84,13 +84,32 @@ const Messages = () => {
 
                   const performSearch = async () => {
                         setSearching(true);
+
+                        // 1. Search local conversations immediately
+                        const lowerQuery = searchQuery.toLowerCase();
+                        const localMatches = conversations
+                              .filter(conv => conv.user && (
+                                    (conv.user.displayName && conv.user.displayName.toLowerCase().includes(lowerQuery)) ||
+                                    (conv.user.username && conv.user.username.toLowerCase().includes(lowerQuery))
+                              ))
+                              .map(conv => conv.user);
+
+                        // Show local matches immediately so the user sees results right away
+                        setSearchResults(localMatches);
+
                         try {
                               const res = await fetch(`${API_URL}/users/search?q=${encodeURIComponent(searchQuery)}`, {
                                     headers: { 'Authorization': `Bearer ${token}` }
                               });
                               const data = await res.json();
                               if (data.success) {
-                                    setSearchResults(data.data.users.filter(u => u._id !== user?._id));
+                                    const globalUsers = data.data.users.filter(u => u._id !== user?._id);
+
+                                    // 2. Merge local matches with global results, avoiding duplicates
+                                    const localIds = new Set(localMatches.map(u => u._id));
+                                    const newGlobalUsers = globalUsers.filter(u => !localIds.has(u._id));
+
+                                    setSearchResults([...localMatches, ...newGlobalUsers]);
                               }
                         } catch (err) {
                               console.error('Search failed:', err);
@@ -102,7 +121,7 @@ const Messages = () => {
             }, 200); // Instagram speed (200ms)
 
             return () => clearTimeout(timer);
-      }, [searchQuery, token, user?._id]);
+      }, [searchQuery, token, user?._id, conversations]);
 
       const formatTime = (dateStr) => {
             if (!dateStr) return '';

@@ -155,9 +155,60 @@ const logout = async (req, res) => {
       });
 };
 
+// @desc    Change password
+// @route   PUT /api/auth/change-password
+// @access  Private
+const changePassword = async (req, res) => {
+      try {
+            const { currentPassword, newPassword } = req.body;
+
+            // Validate
+            if (!currentPassword || !newPassword) {
+                  return res.status(400).json({
+                        success: false,
+                        message: 'Please provide current and new password'
+                  });
+            }
+
+            // Check user
+            const user = await User.findById(req.user.id).select('+password');
+            if (!user) {
+                  return res.status(404).json({
+                        success: false,
+                        message: 'User not found'
+                  });
+            }
+
+            // Check password
+            const isMatch = await user.matchPassword(currentPassword);
+            if (!isMatch) {
+                  return res.status(401).json({
+                        success: false,
+                        message: 'Incorrect current password'
+                  });
+            }
+
+            // Update password
+            user.password = newPassword;
+            await user.save();
+
+            res.json({
+                  success: true,
+                  message: 'Password changed successfully'
+            });
+      } catch (error) {
+            res.status(500).json({
+                  success: false,
+                  message: 'Internal server error',
+                  error: error.message
+            });
+      }
+};
+
 module.exports = {
       register,
       login,
       getMe,
-      logout
+      logout,
+      changePassword
 };

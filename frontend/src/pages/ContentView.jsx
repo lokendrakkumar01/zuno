@@ -80,18 +80,33 @@ const MediaItem = ({ m, content }) => {
 const ContentView = () => {
       const { id } = useParams();
       const { token } = useAuth();
-      const [content, setContent] = useState(null);
-      const [loading, setLoading] = useState(true);
+      const [content, setContent] = useState(() => {
+            try {
+                  const cached = localStorage.getItem(`zuno_content_${id}`);
+                  if (cached) return JSON.parse(cached);
+            } catch (e) { }
+            return null;
+      });
+      const [loading, setLoading] = useState(() => {
+            try {
+                  if (localStorage.getItem(`zuno_content_${id}`)) return false;
+            } catch (e) { }
+            return true;
+      });
       const [isHelpful, setIsHelpful] = useState(false);
       const [isSaved, setIsSaved] = useState(false);
 
       useEffect(() => {
             const fetchContent = async () => {
+                  setLoading(prev => content ? false : true);
                   try {
                         const res = await fetch(`${API_URL}/content/${id}`);
                         const data = await res.json();
                         if (data.success) {
                               setContent(data.data.content);
+                              try {
+                                    localStorage.setItem(`zuno_content_${id}`, JSON.stringify(data.data.content));
+                              } catch (e) { }
                         } else {
                               console.error('Content fetch failed:', data.message);
                         }

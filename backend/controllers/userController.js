@@ -210,8 +210,10 @@ const followUser = async (req, res) => {
 
                   return res.json({ success: true, message: "Follow request sent", status: "requested" });
             } else {
-                  await currentUser.updateOne({ $push: { following: req.params.id } });
-                  await userToFollow.updateOne({ $push: { followers: req.user.id } });
+                  await Promise.all([
+                        currentUser.updateOne({ $push: { following: req.params.id } }),
+                        userToFollow.updateOne({ $push: { followers: req.user.id } })
+                  ]);
 
                   // Notify the user about a new follower
                   const receiverSocketId = getReceiverSocketId(req.params.id);
@@ -251,8 +253,10 @@ const unfollowUser = async (req, res) => {
             }
 
             if (currentUser.following.includes(req.params.id)) {
-                  await currentUser.updateOne({ $pull: { following: req.params.id } });
-                  await userToUnfollow.updateOne({ $pull: { followers: req.user.id } });
+                  await Promise.all([
+                        currentUser.updateOne({ $pull: { following: req.params.id } }),
+                        userToUnfollow.updateOne({ $pull: { followers: req.user.id } })
+                  ]);
                   res.json({ success: true, message: "User unfollowed" });
             } else if (userToUnfollow.followRequests.includes(req.user.id)) {
                   // Check if there was a pending request and remove it

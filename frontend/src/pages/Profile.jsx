@@ -27,10 +27,21 @@ const Profile = () => {
       const [profileUser, setProfileUser] = useState(() => {
             const targetUsername = username || user?.username;
             if (user && targetUsername === user.username) return user;
+            try {
+                  const cached = localStorage.getItem(`zuno_profile_cache_${targetUsername}`);
+                  if (cached) return JSON.parse(cached);
+            } catch (e) { }
             return null;
       });
       const [userPosts, setUserPosts] = useState([]);
-      const [loading, setLoading] = useState(true);
+      const [loading, setLoading] = useState(() => {
+            const targetUsername = username || user?.username;
+            if (user && targetUsername === user.username) return false;
+            try {
+                  if (localStorage.getItem(`zuno_profile_cache_${targetUsername}`)) return false;
+            } catch (e) { }
+            return true;
+      });
       const [editing, setEditing] = useState(false);
       const [editData, setEditData] = useState({});
       const [message, setMessage] = useState('');
@@ -83,7 +94,7 @@ const Profile = () => {
 
       useEffect(() => {
             const fetchProfile = async () => {
-                  setLoading(true);
+                  setLoading(prev => profileUser ? false : true);
                   // Always fetch from API to get accurate follower/following counts
                   const targetUsername = username || user?.username;
                   if (targetUsername) {
@@ -93,6 +104,9 @@ const Profile = () => {
                               const data = await res.json();
                               if (data.success) {
                                     setProfileUser(data.data.user);
+                                    try {
+                                          localStorage.setItem(`zuno_profile_cache_${targetUsername}`, JSON.stringify(data.data.user));
+                                    } catch (e) { }
                                     // Set edit data for own profile
                                     if (isOwnProfile) {
                                           setEditData({
