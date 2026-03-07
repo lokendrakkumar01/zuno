@@ -119,6 +119,11 @@ const Upload = () => {
                   const result = await res.json();
 
                   if (result.success) {
+                        // Clear caches so the new item shows up immediately on home page
+                        try {
+                              localStorage.removeItem('zuno_feedCache_all');
+                              localStorage.removeItem(`zuno_feedCache_${formData.purpose}`);
+                        } catch (e) { }
                         navigate('/');
                   } else {
                         // Show user-friendly error (hide raw API key errors)

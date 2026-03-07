@@ -298,8 +298,13 @@ const Home = () => {
                                     </p>
                               </div>
 
-                              {/* Content Grid - NEVER shows loading spinner */}
-                              {contents.length === 0 ? (
+                              {/* Content Grid - only shows spinner if we have NO cached content at all and are fetching */}
+                              {contents.length === 0 && silentRefreshing ? (
+                                    <div className="empty-state">
+                                          <div className="spinner" style={{ margin: '0 auto' }}></div>
+                                          <p className="mt-md">Loading amazing content...</p>
+                                    </div>
+                              ) : contents.length === 0 ? (
                                     <div className="empty-state animate-fadeIn">
                                           <div className="empty-state-icon">📭</div>
                                           <h3 className="text-xl font-semibold mb-sm">No content yet in this mode</h3>

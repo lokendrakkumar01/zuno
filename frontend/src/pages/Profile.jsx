@@ -116,22 +116,38 @@ const Profile = () => {
             fetchProfile();
       }, [username, user, isOwnProfile]);
 
+      const [postsError, setPostsError] = useState('');
+
       const fetchUserPosts = async (uname) => {
+            setPostsError('');
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 20000);
+
             try {
                   const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
                   const encodedUname = encodeURIComponent(uname);
-                  const res = await fetch(`${API_URL}/feed/creator/${encodedUname}`, { headers });
+                  const res = await fetch(`${API_URL}/feed/creator/${encodedUname}`, {
+                        headers,
+                        signal: controller.signal
+                  });
+                  clearTimeout(timeoutId);
                   const data = await res.json();
                   if (data.success) {
-                        // API returns { data: { contents: [...], creator: {...}, pagination: {...} } }
                         const posts = data.data.contents || data.data || [];
                         setUserPosts(posts);
-                        // Calculate total views from all posts
                         const views = posts.reduce((sum, post) => sum + (post.metrics?.viewCount || 0), 0);
                         setTotalViews(views);
+                  } else {
+                        setPostsError('Failed to load posts.');
                   }
             } catch (error) {
+                  clearTimeout(timeoutId);
                   console.error('Failed to fetch user posts:', error);
+                  if (error.name === 'AbortError') {
+                        setPostsError('Server is slow to respond. Please refresh the page.');
+                  } else {
+                        setPostsError('Connection error. Could not load posts.');
+                  }
             }
       };
 
@@ -585,12 +601,20 @@ const Profile = () => {
 
                                           {/* User Posts */}
                                           <h3 id="posts-section" className="text-xl font-bold mb-md mt-xl">Posts</h3>
+
+                                          {postsError && (
+                                                <div className="card p-md mb-lg" style={{ background: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
+                                                      <p className="text-center text-red-500">{postsError}</p>
+                                                      <button onClick={() => fetchUserPosts(profileUser.username)} className="btn btn-primary mt-sm mx-auto flex">🔄 Retry</button>
+                                                </div>
+                                          )}
+
                                           <div className="posts-grid">
-                                                {userPosts.length > 0 ? (
+                                                {!postsError && userPosts.length > 0 ? (
                                                       userPosts.map(post => (
                                                             <ContentCard key={post._id} content={post} onDelete={handleDeleteContent} />
                                                       ))
-                                                ) : (
+                                                ) : !postsError && (
                                                       <div className="text-center text-gray-500 py-xl">No posts yet.</div>
                                                 )}
                                           </div>
