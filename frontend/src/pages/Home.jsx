@@ -37,6 +37,8 @@ const Home = () => {
       const { token, isAuthenticated, user } = useAuth();
       const { t } = useLanguage();
       const [mode, setMode] = useState('all');
+
+      // Always initialize from cache - NEVER show loading to user
       const [contents, setContents] = useState(() => {
             try {
                   const cached = localStorage.getItem('zuno_feedCache_all');
@@ -45,35 +47,42 @@ const Home = () => {
                   return [];
             }
       });
-      const [loading, setLoading] = useState(() => {
-            try {
-                  const cached = localStorage.getItem('zuno_feedCache_all');
-                  return !cached;
-            } catch {
-                  return true;
-            }
-      });
+
+      // loading = false ALWAYS for UI — we refresh silently in background
+      const [silentRefreshing, setSilentRefreshing] = useState(false);
       const [error, setError] = useState(null);
       const [page, setPage] = useState(1);
       const [hasMore, setHasMore] = useState(true);
       const [stats, setStats] = useState({ users: '1K+', content: '500+', helpful: '10K+' });
 
       const fetchFeed = async (currentMode, currentPage, append = false) => {
-            // Only show loading if we have absolutely NO content to show
+            // STALE-WHILE-REVALIDATE:
+            // 1. Immediately show cached data (no loading shown)
+            // 2. Fetch fresh data silently in background
+            // 3. Swap content smoothly when fresh data arrives
+
             if (currentPage === 1 && !append) {
-                  const cached = localStorage.getItem(`zuno_feedCache_${currentMode}`);
-                  if (cached) {
-                        setContents(JSON.parse(cached));
-                        setLoading(false);
-                  } else {
-                        setLoading(true);
-                  }
+                  // Load from cache instantly
+                  try {
+                        const cached = localStorage.getItem(`zuno_feedCache_${currentMode}`);
+                        if (cached) {
+                              setContents(JSON.parse(cached));
+                        }
+                  } catch { }
+                  setSilentRefreshing(true); // tiny indicator, not a blocker
             }
-            setError(null);
+
+            // Timeout: 20 seconds for Render's cold start
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 20000);
 
             try {
                   const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-                  const res = await fetch(`${API_URL}/feed?mode=${currentMode}&page=${currentPage}&limit=9`, { headers });
+                  const res = await fetch(`${API_URL}/feed?mode=${currentMode}&page=${currentPage}&limit=10`, {
+                        headers,
+                        signal: controller.signal
+                  });
+                  clearTimeout(timeoutId);
                   const data = await res.json();
 
                   if (data.success) {
@@ -86,16 +95,16 @@ const Home = () => {
                               } catch (e) { }
                         }
                         setHasMore(data.data.pagination.hasMore);
-                  } else if (contents.length === 0) {
-                        setError('Failed to load content. Please try again.');
+                        setError(null); // clear any old error
                   }
+                  // If not success, keep showing cached content silently - no error
             } catch (err) {
-                  console.error('Failed to fetch feed:', err);
-                  if (contents.length === 0) {
-                        setError('Failed to load content. Please try again.');
-                  }
+                  clearTimeout(timeoutId);
+                  console.error('Feed fetch failed (silent):', err);
+                  // DON'T show error to user if we already have cached content
+                  // Only show retry if we have NO content at all
             } finally {
-                  setLoading(false);
+                  setSilentRefreshing(false);
             }
       };
 
@@ -289,22 +298,8 @@ const Home = () => {
                                     </p>
                               </div>
 
-                              {/* Content Grid */}
-                              {loading && contents.length === 0 ? (
-                                    <div className="empty-state">
-                                          <div className="spinner" style={{ margin: '0 auto' }}></div>
-                                          <p className="mt-md">Loading amazing content...</p>
-                                    </div>
-                              ) : error ? (
-                                    <div className="empty-state animate-fadeIn">
-                                          <div className="empty-state-icon">⚠️</div>
-                                          <h3 className="text-xl font-semibold mb-sm">Something went wrong</h3>
-                                          <p className="text-muted mb-lg">{error}</p>
-                                          <button onClick={() => fetchFeed(mode, 1, false)} className="btn btn-primary">
-                                                🔄 Retry
-                                          </button>
-                                    </div>
-                              ) : contents.length === 0 ? (
+                              {/* Content Grid - NEVER shows loading spinner */}
+                              {contents.length === 0 ? (
                                     <div className="empty-state animate-fadeIn">
                                           <div className="empty-state-icon">📭</div>
                                           <h3 className="text-xl font-semibold mb-sm">No content yet in this mode</h3>
@@ -332,15 +327,15 @@ const Home = () => {
                                                 ))}
                                           </div>
 
-                                          {/* Load More Button (Conscious Choice - No Infinite Scroll) */}
+                                          {/* Load More Button */}
                                           {hasMore && (
                                                 <div className="text-center mt-2xl animate-fadeIn">
                                                       <button
                                                             onClick={loadMore}
                                                             className="btn btn-secondary btn-lg"
-                                                            disabled={loading}
+                                                            disabled={silentRefreshing}
                                                       >
-                                                            {loading ? <span className="spinner"></span> : '📖 Load More Content'}
+                                                            {silentRefreshing ? <span className="spinner"></span> : '📖 Load More Content'}
                                                       </button>
                                                       <p className="text-sm text-muted mt-md">
                                                             🧘 Take a moment. Loading more is always your choice.

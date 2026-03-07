@@ -85,6 +85,10 @@ const Upload = () => {
             setLoading(true);
             setError('');
 
+            // AbortController with 120 second timeout for large uploads
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 120000);
+
             try {
                   const data = new FormData();
                   data.append('contentType', formData.contentType);
@@ -104,10 +108,6 @@ const Upload = () => {
                         });
                   }
 
-                  // Use longer timeout for uploads (120 seconds for videos)
-                  const controller = new AbortController();
-                  const timeoutId = setTimeout(() => controller.abort(), 120000);
-
                   const res = await fetch(`${API_URL}/content`, {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${token}` },
@@ -121,9 +121,19 @@ const Upload = () => {
                   if (result.success) {
                         navigate('/');
                   } else {
-                        setError(result.message || 'Upload failed. Please try again.');
+                        // Show user-friendly error (hide raw API key errors)
+                        const rawMsg = result.message || result.error || '';
+                        const isCloudinaryError = rawMsg.toLowerCase().includes('api_key') ||
+                              rawMsg.toLowerCase().includes('cloudinary') ||
+                              rawMsg.toLowerCase().includes('invalid');
+                        if (isCloudinaryError) {
+                              setError('Media upload service is currently unavailable. Please try uploading without a file (text post/question only).');
+                        } else {
+                              setError(rawMsg || 'Upload failed. Please try again.');
+                        }
                   }
             } catch (err) {
+                  clearTimeout(timeoutId);
                   if (err.name === 'AbortError') {
                         setError('Upload timed out. The file may be too large or your connection is slow. Please try again.');
                   } else {

@@ -9,6 +9,17 @@ cloudinary.config({
       api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
+// Validate credentials at startup
+const apiKey = process.env.CLOUDINARY_API_KEY || '';
+const cloudName = process.env.CLOUDINARY_CLOUD_NAME || '';
+const apiSecret = process.env.CLOUDINARY_API_SECRET || '';
+
+if (!cloudName || !apiKey || !apiSecret) {
+      console.error('❌ CLOUDINARY: Missing environment variables! Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET in Render dashboard.');
+} else {
+      console.log(`✅ CLOUDINARY: Configured for cloud: ${cloudName}, api_key: ${apiKey.substring(0, 6)}...`);
+}
+
 // Create Cloudinary storage for multer
 const storage = new CloudinaryStorage({
       cloudinary: cloudinary,
