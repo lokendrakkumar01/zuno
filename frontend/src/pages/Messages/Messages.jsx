@@ -8,8 +8,16 @@ const Messages = () => {
       const { token, isAuthenticated, user } = useAuth();
       const { onlineUsers } = useSocketContext();
       const navigate = useNavigate();
-      const [conversations, setConversations] = useState([]);
-      const [loading, setLoading] = useState(true);
+      const [conversations, setConversations] = useState(() => {
+            try {
+                  const cached = localStorage.getItem(`zuno_conversations_cache_${user?._id}`);
+                  return cached ? JSON.parse(cached) : [];
+            } catch {
+                  return [];
+            }
+      });
+      // loading is false if we have a cache
+      const [loading, setLoading] = useState(!localStorage.getItem(`zuno_conversations_cache_${user?._id}`));
       const [searchQuery, setSearchQuery] = useState('');
       const [searchResults, setSearchResults] = useState([]);
       const [searching, setSearching] = useState(false);
@@ -44,6 +52,7 @@ const Messages = () => {
       }, [socket]);
 
       const fetchConversations = async () => {
+            if (conversations.length === 0) setLoading(true);
             try {
                   const res = await fetch(`${API_URL}/messages/conversations`, {
                         headers: { 'Authorization': `Bearer ${token}` }
@@ -51,6 +60,9 @@ const Messages = () => {
                   const data = await res.json();
                   if (data.success) {
                         setConversations(data.data.conversations);
+                        try {
+                              localStorage.setItem(`zuno_conversations_cache_${user?._id}`, JSON.stringify(data.data.conversations));
+                        } catch (e) { }
                   }
             } catch (err) {
                   console.error('Failed to fetch conversations:', err);
@@ -66,6 +78,7 @@ const Messages = () => {
             const timer = setTimeout(() => {
                   if (!searchQuery.trim() || searchQuery.trim().length < 2) {
                         setSearchResults([]);
+                        setSearching(false);
                         return;
                   }
 
@@ -86,7 +99,7 @@ const Messages = () => {
                   };
 
                   performSearch();
-            }, 400);
+            }, 200); // Instagram speed (200ms)
 
             return () => clearTimeout(timer);
       }, [searchQuery, token, user?._id]);
@@ -142,35 +155,38 @@ const Messages = () => {
                         {/* Search Results */}
                         {searchQuery && (
                               <div className="search-results-dropdown">
-                                    {searching ? (
+                                    {searching && searchResults.length === 0 ? (
                                           <div className="search-result-item" style={{ justifyContent: 'center' }}>
-                                                <span className="spinner"></span>
+                                                <span className="spinner" style={{ width: '20px', height: '20px' }}></span>
+                                                <span style={{ marginLeft: '10px', color: 'var(--text-muted)' }}>Searching...</span>
                                           </div>
                                     ) : searchQuery.trim().length < 2 ? (
                                           <div className="search-result-item" style={{ justifyContent: 'center', color: 'var(--text-muted)' }}>
                                                 Type at least 2 characters to search...
                                           </div>
                                     ) : searchResults.length > 0 ? (
-                                          searchResults.map(u => (
-                                                <Link
-                                                      key={u._id}
-                                                      to={`/messages/${u._id}`}
-                                                      className="search-result-item"
-                                                      onClick={() => setSearchQuery('')}
-                                                >
-                                                      <div className="msg-avatar">
-                                                            {u.avatar ? (
-                                                                  <img src={u.avatar} alt={u.displayName} />
-                                                            ) : (
-                                                                  <span>{u.displayName?.charAt(0) || u.username?.charAt(0) || 'U'}</span>
-                                                            )}
-                                                      </div>
-                                                      <div>
-                                                            <div className="font-semibold">{u.displayName || u.username}</div>
-                                                            <div className="text-sm text-muted">@{u.username}</div>
-                                                      </div>
-                                                </Link>
-                                          ))
+                                          <div style={{ opacity: searching ? 0.6 : 1, transition: 'opacity 0.2s ease' }}>
+                                                {searchResults.map(u => (
+                                                      <Link
+                                                            key={u._id}
+                                                            to={`/messages/${u._id}`}
+                                                            className="search-result-item"
+                                                            onClick={() => setSearchQuery('')}
+                                                      >
+                                                            <div className="msg-avatar">
+                                                                  {u.avatar ? (
+                                                                        <img src={u.avatar} alt={u.displayName} />
+                                                                  ) : (
+                                                                        <span>{u.displayName?.charAt(0) || u.username?.charAt(0) || 'U'}</span>
+                                                                  )}
+                                                            </div>
+                                                            <div>
+                                                                  <div className="font-semibold">{u.displayName || u.username}</div>
+                                                                  <div className="text-sm text-muted">@{u.username}</div>
+                                                            </div>
+                                                      </Link>
+                                                ))}
+                                          </div>
                                     ) : (
                                           <div className="search-result-item" style={{ justifyContent: 'center', color: 'var(--text-muted)' }}>
                                                 No users found for "{searchQuery}"
