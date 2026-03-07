@@ -6,10 +6,18 @@ import { API_URL } from '../../config';
 const CloseFriends = () => {
       const navigate = useNavigate();
       const { token } = useAuth();
-      const [friends, setFriends] = useState([]);
+      const [friends, setFriends] = useState(() => {
+            try {
+                  const cached = localStorage.getItem('zuno_close_friends');
+                  if (cached) return JSON.parse(cached);
+            } catch (e) { }
+            return [];
+      });
       const [searchQuery, setSearchQuery] = useState('');
       const [searchResults, setSearchResults] = useState([]);
-      const [loading, setLoading] = useState(true);
+      const [loading, setLoading] = useState(() => {
+            try { return !localStorage.getItem('zuno_close_friends'); } catch { return true; }
+      });
       const [message, setMessage] = useState('');
 
       // Fetch close friends list from backend
@@ -18,20 +26,20 @@ const CloseFriends = () => {
       }, []);
 
       const fetchCloseFriends = async () => {
+            setLoading(prev => friends.length > 0 ? false : true);
             try {
-                  setLoading(true);
                   const res = await fetch(`${API_URL}/users/close-friends/list`, {
                         headers: { 'Authorization': `Bearer ${token}` }
                   });
                   const data = await res.json();
                   if (data.success) {
                         setFriends(data.data.closeFriends || []);
+                        try { localStorage.setItem('zuno_close_friends', JSON.stringify(data.data.closeFriends || [])); } catch (e) { }
                   }
             } catch (error) {
                   console.error('Failed to fetch close friends:', error);
-            } finally {
-                  setLoading(false);
             }
+            setLoading(false);
       };
 
       const handleSearch = async (query) => {

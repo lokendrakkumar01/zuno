@@ -5,8 +5,19 @@ import ContentCard from '../components/Content/ContentCard';
 
 const SavedContent = () => {
       const { token, isAuthenticated } = useAuth();
-      const [savedPosts, setSavedPosts] = useState([]);
-      const [loading, setLoading] = useState(true);
+      const [savedPosts, setSavedPosts] = useState(() => {
+            try {
+                  const cached = localStorage.getItem('zuno_saved_content');
+                  if (cached) return JSON.parse(cached);
+            } catch (e) { }
+            return [];
+      });
+      const [loading, setLoading] = useState(() => {
+            try {
+                  if (localStorage.getItem('zuno_saved_content')) return false;
+            } catch (e) { }
+            return true;
+      });
 
       useEffect(() => {
             if (isAuthenticated && token) {
@@ -17,6 +28,7 @@ const SavedContent = () => {
       }, [isAuthenticated, token]);
 
       const fetchSavedContent = async () => {
+            setLoading(prev => savedPosts.length > 0 ? false : true);
             try {
                   const res = await fetch(`${API_URL}/content/user/saved`, {
                         headers: { 'Authorization': `Bearer ${token}` }
@@ -24,6 +36,9 @@ const SavedContent = () => {
                   const data = await res.json();
                   if (data.success) {
                         setSavedPosts(data.data.contents || []);
+                        try {
+                              localStorage.setItem('zuno_saved_content', JSON.stringify(data.data.contents || []));
+                        } catch (e) { }
                   }
             } catch (error) {
                   console.error('Failed to fetch saved content:', error);
