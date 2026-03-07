@@ -84,6 +84,10 @@ const getFeed = async (req, res) => {
 
             const total = await Content.countDocuments(query);
 
+            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
+
             res.json({
                   success: true,
                   data: {
@@ -130,6 +134,10 @@ const getFeedByTopic = async (req, res) => {
                   .lean();
 
             const total = await Content.countDocuments(query);
+
+            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
 
             res.json({
                   success: true,
@@ -184,6 +192,10 @@ const getCreatorFeed = async (req, res) => {
                   .lean();
 
             const total = await Content.countDocuments(query);
+
+            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
 
             res.json({
                   success: true,
