@@ -33,8 +33,9 @@ const CallOverlay = () => {
                                     <div style={{ fontWeight: 700, fontSize: '1.2rem', marginBottom: '8px' }}>
                                           {otherUser?.displayName || otherUser?.username || 'User'}
                                     </div>
-                                    <div style={{ color: 'var(--color-accent-primary)', fontSize: '1rem', marginBottom: '28px', animation: 'pulse 1.5s infinite' }}>
-                                          Calling...
+                                    <div style={{ color: 'var(--color-text-secondary)', fontSize: '1rem', marginBottom: '28px', animation: 'pulse 1.5s infinite', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                          <span style={{ fontSize: '1.2rem' }}>{callType === 'video' ? '📹' : '📞'}</span>
+                                          Ringing...
                                     </div>
                                     <button
                                           onClick={() => leaveCall(true)}

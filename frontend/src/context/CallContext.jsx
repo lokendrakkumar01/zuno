@@ -109,13 +109,41 @@ export const CallProvider = ({ children }) => {
             socket.on("callCancelled", handleCallCancelled);
             socket.on("callEnded", handleCallEndedEvent);
 
+            // Protection against accidental page refresh dropping the call
+            const handleBeforeUnload = (e) => {
+                  if (isCallingRef.current || callAcceptedRef.current) {
+                        e.preventDefault();
+                        e.returnValue = "You have an active call. Refreshing will end the call.";
+                        return e.returnValue;
+                  }
+            };
+
+            const handleUnload = () => {
+                  if (isCallingRef.current || callAcceptedRef.current) {
+                        // Attempt to notify the other person before the browser kills the connection
+                        const otherPartyId = targetUserIdRef.current
+                              || caller?._id?.toString() || caller?.id?.toString()
+                              || (typeof caller === 'string' ? caller : null);
+
+                        // Using beacon or standard socket emit before page completely dies
+                        if (socket && otherPartyId) {
+                              socket.emit("leaveCall", { to: otherPartyId });
+                        }
+                  }
+            };
+
+            window.addEventListener('beforeunload', handleBeforeUnload);
+            window.addEventListener('unload', handleUnload);
+
             return () => {
                   socket.off("callUser", handleCallUser);
                   socket.off("callAccepted", handleCallAccepted);
                   socket.off("callCancelled", handleCallCancelled);
                   socket.off("callEnded", handleCallEndedEvent);
+                  window.removeEventListener('beforeunload', handleBeforeUnload);
+                  window.removeEventListener('unload', handleUnload);
             };
-      }, [socket]);
+      }, [socket, caller]);
 
       // Ringtone for incoming call
       const playRingtone = () => {
