@@ -177,15 +177,15 @@ const getCreatorFeed = async (req, res) => {
                   });
             }
 
-            const query = {
+            let query = {
                   creator: creator._id,
-                  status: 'published',
                   isApproved: true
             };
 
-            // Only show public content if viewer is NOT the creator
+            // Only show public/published content if viewer is NOT the creator
             if (!req.user || req.user._id.toString() !== creator._id.toString()) {
                   query.visibility = 'public';
+                  query.status = 'published';
             }
 
             const contents = await Content.find(query)

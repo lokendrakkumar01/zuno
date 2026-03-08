@@ -220,6 +220,7 @@ const sendMessage = async (req, res) => {
 
             // Construct manual populated payload for INSTANT socket delivery
             const socketPayload = message.toObject();
+            socketPayload.createdAt = new Date(); // FIX: unsaved Mongoose docs don't have timestamps yet
             if (req.body.clientMsgId) {
                   socketPayload.clientMsgId = req.body.clientMsgId;
             }
