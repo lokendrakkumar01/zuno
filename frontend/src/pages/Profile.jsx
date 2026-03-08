@@ -33,7 +33,15 @@ const Profile = () => {
             } catch (e) { }
             return null;
       });
-      const [userPosts, setUserPosts] = useState([]);
+      const [userPosts, setUserPosts] = useState(() => {
+            const targetUsername = username || user?.username;
+            if (!targetUsername) return [];
+            try {
+                  const cached = localStorage.getItem(`zuno_posts_cache_${targetUsername}`);
+                  if (cached) return JSON.parse(cached);
+            } catch (e) { }
+            return [];
+      });
       const [loading, setLoading] = useState(() => {
             const targetUsername = username || user?.username;
             if (user && targetUsername === user.username) return false;
@@ -75,59 +83,56 @@ const Profile = () => {
       }, [username, user]);
 
       const refreshProfile = async () => {
-            // Always fetch from API to get fresh follower/following counts
             const targetUsername = username || user?.username;
-            if (targetUsername) {
+            if (!targetUsername) return;
+            // Run both in parallel for speed
+            Promise.all([
+                  fetch(`${API_URL}/users/${encodeURIComponent(targetUsername)}`)
+                        .then(r => r.json())
+                        .then(data => { if (data.success) setProfileUser(data.data.user); })
+                        .catch(e => console.error('Failed to refresh profile:', e)),
+                  fetchUserPosts(targetUsername)
+            ]);
+      };
+
+      useEffect(() => {
+            const targetUsername = username || user?.username;
+            if (!targetUsername) return;
+
+            setLoading(prev => profileUser ? false : true);
+
+            // Run profile fetch and posts fetch IN PARALLEL for speed
+            const fetchProfileData = async () => {
                   try {
                         const encodedUsername = encodeURIComponent(targetUsername);
                         const res = await fetch(`${API_URL}/users/${encodedUsername}`);
                         const data = await res.json();
                         if (data.success) {
                               setProfileUser(data.data.user);
-                              fetchUserPosts(targetUsername);
+                              try {
+                                    localStorage.setItem(`zuno_profile_cache_${targetUsername}`, JSON.stringify(data.data.user));
+                              } catch (e) { }
+                              if (isOwnProfile) {
+                                    setEditData({
+                                          displayName: data.data.user.displayName || '',
+                                          bio: data.data.user.bio || '',
+                                          avatar: data.data.user.avatar || '',
+                                          interests: data.data.user.interests || [],
+                                          preferredFeedMode: data.data.user.preferredFeedMode || 'learning',
+                                          focusModeEnabled: data.data.user.focusModeEnabled || false,
+                                          dailyUsageLimit: data.data.user.dailyUsageLimit || 0
+                                    });
+                              }
                         }
                   } catch (error) {
-                        console.error('Failed to refresh profile:', error);
+                        console.error('Failed to fetch profile:', error);
+                  } finally {
+                        setLoading(false);
                   }
-            }
-      };
-
-      useEffect(() => {
-            const fetchProfile = async () => {
-                  setLoading(prev => profileUser ? false : true);
-                  // Always fetch from API to get accurate follower/following counts
-                  const targetUsername = username || user?.username;
-                  if (targetUsername) {
-                        try {
-                              const encodedUsername = encodeURIComponent(targetUsername);
-                              const res = await fetch(`${API_URL}/users/${encodedUsername}`);
-                              const data = await res.json();
-                              if (data.success) {
-                                    setProfileUser(data.data.user);
-                                    try {
-                                          localStorage.setItem(`zuno_profile_cache_${targetUsername}`, JSON.stringify(data.data.user));
-                                    } catch (e) { }
-                                    // Set edit data for own profile
-                                    if (isOwnProfile) {
-                                          setEditData({
-                                                displayName: data.data.user.displayName || '',
-                                                bio: data.data.user.bio || '',
-                                                avatar: data.data.user.avatar || '',
-                                                interests: data.data.user.interests || [],
-                                                preferredFeedMode: data.data.user.preferredFeedMode || 'learning',
-                                                focusModeEnabled: data.data.user.focusModeEnabled || false,
-                                                dailyUsageLimit: data.data.user.dailyUsageLimit || 0
-                                          });
-                                    }
-                                    fetchUserPosts(targetUsername);
-                              }
-                        } catch (error) {
-                              console.error('Failed to fetch profile:', error);
-                        }
-                  }
-                  setLoading(false);
             };
-            fetchProfile();
+
+            // Both run at the same time - no need to wait for profile before loading posts
+            Promise.all([fetchProfileData(), fetchUserPosts(targetUsername)]);
       }, [username, user, isOwnProfile]);
 
       const [postsError, setPostsError] = useState('');
@@ -162,6 +167,11 @@ const Profile = () => {
                         if (!Array.isArray(posts)) posts = [];
 
                         setUserPosts(posts);
+
+                        // Cache posts so next visit is instant
+                        try {
+                              localStorage.setItem(`zuno_posts_cache_${uname}`, JSON.stringify(posts));
+                        } catch (e) { }
 
                         const views = posts.reduce((sum, post) => sum + (post.metrics?.viewCount || 0), 0);
                         setTotalViews(views);
@@ -637,12 +647,10 @@ const Profile = () => {
                                                 </div>
                                           )}
 
-                                          <div className="reel-snap-wrapper">
+                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                                                 {!postsError && userPosts.length > 0 ? (
                                                       userPosts.map(post => (
-                                                            <div key={post._id} className="reel-snap-item">
-                                                                  <ContentCard content={post} onDelete={handleDeleteContent} />
-                                                            </div>
+                                                            <ContentCard key={post._id} content={post} onDelete={handleDeleteContent} />
                                                       ))
                                                 ) : !postsError && (
                                                       <div className="text-center text-gray-500 py-xl">No posts yet.</div>
