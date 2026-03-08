@@ -399,7 +399,7 @@ const ContentCard = ({ content, onDelete }) => {
                                           <img
                                                 src={content.creator?.avatar || 'https://via.placeholder.com/40'}
                                                 alt={content.creator?.displayName}
-                                                className="avatar md rounded-full w-10 h-10 object-cover border border-gray-100"
+                                                style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #e5e7eb', flexShrink: 0 }}
                                           />
                                     </Link>
                                     <div className="flex flex-col">
@@ -1148,18 +1148,18 @@ const ContentCard = ({ content, onDelete }) => {
 
                                     {/* Creator Info (Bottom Left) */}
                                     <div className="fullscreen-creator-info">
-                                          <div className="flex items-center gap-2 mb-2">
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                                                 <img
                                                       src={content.creator?.avatar || 'https://via.placeholder.com/40'}
                                                       alt={content.creator?.displayName}
-                                                      className="w-10 h-10 rounded-full border-2 border-white object-cover shadow-sm"
+                                                      style={{ width: '40px', height: '40px', borderRadius: '50%', border: '2px solid white', objectFit: 'cover', flexShrink: 0 }}
                                                 />
-                                                <div className="flex flex-col">
-                                                      <span className="font-bold text-sm drop-shadow-md">
+                                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                      <span style={{ fontWeight: '700', fontSize: '14px', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
                                                             {content.creator?.displayName || 'Anonymous'}
                                                       </span>
                                                       {content.creator?.username && (
-                                                            <span className="text-xs text-gray-200 drop-shadow-md">
+                                                            <span style={{ fontSize: '12px', color: '#d1d5db', textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
                                                                   @{content.creator.username}
                                                             </span>
                                                       )}
