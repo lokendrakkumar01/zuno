@@ -71,9 +71,9 @@ export const CallProvider = ({ children }) => {
                   setCallType(data.callType);
                   setShowCallModal('incoming');
                   pendingSignals.current = []; // Clear any old signals
-                  // Store caller ID so leaveCall can reach them
+                  // Always overwrite so rejectCall always has the correct caller ID
                   const callerId = data.from?._id || data.from?.id || data.from;
-                  if (callerId && !targetUserIdRef.current) {
+                  if (callerId) {
                         targetUserIdRef.current = callerId.toString();
                   }
             };
@@ -474,6 +474,25 @@ export const CallProvider = ({ children }) => {
             }, 800);
       };
 
+      const rejectCall = () => {
+            // Receiver explicitly declines the call — emit cancelCall so caller sees it was rejected
+            const callerId = targetUserIdRef.current
+                  || caller?._id?.toString() || caller?.id?.toString()
+                  || (typeof caller === 'string' ? caller : null);
+
+            if (socket && callerId) {
+                  socket.emit('cancelCall', { to: callerId });
+            }
+
+            // Local cleanup
+            setShowCallModal(null);
+            setReceivingCall(false);
+            setCallerSignal(null);
+            setCaller(null);
+            setCallType(null);
+            targetUserIdRef.current = null;
+      };
+
       return (
             <CallContext.Provider value={{
                   stream, setStream, myVideo, userVideo,
@@ -481,7 +500,7 @@ export const CallProvider = ({ children }) => {
                   callAccepted, callEnded, callType,
                   isCalling, showCallModal, setShowCallModal,
                   isMuted, isVideoOff,
-                  startCall, answerCall, leaveCall,
+                  startCall, answerCall, leaveCall, rejectCall,
                   toggleMute, toggleVideo
             }}>
                   {children}

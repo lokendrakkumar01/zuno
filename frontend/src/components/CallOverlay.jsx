@@ -5,7 +5,7 @@ const CallOverlay = () => {
       const {
             stream, myVideo, userVideo,
             receivingCall, caller, callAccepted, callEnded, callType,
-            isCalling, showCallModal, answerCall, leaveCall,
+            isCalling, showCallModal, answerCall, leaveCall, rejectCall,
             isMuted, isVideoOff, toggleMute, toggleVideo
       } = useCallContext();
 
@@ -150,22 +150,29 @@ const CallOverlay = () => {
                   {showCallModal === 'incoming' && !callAccepted && (
                         <div className="chat-call-modal-overlay" style={{ zIndex: 999999, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
                               <div className="chat-call-modal" onClick={(e) => e.stopPropagation()} style={{ background: 'var(--color-bg-card)', padding: '32px', borderRadius: '24px', textAlign: 'center', minWidth: '320px', boxShadow: 'var(--shadow-xl)' }}>
-                                    <div className="chat-call-modal-icon" style={{ fontSize: '3rem', marginBottom: '16px' }}>
+                                    {/* Caller Avatar */}
+                                    <div style={{ width: '80px', height: '80px', borderRadius: '50%', margin: '0 auto 16px', overflow: 'hidden', background: 'var(--color-bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', border: '3px solid var(--color-accent-primary)' }}>
+                                          {caller?.avatar ? (
+                                                <img src={caller.avatar} alt="Caller" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                          ) : (
+                                                <span>{(caller?.displayName || caller?.username || 'U').charAt(0).toUpperCase()}</span>
+                                          )}
+                                    </div>
+                                    <div className="chat-call-modal-icon" style={{ fontSize: '1.8rem', marginBottom: '8px' }}>
                                           {callType === 'video' ? '📹' : '📞'}
                                     </div>
                                     <h3 className="text-lg font-bold mb-sm">
-                                          Incoming {callType === 'video' ? 'Video' : 'Voice'} Call
+                                          {otherUser?.displayName || otherUser?.username || 'Someone'}
                                     </h3>
-                                    {/* Make sure we safely access caller and fallback appropriately */}
                                     <p className="text-muted text-sm mb-lg">
-                                          {otherUser?.displayName || otherUser?.username || 'Someone'} is calling you.
+                                          Incoming {callType === 'video' ? 'Video' : 'Voice'} Call
                                     </p>
                                     <div style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
-                                          <button onClick={() => leaveCall(true)} className="btn" style={{ flex: 1, background: '#ef4444', color: 'white', border: 'none' }}>
-                                                Decline
+                                          <button onClick={rejectCall} className="btn" style={{ flex: 1, background: '#ef4444', color: 'white', border: 'none', borderRadius: '12px', padding: '12px', fontWeight: 600 }}>
+                                                📵 Decline
                                           </button>
-                                          <button onClick={answerCall} className="btn" style={{ flex: 1, background: '#10b981', color: 'white', border: 'none' }}>
-                                                Answer
+                                          <button onClick={answerCall} className="btn" style={{ flex: 1, background: '#10b981', color: 'white', border: 'none', borderRadius: '12px', padding: '12px', fontWeight: 600 }}>
+                                                📱 Answer
                                           </button>
                                     </div>
                               </div>

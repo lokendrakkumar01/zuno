@@ -131,7 +131,6 @@ const Profile = () => {
       }, [username, user, isOwnProfile]);
 
       const [postsError, setPostsError] = useState('');
-      const [debugApiRes, setDebugApiRes] = useState('');
 
       const fetchUserPosts = async (uname) => {
             setPostsError('');
@@ -149,9 +148,6 @@ const Profile = () => {
                   clearTimeout(timeoutId);
                   const data = await res.json();
 
-                  console.log("[fetchUserPosts] Raw response data:", data);
-                  setDebugApiRes(JSON.stringify(data).substring(0, 200));
-
                   if (data.success) {
                         // Very defensively parse the contents array
                         let posts = [];
@@ -165,7 +161,6 @@ const Profile = () => {
 
                         if (!Array.isArray(posts)) posts = [];
 
-                        console.log(`[fetchUserPosts] Parsed posts length: ${posts.length}`);
                         setUserPosts(posts);
 
                         const views = posts.reduce((sum, post) => sum + (post.metrics?.viewCount || 0), 0);
@@ -651,18 +646,6 @@ const Profile = () => {
                                                       <div className="text-center text-gray-500 py-xl">No posts yet.</div>
                                                 )}
                                           </div>
-
-                                          {/* TEMPORARY DEBUG BLOCK */}
-                                          {userPosts.length === 0 && (
-                                                <div style={{ padding: '10px', background: '#ffebee', color: 'red', marginTop: '10px', wordBreak: 'break-all' }}>
-                                                      <strong>Debug Info V2:</strong><br />
-                                                      Target Username: {profileUser?.username}<br />
-                                                      Posts Length: {userPosts.length}<br />
-                                                      API URL Hit: {API_URL}<br />
-                                                      API Response: {debugApiRes}<br />
-                                                      Error State: {postsError}
-                                                </div>
-                                          )}
 
                                           {isOwnProfile && (
                                                 <div className="grid grid-cols-3 gap-md mb-lg mt-xl">
