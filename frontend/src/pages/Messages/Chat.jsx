@@ -509,6 +509,24 @@ const Chat = () => {
       };
 
       const handleReact = async (messageId, emoji) => {
+            // Optimistic UI for Instant Reaction
+            setMessages(prev => {
+                  return prev.map(m => {
+                        if (m._id === messageId) {
+                              const reactions = Array.isArray(m.reactions) ? [...m.reactions] : [];
+                              const existingIdx = reactions.findIndex(r => r.emoji === emoji && (r.user?._id || r.user) === (user?._id || user?.id));
+                              if (existingIdx > -1) {
+                                    reactions.splice(existingIdx, 1);
+                              } else {
+                                    reactions.push({ emoji, user: { _id: user?._id || user?.id, username: user?.username } });
+                              }
+                              return { ...m, reactions };
+                        }
+                        return m;
+                  });
+            });
+            setActiveMenu(null); // Close menu instantly
+
             try {
                   const res = await fetch(`${API_URL}/messages/react/${messageId}`, {
                         method: 'PUT',
@@ -522,12 +540,9 @@ const Chat = () => {
                   if (data.success) {
                         setMessages(prev => {
                               const updated = prev.map(m => m._id === messageId ? data.data.message : m);
-                              try {
-                                    localStorage.setItem(`zuno_chat_cache_${userId}`, JSON.stringify(updated.slice(-100)));
-                              } catch (e) { }
+                              try { localStorage.setItem(`zuno_chat_cache_${userId}`, JSON.stringify(updated.slice(-100))); } catch (e) { }
                               return updated;
                         });
-                        setActiveMenu(null);
                   }
             } catch (err) {
                   console.error('Failed to react:', err);
@@ -623,15 +638,21 @@ const Chat = () => {
       };
 
       const formatTime = (dateStr) => {
+            if (!dateStr) return '';
             const date = new Date(dateStr);
+            if (isNaN(date.getTime())) return '';
             return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       };
 
       const formatDateSeparator = (dateStr) => {
+            if (!dateStr) return '';
             const date = new Date(dateStr);
+            if (isNaN(date.getTime())) return '';
+
             const now = new Date();
             const diff = now - date;
             const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
             if (days === 0) return 'Today';
             if (days === 1) return 'Yesterday';
             return date.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
@@ -639,6 +660,8 @@ const Chat = () => {
 
       const shouldShowDateSeparator = (msg, index) => {
             if (index === 0) return true;
+            if (!msg.createdAt || !messages[index - 1].createdAt) return false;
+
             const prev = new Date(messages[index - 1].createdAt).toDateString();
             const curr = new Date(msg.createdAt).toDateString();
             return prev !== curr;
