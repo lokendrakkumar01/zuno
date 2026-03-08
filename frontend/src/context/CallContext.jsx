@@ -361,6 +361,15 @@ export const CallProvider = ({ children }) => {
                   callAcceptedRef.current = false;
                   setReceivingCall(false);
                   setShowCallModal(null);
+
+                  // Reject the call so the caller doesn't ring indefinitely
+                  const callerId = targetUserIdRef.current
+                        || caller?._id || caller?.id
+                        || (typeof caller === 'string' ? caller : null);
+                  if (socket && callerId) {
+                        socket.emit("cancelCall", { to: callerId });
+                  }
+
                   alert('Could not access microphone/camera. Please check permissions.');
             }
       };
