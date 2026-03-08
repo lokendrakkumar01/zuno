@@ -140,15 +140,32 @@ const Profile = () => {
             try {
                   const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
                   const encodedUname = encodeURIComponent(uname);
-                  const res = await fetch(`${API_URL}/feed/creator/${encodedUname}`, {
+                  // Added ?t= parameter to permanently break any browser caching for profile feeds
+                  const res = await fetch(`${API_URL}/feed/creator/${encodedUname}?t=${Date.now()}`, {
                         headers,
                         signal: controller.signal
                   });
                   clearTimeout(timeoutId);
                   const data = await res.json();
+
+                  console.log("[fetchUserPosts] Raw response data:", data);
+
                   if (data.success) {
-                        const posts = data.data.contents || data.data || [];
+                        // Very defensively parse the contents array
+                        let posts = [];
+                        if (data.data?.contents) {
+                              posts = data.data.contents;
+                        } else if (Array.isArray(data.data)) {
+                              posts = data.data;
+                        } else if (data.contents) {
+                              posts = data.contents;
+                        }
+
+                        if (!Array.isArray(posts)) posts = [];
+
+                        console.log(`[fetchUserPosts] Parsed posts length: ${posts.length}`);
                         setUserPosts(posts);
+
                         const views = posts.reduce((sum, post) => sum + (post.metrics?.viewCount || 0), 0);
                         setTotalViews(views);
                   } else {
@@ -632,6 +649,17 @@ const Profile = () => {
                                                       <div className="text-center text-gray-500 py-xl">No posts yet.</div>
                                                 )}
                                           </div>
+
+                                          {/* TEMPORARY DEBUG BLOCK */}
+                                          {userPosts.length === 0 && (
+                                                <div style={{ padding: '10px', background: '#ffebee', color: 'red', marginTop: '10px', wordBreak: 'break-all' }}>
+                                                      <strong>Debug Info:</strong><br />
+                                                      Target Username: {profileUser?.username}<br />
+                                                      Posts Length: {userPosts.length}<br />
+                                                      Posts Data: {JSON.stringify(userPosts)}<br />
+                                                      Error State: {postsError}
+                                                </div>
+                                          )}
 
                                           {isOwnProfile && (
                                                 <div className="grid grid-cols-3 gap-md mb-lg mt-xl">

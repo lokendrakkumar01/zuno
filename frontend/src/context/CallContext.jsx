@@ -51,6 +51,7 @@ export const CallProvider = ({ children }) => {
       const callStartTime = useRef(null);
       const targetUserIdRef = useRef(null);  // Target user ID for the call
       const callTimeoutRef = useRef(null);   // Call auto-cancel after 45s
+      const pendingSignals = useRef([]);     // Buffer for early ICE candidates
 
       // Use refs to avoid stale closure bugs in timeout callbacks
       const callAcceptedRef = useRef(false);
@@ -69,6 +70,7 @@ export const CallProvider = ({ children }) => {
                   setCallerSignal(data.signal);
                   setCallType(data.callType);
                   setShowCallModal('incoming');
+                  pendingSignals.current = []; // Clear any old signals
                   // Store caller ID so leaveCall can reach them
                   const callerId = data.from?._id || data.from?.id || data.from;
                   if (callerId && !targetUserIdRef.current) {
@@ -107,6 +109,9 @@ export const CallProvider = ({ children }) => {
             const handleWebrtcSignal = (signal) => {
                   if (connectionRef.current) {
                         connectionRef.current.signal(signal);
+                  } else {
+                        // Buffer ICE candidates that arrive before we have answered
+                        pendingSignals.current.push(signal);
                   }
             };
 
@@ -195,6 +200,7 @@ export const CallProvider = ({ children }) => {
             setCaller(otherUserData);
             targetUserIdRef.current = targetUserId?.toString(); // ✅ Save for cleanup
             setShowCallModal('calling'); // ✅ Show outgoing call screen
+            pendingSignals.current = []; // Reset signals
 
             try {
                   const mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -255,6 +261,7 @@ export const CallProvider = ({ children }) => {
 
                   peer.on("close", () => {
                         console.log("Peer connection closed");
+                        leaveCall(false);
                   });
 
                   connectionRef.current = peer;
@@ -337,10 +344,16 @@ export const CallProvider = ({ children }) => {
 
                   peer.on("close", () => {
                         console.log("Peer connection closed");
+                        leaveCall(false);
                   });
 
                   // Signal the peer with the stored offer
                   peer.signal(callerSignal);
+
+                  // Drain any buffered ICE candidates that arrived early
+                  pendingSignals.current.forEach(sig => peer.signal(sig));
+                  pendingSignals.current = [];
+
                   connectionRef.current = peer;
             } catch (err) {
                   console.error('Failed to answer call:', err);
@@ -428,6 +441,7 @@ export const CallProvider = ({ children }) => {
             setCallAccepted(false);
             callAcceptedRef.current = false;
             setShowCallModal(null);
+            pendingSignals.current = [];
 
             if (connectionRef.current) {
                   connectionRef.current.destroy();

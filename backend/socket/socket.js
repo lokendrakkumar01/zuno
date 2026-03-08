@@ -18,6 +18,7 @@ const io = new Server(server, {
 });
 
 const userSocketMap = {}; // {userId: count} - track online status simply
+const activeCalls = new Map(); // {socketId: otherPartyId} - track active calls for sudden disconnects
 
 io.on("connection", (socket) => {
       console.log("A user connected", socket.id);
@@ -54,6 +55,7 @@ io.on("connection", (socket) => {
       // WebRTC Call Signaling
       socket.on("callUser", (data) => {
             if (data.userToCall) {
+                  activeCalls.set(socket.id, data.userToCall);
                   io.to(data.userToCall).emit("callUser", {
                         signal: data.signalData,
                         from: data.from,
@@ -71,17 +73,20 @@ io.on("connection", (socket) => {
 
       socket.on("answerCall", (data) => {
             if (data.to) {
+                  activeCalls.set(socket.id, data.to);
                   io.to(data.to).emit("callAccepted", data.signal);
             }
       });
 
       socket.on("cancelCall", (data) => {
+            activeCalls.delete(socket.id);
             if (data.to) {
                   io.to(data.to).emit("callCancelled");
             }
       });
 
       socket.on("leaveCall", (data) => {
+            activeCalls.delete(socket.id);
             if (data.to) {
                   io.to(data.to).emit("callEnded");
             }
@@ -89,6 +94,14 @@ io.on("connection", (socket) => {
 
       socket.on("disconnect", () => {
             console.log("User disconnected", socket.id);
+
+            // If the user was in an active call and abruptly disconnected (e.g., refresh), notify the other party
+            const otherPartyId = activeCalls.get(socket.id);
+            if (otherPartyId) {
+                  io.to(otherPartyId).emit("callEnded");
+                  activeCalls.delete(socket.id);
+            }
+
             if (userId && userSocketMap[userId]) {
                   userSocketMap[userId]--;
                   if (userSocketMap[userId] === 0) {

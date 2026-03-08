@@ -67,30 +67,26 @@ const CallOverlay = () => {
                               </div>
                               <div className="chat-call-video-container" style={{ flex: 1, position: 'relative', background: 'var(--color-bg-primary)' }}>
                                     {/* Main Video (Remote User) */}
-                                    {callAccepted && (
-                                          <video
-                                                playsInline
-                                                ref={userVideo}
-                                                autoPlay
-                                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                          />
-                                    )}
+                                    <video
+                                          playsInline
+                                          ref={userVideo}
+                                          autoPlay
+                                          style={{ width: '100%', height: '100%', objectFit: 'cover', display: callAccepted && callType === 'video' ? 'block' : 'none' }}
+                                    />
                                     {/* PIP Video (Local User) */}
-                                    {stream && (
-                                          <video
-                                                playsInline
-                                                muted
-                                                ref={myVideo}
-                                                autoPlay
-                                                style={{
-                                                      position: 'absolute', bottom: '20px', right: '20px',
-                                                      width: '120px', height: '160px', objectFit: 'cover',
-                                                      borderRadius: '12px', border: '2px solid white',
-                                                      boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-                                                      display: callType === 'video' ? 'block' : 'none'
-                                                }}
-                                          />
-                                    )}
+                                    <video
+                                          playsInline
+                                          muted
+                                          ref={myVideo}
+                                          autoPlay
+                                          style={{
+                                                position: 'absolute', bottom: '20px', right: '20px',
+                                                width: '120px', height: '160px', objectFit: 'cover',
+                                                borderRadius: '12px', border: '2px solid white',
+                                                boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                                                display: stream && callType === 'video' ? 'block' : 'none'
+                                          }}
+                                    />
 
                                     {/* Avatar placeholder if voice call or video not connected or video paused */}
                                     {(!callAccepted || callType === 'voice' || (callAccepted && isVideoOff)) && (

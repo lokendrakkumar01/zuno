@@ -197,6 +197,10 @@ const getCreatorFeed = async (req, res) => {
 
             const total = await Content.countDocuments(query);
 
+            console.log(`[getCreatorFeed] Username requested: ${username}`);
+            console.log(`[getCreatorFeed] Query:`, query);
+            console.log(`[getCreatorFeed] Found contents length: ${contents.length}`);
+
             res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
             res.setHeader('Pragma', 'no-cache');
             res.setHeader('Expires', '0');
