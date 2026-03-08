@@ -452,8 +452,8 @@ const ContentCard = ({ content, onDelete }) => {
                                     cursor: 'pointer' // explicitly show pointer
                               }}
                               onClick={() => {
-                                    // Single click = fullscreen (for images mainly, videos have their own click handler but this acts as fallback)
-                                    if (!isVideo) setIsFullscreen(true);
+                                    // Single click = fullscreen for all media (like Reels)
+                                    setIsFullscreen(true);
                               }}
                               onDoubleClick={(e) => {
                                     e.preventDefault();
@@ -567,11 +567,13 @@ const ContentCard = ({ content, onDelete }) => {
                                                       loop
                                                       onClick={(e) => {
                                                             e.stopPropagation();
-                                                            if (isPlaying) {
-                                                                  videoRef.current.pause();
-                                                            } else {
-                                                                  videoRef.current.play();
-                                                            }
+                                                            videoRef.current?.pause(); // ensure underlying video is paused
+                                                            setIsFullscreen(true); // Open reel viewer
+                                                      }}
+                                                      onDoubleClick={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            handleDoubleTap(); // Heart animation on video double tap
                                                       }}
                                                       onPlay={() => setIsPlaying(true)}
                                                       onPause={() => setIsPlaying(false)}
@@ -580,10 +582,13 @@ const ContentCard = ({ content, onDelete }) => {
                                                       onError={(e) => console.error('Video failed to load:', e)}
                                                 />
 
-                                                {/* Play/Pause Overlay Icon (shows when paused) */}
+                                                {/* Play Overlay Icon (indicates it's a video/reel) */}
                                                 {!isPlaying && (
                                                       <div
-                                                            onClick={(e) => { e.stopPropagation(); videoRef.current?.play(); }}
+                                                            onClick={(e) => {
+                                                                  e.stopPropagation();
+                                                                  setIsFullscreen(true);
+                                                            }}
                                                             style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'rgba(0,0,0,0.55)', borderRadius: '50%', padding: '18px', zIndex: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                                       >
                                                             <svg width="36" height="36" viewBox="0 0 24 24" fill="white">
