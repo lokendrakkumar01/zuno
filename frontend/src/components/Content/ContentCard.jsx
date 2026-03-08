@@ -1046,11 +1046,10 @@ const ContentCard = ({ content, onDelete }) => {
                         </div>
                   )}
 
-                  {/* Fullscreen Media Viewer (Instagram style) */}
+                  {/* Fullscreen Media Viewer (Instagram Reel Style) */}
                   {isFullscreen && (
                         <div
                               className="fullscreen-media-modal"
-                              onClick={() => setIsFullscreen(false)} // close when clicking background
                         >
                               <button
                                     className="fullscreen-close"
@@ -1064,37 +1063,127 @@ const ContentCard = ({ content, onDelete }) => {
                                           <line x1="6" y1="6" x2="18" y2="18" />
                                     </svg>
                               </button>
+
                               <div
                                     className="fullscreen-media-content"
-                                    onClick={(e) => e.stopPropagation()} // Keep open when clicking content
+                                    onClick={(e) => {
+                                          e.stopPropagation();
+                                          // Toggle play/pause for video in fullscreen
+                                          if (isVideo) {
+                                                const vid = e.currentTarget.querySelector('video');
+                                                if (vid) {
+                                                      vid.paused ? vid.play() : vid.pause();
+                                                }
+                                          }
+                                    }}
                                     onDoubleClick={(e) => {
                                           e.preventDefault();
                                           e.stopPropagation();
                                           handleDoubleTap();
                                     }}
                               >
-                                    {/* Big Heart Animation for Double Tap (Inside Fullscreen) */}
+                                    <div className="fullscreen-gradient"></div>
+
+                                    {/* Big Heart Animation for Double Tap */}
                                     {showBigHeart && (
-                                          <div className="animate-heart-pop">
-                                                <svg width="120" height="120" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="1">
+                                          <div className="animate-heart-pop text-white shadow-2xl z-[99999]" style={{ filter: 'drop-shadow(0 0 20px rgba(0,0,0,0.5))' }}>
+                                                <svg width="120" height="120" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1">
                                                       <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
                                                 </svg>
                                           </div>
                                     )}
+
+                                    {/* Media Element */}
                                     {!isVideo ? (
                                           <img
                                                 src={getMediaUrl(mediaUrl)}
                                                 alt={content.title || 'Fullscreen media'}
-                                                style={{ maxWidth: '100%', maxHeight: '100dvh', objectFit: 'contain' }}
+                                                style={{ width: '100%', height: '100dvh', objectFit: 'contain' }}
                                           />
                                     ) : (
                                           <video
                                                 src={getMediaUrl(mediaUrl)}
-                                                controls
                                                 autoPlay
-                                                style={{ maxWidth: '100%', maxHeight: '100dvh', objectFit: 'contain' }}
+                                                loop
+                                                playsInline
+                                                muted={isMuted} // follow normal app setting
                                           />
                                     )}
+
+                                    {/* Action Buttons Overlay (Right Side) */}
+                                    <div className="fullscreen-actions">
+                                          <button className="fullscreen-action-btn" onClick={(e) => { e.stopPropagation(); handleHelpful(); }}>
+                                                <svg width="32" height="32" viewBox="0 0 24 24" fill={isHelpful ? "var(--color-accent-helpful)" : "none"} stroke={isHelpful ? "var(--color-accent-helpful)" : "white"} strokeWidth="2">
+                                                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                                                </svg>
+                                                <span className="fullscreen-action-label">{content.metrics?.helpfulCount + (isHelpful && !content.metrics?.helpfulCount ? 1 : 0) || 'Like'}</span>
+                                          </button>
+
+                                          <button className="fullscreen-action-btn" onClick={(e) => { e.stopPropagation(); setShowComments(!showComments); setIsFullscreen(false); }}>
+                                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                                                      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                                                </svg>
+                                                <span className="fullscreen-action-label">{commentCount || 'Comment'}</span>
+                                          </button>
+
+                                          <button className="fullscreen-action-btn" onClick={(e) => {
+                                                e.stopPropagation();
+                                                navigator.clipboard.writeText(`${window.location.origin}/content/${content._id}`);
+                                                alert('Link copied to share!');
+                                          }}>
+                                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" style={{ transform: 'translateY(-2px)' }}>
+                                                      <line x1="22" y1="2" x2="11" y2="13" />
+                                                      <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                                                </svg>
+                                                <span className="fullscreen-action-label">Share</span>
+                                          </button>
+
+                                          <button className="fullscreen-action-btn" onClick={(e) => { e.stopPropagation(); handleSave(); }}>
+                                                <svg width="32" height="32" viewBox="0 0 24 24" fill={isSaved ? "white" : "none"} stroke="white" strokeWidth="2">
+                                                      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                                                </svg>
+                                                <span className="fullscreen-action-label">Save</span>
+                                          </button>
+                                    </div>
+
+                                    {/* Creator Info (Bottom Left) */}
+                                    <div className="fullscreen-creator-info">
+                                          <div className="flex items-center gap-2 mb-2">
+                                                <img
+                                                      src={content.creator?.avatar || 'https://via.placeholder.com/40'}
+                                                      alt={content.creator?.displayName}
+                                                      className="w-10 h-10 rounded-full border-2 border-white object-cover shadow-sm"
+                                                />
+                                                <div className="flex flex-col">
+                                                      <span className="font-bold text-sm drop-shadow-md">
+                                                            {content.creator?.displayName || 'Anonymous'}
+                                                      </span>
+                                                      {content.creator?.username && (
+                                                            <span className="text-xs text-gray-200 drop-shadow-md">
+                                                                  @{content.creator.username}
+                                                            </span>
+                                                      )}
+                                                </div>
+                                                {currentUser?._id !== content.creator?._id && !isFollowing && (
+                                                      <button
+                                                            className="ml-2 px-3 py-1 bg-transparent border border-white rounded-md text-xs font-bold transition-colors hover:bg-white hover:text-black"
+                                                            onClick={(e) => { e.stopPropagation(); handleFollow(); }}
+                                                      >
+                                                            Follow
+                                                      </button>
+                                                )}
+                                          </div>
+                                          {content.title && (
+                                                <p className="text-sm font-medium drop-shadow-md line-clamp-2">
+                                                      {content.title}
+                                                </p>
+                                          )}
+                                          {content.body && (
+                                                <p className="text-xs text-gray-200 mt-1 line-clamp-2 drop-shadow-md">
+                                                      {content.body}
+                                                </p>
+                                          )}
+                                    </div>
                               </div>
                         </div>
                   )}
