@@ -131,6 +131,7 @@ const Profile = () => {
       }, [username, user, isOwnProfile]);
 
       const [postsError, setPostsError] = useState('');
+      const [debugApiRes, setDebugApiRes] = useState('');
 
       const fetchUserPosts = async (uname) => {
             setPostsError('');
@@ -149,6 +150,7 @@ const Profile = () => {
                   const data = await res.json();
 
                   console.log("[fetchUserPosts] Raw response data:", data);
+                  setDebugApiRes(JSON.stringify(data).substring(0, 200));
 
                   if (data.success) {
                         // Very defensively parse the contents array
@@ -653,10 +655,11 @@ const Profile = () => {
                                           {/* TEMPORARY DEBUG BLOCK */}
                                           {userPosts.length === 0 && (
                                                 <div style={{ padding: '10px', background: '#ffebee', color: 'red', marginTop: '10px', wordBreak: 'break-all' }}>
-                                                      <strong>Debug Info:</strong><br />
+                                                      <strong>Debug Info V2:</strong><br />
                                                       Target Username: {profileUser?.username}<br />
                                                       Posts Length: {userPosts.length}<br />
-                                                      Posts Data: {JSON.stringify(userPosts)}<br />
+                                                      API URL Hit: {API_URL}<br />
+                                                      API Response: {debugApiRes}<br />
                                                       Error State: {postsError}
                                                 </div>
                                           )}
