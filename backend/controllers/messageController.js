@@ -247,22 +247,20 @@ const sendMessage = async (req, res) => {
                   io.to(senderSocketId).emit("newMessage", socketPayload);
             }
 
-            // NOW save to DB
-            await message.save();
-
-            // Populate sender info asynchronously for HTTP response
-            const responseMessagePromise = message.populate('sender', 'username displayName avatar')
-                  .then(m => m.populate('receiver', 'username displayName avatar'))
-                  .then(m => replyTo ? m.populate({ path: 'replyTo', populate: { path: 'sender', select: 'username displayName' } }) : m);
-
-            // Await the population ONLY for the final HTTP response
-            const finalMessage = await responseMessagePromise;
-
+            // Immediately send back a fast HTTP response for optimistic UI
             res.status(201).json({
                   success: true,
-                  message: 'Message sent',
-                  data: { message: finalMessage }
+                  message: 'Message sent quickly (optimistic)',
+                  data: { message: socketPayload } // The raw populated payload sent via socket
             });
+
+            // NOW save to DB in the background to not delay the sender
+            try {
+                  await message.save();
+                  // Populate if needed for future cache invalidation, though not strictly required for this specific HTTP response anymore
+            } catch (saveErr) {
+                  console.error("Delayed message save err:", saveErr);
+            }
       } catch (error) {
             console.error('sendMessage error:', error);
             res.status(500).json({

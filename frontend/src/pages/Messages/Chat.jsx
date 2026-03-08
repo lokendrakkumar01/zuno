@@ -211,11 +211,14 @@ const Chat = () => {
 
                   // Auto mark as read when the other user sends to us and we're viewing
                   if (isFromOtherUser && document.visibilityState === 'visible') {
+                        // Optimistically emit the read receipt instantly
+                        socket.emit('messageRead', { receiverId: userId, messageId: newMessage._id });
+
+                        // Then tell the backend in the background
                         fetch(`${API_URL}/messages/${userId}/read`, {
                               method: 'PUT',
                               headers: { 'Authorization': `Bearer ${token}` }
                         }).catch(console.error);
-                        socket.emit('messageRead', { receiverId: userId });
                   }
             };
 
@@ -228,13 +231,17 @@ const Chat = () => {
             };
 
             const handleMessageRead = () => {
-                  // Mark all my sent messages in this chat as read
-                  setMessages(prev => prev.map(m => {
-                        const senderId = (m.sender?._id || m.sender || '').toString();
-                        const currentUserId = (user?._id || user?.id || '').toString();
-                        const isMySentMsg = senderId === currentUserId;
-                        return (isMySentMsg && !m.read) ? { ...m, read: true } : m;
-                  }));
+                  // Mark all my sent messages in this chat as read instantly (Tick -> Blue Double Tick)
+                  setMessages(prev => {
+                        const updated = prev.map(m => {
+                              const senderId = (m.sender?._id || m.sender || '').toString();
+                              const currentUserId = (user?._id || user?.id || '').toString();
+                              const isMySentMsg = senderId === currentUserId;
+                              return (isMySentMsg && !m.read) ? { ...m, read: true } : m;
+                        });
+                        try { localStorage.setItem(`zuno_chat_cache_${userId}`, JSON.stringify(updated.slice(-100))); } catch (e) { }
+                        return updated;
+                  });
             };
 
             const handleMessageReaction = (data) => {
