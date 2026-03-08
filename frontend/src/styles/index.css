@@ -3166,3 +3166,38 @@ video.chat-media-content {
   pointer-events: none;
   z-index: 9999;
 }
+
+/* ========================================
+   Instagram Feed Reel Scrolling (Snap)
+   ======================================== */
+
+.reel-snap-wrapper {
+  /* This ensures the page itself handles scrolling gracefully or the wrapper takes over */
+  height: calc(100dvh - 60px);
+  /* minus bottom nav */
+  width: 100%;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+}
+
+.reel-snap-wrapper::-webkit-scrollbar {
+  display: none;
+}
+
+.reel-snap-item {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  height: 100%;
+  /* Or 100dvh for complete takeover */
+  min-height: calc(100dvh - 60px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Add padding to ensure content card doesn't touch the very edges if not full screen */
+  padding: 10px 0;
+}

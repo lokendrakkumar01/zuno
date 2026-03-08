@@ -177,9 +177,11 @@ const Search = () => {
                         {!loading && contents.length > 0 && (
                               <div className="animate-fadeInUp">
                                     <h2 className="text-xl font-semibold mb-lg">📝 Content ({contents.length})</h2>
-                                    <div className="content-grid">
+                                    <div className="reel-snap-wrapper">
                                           {contents.map(content => (
-                                                <ContentCard key={content._id} content={content} />
+                                                <div key={content._id} className="reel-snap-item">
+                                                      <ContentCard content={content} />
+                                                </div>
                                           ))}
                                     </div>
                               </div>

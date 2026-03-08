@@ -42,6 +42,7 @@ const messageSchema = new mongoose.Schema({
 
 // Index for efficient queries
 messageSchema.index({ sender: 1, receiver: 1, createdAt: -1 });
+messageSchema.index({ receiver: 1, sender: 1, createdAt: -1 }); // Added for $or query performance
 messageSchema.index({ receiver: 1, read: 1 });
 messageSchema.index({ createdAt: -1 });
 

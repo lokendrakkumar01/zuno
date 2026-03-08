@@ -637,10 +637,12 @@ const Profile = () => {
                                                 </div>
                                           )}
 
-                                          <div className="posts-grid">
+                                          <div className="reel-snap-wrapper">
                                                 {!postsError && userPosts.length > 0 ? (
                                                       userPosts.map(post => (
-                                                            <ContentCard key={post._id} content={post} onDelete={handleDeleteContent} />
+                                                            <div key={post._id} className="reel-snap-item">
+                                                                  <ContentCard content={post} onDelete={handleDeleteContent} />
+                                                            </div>
                                                       ))
                                                 ) : !postsError && (
                                                       <div className="text-center text-gray-500 py-xl">No posts yet.</div>
