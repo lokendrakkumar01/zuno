@@ -36,8 +36,6 @@ const storage = new CloudinaryStorage({
                         : ['jpg', 'jpeg', 'png', 'gif', 'webp'],
                   transformation: isImage ? [
                         { width: 1200, height: 1200, crop: 'limit', quality: 'auto:good' }
-                  ] : isVideo ? [
-                        { quality: 'auto', fetch_format: 'mp4' }
                   ] : undefined
             };
       }
