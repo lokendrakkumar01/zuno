@@ -22,7 +22,7 @@ export const SocketContextProvider = ({ children }) => {
 
                   const socketInstance = io(socketUrl, {
                         query: { userId },
-                        transports: ['websocket', 'polling'], // Fallback to polling ensures delivery on bad networks
+                        transports: ['websocket'], // Enforce WebSocket for instant delivery
                         reconnection: true,
                         reconnectionAttempts: Infinity,
                         reconnectionDelay: 1000,

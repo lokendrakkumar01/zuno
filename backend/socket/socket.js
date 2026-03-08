@@ -62,6 +62,13 @@ io.on("connection", (socket) => {
             }
       });
 
+      // Trickle ICE candidates (asynchronous WebRTC signals)
+      socket.on("webrtcSignal", (data) => {
+            if (data.to) {
+                  io.to(data.to).emit("webrtcSignal", data.signal);
+            }
+      });
+
       socket.on("answerCall", (data) => {
             if (data.to) {
                   io.to(data.to).emit("callAccepted", data.signal);

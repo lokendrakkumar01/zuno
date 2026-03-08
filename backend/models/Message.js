@@ -43,6 +43,7 @@ const messageSchema = new mongoose.Schema({
 // Index for efficient queries
 messageSchema.index({ sender: 1, receiver: 1, createdAt: -1 });
 messageSchema.index({ receiver: 1, read: 1 });
+messageSchema.index({ createdAt: -1 });
 
 const conversationSchema = new mongoose.Schema({
       participants: [{

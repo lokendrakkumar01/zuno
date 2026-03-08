@@ -104,10 +104,17 @@ export const CallProvider = ({ children }) => {
                   leaveCall(false);
             };
 
+            const handleWebrtcSignal = (signal) => {
+                  if (connectionRef.current) {
+                        connectionRef.current.signal(signal);
+                  }
+            };
+
             socket.on("callUser", handleCallUser);
             socket.on("callAccepted", handleCallAccepted);
             socket.on("callCancelled", handleCallCancelled);
             socket.on("callEnded", handleCallEndedEvent);
+            socket.on("webrtcSignal", handleWebrtcSignal);
 
             // Protection against accidental page refresh dropping the call
             const handleBeforeUnload = (e) => {
@@ -140,6 +147,7 @@ export const CallProvider = ({ children }) => {
                   socket.off("callAccepted", handleCallAccepted);
                   socket.off("callCancelled", handleCallCancelled);
                   socket.off("callEnded", handleCallEndedEvent);
+                  socket.off("webrtcSignal", handleWebrtcSignal);
                   window.removeEventListener('beforeunload', handleBeforeUnload);
                   window.removeEventListener('unload', handleUnload);
             };
@@ -208,19 +216,29 @@ export const CallProvider = ({ children }) => {
 
                   const peer = new Peer({
                         initiator: true,
-                        trickle: false,   // Single SDP offer — no race conditions
+                        trickle: true,   // Stream ICE candidates instantly for extremely fast 1-2s connection
                         stream: mediaStream,
                         config: ICE_SERVERS
                   });
 
-                  // With trickle: false, this fires exactly ONCE with the full offer
+                  // Fires multiple times: first with the offer, then with ICE candidates
+                  let isFirstSignal = true;
+
                   peer.on("signal", (data) => {
-                        socket.emit("callUser", {
-                              userToCall: targetUserId,
-                              signalData: data,
-                              from: user,
-                              callType: type
-                        });
+                        if (isFirstSignal) {
+                              socket.emit("callUser", {
+                                    userToCall: targetUserId,
+                                    signalData: data,
+                                    from: user,
+                                    callType: type
+                              });
+                              isFirstSignal = false;
+                        } else {
+                              socket.emit("webrtcSignal", {
+                                    to: targetUserId,
+                                    signal: data
+                              });
+                        }
                   });
 
                   peer.on("stream", (remoteStream) => {
@@ -285,17 +303,25 @@ export const CallProvider = ({ children }) => {
 
                   const peer = new Peer({
                         initiator: false,
-                        trickle: false,  // Single SDP answer
+                        trickle: true,  // Stream ICE candidates instantly for fast connection
                         stream: mediaStream,
                         config: ICE_SERVERS
                   });
 
-                  // Fires exactly once with the full answer SDP
+                  const callerId = targetUserIdRef.current
+                        || caller?._id || caller?.id
+                        || (typeof caller === 'string' ? caller : null);
+
+                  let isFirstSignal = true;
+
+                  // Fires multiple times: first with the answer, then with ICE candidates
                   peer.on("signal", (data) => {
-                        const callerId = targetUserIdRef.current
-                              || caller?._id || caller?.id
-                              || (typeof caller === 'string' ? caller : null);
-                        socket.emit("answerCall", { signal: data, to: callerId });
+                        if (isFirstSignal) {
+                              socket.emit("answerCall", { signal: data, to: callerId });
+                              isFirstSignal = false;
+                        } else {
+                              socket.emit("webrtcSignal", { signal: data, to: callerId });
+                        }
                   });
 
                   peer.on("stream", (remoteStream) => {

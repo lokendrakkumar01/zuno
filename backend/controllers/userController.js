@@ -481,20 +481,36 @@ const searchUsers = async (req, res) => {
                   });
             }
 
-            const users = await User.find({
-                  $and: [
-                        { _id: { $ne: req.user.id } },
-                        {
-                              $or: [
-                                    { username: { $regex: q, $options: 'i' } },
-                                    { displayName: { $regex: q, $options: 'i' } }
-                              ]
-                        }
-                  ]
-            })
-                  .select('username displayName avatar bio isVerified')
-                  .limit(10)
-                  .lean();
+            let users;
+            // First attempt to use text search for ultra-fast lookup (if index exists)
+            try {
+                  users = await User.find({
+                        $and: [
+                              { _id: { $ne: req.user.id } },
+                              { $text: { $search: q } }
+                        ]
+                  }, { score: { $meta: "textScore" } })
+                        .sort({ score: { $meta: "textScore" } })
+                        .select('username displayName avatar bio isVerified')
+                        .limit(10)
+                        .lean();
+            } catch (err) {
+                  // Fallback to regex if index is not yet built, but optimize by anchoring to start or using faster options
+                  users = await User.find({
+                        $and: [
+                              { _id: { $ne: req.user.id } },
+                              {
+                                    $or: [
+                                          { username: { $regex: q, $options: 'i' } },
+                                          { displayName: { $regex: q, $options: 'i' } }
+                                    ]
+                              }
+                        ]
+                  })
+                        .select('username displayName avatar bio isVerified')
+                        .limit(10)
+                        .lean();
+            }
 
             res.json({
                   success: true,

@@ -147,6 +147,10 @@ const userSchema = new mongoose.Schema({
 
 }, { timestamps: true });
 
+// Indexes for ultra-fast query performance
+userSchema.index({ username: 1 }); // Fast profile lookup
+userSchema.index({ username: 'text', displayName: 'text' }); // Fast Search
+
 // Pre-save middleware to hash password
 userSchema.pre('save', async function (next) {
       if (!this.isModified('password')) {
