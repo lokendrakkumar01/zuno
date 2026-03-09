@@ -26,7 +26,14 @@ const getSpotifyToken = async () => {
                   body: 'grant_type=client_credentials'
             });
 
-            const data = await response.json();
+            const responseText = await response.text();
+            let data;
+            try {
+                  data = JSON.parse(responseText);
+            } catch (e) {
+                  throw new Error(`Invalid JSON from Spotify Token API. Raw response: ${responseText.substring(0, 100)}`);
+            }
+
 
             if (!response.ok) {
                   throw new Error(data.error_description || 'Failed to get Spotify token');
@@ -59,7 +66,14 @@ const searchTracks = async (req, res) => {
                   }
             });
 
-            const data = await response.json();
+            const responseText = await response.text();
+            let data;
+            try {
+                  data = JSON.parse(responseText);
+            } catch (e) {
+                  throw new Error(`Invalid JSON from Spotify Search API. Raw response: ${responseText.substring(0, 100)}`);
+            }
+
 
             if (!response.ok) {
                   throw new Error(data.error?.message || 'Failed to search Spotify');

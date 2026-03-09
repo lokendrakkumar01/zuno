@@ -44,41 +44,44 @@ const Status = () => {
       const recentUpdates = otherStories;
 
       return (
-            <div className="status-page container animate-fadeIn pb-24">
-                  <header className="flex items-center justify-between mb-lg pt-md px-md">
-                        <h1 className="text-2xl font-bold">Status</h1>
-                        <div className="flex gap-sm">
-                              <button className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-xl">
+            <div className="status-page container animate-fadeIn" style={{ paddingBottom: '96px' }}>
+                  <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', paddingTop: '16px' }}>
+                        <h1 style={{ fontSize: '24px', fontWeight: 'bold' }}>Status</h1>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                              <button className="btn btn-icon" style={{ background: 'var(--color-bg-hover)', fontSize: '20px' }}>
                                     🔍
                               </button>
-                              <button className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-xl">
+                              <button className="btn btn-icon" style={{ background: 'var(--color-bg-hover)', fontSize: '20px' }}>
                                     ⋮
                               </button>
                         </div>
                   </header>
 
                   {/* My Status */}
-                  <section className="mb-8">
-                        <div className="flex items-center gap-4 p-4 hover:bg-black/5 rounded-xl transition-colors cursor-pointer" onClick={() => myStories ? setSelectedGroup(myStories) : navigate('/upload?type=story')}>
-                              <div className="relative">
-                                    <div className="w-16 h-16 rounded-full overflow-hidden p-1" style={{ background: myStories ? 'linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)' : '#e5e7eb' }}>
-                                          <div className="w-full h-full rounded-full border-2 border-white overflow-hidden bg-white">
+                  <section style={{ marginBottom: '32px' }}>
+                        <div
+                              style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', borderRadius: '12px', cursor: 'pointer', background: 'var(--color-bg-secondary)' }}
+                              onClick={() => myStories ? setSelectedGroup(myStories) : navigate('/upload?type=story')}
+                        >
+                              <div style={{ position: 'relative' }}>
+                                    <div style={{ width: '64px', height: '64px', borderRadius: '50%', padding: '4px', background: myStories ? 'linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)' : 'var(--color-border-light)' }}>
+                                          <div style={{ width: '100%', height: '100%', borderRadius: '50%', border: '2px solid var(--color-bg-primary)', overflow: 'hidden', background: 'var(--color-bg-primary)' }}>
                                                 <img
                                                       src={user?.avatar || 'https://via.placeholder.com/64'}
                                                       alt="My Status"
-                                                      className="w-full h-full object-cover"
+                                                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                                 />
                                           </div>
                                     </div>
                                     {!myStories && (
-                                          <div className="absolute bottom-0 right-0 bg-green-500 text-white rounded-full w-6 h-6 flex items-center justify-center border-2 border-white text-lg font-bold">
+                                          <div style={{ position: 'absolute', bottom: '0', right: '0', background: 'var(--color-accent-success)', color: 'white', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid var(--color-bg-primary)', fontSize: '18px', fontWeight: 'bold' }}>
                                                 +
                                           </div>
                                     )}
                               </div>
-                              <div className="flex-1">
-                                    <h3 className="font-bold text-lg">My Status</h3>
-                                    <p className="text-gray-500 text-sm">
+                              <div style={{ flex: 1 }}>
+                                    <h3 style={{ fontWeight: 'bold', fontSize: '18px' }}>My Status</h3>
+                                    <p style={{ color: 'var(--color-text-secondary)', fontSize: '14px' }}>
                                           {myStories ? 'Tap to view your updates' : 'Tap to add status update'}
                                     </p>
                               </div>
@@ -87,31 +90,31 @@ const Status = () => {
 
                   {/* Recent Updates */}
                   <section>
-                        <h2 className="text-sm font-semibold text-gray-500 mb-4 uppercase tracking-wider px-4">Recent Updates</h2>
+                        <h2 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--color-text-secondary)', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Recent Updates</h2>
                         {loading ? (
-                              <div className="flex justify-center p-8">
-                                    <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                              <div style={{ display: 'flex', justifyContent: 'center', padding: '32px' }}>
+                                    <div style={{ width: '32px', height: '32px', border: '4px solid var(--color-bg-hover)', borderTopColor: 'var(--color-accent-primary)', borderRadius: '50%' }} className="animate-spin"></div>
                               </div>
                         ) : recentUpdates.length > 0 ? (
-                              <div className="space-y-1">
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                     {recentUpdates.map(group => (
                                           <div
                                                 key={group.creator._id}
-                                                className="flex items-center gap-4 p-4 hover:bg-black/5 rounded-xl transition-colors cursor-pointer"
+                                                style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', borderRadius: '12px', cursor: 'pointer', background: 'var(--color-bg-secondary)' }}
                                                 onClick={() => setSelectedGroup(group)}
                                           >
-                                                <div className="w-16 h-16 rounded-full p-1" style={{ background: 'linear-gradient(45deg, #25D366, #128C7E)' }}>
-                                                      <div className="w-full h-full rounded-full border-2 border-white overflow-hidden bg-white">
+                                                <div style={{ width: '64px', height: '64px', borderRadius: '50%', padding: '4px', background: 'linear-gradient(45deg, #25D366, #128C7E)' }}>
+                                                      <div style={{ width: '100%', height: '100%', borderRadius: '50%', border: '2px solid var(--color-bg-primary)', overflow: 'hidden', background: 'var(--color-bg-primary)' }}>
                                                             <img
                                                                   src={group.creator.avatar || 'https://via.placeholder.com/64'}
                                                                   alt={group.creator.displayName}
-                                                                  className="w-full h-full object-cover"
+                                                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                                             />
                                                       </div>
                                                 </div>
-                                                <div className="flex-1 flex flex-col justify-center">
-                                                      <h3 className="font-bold text-lg">{group.creator.displayName || group.creator.username}</h3>
-                                                      <p className="text-gray-500 text-sm">
+                                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                                                      <h3 style={{ fontWeight: 'bold', fontSize: '18px' }}>{group.creator.displayName || group.creator.username}</h3>
+                                                      <p style={{ color: 'var(--color-text-secondary)', fontSize: '14px' }}>
                                                             {group.stories && group.stories.length > 0 ? formatDistanceToNow(new Date(group.stories[group.stories.length - 1].createdAt)) + ' ago' : ''}
                                                       </p>
                                                 </div>
@@ -119,23 +122,23 @@ const Status = () => {
                                     ))}
                               </div>
                         ) : (
-                              <div className="text-center py-12 text-gray-400 italic">
+                              <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
                                     <p>No new updates to show</p>
                               </div>
                         )}
                   </section>
 
                   {/* WhatsApp FAB Style for text status */}
-                  <div className="fixed bottom-28 right-6 flex flex-col gap-4 items-center">
+                  <div style={{ position: 'fixed', bottom: '112px', right: '24px', display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center' }}>
                         <button
-                              className="w-12 h-12 rounded-full bg-gray-100 shadow-md flex items-center justify-center transition-transform hover:scale-110"
+                              style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--color-bg-hover)', boxShadow: 'var(--shadow-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer' }}
                               onClick={() => navigate('/upload?type=text-status')}
                               title="Text Status"
                         >
-                              <span className="text-xl">✍️</span>
+                              <span style={{ fontSize: '20px' }}>✍️</span>
                         </button>
                         <button
-                              className="w-16 h-16 rounded-full bg-green-500 shadow-xl flex items-center justify-center text-white transition-transform hover:scale-105 active:scale-95"
+                              style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'var(--color-accent-success)', boxShadow: 'var(--shadow-lg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', border: 'none', cursor: 'pointer' }}
                               onClick={() => navigate('/upload?type=story')}
                               title="Camera Status"
                         >
