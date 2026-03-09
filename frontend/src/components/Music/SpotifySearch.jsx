@@ -61,16 +61,41 @@ const SpotifySearch = ({ onSelect, selectedTrack }) => {
                   {error && <div className="text-sm text-red-500 mb-sm">{error}</div>}
 
                   {selectedTrack && (
-                        <div className="card p-sm mb-md flex items-center gap-sm bg-primary/5 border-primary/20">
-                              <img src={selectedTrack.albumArt} alt="" style={{ width: '48px', height: '48px', borderRadius: '4px' }} />
+                        <div className="card p-sm mb-md flex items-center gap-sm bg-primary/5 border-primary/20 relative">
+                              <div style={{ position: 'relative', flexShrink: 0 }}>
+                                    <img src={selectedTrack.albumArt} alt="" style={{ width: '48px', height: '48px', borderRadius: '4px' }} />
+                                    {selectedTrack.previewUrl && (
+                                          <button
+                                                className="absolute inset-0 flex items-center justify-center bg-black/30 text-white rounded-4px"
+                                                onClick={() => {
+                                                      const audio = document.getElementById('selected-track-audio');
+                                                      if (audio.paused) {
+                                                            audio.play();
+                                                      } else {
+                                                            audio.pause();
+                                                      }
+                                                }}
+                                          >
+                                                🎵
+                                          </button>
+                                    )}
+                              </div>
                               <div className="flex-1 min-w-0">
                                     <div className="font-semibold text-sm truncate">{selectedTrack.name}</div>
                                     <div className="text-xs text-muted truncate">{selectedTrack.artist}</div>
                               </div>
+                              {selectedTrack.previewUrl && (
+                                    <audio
+                                          id="selected-track-audio"
+                                          src={selectedTrack.previewUrl}
+                                          autoPlay
+                                          loop
+                                    />
+                              )}
                               <button
                                     onClick={() => onSelect(null)}
                                     className="btn btn-sm btn-secondary"
-                                    style={{ padding: '4px 8px' }}
+                                    style={{ padding: '4px 8px', zIndex: 10 }}
                               >
                                     ✕
                               </button>

@@ -201,6 +201,43 @@ const Upload = () => {
                         </div>
                   )}
 
+                  {/* Persistent Music Preview Player */}
+                  {formData.music && (
+                        <div className="card p-sm mb-lg flex items-center gap-sm bg-primary/5 border-primary/20 sticky top-0 z-10" style={{ boxShadow: '0 4px 12px rgba(99, 102, 241, 0.1)' }}>
+                              <img src={formData.music.albumArt} alt="" style={{ width: '40px', height: '40px', borderRadius: '4px' }} />
+                              <div className="flex-1 min-w-0">
+                                    <div className="font-semibold text-xs truncate">{formData.music.name}</div>
+                                    <div className="text-[10px] text-muted truncate">{formData.music.artist}</div>
+                              </div>
+                              {formData.music.previewUrl && (
+                                    <div className="flex items-center gap-2">
+                                          <audio
+                                                src={formData.music.previewUrl}
+                                                autoPlay
+                                                loop
+                                                id="upload-preview-audio"
+                                          />
+                                          <button
+                                                className="btn btn-sm btn-icon bg-white shadow-sm"
+                                                onClick={() => {
+                                                      const audio = document.getElementById('upload-preview-audio');
+                                                      if (audio.paused) audio.play();
+                                                      else audio.pause();
+                                                }}
+                                          >
+                                                🎵
+                                          </button>
+                                    </div>
+                              )}
+                              <button
+                                    onClick={() => setFormData(prev => ({ ...prev, music: null }))}
+                                    className="text-muted hover:text-red-500 p-1"
+                              >
+                                    ✕
+                              </button>
+                        </div>
+                  )}
+
                   {step === 1 && (
                         <div className="grid grid-cols-2 gap-md">
                               {CONTENT_TYPES.map(type => (
@@ -225,7 +262,7 @@ const Upload = () => {
                               </h2>
 
                               {/* Music Search Integration - Enabled for ALL content types */}
-                              {formData.contentType && (
+                              {formData.contentType && !formData.music && (
                                     <div className="mb-lg">
                                           <SpotifySearch
                                                 selectedTrack={formData.music}
