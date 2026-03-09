@@ -133,7 +133,20 @@ const contentSchema = new mongoose.Schema({
             type: Boolean,
             default: true
       },
-      moderationNote: String
+      moderationNote: String,
+      // Music track metadata
+      music: {
+            trackId: String,
+            name: String,
+            artist: String,
+            albumArt: String,
+            previewUrl: String,
+            externalUrl: String
+      },
+      backgroundColor: {
+            type: String,
+            default: null
+      }
 
 }, { timestamps: true });
 

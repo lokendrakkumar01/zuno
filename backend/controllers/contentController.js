@@ -9,8 +9,18 @@ const createContent = async (req, res) => {
       try {
             const {
                   contentType, title, body, purpose, topics, tags,
-                  visibility, chapters, notes, silentMode, language
+                  visibility, chapters, notes, silentMode, language, music
             } = req.body;
+
+            // Handle music data if sent as JSON string
+            let musicData = null;
+            if (music) {
+                  try {
+                        musicData = typeof music === 'string' ? JSON.parse(music) : music;
+                  } catch (e) {
+                        console.error('Failed to parse music data', e);
+                  }
+            }
 
             // Build media array from uploaded files 
             // Cloudinary returns URL in file.path, local storage uses /uploads/filename
@@ -49,6 +59,7 @@ const createContent = async (req, res) => {
                   notes,
                   silentMode: silentMode || false,
                   language: language || 'en',
+                  music: musicData
             });
 
             // Update user stats
@@ -165,7 +176,7 @@ const updateContent = async (req, res) => {
             }
 
             const allowedUpdates = ['title', 'body', 'purpose', 'topics', 'tags',
-                  'visibility', 'chapters', 'notes', 'silentMode', 'status'];
+                  'visibility', 'chapters', 'notes', 'silentMode', 'status', 'music'];
 
             const updates = {};
             for (const key of allowedUpdates) {

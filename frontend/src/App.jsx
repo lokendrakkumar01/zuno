@@ -28,6 +28,7 @@ import Search from './pages/Search/Search';
 import SavedContent from './pages/SavedContent';
 import Messages from './pages/Messages/Messages';
 import Chat from './pages/Messages/Chat';
+import Status from './pages/Status';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import GlobalNotification from './components/GlobalNotification';
@@ -102,6 +103,7 @@ function AppRouter() {
                               <Route path="settings/activity" element={<Activity />} />
                               <Route path="settings/scheduled-content" element={<ScheduledContent />} />
                               <Route path="settings/insights" element={<Insights />} />
+                              <Route path="status" element={<Status />} />
                               <Route path="search" element={<Search />} />
                               <Route path="messages" element={<Messages />} />
                               <Route path="messages/:userId" element={<Chat />} />

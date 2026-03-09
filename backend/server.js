@@ -13,6 +13,7 @@ const commentRoutes = require('./routes/commentRoutes');
 const feedRoutes = require('./routes/feedRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const messageRoutes = require('./routes/messageRoutes');
+const spotifyRoutes = require('./routes/spotifyRoutes');
 const { app, server } = require('./socket/socket');
 
 // Connect to MongoDB
@@ -48,6 +49,7 @@ app.use('/api/comments', commentRoutes);
 app.use('/api/feed', feedRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/messages', messageRoutes);
+app.use('/api/spotify', spotifyRoutes);
 
 // Root route - API Welcome
 app.get('/', (req, res) => {

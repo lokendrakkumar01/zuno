@@ -722,6 +722,27 @@ const ContentCard = ({ content, onDelete }) => {
                                                 <span style={{ textTransform: 'capitalize' }}>{content.purpose}</span>
                                           </div>
 
+                                          {/* Music Tag for Images */}
+                                          {content.music && (
+                                                <div style={{
+                                                      background: 'rgba(0,0,0,0.7)',
+                                                      padding: '4px 10px',
+                                                      borderRadius: '20px',
+                                                      fontSize: '10px',
+                                                      color: 'white',
+                                                      display: 'flex',
+                                                      alignItems: 'center',
+                                                      gap: '4px',
+                                                      backdropFilter: 'blur(8px)',
+                                                      boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
+                                                }}>
+                                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="#1DB954">
+                                                            <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.498 17.306c-.215.353-.675.465-1.028.249-2.85-1.742-6.44-2.137-10.662-1.171-.403.092-.803-.16-.895-.562-.092-.403.16-.803.562-.895 4.618-1.055 8.575-.603 11.774 1.353.353.216.464.675.249 1.026zm1.468-3.26c-.27.441-.848.58-1.29.31-3.26-2.003-8.23-2.585-12.083-1.415-.497.151-1.025-.129-1.176-.626-.151-.498.129-1.026.626-1.176 4.41-1.338 9.889-.685 13.613 1.605.442.271.581.849.31 1.291zm.126-3.414c-3.914-2.325-10.364-2.542-14.123-1.399-.6.182-1.24-.158-1.422-.758-.182-.6.158-1.24.758-1.422 4.318-1.311 11.442-1.05 15.952 1.629.54.32.715 1.021.396 1.56-.319.54-1.019.716-1.563.39z" />
+                                                      </svg>
+                                                      <span className="truncate max-w-[120px]">{content.music.name} • {content.music.artist}</span>
+                                                </div>
+                                          )}
+
                                           {/* Language Badge */}
                                           {content.language && (
                                                 <div style={{

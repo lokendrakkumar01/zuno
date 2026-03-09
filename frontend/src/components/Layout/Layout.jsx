@@ -84,6 +84,13 @@ const Layout = () => {
             </svg>
       );
 
+      const StatusIcon = () => (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 6v6l4 2" />
+            </svg>
+      );
+
       const PlusIcon = () => (
             <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z" />
@@ -113,6 +120,9 @@ const Layout = () => {
                                     </Link>
                                     {isAuthenticated ? (
                                           <>
+                                                <Link to="/status" className={`nav-link ${isActive('/status') ? 'active' : ''}`}>
+                                                      ⭕ Status
+                                                </Link>
                                                 <Link to="/upload" className={`nav-link ${isActive('/upload') ? 'active' : ''}`}>
                                                       ➕ {t('upload')}
                                                 </Link>
@@ -162,6 +172,12 @@ const Layout = () => {
                               <SearchIcon />
                               <span style={{ fontSize: '10px' }}>{t('search')}</span>
                         </Link>
+                        {isAuthenticated && (
+                              <Link to="/status" className={`bottom-nav-item ${isActive('/status') ? 'active' : ''}`}>
+                                    <StatusIcon />
+                                    <span style={{ fontSize: '10px' }}>Status</span>
+                              </Link>
+                        )}
                         {isAuthenticated ? (
                               <Link to="/upload" className={`bottom-nav-item ${isActive('/upload') ? 'active' : ''}`}>
                                     <div style={{
