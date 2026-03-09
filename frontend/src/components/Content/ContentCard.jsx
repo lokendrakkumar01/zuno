@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useMusic } from '../../context/MusicContext';
 import { API_URL, API_BASE_URL } from '../../config';
 import CommentSection from './CommentSection';
 
@@ -23,18 +24,16 @@ const ContentCard = ({ content, onDelete }) => {
       const [commentCount, setCommentCount] = useState(content.metrics?.commentCount || 0);
       const [imageLoaded, setImageLoaded] = useState(false);
 
-      // Music Playback State
-      const [isPlayingMusic, setIsPlayingMusic] = useState(false);
-      const audioRef = useRef(null);
+      // Music Playback via Global Context
+      const { playTrack, stopTrack, currentTrack, isPlaying: isMusicPlayingGlobal } = useMusic();
+      const isThisPlaying = isMusicPlayingGlobal && currentTrack?.trackId === content.music?.trackId;
 
       const toggleMusic = (e) => {
             e.stopPropagation();
-            if (isPlayingMusic) {
-                  audioRef.current?.pause();
-                  setIsPlayingMusic(false);
+            if (isThisPlaying) {
+                  stopTrack();
             } else {
-                  audioRef.current?.play();
-                  setIsPlayingMusic(true);
+                  playTrack(content.music);
             }
       };
 
@@ -127,9 +126,8 @@ const ContentCard = ({ content, onDelete }) => {
             setAnimateHelpful(true);
             setTimeout(() => setAnimateHelpful(false), 300);
 
-            if (content.music && content.music.previewUrl && !isPlayingMusic) {
-                  audioRef.current?.play();
-                  setIsPlayingMusic(true);
+            if (content.music && content.music.previewUrl && !isThisPlaying) {
+                  playTrack(content.music);
             }
 
             try {
@@ -152,9 +150,8 @@ const ContentCard = ({ content, onDelete }) => {
 
       const handleDoubleTap = () => {
             // Trigger music if exists
-            if (content.music && content.music.previewUrl && !isPlayingMusic) {
-                  audioRef.current?.play();
-                  setIsPlayingMusic(true);
+            if (content.music && content.music.previewUrl && !isThisPlaying) {
+                  playTrack(content.music);
             }
 
             // Show big heart animation
@@ -619,9 +616,8 @@ const ContentCard = ({ content, onDelete }) => {
                                                             onClick={(e) => {
                                                                   e.stopPropagation();
                                                                   // Play music too if it exists
-                                                                  if (content.music && content.music.previewUrl && !isPlayingMusic) {
-                                                                        audioRef.current?.play();
-                                                                        setIsPlayingMusic(true);
+                                                                  if (content.music && content.music.previewUrl && !isThisPlaying) {
+                                                                        playTrack(content.music);
                                                                   }
                                                                   setIsFullscreen(true);
                                                             }}
@@ -775,7 +771,7 @@ const ContentCard = ({ content, onDelete }) => {
                                                             boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
                                                             cursor: 'pointer'
                                                       }}>
-                                                      {isPlayingMusic ? (
+                                                      {isThisPlaying ? (
                                                             <div className="flex gap-[2px] items-center h-3">
                                                                   <div className="w-[3px] bg-green-500 h-full animate-pulse" style={{ animationDelay: '0ms' }}></div>
                                                                   <div className="w-[3px] bg-green-500 h-2/3 animate-pulse" style={{ animationDelay: '150ms' }}></div>
@@ -787,7 +783,6 @@ const ContentCard = ({ content, onDelete }) => {
                                                             </svg>
                                                       )}
                                                       <span className="truncate max-w-[120px]">{content.music.name} • {content.music.artist}</span>
-                                                      <audio ref={audioRef} src={content.music.previewUrl} loop={false} onEnded={() => setIsPlayingMusic(false)} />
                                                 </div>
                                           )}
 

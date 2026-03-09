@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
+import { useMusic } from '../../context/MusicContext';
 import { API_BASE_URL } from '../../config';
 
 const StoryViewer = ({ group, onClose }) => {
       const [currentIndex, setCurrentIndex] = useState(0);
       const [progress, setProgress] = useState(0);
       const [imageLoaded, setImageLoaded] = useState(false);
+      const { playTrack, stopTrack } = useMusic();
       const [error, setError] = useState(false);
       const currentStory = group.stories[currentIndex];
       const videoRef = useRef(null);
@@ -28,6 +30,17 @@ const StoryViewer = ({ group, onClose }) => {
 
             return () => clearInterval(timer);
       }, [currentIndex, group.stories.length]);
+
+      // Music Handling
+      useEffect(() => {
+            if (currentStory?.music?.previewUrl) {
+                  playTrack(currentStory.music);
+            } else {
+                  stopTrack();
+            }
+
+            return () => stopTrack(); // Stop when unmounting or changing story
+      }, [currentStory, playTrack, stopTrack]);
 
       const handleNext = () => {
             if (currentIndex < group.stories.length - 1) {
@@ -129,7 +142,7 @@ const StoryViewer = ({ group, onClose }) => {
                                                 <span className="text-white text-xs font-bold truncate">{currentStory.music.name}</span>
                                                 <span className="text-gray-300 text-[10px] truncate">{currentStory.music.artist}</span>
                                           </div>
-                                          <audio autoPlay loop src={currentStory.music.previewUrl} key={currentStory.music.previewUrl} />
+
                                     </div>
                               </div>
                         )}

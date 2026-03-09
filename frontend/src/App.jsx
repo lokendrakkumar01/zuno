@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { SocketContextProvider } from './context/SocketContext';
 import { CallProvider } from './context/CallContext';
 import { LanguageProvider } from './context/LanguageContext';
+import { MusicProvider } from './context/MusicContext'; // Correct placement
 import SplashScreen from './components/SplashScreen';
 import Layout from './components/Layout/Layout';
 import Home from './pages/Home';
@@ -131,11 +132,13 @@ function App() {
             <AuthProvider>
                   <SocketContextProvider>
                         <LanguageProvider>
-                              <Router>
-                                    <CallProvider>
-                                          <AppRouter />
-                                    </CallProvider>
-                              </Router>
+                              <MusicProvider>
+                                    <Router>
+                                          <CallProvider>
+                                                <AppRouter />
+                                          </CallProvider>
+                                    </Router>
+                              </MusicProvider>
                         </LanguageProvider>
                   </SocketContextProvider>
             </AuthProvider>

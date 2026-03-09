@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useMusic } from '../context/MusicContext';
 import { API_URL, API_BASE_URL } from '../config';
 
 // Separate component for media items to avoid React hooks violation
@@ -80,8 +81,9 @@ const MediaItem = ({ m, content }) => {
 const ContentView = () => {
       const { id } = useParams();
       const { token } = useAuth();
-      const audioRef = useRef(null);
-      const [isPlayingMusic, setIsPlayingMusic] = useState(false);
+      const { playTrack, stopTrack, currentTrack, isPlaying: isGlobalPlaying } = useMusic();
+      const isThisPlaying = isGlobalPlaying && currentTrack?.trackId === content?.music?.trackId;
+
       const [content, setContent] = useState(() => {
             try {
                   const cached = localStorage.getItem(`zuno_content_${id}`);
@@ -121,25 +123,17 @@ const ContentView = () => {
       }, [id]);
 
       useEffect(() => {
-            if (content?.music?.previewUrl && audioRef.current) {
-                  const playMusic = async () => {
-                        try {
-                              await audioRef.current.play();
-                              setIsPlayingMusic(true);
-                        } catch (err) {
-                              console.log("Autoplay prevented, requires user interaction");
-                        }
-                  };
-                  playMusic();
+            if (content?.music?.previewUrl) {
+                  playTrack(content.music);
             }
+            return () => stopTrack(); // Stop music when leaving the view
       }, [content]);
 
       const handleHelpful = async () => {
             if (!token) return;
             // Play music if exists and not already playing
-            if (content.music && content.music.previewUrl && !isPlayingMusic) {
-                  audioRef.current?.play();
-                  setIsPlayingMusic(true);
+            if (content.music && content.music.previewUrl && !isThisPlaying) {
+                  playTrack(content.music);
             }
             try {
                   await fetch(`${API_URL}/content/${id}/helpful`, {
@@ -233,18 +227,15 @@ const ContentView = () => {
                               <button
                                     className="btn btn-icon bg-white shadow-sm"
                                     onClick={() => {
-                                          if (isPlayingMusic) {
-                                                audioRef.current?.pause();
-                                                setIsPlayingMusic(false);
+                                          if (isThisPlaying) {
+                                                stopTrack();
                                           } else {
-                                                audioRef.current?.play();
-                                                setIsPlayingMusic(true);
+                                                playTrack(content.music);
                                           }
                                     }}
                               >
-                                    {isPlayingMusic ? '⏸️' : '▶️'}
+                                    {isThisPlaying ? '⏸️' : '▶️'}
                               </button>
-                              <audio ref={audioRef} src={content.music.previewUrl} loop onEnded={() => setIsPlayingMusic(false)} />
                         </div>
                   )}
 
