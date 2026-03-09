@@ -82,8 +82,6 @@ const ContentView = () => {
       const { id } = useParams();
       const { token } = useAuth();
       const { playTrack, stopTrack, currentTrack, isPlaying: isGlobalPlaying } = useMusic();
-      const isThisPlaying = isGlobalPlaying && currentTrack?.trackId === content?.music?.trackId;
-
       const [content, setContent] = useState(() => {
             try {
                   const cached = localStorage.getItem(`zuno_content_${id}`);
@@ -91,6 +89,7 @@ const ContentView = () => {
             } catch (e) { }
             return null;
       });
+      const isThisPlaying = isGlobalPlaying && currentTrack?.trackId === content?.music?.trackId;
       const [loading, setLoading] = useState(() => {
             try {
                   if (localStorage.getItem(`zuno_content_${id}`)) return false;
