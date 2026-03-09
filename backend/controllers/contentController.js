@@ -55,6 +55,7 @@ const createContent = async (req, res) => {
                   topics: topics ? (Array.isArray(topics) ? topics : [topics]) : [],
                   tags: tags ? (Array.isArray(tags) ? tags : tags.split(',').map(t => t.trim())) : [],
                   visibility: visibility || 'public',
+                  expiresAt: contentType === 'story' ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null,
                   chapters: chapters || [],
                   notes,
                   silentMode: silentMode || false,

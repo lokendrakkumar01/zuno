@@ -129,16 +129,16 @@ const Status = () => {
                   </section>
 
                   {/* WhatsApp FAB Style for text status */}
-                  <div style={{ position: 'fixed', bottom: '112px', right: '24px', display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center' }}>
+                  <div style={{ position: 'fixed', bottom: '112px', right: '24px', display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', zIndex: 100 }}>
                         <button
-                              style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--color-bg-hover)', boxShadow: 'var(--shadow-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer' }}
+                              style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'white', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', fontSize: '20px' }}
                               onClick={() => navigate('/upload?type=text-status')}
                               title="Text Status"
                         >
-                              <span style={{ fontSize: '20px' }}>✍️</span>
+                              ✍️
                         </button>
                         <button
-                              style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'var(--color-accent-success)', boxShadow: 'var(--shadow-lg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', border: 'none', cursor: 'pointer' }}
+                              style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)', boxShadow: '0 4px 16px rgba(220, 39, 67, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', border: 'none', cursor: 'pointer' }}
                               onClick={() => navigate('/upload?type=story')}
                               title="Camera Status"
                         >

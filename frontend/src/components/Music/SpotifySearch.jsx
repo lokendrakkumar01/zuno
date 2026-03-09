@@ -78,22 +78,39 @@ const SpotifySearch = ({ onSelect, selectedTrack }) => {
                   )}
 
                   {!selectedTrack && results.length > 0 && (
-                        <div className="card max-h-60 overflow-y-auto mb-md">
+                        <div className="card max-h-60 overflow-y-auto mb-md" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
                               {results.map(track => (
                                     <div
                                           key={track.trackId}
+                                          className="p-sm flex items-center gap-sm hover:bg-gray-50 cursor-pointer border-b last:border-0 group"
                                           onClick={() => {
                                                 onSelect(track);
                                                 setResults([]);
                                                 setQuery('');
                                           }}
-                                          className="p-sm flex items-center gap-sm hover:bg-gray-50 cursor-pointer border-b last:border-0"
                                     >
-                                          <img src={track.albumArt} alt="" style={{ width: '40px', height: '40px', borderRadius: '4px' }} />
+                                          <div style={{ position: 'relative', flexShrink: 0 }}>
+                                                <img src={track.albumArt} alt="" style={{ width: '44px', height: '44px', borderRadius: '6px' }} />
+                                                {track.previewUrl && (
+                                                      <button
+                                                            className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity rounded-6px text-white"
+                                                            onClick={(e) => {
+                                                                  e.stopPropagation();
+                                                                  const audio = new Audio(track.previewUrl);
+                                                                  audio.play();
+                                                                  // Stop after 5 seconds for preview
+                                                                  setTimeout(() => audio.pause(), 5000);
+                                                            }}
+                                                      >
+                                                            ▶️
+                                                      </button>
+                                                )}
+                                          </div>
                                           <div className="flex-1 min-w-0">
-                                                <div className="font-medium text-sm truncate">{track.name}</div>
+                                                <div className="font-semibold text-sm truncate">{track.name}</div>
                                                 <div className="text-xs text-muted truncate">{track.artist}</div>
                                           </div>
+                                          <div className="text-primary opacity-0 group-hover:opacity-100 transition-opacity text-xs font-bold">Select</div>
                                     </div>
                               ))}
                         </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { API_URL, API_BASE_URL } from '../config';
@@ -80,6 +80,8 @@ const MediaItem = ({ m, content }) => {
 const ContentView = () => {
       const { id } = useParams();
       const { token } = useAuth();
+      const audioRef = useRef(null);
+      const [isPlayingMusic, setIsPlayingMusic] = useState(false);
       const [content, setContent] = useState(() => {
             try {
                   const cached = localStorage.getItem(`zuno_content_${id}`);
@@ -118,8 +120,27 @@ const ContentView = () => {
             fetchContent();
       }, [id]);
 
+      useEffect(() => {
+            if (content?.music?.previewUrl && audioRef.current) {
+                  const playMusic = async () => {
+                        try {
+                              await audioRef.current.play();
+                              setIsPlayingMusic(true);
+                        } catch (err) {
+                              console.log("Autoplay prevented, requires user interaction");
+                        }
+                  };
+                  playMusic();
+            }
+      }, [content]);
+
       const handleHelpful = async () => {
             if (!token) return;
+            // Play music if exists and not already playing
+            if (content.music && content.music.previewUrl && !isPlayingMusic) {
+                  audioRef.current?.play();
+                  setIsPlayingMusic(true);
+            }
             try {
                   await fetch(`${API_URL}/content/${id}/helpful`, {
                         method: 'POST',
@@ -198,6 +219,34 @@ const ContentView = () => {
                               <span key={topic} className="tag">{topic}</span>
                         ))}
                   </div>
+
+                  {/* Music Player for Content View */}
+                  {content.music && content.music.previewUrl && (
+                        <div className="card mb-lg p-md flex items-center justify-between bg-primary/5">
+                              <div className="flex items-center gap-md">
+                                    <img src={content.music.albumArt} alt="" style={{ width: '48px', height: '48px', borderRadius: '4px' }} />
+                                    <div>
+                                          <p className="font-bold text-sm">{content.music.name}</p>
+                                          <p className="text-xs text-muted">{content.music.artist}</p>
+                                    </div>
+                              </div>
+                              <button
+                                    className="btn btn-icon bg-white shadow-sm"
+                                    onClick={() => {
+                                          if (isPlayingMusic) {
+                                                audioRef.current?.pause();
+                                                setIsPlayingMusic(false);
+                                          } else {
+                                                audioRef.current?.play();
+                                                setIsPlayingMusic(true);
+                                          }
+                                    }}
+                              >
+                                    {isPlayingMusic ? '⏸️' : '▶️'}
+                              </button>
+                              <audio ref={audioRef} src={content.music.previewUrl} loop onEnded={() => setIsPlayingMusic(false)} />
+                        </div>
+                  )}
 
                   {/* Media */}
                   {content.media && content.media.length > 0 && (

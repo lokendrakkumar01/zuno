@@ -127,6 +127,11 @@ const ContentCard = ({ content, onDelete }) => {
             setAnimateHelpful(true);
             setTimeout(() => setAnimateHelpful(false), 300);
 
+            if (content.music && content.music.previewUrl && !isPlayingMusic) {
+                  audioRef.current?.play();
+                  setIsPlayingMusic(true);
+            }
+
             try {
                   await fetch(`${API_URL}/content/${content._id}/helpful`, {
                         method: 'POST',
@@ -146,6 +151,12 @@ const ContentCard = ({ content, onDelete }) => {
       };
 
       const handleDoubleTap = () => {
+            // Trigger music if exists
+            if (content.music && content.music.previewUrl && !isPlayingMusic) {
+                  audioRef.current?.play();
+                  setIsPlayingMusic(true);
+            }
+
             // Show big heart animation
             setShowBigHeart(true);
             setTimeout(() => setShowBigHeart(false), 1000); // Hide after animation
@@ -468,7 +479,11 @@ const ContentCard = ({ content, onDelete }) => {
                                     cursor: 'pointer' // explicitly show pointer
                               }}
                               onClick={() => {
-                                    // Single click = fullscreen for all media (like Reels)
+                                    // Single click = play music if exists, and open fullscreen
+                                    if (content.music && content.music.previewUrl && !isPlayingMusic) {
+                                          audioRef.current?.play();
+                                          setIsPlayingMusic(true);
+                                    }
                                     setIsFullscreen(true);
                               }}
                               onDoubleClick={(e) => {
@@ -603,6 +618,11 @@ const ContentCard = ({ content, onDelete }) => {
                                                       <div
                                                             onClick={(e) => {
                                                                   e.stopPropagation();
+                                                                  // Play music too if it exists
+                                                                  if (content.music && content.music.previewUrl && !isPlayingMusic) {
+                                                                        audioRef.current?.play();
+                                                                        setIsPlayingMusic(true);
+                                                                  }
                                                                   setIsFullscreen(true);
                                                             }}
                                                             style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'rgba(0,0,0,0.55)', borderRadius: '50%', padding: '18px', zIndex: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
