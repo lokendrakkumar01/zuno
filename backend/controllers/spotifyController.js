@@ -1,54 +1,4 @@
-let spotifyAccessToken = null;
-let tokenExpiry = null;
-
-// @desc    Get Spotify Access Token (Client Credentials Flow)
-const getSpotifyToken = async () => {
-      // Check if current token is still valid (with 1 min buffer)
-      if (spotifyAccessToken && tokenExpiry && Date.now() < tokenExpiry - 60000) {
-            return spotifyAccessToken;
-      }
-
-      const clientId = process.env.SPOTIFY_CLIENT_ID || '22dc10f695a74384a7c1048eba63ca96';
-      const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
-
-      if (!clientSecret) {
-            throw new Error('Spotify Client Secret not configured');
-      }
-
-      try {
-            const authHeader = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-            const response = await fetch('https://accounts.spotify.com/api/token', {
-                  method: 'POST',
-                  headers: {
-                        'Authorization': `Basic ${authHeader}`,
-                        'Content-Type': 'application/x-www-form-urlencoded'
-                  },
-                  body: 'grant_type=client_credentials'
-            });
-
-            const responseText = await response.text();
-            let data;
-            try {
-                  data = JSON.parse(responseText);
-            } catch (e) {
-                  throw new Error(`Invalid JSON from Spotify Token API. Raw response: ${responseText.substring(0, 100)}`);
-            }
-
-
-            if (!response.ok) {
-                  throw new Error(data.error_description || 'Failed to get Spotify token');
-            }
-
-            spotifyAccessToken = data.access_token;
-            tokenExpiry = Date.now() + (data.expires_in * 1000);
-            return spotifyAccessToken;
-      } catch (error) {
-            console.error('Spotify Auth Error:', error.message);
-            throw new Error('Failed to authenticate with Spotify');
-      }
-};
-
-// @desc    Search tracks on Spotify
+// @desc    Search tracks via iTunes API (Fallback for Spotify IP Block on Render)
 // @route   GET /api/spotify/search?q=query
 // @access  Private
 const searchTracks = async (req, res) => {
@@ -59,33 +9,28 @@ const searchTracks = async (req, res) => {
       }
 
       try {
-            const token = await getSpotifyToken();
-            const response = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(q)}&type=track&limit=10`, {
-                  headers: {
-                        'Authorization': `Bearer ${token}`
-                  }
-            });
+            // Using iTunes API as an open, free alternative that doesn't block server IPs as aggressively
+            const response = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=song&limit=10`);
 
             const responseText = await response.text();
             let data;
             try {
                   data = JSON.parse(responseText);
             } catch (e) {
-                  throw new Error(`Invalid JSON from Spotify Search API. Raw response: ${responseText.substring(0, 100)}`);
+                  throw new Error(`Invalid JSON from iTunes Search API. Raw response: ${responseText.substring(0, 100)}`);
             }
-
 
             if (!response.ok) {
-                  throw new Error(data.error?.message || 'Failed to search Spotify');
+                  throw new Error(data.error?.message || 'Failed to search tracks');
             }
 
-            const tracks = data.tracks.items.map(track => ({
-                  trackId: track.id,
-                  name: track.name,
-                  artist: track.artists.map(a => a.name).join(', '),
-                  albumArt: track.album.images[0]?.url,
-                  previewUrl: track.preview_url,
-                  externalUrl: track.external_urls.spotify
+            const tracks = data.results.map(track => ({
+                  trackId: track.trackId.toString(),
+                  name: track.trackName,
+                  artist: track.artistName,
+                  albumArt: track.artworkUrl100?.replace('100x100', '300x300') || track.artworkUrl60,
+                  previewUrl: track.previewUrl,
+                  externalUrl: track.trackViewUrl
             }));
 
             res.json({
@@ -93,10 +38,10 @@ const searchTracks = async (req, res) => {
                   data: { tracks }
             });
       } catch (error) {
-            console.error('Spotify Search Error:', error.message);
+            console.error('Track Search Error:', error.message);
             res.status(500).json({
                   success: false,
-                  message: 'Failed to search Spotify tracks',
+                  message: 'Failed to search tracks',
                   error: error.message
             });
       }
