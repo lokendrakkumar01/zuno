@@ -115,18 +115,21 @@ const StoryViewer = ({ group, onClose }) => {
                         </div>
 
                         {/* Music Info Overlay */}
-                        {currentStory.music && (
+                        {currentStory.music && currentStory.music.previewUrl && (
                               <div className="absolute top-20 left-4 right-4 z-20 animate-fadeIn">
                                     <div className="flex items-center gap-2 bg-black/30 backdrop-blur-md p-2 rounded-lg border border-white/10 max-w-fit">
                                           <div className="w-8 h-8 rounded bg-green-500 flex items-center justify-center flex-shrink-0">
-                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
-                                                      <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.498 17.306c-.215.353-.675.465-1.028.249-2.85-1.742-6.44-2.137-10.662-1.171-.403.092-.803-.16-.895-.562-.092-.403.16-.803.562-.895 4.618-1.055 8.575-.603 11.774 1.353.353.216.464.675.249 1.026zm1.468-3.26c-.27.441-.848.58-1.29.31-3.26-2.003-8.23-2.585-12.083-1.415-.497.151-1.025-.129-1.176-.626-.151-.498.129-1.026.626-1.176 4.41-1.338 9.889-.685 13.613 1.605.442.271.581.849.31 1.291zm.126-3.414c-3.914-2.325-10.364-2.542-14.123-1.399-.6.182-1.24-.158-1.422-.758-.182-.6.158-1.24.758-1.422 4.318-1.311 11.442-1.05 15.952 1.629.54.32.715 1.021.396 1.56-.319.54-1.019.716-1.563.39z" />
-                                                </svg>
+                                                <div className="flex gap-[2px] items-center h-3">
+                                                      <div className="w-[2px] bg-white h-full animate-pulse" style={{ animationDelay: '0ms' }}></div>
+                                                      <div className="w-[2px] bg-white h-2/3 animate-pulse" style={{ animationDelay: '150ms' }}></div>
+                                                      <div className="w-[2px] bg-white h-full animate-pulse" style={{ animationDelay: '300ms' }}></div>
+                                                </div>
                                           </div>
                                           <div className="flex flex-col min-w-0 pr-2">
                                                 <span className="text-white text-xs font-bold truncate">{currentStory.music.name}</span>
                                                 <span className="text-gray-300 text-[10px] truncate">{currentStory.music.artist}</span>
                                           </div>
+                                          <audio autoPlay loop src={currentStory.music.previewUrl} key={currentStory.music.previewUrl} />
                                     </div>
                               </div>
                         )}
