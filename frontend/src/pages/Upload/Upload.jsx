@@ -13,15 +13,25 @@ const CONTENT_TYPES = [
       { id: 'text-status', label: '✍️ Text Status', desc: 'WhatsApp-style text update' }
 ];
 
-const STATUS_COLORS = [
-      '#6366f1', // Indigo
-      '#ec4899', // Pink
-      '#10b981', // Emerald
-      '#f59e0b', // Amber
-      '#3b82f6', // Blue
-      '#a855f7', // Purple
-      '#ef4444', // Red
-      '#1e293b'  // Slate
+// Rich gradient themes for text status
+const STATUS_THEMES = [
+      { id: 'violet', bg: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', label: '💜 Violet' },
+      { id: 'rose',   bg: 'linear-gradient(135deg, #f43f5e 0%, #ec4899 100%)', label: '🌸 Rose' },
+      { id: 'ocean',  bg: 'linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%)', label: '🌊 Ocean' },
+      { id: 'sunset', bg: 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)', label: '🌅 Sunset' },
+      { id: 'forest', bg: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', label: '🌿 Forest' },
+      { id: 'aurora', bg: 'linear-gradient(135deg, #a855f7 0%, #06b6d4 100%)', label: '✨ Aurora' },
+      { id: 'fire',   bg: 'linear-gradient(135deg, #ef4444 0%, #f97316 100%)', label: '🔥 Fire' },
+      { id: 'night',  bg: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', label: '🌙 Night' },
+      { id: 'candy',  bg: 'linear-gradient(135deg, #ec4899 0%, #a855f7 50%, #6366f1 100%)', label: '🍭 Candy' },
+      { id: 'gold',   bg: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)', label: '✨ Gold' },
+];
+
+const STATUS_FONTS = [
+      { id: 'bold',    label: 'Bold',    style: { fontWeight: '800', fontStyle: 'normal', fontFamily: 'inherit' } },
+      { id: 'italic',  label: 'Italic',  style: { fontWeight: '600', fontStyle: 'italic', fontFamily: 'Georgia, serif' } },
+      { id: 'mono',    label: 'Mono',    style: { fontWeight: '700', fontStyle: 'normal', fontFamily: 'monospace' } },
+      { id: 'thin',    label: 'Light',   style: { fontWeight: '300', fontStyle: 'normal', letterSpacing: '3px', textTransform: 'uppercase' } },
 ];
 
 const PURPOSES = [
@@ -61,7 +71,9 @@ const Upload = () => {
             media: null,
             mediaPreview: null, // For real-time previews
             music: null,
-            backgroundColor: '#6366f1'
+            backgroundColor: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+            fontStyle: 'bold',
+            textAlign: 'center'
       });
 
       useEffect(() => {
@@ -156,6 +168,10 @@ const Upload = () => {
 
                   if (formData.backgroundColor) {
                         data.append('backgroundColor', formData.backgroundColor);
+                  }
+                  if (formData.contentType === 'text-status') {
+                        if (formData.fontStyle) data.append('fontStyle', formData.fontStyle);
+                        if (formData.textAlign) data.append('textAlign', formData.textAlign);
                   }
 
                   formData.topics.forEach(topic => {
@@ -448,37 +464,153 @@ const Upload = () => {
                                     </div>
                               )}
 
-                              {/* Text Status Editor */}
-                              {formData.contentType === 'text-status' && (
-                                    <div
-                                          className="mb-lg p-xl rounded-2xl shadow-lg relative flex flex-col items-center justify-center min-h-[350px] text-center"
-                                          style={{
-                                                backgroundColor: formData.backgroundColor,
-                                                transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-                                                boxShadow: `0 20px 40px ${formData.backgroundColor}33`
-                                          }}
-                                    >
-                                          <textarea
-                                                className="bg-transparent border-none text-white text-3xl font-bold w-full text-center outline-none placeholder:text-white/40 resize-none"
-                                                placeholder="What's on your mind?"
-                                                rows="4"
-                                                value={formData.body}
-                                                onChange={(e) => setFormData(prev => ({ ...prev, body: e.target.value }))}
-                                                style={{ textShadow: '0 2px 10px rgba(0,0,0,0.2)' }}
-                                          />
+                              {/* Text Status Editor — Dynamic & Animated */}
+                              {formData.contentType === 'text-status' && (() => {
+                                    const activeFont = STATUS_FONTS.find(f => f.id === formData.fontStyle) || STATUS_FONTS[0];
+                                    const charCount = formData.body.length;
+                                    const charMax = 250;
+                                    const fontSize = charCount < 60 ? '32px' : charCount < 120 ? '24px' : charCount < 200 ? '20px' : '16px';
+                                    return (
+                                          <div style={{ marginBottom: '24px' }}>
+                                                <style>{`
+                                                      @keyframes statusPulse { 0%,100%{opacity:1} 50%{opacity:0.85} }
+                                                      @keyframes textPop { from{transform:scale(0.95);opacity:0} to{transform:scale(1);opacity:1} }
+                                                      .status-preview-card { animation: statusPulse 4s ease-in-out infinite; }
+                                                      .status-preview-card textarea::placeholder { color: rgba(255,255,255,0.45); }
+                                                      .theme-btn { transition: transform 0.2s, box-shadow 0.2s; }
+                                                      .theme-btn:hover { transform: scale(1.15); }
+                                                      .theme-btn.active { transform: scale(1.25); box-shadow: 0 0 0 3px white, 0 0 0 5px rgba(255,255,255,0.4); }
+                                                      .font-btn { transition: all 0.2s; border: 2px solid transparent; }
+                                                      .font-btn:hover { border-color: rgba(99,102,241,0.4); background: rgba(99,102,241,0.08); }
+                                                      .font-btn.active { border-color: #6366f1; background: rgba(99,102,241,0.12); }
+                                                `}</style>
 
-                                          <div className="flex gap-2 mt-auto overflow-x-auto py-4 w-full justify-center no-scrollbar">
-                                                {STATUS_COLORS.map(color => (
-                                                      <button
-                                                            key={color}
-                                                            onClick={() => setFormData(prev => ({ ...prev, backgroundColor: color }))}
-                                                            className={`w-10 h-10 rounded-full border-3 transition-transform ${formData.backgroundColor === color ? 'border-white scale-125' : 'border-transparent hover:scale-110'}`}
-                                                            style={{ backgroundColor: color, cursor: 'pointer' }}
+                                                {/* Live Preview Card */}
+                                                <div
+                                                      className="status-preview-card"
+                                                      style={{
+                                                            background: formData.backgroundColor,
+                                                            borderRadius: '20px',
+                                                            minHeight: '320px',
+                                                            display: 'flex',
+                                                            flexDirection: 'column',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            padding: '32px 24px 16px',
+                                                            position: 'relative',
+                                                            overflow: 'hidden',
+                                                            boxShadow: '0 24px 48px rgba(0,0,0,0.25)',
+                                                            transition: 'background 0.5s ease',
+                                                      }}
+                                                >
+                                                      {/* Ambient Glow Orbs */}
+                                                      <div style={{ position: 'absolute', top: '-40px', right: '-40px', width: '160px', height: '160px', borderRadius: '50%', background: 'rgba(255,255,255,0.08)', pointerEvents: 'none' }} />
+                                                      <div style={{ position: 'absolute', bottom: '-30px', left: '-30px', width: '120px', height: '120px', borderRadius: '50%', background: 'rgba(255,255,255,0.06)', pointerEvents: 'none' }} />
+
+                                                      {/* Textarea */}
+                                                      <textarea
+                                                            placeholder="What's on your mind?"
+                                                            maxLength={charMax}
+                                                            rows={4}
+                                                            value={formData.body}
+                                                            onChange={(e) => setFormData(prev => ({ ...prev, body: e.target.value }))}
+                                                            style={{
+                                                                  background: 'transparent',
+                                                                  border: 'none',
+                                                                  outline: 'none',
+                                                                  color: 'white',
+                                                                  fontSize,
+                                                                  textAlign: formData.textAlign || 'center',
+                                                                  width: '100%',
+                                                                  resize: 'none',
+                                                                  textShadow: '0 2px 12px rgba(0,0,0,0.25)',
+                                                                  lineHeight: '1.35',
+                                                                  transition: 'font-size 0.3s ease',
+                                                                  zIndex: 2,
+                                                                  position: 'relative',
+                                                                  ...activeFont.style
+                                                            }}
                                                       />
-                                                ))}
+
+                                                      {/* Char counter */}
+                                                      <div style={{ alignSelf: 'flex-end', marginTop: '8px', fontSize: '11px', color: charCount > 220 ? '#fca5a5' : 'rgba(255,255,255,0.5)', fontWeight: '600', zIndex: 2 }}>
+                                                            {charCount}/{charMax}
+                                                      </div>
+                                                </div>
+
+                                                {/* Controls Row */}
+                                                <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+                                                      {/* Gradient Themes */}
+                                                      <div>
+                                                            <p style={{ fontSize: '12px', fontWeight: '700', color: 'var(--color-text-secondary)', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '10px' }}>🎨 Theme</p>
+                                                            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                                                  {STATUS_THEMES.map(theme => (
+                                                                        <button
+                                                                              key={theme.id}
+                                                                              className={`theme-btn ${formData.backgroundColor === theme.bg ? 'active' : ''}`}
+                                                                              onClick={() => setFormData(prev => ({ ...prev, backgroundColor: theme.bg }))}
+                                                                              style={{
+                                                                                    width: '40px',
+                                                                                    height: '40px',
+                                                                                    borderRadius: '12px',
+                                                                                    background: theme.bg,
+                                                                                    border: 'none',
+                                                                                    cursor: 'pointer',
+                                                                              }}
+                                                                              title={theme.label}
+                                                                        />
+                                                                  ))}
+                                                            </div>
+                                                      </div>
+
+                                                      {/* Font Style + Alignment Row */}
+                                                      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                                                            <div style={{ flex: 1 }}>
+                                                                  <p style={{ fontSize: '12px', fontWeight: '700', color: 'var(--color-text-secondary)', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '10px' }}>✍️ Font</p>
+                                                                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                                                        {STATUS_FONTS.map(f => (
+                                                                              <button
+                                                                                    key={f.id}
+                                                                                    className={`font-btn ${formData.fontStyle === f.id ? 'active' : ''}`}
+                                                                                    onClick={() => setFormData(prev => ({ ...prev, fontStyle: f.id }))}
+                                                                                    style={{
+                                                                                          padding: '6px 14px',
+                                                                                          borderRadius: '8px',
+                                                                                          background: 'var(--color-bg-secondary)',
+                                                                                          color: 'var(--color-text-primary)',
+                                                                                          cursor: 'pointer',
+                                                                                          fontSize: '13px',
+                                                                                          ...f.style
+                                                                                    }}
+                                                                              >{f.label}</button>
+                                                                        ))}
+                                                                  </div>
+                                                            </div>
+                                                            <div>
+                                                                  <p style={{ fontSize: '12px', fontWeight: '700', color: 'var(--color-text-secondary)', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '10px' }}>📐 Align</p>
+                                                                  <div style={{ display: 'flex', gap: '8px' }}>
+                                                                        {[['center','⬛'], ['left','◧'], ['right','◨']].map(([align, icon]) => (
+                                                                              <button
+                                                                                    key={align}
+                                                                                    onClick={() => setFormData(prev => ({ ...prev, textAlign: align }))}
+                                                                                    style={{
+                                                                                          width: '36px', height: '36px',
+                                                                                          borderRadius: '8px',
+                                                                                          background: (formData.textAlign || 'center') === align ? '#6366f1' : 'var(--color-bg-secondary)',
+                                                                                          color: (formData.textAlign || 'center') === align ? 'white' : 'var(--color-text-primary)',
+                                                                                          border: 'none', cursor: 'pointer', fontSize: '14px',
+                                                                                          transition: 'all 0.2s'
+                                                                                    }}
+                                                                              >{icon}</button>
+                                                                        ))}
+                                                                  </div>
+                                                            </div>
+                                                      </div>
+                                                </div>
                                           </div>
-                                    </div>
-                              )}
+                                    );
+                              })()}
 
                               {(formData.contentType === 'photo' || formData.contentType.includes('video') || formData.contentType === 'story') && (
                                     <div className="input-group mb-lg">

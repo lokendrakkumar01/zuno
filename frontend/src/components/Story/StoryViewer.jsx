@@ -338,20 +338,37 @@ const StoryViewer = ({ group, onClose }) => {
                                     background: isTextStatus ? (currentStory.backgroundColor || 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)') : undefined
                               }}
                         >
-                              {isTextStatus ? (
-                                    <div style={{ padding: '32px', textAlign: 'center' }}>
-                                          <h2 style={{
-                                                color: 'white',
-                                                fontSize: '28px',
-                                                fontWeight: 'bold',
-                                                lineHeight: '1.2',
-                                                wordBreak: 'break-word',
-                                                textShadow: '0 2px 10px rgba(0,0,0,0.3)'
-                                          }}>
-                                                {currentStory.body}
-                                          </h2>
-                                    </div>
-                              ) : (
+                              {isTextStatus ? (() => {
+                                    const FONT_STYLES = {
+                                          bold:   { fontWeight: '800', fontStyle: 'normal', fontFamily: 'inherit' },
+                                          italic: { fontWeight: '600', fontStyle: 'italic', fontFamily: 'Georgia, serif' },
+                                          mono:   { fontWeight: '700', fontStyle: 'normal', fontFamily: 'monospace' },
+                                          thin:   { fontWeight: '300', fontStyle: 'normal', letterSpacing: '3px', textTransform: 'uppercase' },
+                                    };
+                                    const len = (currentStory.body || '').length;
+                                    const fontSize = len < 60 ? '32px' : len < 120 ? '26px' : len < 200 ? '21px' : '17px';
+                                    const fontStyle = FONT_STYLES[currentStory.fontStyle] || FONT_STYLES.bold;
+                                    return (
+                                          <div style={{ padding: '32px', textAlign: currentStory.textAlign || 'center', position: 'relative', zIndex: 2, width: '100%' }}>
+                                                <div style={{ position: 'absolute', top: '-40px', right: '-40px', width: '180px', height: '180px', borderRadius: '50%', background: 'rgba(255,255,255,0.07)', pointerEvents: 'none', zIndex: 0 }} />
+                                                <div style={{ position: 'absolute', bottom: '-30px', left: '-30px', width: '130px', height: '130px', borderRadius: '50%', background: 'rgba(255,255,255,0.05)', pointerEvents: 'none', zIndex: 0 }} />
+                                                <p style={{
+                                                      color: 'white',
+                                                      fontSize,
+                                                      lineHeight: '1.35',
+                                                      wordBreak: 'break-word',
+                                                      textShadow: '0 2px 12px rgba(0,0,0,0.35)',
+                                                      transition: 'font-size 0.3s',
+                                                      position: 'relative',
+                                                      zIndex: 2,
+                                                      margin: 0,
+                                                      ...fontStyle
+                                                }}>
+                                                      {currentStory.body}
+                                                </p>
+                                          </div>
+                                    );
+                              })() : (
                                     <>
                                           {!isVideo && !imageLoaded && !error && (
                                                 <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyCenter: 'center' }}>
