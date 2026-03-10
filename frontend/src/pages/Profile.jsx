@@ -22,7 +22,7 @@ const FEED_MODES = [
 
 const Profile = () => {
       const { username } = useParams();
-      const { user, token, isAuthenticated, updateProfile, logout } = useAuth();
+      const { user, token, isAuthenticated, updateProfile, logout, blockUser, unblockUser } = useAuth();
       const navigate = useNavigate();
       const fileInputRef = useRef(null);
       const { playTrack, stopTrack, currentTrack, isPlaying: isMusicPlayingGlobal } = useMusic();
@@ -59,7 +59,9 @@ const Profile = () => {
       const [uploadingPhoto, setUploadingPhoto] = useState(false);
       const [activeTab, setActiveTab] = useState('profile');
       const [isFollowing, setIsFollowing] = useState(false);
+      const [isBlocked, setIsBlocked] = useState(false);
       const [followLoading, setFollowLoading] = useState(false);
+      const [blockLoading, setBlockLoading] = useState(false);
       const [showPhotoModal, setShowPhotoModal] = useState(false);
 
       // Followers/Following modal states
@@ -260,17 +262,26 @@ const Profile = () => {
             setUserPosts(prev => prev.filter(post => post._id !== contentId));
       };
 
-      // Check if current user follows this profile
+      // Check if current user follows or blocks this profile
       useEffect(() => {
             if (!isOwnProfile && profileUser && user) {
-                  // Check if current user's following list contains this profile's ID
+                  // Check following
                   const following = user.following || [];
                   setIsFollowing(following.includes(profileUser._id));
+
+                  // Check blocked
+                  const blocked = user.blockedUsers || [];
+                  setIsBlocked(blocked.includes(profileUser._id));
             }
       }, [profileUser, user, isOwnProfile]);
 
       const handleFollow = async () => {
             if (!token || !profileUser) return;
+            if (isBlocked) {
+                  setMessage('⚠️ Please unblock this user first');
+                  setTimeout(() => setMessage(''), 3000);
+                  return;
+            }
             setFollowLoading(true);
             try {
                   const endpoint = isFollowing ? 'unfollow' : 'follow';
@@ -295,6 +306,39 @@ const Profile = () => {
                   console.error('Failed to toggle follow:', error);
             }
             setFollowLoading(false);
+      };
+
+      const handleBlockToggle = async () => {
+            if (!token || !profileUser) return;
+            if (!isBlocked && !window.confirm(`Are you sure you want to block ${profileUser.displayName || profileUser.username}? They will no longer be able to message you or see your profile.`)) return;
+
+            setBlockLoading(true);
+            try {
+                  const res = isBlocked
+                        ? await unblockUser(profileUser._id)
+                        : await blockUser(profileUser._id);
+
+                  if (res.success) {
+                        setIsBlocked(!isBlocked);
+                        if (!isBlocked) {
+                              setIsFollowing(false);
+                              // Update followers count as blocking auto-unfollows
+                              setProfileUser(prev => ({
+                                    ...prev,
+                                    followersCount: Math.max(0, (prev.followersCount || 0) - (isFollowing ? 1 : 0))
+                              }));
+                        }
+                        setMessage(res.message);
+                        setTimeout(() => setMessage(''), 3000);
+                  } else {
+                        setMessage('⚠️ ' + res.message);
+                        setTimeout(() => setMessage(''), 3000);
+                  }
+            } catch (error) {
+                  console.error('Block toggle failed:', error);
+            } finally {
+                  setBlockLoading(false);
+            }
       };
 
       const handlePhotoClick = () => {
@@ -739,6 +783,14 @@ const Profile = () => {
                                                       className="btn btn-secondary flex-1 min-w-[120px]"
                                                 >
                                                       💬 Message
+                                                </button>
+                                                <button
+                                                      onClick={handleBlockToggle}
+                                                      disabled={blockLoading}
+                                                      className="btn btn-ghost text-red-500 hover:bg-red-50 flex-1 min-w-[120px]"
+                                                      style={{ borderColor: 'rgba(239, 68, 68, 0.2)' }}
+                                                >
+                                                      {blockLoading ? '⏳' : isBlocked ? '🔓 Unblock' : '🚫 Block'}
                                                 </button>
                                           </div>
                                     )}

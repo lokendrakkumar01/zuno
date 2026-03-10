@@ -144,27 +144,47 @@ export const AuthProvider = ({ children }) => {
             localStorage.removeItem('zuno_user');
       };
 
-      const updateProfile = async (profileData) => {
+      const blockUser = async (userId) => {
             try {
-                  const res = await fetch(`${API_URL}/users/profile`, {
-                        method: 'PUT',
-                        headers: {
-                              'Content-Type': 'application/json',
-                              'Authorization': `Bearer ${token}`
-                        },
-                        body: JSON.stringify(profileData)
+                  const res = await fetch(`${API_URL}/users/${userId}/block`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}` }
                   });
                   const data = await res.json();
-
                   if (data.success) {
-                        const updatedUser = { ...user, ...data.data.user };
+                        const updatedUser = {
+                              ...user,
+                              blockedUsers: [...(user.blockedUsers || []), userId]
+                        };
                         setUser(updatedUser);
                         localStorage.setItem('zuno_user', JSON.stringify(updatedUser));
                         return { success: true, message: data.message };
                   }
                   return { success: false, message: data.message };
             } catch (error) {
-                  return { success: false, message: 'Update failed. Please try again.' };
+                  return { success: false, message: 'Failed to block user' };
+            }
+      };
+
+      const unblockUser = async (userId) => {
+            try {
+                  const res = await fetch(`${API_URL}/users/${userId}/unblock`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                        const updatedUser = {
+                              ...user,
+                              blockedUsers: (user.blockedUsers || []).filter(id => id !== userId)
+                        };
+                        setUser(updatedUser);
+                        localStorage.setItem('zuno_user', JSON.stringify(updatedUser));
+                        return { success: true, message: data.message };
+                  }
+                  return { success: false, message: data.message };
+            } catch (error) {
+                  return { success: false, message: 'Failed to unblock user' };
             }
       };
 
@@ -176,7 +196,9 @@ export const AuthProvider = ({ children }) => {
             login,
             register,
             logout,
-            updateProfile
+            updateProfile,
+            blockUser,
+            unblockUser
       };
 
       return (

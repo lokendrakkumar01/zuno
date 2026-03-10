@@ -54,7 +54,7 @@ const getMessages = async (req, res) => {
             const { page = 1, limit = 50 } = req.query;
 
             // Verify other user exists
-            const otherUser = await User.findById(userId).select('username displayName avatar');
+            const otherUser = await User.findById(userId).select('username displayName avatar blockedUsers');
             if (!otherUser) {
                   return res.status(404).json({
                         success: false,
@@ -95,11 +95,19 @@ const getMessages = async (req, res) => {
                   { $set: { [`unreadCount.${req.user.id}`]: 0 } }
             );
 
+            // Check blocked status
+            const currentUser = await User.findById(req.user.id);
+            const blockedInfo = {
+                  iBlocked: currentUser.blockedUsers.includes(userId),
+                  theyBlocked: otherUser.blockedUsers ? otherUser.blockedUsers.includes(req.user.id) : false
+            };
+
             res.json({
                   success: true,
                   data: {
                         messages,
-                        otherUser
+                        otherUser,
+                        blockedInfo
                   }
             });
       } catch (error) {
@@ -142,6 +150,22 @@ const sendMessage = async (req, res) => {
                   return res.status(404).json({
                         success: false,
                         message: 'User not found'
+                  });
+            }
+
+            // Check if blocked
+            const currentUser = await User.findById(req.user.id);
+            if (currentUser.blockedUsers.includes(userId)) {
+                  return res.status(403).json({
+                        success: false,
+                        message: 'You have blocked this user. Unblock them to send messages.'
+                  });
+            }
+
+            if (receiver.blockedUsers.includes(req.user.id)) {
+                  return res.status(403).json({
+                        success: false,
+                        message: 'This user is unavailable'
                   });
             }
 

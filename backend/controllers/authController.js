@@ -132,7 +132,8 @@ const getMe = async (req, res) => {
                               language: user.language,
                               following: user.following, // send following list for frontend checks
                               stats: user.stats,
-                              notificationSettings: user.notificationSettings
+                              notificationSettings: user.notificationSettings,
+                              blockedUsers: user.blockedUsers
                         }
                   }
             });

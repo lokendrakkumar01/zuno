@@ -342,7 +342,7 @@ const StoryViewer = ({ group, onClose }) => {
 
                                           {isVideo ? (
                                                 <video
-                                                      src={getMediaUrl(media.url)}
+                                                      src={media ? getMediaUrl(media.url) : ''}
                                                       style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                                                       autoPlay
                                                       playsInline
@@ -352,7 +352,7 @@ const StoryViewer = ({ group, onClose }) => {
                                                 />
                                           ) : (
                                                 <img
-                                                      src={getMediaUrl(media.url)}
+                                                      src={media ? getMediaUrl(media.url) : ''}
                                                       style={{
                                                             width: '100%',
                                                             height: '100%',

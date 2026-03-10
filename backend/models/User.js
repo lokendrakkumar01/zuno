@@ -152,7 +152,13 @@ const userSchema = new mongoose.Schema({
             artist: String,
             albumArt: String,
             previewUrl: String
-      }
+      },
+
+      // Safety Features
+      blockedUsers: [{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User'
+      }]
 
 }, { timestamps: true });
 

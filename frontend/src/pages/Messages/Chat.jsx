@@ -16,7 +16,7 @@ const EMOJI_DATA = {
 
 const Chat = () => {
       const { userId } = useParams();
-      const { token, user } = useAuth();
+      const { token, user, unblockUser } = useAuth();
       const { socket, onlineUsers } = useSocketContext();
       const navigate = useNavigate();
       const [messages, setMessages] = useState(() => {
@@ -62,6 +62,7 @@ const Chat = () => {
       const [showCustomizeModal, setShowCustomizeModal] = useState(false);
       const defaultCustomization = { themeColor: '#6366f1', bgImage: null };
       const [chatCustomization, setChatCustomization] = useState(defaultCustomization);
+      const [blockedInfo, setBlockedInfo] = useState({ iBlocked: false, theyBlocked: false });
 
       const THEMES = [
             { id: 'indigo', color: '#6366f1' },
@@ -297,6 +298,7 @@ const Chat = () => {
                   if (data.success) {
                         setMessages(data.data.messages);
                         setOtherUser(data.data.otherUser);
+                        setBlockedInfo(data.data.blockedInfo || { iBlocked: false, theyBlocked: false });
                         // Cache for instant loading next time (localStorage persists on refresh)
                         try {
                               localStorage.setItem(`zuno_chat_cache_${userId}`, JSON.stringify(data.data.messages.slice(-100))); // Store up to 100 messages
@@ -599,6 +601,16 @@ const Chat = () => {
             setEditingId(msg._id);
             setEditText(msg.text);
             setActiveMenu(null);
+      };
+
+      const handleUnblockFromChat = async () => {
+            if (!userId) return;
+            setSending(true);
+            const res = await unblockUser(userId);
+            if (res.success) {
+                  setBlockedInfo(prev => ({ ...prev, iBlocked: false }));
+            }
+            setSending(false);
       };
 
       const toggleMenu = (e, messageId) => {
@@ -997,51 +1009,105 @@ const Chat = () => {
                         </div>
                   )}
 
-                  {/* Message Input */}
-                  <form className="chat-input-area" onSubmit={handleSend} style={{ zIndex: 10 }}>
-                        <div className="chat-input-actions">
-                              {/* Emoji Button */}
-                              <div className="emoji-picker-container" onClick={(e) => e.stopPropagation()}>
-                                    <button type="button" className="chat-action-btn" onClick={() => setShowEmoji(!showEmoji)} title="Emojis">
-                                          😊
-                                    </button>
-                              </div>
-                              {/* Media Button */}
-                              <button type="button" className="chat-action-btn" onClick={() => fileInputRef.current?.click()} title="Send Photo/Video">
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                                          <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
-                                    </svg>
+                  {/* Message Input Area */}
+                  {blockedInfo.iBlocked ? (
+                        <div className="chat-input-area" style={{ zIndex: 10, padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'var(--bg-secondary)', borderTop: '1px solid var(--border-color)', gap: '12px' }}>
+                              <p className="text-muted" style={{ fontSize: '0.9rem' }}>You have blocked this user. Unblock to message them.</p>
+                              <button
+                                    className="btn btn-primary btn-sm"
+                                    disabled={sending}
+                                    onClick={handleUnblockFromChat}
+                                    style={{ padding: '8px 24px' }}
+                              >
+                                    {sending ? '⏳' : '🔓 Unblock'}
                               </button>
-                              <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    accept="image/*,video/*"
-                                    onChange={handleMediaSelect}
-                                    style={{ display: 'none' }}
-                              />
                         </div>
-                        <input
-                              type="text"
-                              className="chat-input"
-                              placeholder="Type a message..."
-                              value={newMessage}
-                              onChange={handleTyping}
-                              maxLength={2000}
-                        />
-                        <button
-                              type="submit"
-                              className="chat-send-btn"
-                              disabled={(!newMessage.trim() && !mediaFile) || (sending && !!mediaFile)}
-                        >
-                              {(sending && !!mediaFile) ? (
-                                    <span style={{ fontSize: '18px' }}>⏳</span>
-                              ) : (
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                                          <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-                                    </svg>
-                              )}
-                        </button>
-                  </form>
+                  ) : blockedInfo.theyBlocked ? (
+                        <div className="chat-input-area" style={{ zIndex: 10, padding: '24px', textAlign: 'center', background: 'var(--bg-secondary)', borderTop: '1px solid var(--border-color)' }}>
+                              <p className="text-muted">This user is unavailable at the moment.</p>
+                        </div>
+                  ) : (
+                        <form className="chat-input-area" onSubmit={handleSend} style={{ zIndex: 10 }}>
+                              <div className="chat-input-actions">
+                                    {/* Emoji Button */}
+                                    <div className="emoji-picker-container" onClick={(e) => e.stopPropagation()}>
+                                          <button type="button" className="chat-action-btn" onClick={() => setShowEmoji(!showEmoji)} title="Emojis">
+                                                😊
+                                          </button>
+                                    </div>
+                                    {/* Media Button */}
+                                    <button type="button" className="chat-action-btn" onClick={() => fileInputRef.current?.click()} title="Send Photo/Video">
+                                          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                                <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
+                                          </svg>
+                                    </button>
+                                    <input
+                                          ref={fileInputRef}
+                                          type="file"
+                                          accept="image/*,video/*"
+                                          onChange={handleMediaSelect}
+                                          style={{ display: 'none' }}
+                                    />
+                              </div>
+
+                              <div style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column' }}>
+                                    {mediaPreview && (
+                                          <div style={{ position: 'absolute', bottom: '100%', left: 0, marginBottom: '8px', zIndex: 20 }}>
+                                                <div className="chat-media-preview" style={{ position: 'relative', width: '60px', height: '60px', borderRadius: '8px', overflow: 'hidden', boxShadow: 'var(--shadow-md)' }}>
+                                                      {mediaPreview.type === 'video' ? (
+                                                            <video src={mediaPreview.url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                      ) : (
+                                                            <img src={mediaPreview.url} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                      )}
+                                                      <button type="button" onClick={cancelMedia} style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(0,0,0,0.5)', color: 'white', border: 'none', borderRadius: '50%', width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>✕</button>
+                                                </div>
+                                          </div>
+                                    )}
+
+                                    {replyingTo && (
+                                          <div style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, marginBottom: '8px', zIndex: 15, background: 'var(--bg-secondary)', padding: '6px 12px', borderRadius: '8px', borderLeft: '3px solid var(--color-primary)', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: 'var(--shadow-sm)' }}>
+                                                <div className="flex-1 min-w-0">
+                                                      <div className="text-xs font-semibold" style={{ color: 'var(--color-primary)' }}>
+                                                            Replying to {replyingTo.sender?.displayName || replyingTo.sender?.username}
+                                                      </div>
+                                                      <div className="text-xs truncate text-muted">{replyingTo.text || 'Media'}</div>
+                                                </div>
+                                                <button type="button" onClick={() => setReplyingTo(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '14px' }}>✕</button>
+                                          </div>
+                                    )}
+
+                                    <textarea
+                                          className="chat-input"
+                                          placeholder="Type a message..."
+                                          value={newMessage}
+                                          onChange={handleTyping}
+                                          onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && !e.shiftKey) {
+                                                      e.preventDefault();
+                                                      handleSend(e);
+                                                }
+                                          }}
+                                          rows={1}
+                                          style={{ width: '100%', border: 'none', background: 'transparent', padding: '8px', resize: 'none', fontSize: '0.95rem' }}
+                                    />
+                              </div>
+
+                              <button
+                                    type="submit"
+                                    className="chat-send-btn"
+                                    disabled={(!newMessage.trim() && !mediaFile) || sending}
+                                    style={{ background: chatCustomization.themeColor || 'var(--color-primary)', opacity: (!newMessage.trim() && !mediaFile) ? 0.6 : 1 }}
+                              >
+                                    {sending ? (
+                                          <span style={{ fontSize: '18px' }}>⏳</span>
+                                    ) : (
+                                          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                                                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                                          </svg>
+                                    )}
+                              </button>
+                        </form>
+                  )}
 
                   {/* Customize Chat Modal */}
                   {

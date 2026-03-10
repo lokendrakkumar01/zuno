@@ -560,6 +560,72 @@ const deleteAccount = async (req, res) => {
       }
 };
 
+// @desc    Block a user
+// @route   POST /api/users/:id/block
+// @access  Private
+const blockUser = async (req, res) => {
+      try {
+            const userIdToBlock = req.params.id;
+            if (req.user.id === userIdToBlock) {
+                  return res.status(400).json({ success: false, message: "You cannot block yourself" });
+            }
+
+            const currentUser = await User.findById(req.user.id);
+            const userToBlock = await User.findById(userIdToBlock);
+
+            if (!userToBlock) {
+                  return res.status(404).json({ success: false, message: "User not found" });
+            }
+
+            if (currentUser.blockedUsers.includes(userIdToBlock)) {
+                  return res.status(400).json({ success: false, message: "User is already blocked" });
+            }
+
+            // Block user and clean up social connections
+            await currentUser.updateOne({
+                  $push: { blockedUsers: userIdToBlock },
+                  $pull: {
+                        following: userIdToBlock,
+                        followers: userIdToBlock,
+                        closeFriends: userIdToBlock
+                  }
+            });
+
+            // Also remove the blocker from the blocked user's lists
+            await userToBlock.updateOne({
+                  $pull: {
+                        following: req.user.id,
+                        followers: req.user.id,
+                        closeFriends: req.user.id
+                  }
+            });
+
+            res.json({ success: true, message: "User blocked successfully" });
+      } catch (error) {
+            res.status(500).json({ success: false, message: "Failed to block user", error: error.message });
+      }
+};
+
+// @desc    Unblock a user
+// @route   POST /api/users/:id/unblock
+// @access  Private
+const unblockUser = async (req, res) => {
+      try {
+            const userIdToUnblock = req.params.id;
+            const currentUser = await User.findById(req.user.id);
+
+            if (!currentUser.blockedUsers.includes(userIdToUnblock)) {
+                  return res.status(400).json({ success: false, message: "User is not blocked" });
+            }
+
+            await currentUser.updateOne({ $pull: { blockedUsers: userIdToUnblock } });
+
+            res.json({ success: true, message: "User unblocked successfully" });
+      } catch (error) {
+            res.status(500).json({ success: false, message: "Failed to unblock user", error: error.message });
+      }
+};
+
 module.exports = {
       getUserById,
       getUserProfile,
@@ -578,5 +644,7 @@ module.exports = {
       addCloseFriend,
       removeCloseFriend,
       searchUsers,
-      deleteAccount
+      deleteAccount,
+      blockUser,
+      unblockUser
 };

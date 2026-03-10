@@ -51,11 +51,27 @@ const getFeed = async (req, res) => {
                   query.topics = topic;
             }
 
-            // If user is logged in, personalize based on interests
-            let userInterests = [];
+            // If user is logged in, personalized filtering (including blocks)
             if (req.user) {
-                  const user = await User.findById(req.user.id);
-                  userInterests = user.interests || [];
+                  const currentUser = await User.findById(req.user.id).select('blockedUsers');
+                  if (currentUser) {
+                        // Exclude users blocked by current user
+                        if (currentUser.blockedUsers && currentUser.blockedUsers.length > 0) {
+                              query.creator = { ...query.creator, $nin: currentUser.blockedUsers };
+                        }
+
+                        // Exclude users who have blocked the current user
+                        // Note: This requires a query for users who have this user in their blockedUsers
+                        const whoBlockedMe = await User.find({ blockedUsers: req.user.id }).select('_id');
+                        const blockedMeIds = whoBlockedMe.map(u => u._id);
+                        if (blockedMeIds.length > 0) {
+                              if (query.creator && query.creator.$nin) {
+                                    query.creator.$nin = [...query.creator.$nin, ...blockedMeIds];
+                              } else {
+                                    query.creator = { ...query.creator, $nin: blockedMeIds };
+                              }
+                        }
+                  }
             }
 
             // Sort by quality score (based on helpfulness, not views/likes)
@@ -177,6 +193,20 @@ const getCreatorFeed = async (req, res) => {
                   });
             }
 
+            // Check if blocked (either direction)
+            if (req.user) {
+                  const currentUser = await User.findById(req.user.id).select('blockedUsers');
+                  const isBlockedByMe = currentUser.blockedUsers.includes(creator._id);
+                  const hasBlockedMe = creator.blockedUsers && creator.blockedUsers.includes(req.user.id);
+
+                  if (isBlockedByMe || hasBlockedMe) {
+                        return res.status(404).json({
+                              success: false,
+                              message: 'User not found'
+                        });
+                  }
+            }
+
             let query = {
                   creator: creator._id,
                   isApproved: true
@@ -294,13 +324,26 @@ const getActiveStories = async (req, res) => {
                   status: 'published',
                   visibility: 'public' // Respect privacy? For now public.
             })
-                  .populate('creator', 'username displayName avatar isPrivate')
+                  .populate('creator', 'username displayName avatar isPrivate blockedUsers')
                   .sort({ createdAt: 1 })
                   .lean();
 
+            // Filter out stories from blocked users
+            let filteredStories = stories;
+            if (req.user) {
+                  const currentUser = await User.findById(req.user.id).select('blockedUsers');
+                  const myBlocked = currentUser.blockedUsers.map(id => id.toString());
+
+                  filteredStories = stories.filter(story => {
+                        const creatorId = story.creator._id.toString();
+                        const creatorBlockedMe = story.creator.blockedUsers && story.creator.blockedUsers.some(id => id.toString() === req.user.id);
+                        return !myBlocked.includes(creatorId) && !creatorBlockedMe;
+                  });
+            }
+
             // Group by creator
             const groupedStories = {};
-            stories.forEach(story => {
+            filteredStories.forEach(story => {
                   // If private, only show if following (handled in frontend usually or filtered here)
                   // For simplicity, showing all public stories.
                   const creatorId = story.creator._id.toString();

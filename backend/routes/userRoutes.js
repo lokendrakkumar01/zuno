@@ -18,7 +18,9 @@ const {
       addCloseFriend,
       removeCloseFriend,
       searchUsers,
-      deleteAccount
+      deleteAccount,
+      blockUser,
+      unblockUser
 } = require('../controllers/userController');
 const { protect } = require('../middleware/auth');
 
@@ -44,6 +46,8 @@ router.delete('/account', protect, deleteAccount);
 // Social
 router.post('/:id/follow', protect, followUser);
 router.post('/:id/unfollow', protect, unfollowUser);
+router.post('/:id/block', protect, blockUser);
+router.post('/:id/unblock', protect, unblockUser);
 router.post('/requests/:id/accept', protect, acceptFollowRequest);
 router.post('/requests/:id/reject', protect, rejectFollowRequest);
 

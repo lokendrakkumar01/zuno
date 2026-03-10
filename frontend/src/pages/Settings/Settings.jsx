@@ -259,27 +259,61 @@ const Settings = () => {
       );
 };
 
-// Simple Modal Components (placeholders for now)
+const ActivityModal = ({ onClose }) => (
+      <ModalWrapper title="Your Activity" onClose={onClose}>
+            <div style={{ padding: '24px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <StatCard icon="⌛" label="Daily Average" value="2h 45m" />
+                        <StatCard icon="📱" label="Screen Time" value="18h 20m (week)" />
+                        <StatCard icon="❤️" label="Interactions" value="124 posts" />
+
+                        <div style={{ marginTop: '16px', padding: '16px', backgroundColor: 'var(--color-bg-secondary)', borderRadius: '12px', border: '1px solid var(--color-border)' }}>
+                              <h4 style={{ marginBottom: '8px', color: 'var(--color-text-primary)' }}>Most Visited</h4>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: 'var(--color-text-secondary)' }}>
+                                    <span>Feed</span>
+                                    <span>45%</span>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
+                                    <span>Messages</span>
+                                    <span>30%</span>
+                              </div>
+                        </div>
+                  </div>
+            </div>
+      </ModalWrapper>
+);
 
 const CloseFriendsModal = ({ onClose }) => (
       <ModalWrapper title="Close Friends" onClose={onClose}>
-            <div style={{ padding: '20px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '48px', marginBottom: '16px' }}>👥</div>
-                  <h3 style={{ marginBottom: '8px', color: 'var(--color-text-primary)' }}>Manage Close Friends</h3>
-                  <p style={{ color: 'var(--color-text-secondary)', marginBottom: '24px' }}>
-                        Share exclusive content with your closest friends
+            <div style={{ padding: '24px', textAlign: 'center' }}>
+                  <div style={{
+                        width: '80px',
+                        height: '80px',
+                        borderRadius: '50%',
+                        background: 'rgba(34, 197, 94, 0.1)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        margin: '0 auto 20px auto',
+                        fontSize: '40px'
+                  }}>👥</div>
+                  <h3 style={{ marginBottom: '12px', color: 'var(--color-text-primary)', fontSize: '20px' }}>Close Friends</h3>
+                  <p style={{ color: 'var(--color-text-secondary)', marginBottom: '32px', lineHeight: '1.5' }}>
+                        Create a special list of people you want to share more personal moments with on ZUNO.
                   </p>
                   <button style={{
                         width: '100%',
-                        padding: '14px',
-                        borderRadius: '12px',
+                        padding: '16px',
+                        borderRadius: '14px',
                         border: 'none',
-                        background: 'var(--gradient-primary)',
+                        background: 'var(--gradient-primary, linear-gradient(135deg, #6366f1 0%, #a855f7 100%))',
                         color: 'white',
-                        fontWeight: '600',
-                        cursor: 'pointer'
+                        fontWeight: '700',
+                        fontSize: '16px',
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
                   }}>
-                        Add Close Friends
+                        Get Started
                   </button>
             </div>
       </ModalWrapper>
@@ -287,12 +321,30 @@ const CloseFriendsModal = ({ onClose }) => (
 
 const ArchiveModal = ({ onClose }) => (
       <ModalWrapper title="Archive" onClose={onClose}>
-            <div style={{ padding: '20px', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
-                  <div style={{ fontSize: '48px', marginBottom: '16px' }}>📦</div>
-                  <h3 style={{ marginBottom: '8px', color: 'var(--color-text-primary)' }}>Your Archive</h3>
-                  <p>Posts you've archived will appear here</p>
-                  <div style={{ marginTop: '24px', padding: '40px 20px', backgroundColor: 'var(--color-bg-secondary)', borderRadius: '12px' }}>
-                        <p>No archived posts yet</p>
+            <div style={{ padding: '24px', textAlign: 'center' }}>
+                  <div style={{
+                        width: '80px',
+                        height: '80px',
+                        borderRadius: '50%',
+                        background: 'rgba(245, 158, 11, 0.1)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        margin: '0 auto 20px auto',
+                        fontSize: '40px'
+                  }}>📦</div>
+                  <h3 style={{ marginBottom: '12px', color: 'var(--color-text-primary)', fontSize: '20px' }}>Your Archive</h3>
+                  <p style={{ color: 'var(--color-text-secondary)', marginBottom: '24px', lineHeight: '1.5' }}>
+                        Only you can see the posts you've archived.
+                  </p>
+                  <div style={{
+                        padding: '48px 20px',
+                        backgroundColor: 'var(--color-bg-secondary)',
+                        borderRadius: '16px',
+                        border: '1px dashed var(--color-border)',
+                        color: 'var(--color-text-muted)'
+                  }}>
+                        <p>No archived posts yet ✨</p>
                   </div>
             </div>
       </ModalWrapper>
@@ -300,13 +352,17 @@ const ArchiveModal = ({ onClose }) => (
 
 const CreatorToolsModal = ({ onClose }) => (
       <ModalWrapper title="Creator Tools" onClose={onClose}>
-            <div style={{ padding: '20px' }}>
-                  <div style={{ fontSize: '48px', textAlign: 'center', marginBottom: '16px' }}>🛠️</div>
-                  <h3 style={{ textAlign: 'center', marginBottom: '24px', color: 'var(--color-text-primary)' }}>Creator Dashboard</h3>
+            <div style={{ padding: '24px' }}>
+                  <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+                        <div style={{ fontSize: '48px', marginBottom: '8px' }}>🚀</div>
+                        <h3 style={{ color: 'var(--color-text-primary)', fontSize: '20px' }}>Creator Dashboard</h3>
+                        <p style={{ color: 'var(--color-text-secondary)', fontSize: '14px' }}>Elevate your presence on ZUNO</p>
+                  </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        <SettingsOption icon="💰" label="Monetization" subtitle="Coming soon" />
-                        <SettingsOption icon="📊" label="Analytics" subtitle="View detailed stats" />
-                        <SettingsOption icon="🎥" label="Content Studio" subtitle="Manage all content" />
+                        <SettingsOption icon="💎" label="Verification" subtitle="Apply for the blue tick" />
+                        <SettingsOption icon="📈" label="Channel Insights" subtitle="Track your growth" />
+                        <SettingsOption icon="💰" label="Monetization" badge="Locked" subtitle="Coming soon to your region" />
+                        <SettingsOption icon="📱" label="Branded Content" subtitle="Manage your partnerships" />
                   </div>
             </div>
       </ModalWrapper>
