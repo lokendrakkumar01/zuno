@@ -4,7 +4,38 @@ const MusicContext = createContext();
 
 export const MusicProvider = ({ children }) => {
       const [currentTrack, setCurrentTrack] = useState(null);
+      const [isPlaying, setIsPlaying] = useState(false);
       const audioRef = useRef(new Audio());
+
+      useEffect(() => {
+            const audio = audioRef.current;
+
+            const handlePlay = () => setIsPlaying(true);
+            const handlePause = () => setIsPlaying(false);
+            const handleEnded = () => {
+                  setIsPlaying(false);
+                  if (!audio.loop) {
+                        setCurrentTrack(null);
+                  }
+            };
+            const handleError = (e) => {
+                  console.error("Audio playback error:", e);
+                  setIsPlaying(false);
+                  setCurrentTrack(null);
+            };
+
+            audio.addEventListener('play', handlePlay);
+            audio.addEventListener('pause', handlePause);
+            audio.addEventListener('ended', handleEnded);
+            audio.addEventListener('error', handleError);
+
+            return () => {
+                  audio.removeEventListener('play', handlePlay);
+                  audio.removeEventListener('pause', handlePause);
+                  audio.removeEventListener('ended', handleEnded);
+                  audio.removeEventListener('error', handleError);
+            };
+      }, []);
 
       const playTrack = (track) => {
             if (!track || !track.previewUrl) return;
@@ -25,6 +56,7 @@ export const MusicProvider = ({ children }) => {
             if (playPromise !== undefined) {
                   playPromise.catch(error => {
                         console.log("Autoplay prevented or audio error:", error);
+                        setIsPlaying(false);
                   });
             }
 
@@ -35,17 +67,16 @@ export const MusicProvider = ({ children }) => {
             audioRef.current.pause();
             audioRef.current.src = "";
             setCurrentTrack(null);
+            setIsPlaying(false);
       };
 
       const togglePlay = () => {
             if (audioRef.current.paused) {
-                  audioRef.current.play();
+                  audioRef.current.play().catch(() => setIsPlaying(false));
             } else {
                   audioRef.current.pause();
             }
       };
-
-      const isPlaying = currentTrack !== null && !audioRef.current.paused;
 
       // Cleanup on unmount
       useEffect(() => {

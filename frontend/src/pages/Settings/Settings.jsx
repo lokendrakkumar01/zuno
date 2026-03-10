@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useNavigate } from 'react-router-dom';
-import { API_URL } from '../../config';
+import { API_URL, API_BASE_URL } from '../../config';
 import { toast } from 'react-toastify';
 import SettingsOption from '../../components/Settings/SettingsOption';
 
@@ -342,36 +342,6 @@ const CloseFriendsModal = ({ onClose }) => (
       </ModalWrapper>
 );
 
-const ArchiveModal = ({ onClose }) => (
-      <ModalWrapper title="Archive" onClose={onClose}>
-            <div style={{ padding: '24px', textAlign: 'center' }}>
-                  <div style={{
-                        width: '80px',
-                        height: '80px',
-                        borderRadius: '50%',
-                        background: 'rgba(245, 158, 11, 0.1)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        margin: '0 auto 20px auto',
-                        fontSize: '40px'
-                  }}>📦</div>
-                  <h3 style={{ marginBottom: '12px', color: 'var(--color-text-primary)', fontSize: '20px' }}>Your Archive</h3>
-                  <p style={{ color: 'var(--color-text-secondary)', marginBottom: '24px', lineHeight: '1.5' }}>
-                        Only you can see the posts you've archived.
-                  </p>
-                  <div style={{
-                        padding: '48px 20px',
-                        backgroundColor: 'var(--color-bg-secondary)',
-                        borderRadius: '16px',
-                        border: '1px dashed var(--color-border)',
-                        color: 'var(--color-text-muted)'
-                  }}>
-                        <p>No archived posts yet ✨</p>
-                  </div>
-            </div>
-      </ModalWrapper>
-);
 
 const CreatorToolsModal = ({ onClose }) => (
       <ModalWrapper title="Creator Tools" onClose={onClose}>

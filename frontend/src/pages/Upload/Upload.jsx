@@ -91,16 +91,39 @@ const Upload = () => {
       };
 
       const handleFileChange = (e) => {
-            const files = e.target.files;
+            const files = Array.from(e.target.files);
             if (files.length > 0) {
-                  const file = files[0];
+                  // Cleanup old previews to prevent memory leaks
+                  if (formData.mediaPreview) {
+                        if (Array.isArray(formData.mediaPreview)) {
+                              formData.mediaPreview.forEach(url => URL.revokeObjectURL(url));
+                        } else {
+                              URL.revokeObjectURL(formData.mediaPreview);
+                        }
+                  }
+
+                  const previews = files.map(file => URL.createObjectURL(file));
+
                   setFormData(prev => ({
                         ...prev,
                         media: files,
-                        mediaPreview: URL.createObjectURL(file)
+                        mediaPreview: formData.contentType === 'photo' ? previews : previews[0]
                   }));
             }
       };
+
+      // Final cleanup on unmount
+      useEffect(() => {
+            return () => {
+                  if (formData.mediaPreview) {
+                        if (Array.isArray(formData.mediaPreview)) {
+                              formData.mediaPreview.forEach(url => URL.revokeObjectURL(url));
+                        } else {
+                              URL.revokeObjectURL(formData.mediaPreview);
+                        }
+                  }
+            };
+      }, []);
 
       const handleTopicToggle = (topic) => {
             setFormData(prev => ({
@@ -392,14 +415,22 @@ const Upload = () => {
                                           onClick={() => document.getElementById('media-upload-input').click()}
                                     >
                                           {formData.mediaPreview ? (
-                                                <div style={{ width: '100%', position: 'relative' }}>
+                                                <div style={{ width: '100%', position: 'relative', padding: '10px' }}>
                                                       {formData.contentType.includes('video') || (formData.contentType === 'story' && formData.media && formData.media[0].type.includes('video')) ? (
-                                                            <video src={formData.mediaPreview} controls style={{ width: '100%', maxHeight: '400px', borderRadius: '8px' }} onClick={(e) => e.stopPropagation()} />
+                                                            <video src={Array.isArray(formData.mediaPreview) ? formData.mediaPreview[0] : formData.mediaPreview} controls style={{ width: '100%', maxHeight: '400px', borderRadius: '8px' }} onClick={(e) => e.stopPropagation()} />
                                                       ) : (
-                                                            <img src={formData.mediaPreview} alt="Preview" style={{ width: '100%', maxHeight: '400px', objectFit: 'contain', borderRadius: '8px' }} />
+                                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center' }}>
+                                                                  {Array.isArray(formData.mediaPreview) ? (
+                                                                        formData.mediaPreview.map((url, idx) => (
+                                                                              <img key={idx} src={url} alt={`Preview ${idx}`} style={{ width: formData.mediaPreview.length > 1 ? 'calc(50% - 5px)' : '100%', maxHeight: '300px', objectFit: 'cover', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }} />
+                                                                        ))
+                                                                  ) : (
+                                                                        <img src={formData.mediaPreview} alt="Preview" style={{ width: '100%', maxHeight: '400px', objectFit: 'contain', borderRadius: '8px' }} />
+                                                                  )}
+                                                            </div>
                                                       )}
                                                       <button
-                                                            style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.5)', color: 'white', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', zIndex: 10 }}
+                                                            style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.6)', color: 'white', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}
                                                             onClick={(e) => { e.stopPropagation(); setFormData(prev => ({ ...prev, media: null, mediaPreview: null })); }}
                                                       >✕</button>
                                                 </div>

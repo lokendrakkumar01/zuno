@@ -556,7 +556,7 @@ const deleteAccount = async (req, res) => {
             const userId = req.user.id;
 
             // Delete user's content (posts/videos)
-            await Content.deleteMany({ author: userId });
+            await Content.deleteMany({ creator: userId });
 
             // Delete user's comments
             await Comment.deleteMany({ user: userId });
