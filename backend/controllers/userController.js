@@ -320,7 +320,6 @@ const acceptFollowRequest = async (req, res) => {
 const rejectFollowRequest = async (req, res) => {
       try {
             const currentUser = await User.findById(req.user.id);
-
             if (!currentUser.followRequests.includes(req.params.id)) {
                   return res.status(400).json({ success: false, message: "No request from this user" });
             }
@@ -330,6 +329,30 @@ const rejectFollowRequest = async (req, res) => {
             res.json({ success: true, message: "Request rejected" });
       } catch (error) {
             res.status(500).json({ success: false, message: "Failed to reject request", error: error.message });
+      }
+};
+
+// @desc    Unblock a user
+// @route   POST /api/users/:id/unblock
+// @access  Private
+const unblockUser = async (req, res) => {
+      try {
+            const userIdToUnblock = req.params.id;
+            const currentUser = await User.findById(req.user.id);
+
+            if (!currentUser) {
+                  return res.status(404).json({ success: false, message: "Current user not found" });
+            }
+
+            if (!currentUser.blockedUsers.includes(userIdToUnblock)) {
+                  return res.status(400).json({ success: false, message: "User is not blocked" });
+            }
+
+            await currentUser.updateOne({ $pull: { blockedUsers: userIdToUnblock } });
+
+            res.json({ success: true, message: "User unblocked successfully" });
+      } catch (error) {
+            res.status(500).json({ success: false, message: "Failed to unblock user", error: error.message });
       }
 };
 
@@ -606,9 +629,6 @@ const blockUser = async (req, res) => {
       }
 };
 
-// @desc    Unblock a user
-// @route   POST /api/users/:id/unblock
-// @access  Private
 const unblockUser = async (req, res) => {
       try {
             const userIdToUnblock = req.params.id;
@@ -623,6 +643,21 @@ const unblockUser = async (req, res) => {
             res.json({ success: true, message: "User unblocked successfully" });
       } catch (error) {
             res.status(500).json({ success: false, message: "Failed to unblock user", error: error.message });
+      }
+};
+
+// @desc    Get blocked users list
+// @route   GET /api/users/blocked
+// @access  Private
+const getBlockedUsers = async (req, res) => {
+      try {
+            const user = await User.findById(req.user.id).populate('blockedUsers', 'username displayName avatar bio isVerified');
+            res.json({
+                  success: true,
+                  data: { blockedUsers: user.blockedUsers || [] }
+            });
+      } catch (error) {
+            res.status(500).json({ success: false, message: 'Failed to get blocked users', error: error.message });
       }
 };
 
@@ -646,5 +681,6 @@ module.exports = {
       searchUsers,
       deleteAccount,
       blockUser,
-      unblockUser
+      unblockUser,
+      getBlockedUsers
 };

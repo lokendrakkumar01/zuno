@@ -18,6 +18,7 @@ const Settings = () => {
       const [showCloseFriends, setShowCloseFriends] = useState(false);
       const [showArchive, setShowArchive] = useState(false);
       const [showCreatorTools, setShowCreatorTools] = useState(false);
+      const [showBlocked, setShowBlocked] = useState(false);
 
       // Load theme on mount and apply it
       useEffect(() => {
@@ -146,6 +147,12 @@ const Settings = () => {
                               subtitle="Share with your closest friends"
                               onClick={() => navigate('/settings/close-friends')}
                         />
+                        <SettingsOption
+                              icon="🚫"
+                              label="Blocked"
+                              subtitle="Manage blocked accounts"
+                              onClick={() => setShowBlocked(true)}
+                        />
 
                         {/* How You Use ZUNO Section */}
                         <SectionTitle title={t('howYouUse')} />
@@ -254,6 +261,11 @@ const Settings = () => {
                   {/* Modal for Creator Tools */}
                   {showCreatorTools && (
                         <CreatorToolsModal onClose={() => setShowCreatorTools(false)} />
+                  )}
+
+                  {/* Modal for Blocked Users */}
+                  {showBlocked && (
+                        <BlockedUsersModal onClose={() => setShowBlocked(false)} />
                   )}
             </div>
       );
@@ -443,5 +455,117 @@ const StatCard = ({ label, value, icon }) => (
             <span style={{ fontWeight: '600', fontSize: '18px', color: 'var(--color-text-primary)' }}>{value}</span>
       </div>
 );
+
+const BlockedUsersModal = ({ onClose }) => {
+      const { token, unblockUser } = useAuth();
+      const [blockedUsers, setBlockedUsers] = useState([]);
+      const [loading, setLoading] = useState(true);
+
+      useEffect(() => {
+            const fetchBlockedUsers = async () => {
+                  try {
+                        const res = await fetch(`${API_URL}/users/blocked`, {
+                              headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                              setBlockedUsers(data.data.blockedUsers);
+                        }
+                  } catch (error) {
+                        toast.error('Failed to load blocked users');
+                  } finally {
+                        setLoading(false);
+                  }
+            };
+            fetchBlockedUsers();
+      }, [token]);
+
+      const handleUnblock = async (userId) => {
+            try {
+                  const res = await unblockUser(userId);
+                  if (res.success) {
+                        setBlockedUsers(prev => prev.filter(u => u._id !== userId));
+                        toast.success('User unblocked');
+                  } else {
+                        toast.error(res.message);
+                  }
+            } catch (error) {
+                  toast.error('Failed to unblock user');
+            }
+      };
+
+      return (
+            <ModalWrapper title="Blocked Accounts" onClose={onClose}>
+                  <div style={{ padding: '20px' }}>
+                        {loading ? (
+                              <div style={{ textAlign: 'center', padding: '40px' }}>
+                                    <span style={{ fontSize: '24px' }}>⏳</span>
+                                    <p style={{ marginTop: '12px', color: 'var(--color-text-secondary)' }}>Loading blocked accounts...</p>
+                              </div>
+                        ) : blockedUsers.length === 0 ? (
+                              <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+                                    <div style={{ fontSize: '48px', marginBottom: '16px' }}>🛡️</div>
+                                    <h3 style={{ color: 'var(--color-text-primary)', marginBottom: '8px' }}>No blocked accounts</h3>
+                                    <p style={{ color: 'var(--color-text-secondary)', fontSize: '14px' }}>Accounts you block will appear here. They won't be able to see your profile or message you.</p>
+                              </div>
+                        ) : (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                    {blockedUsers.map(user => (
+                                          <div key={user._id} style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '12px',
+                                                padding: '12px',
+                                                backgroundColor: 'var(--color-bg-secondary)',
+                                                borderRadius: '12px',
+                                                border: '1px solid var(--color-border)'
+                                          }}>
+                                                <div className="avatar" style={{ width: '40px', height: '40px', border: '2px solid var(--color-primary)' }}>
+                                                      {user.avatar ? (
+                                                            <img src={user.avatar} alt={user.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                      ) : (
+                                                            <span style={{ fontSize: '18px' }}>{user.username.charAt(0).toUpperCase()}</span>
+                                                      )}
+                                                </div>
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                      <h4 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--color-text-primary)', margin: 0 }} className="truncate">
+                                                            {user.displayName || user.username}
+                                                      </h4>
+                                                      <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', margin: 0 }} className="truncate">
+                                                            @{user.username}
+                                                      </p>
+                                                </div>
+                                                <button
+                                                      onClick={() => handleUnblock(user._id)}
+                                                      style={{
+                                                            padding: '6px 16px',
+                                                            borderRadius: '8px',
+                                                            border: '1px solid var(--color-border)',
+                                                            backgroundColor: 'var(--color-bg-card)',
+                                                            color: 'var(--color-text-primary)',
+                                                            fontSize: '13px',
+                                                            fontWeight: '600',
+                                                            cursor: 'pointer',
+                                                            transition: 'all 0.2s'
+                                                      }}
+                                                      onMouseOver={(e) => {
+                                                            e.currentTarget.style.backgroundColor = 'var(--color-bg-secondary)';
+                                                            e.currentTarget.style.borderColor = 'var(--color-primary)';
+                                                      }}
+                                                      onMouseOut={(e) => {
+                                                            e.currentTarget.style.backgroundColor = 'var(--color-bg-card)';
+                                                            e.currentTarget.style.borderColor = 'var(--color-border)';
+                                                      }}
+                                                >
+                                                      Unblock
+                                                </button>
+                                          </div>
+                                    ))}
+                              </div>
+                        )}
+                  </div>
+            </ModalWrapper>
+      );
+};
 
 export default Settings;

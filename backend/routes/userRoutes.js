@@ -20,7 +20,8 @@ const {
       searchUsers,
       deleteAccount,
       blockUser,
-      unblockUser
+      unblockUser,
+      getBlockedUsers
 } = require('../controllers/userController');
 const { protect } = require('../middleware/auth');
 
@@ -42,6 +43,7 @@ router.put('/interests', protect, updateInterests);
 router.put('/feed-preferences', protect, updateFeedPreferences);
 router.put('/focus-mode', protect, toggleFocusMode);
 router.delete('/account', protect, deleteAccount);
+router.get('/blocked', protect, getBlockedUsers);
 
 // Social
 router.post('/:id/follow', protect, followUser);
