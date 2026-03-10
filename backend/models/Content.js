@@ -157,6 +157,9 @@ contentSchema.index({ topics: 1, status: 1, qualityScore: -1 });
 contentSchema.index({ purpose: 1, status: 1 });
 contentSchema.index({ status: 1, visibility: 1, isApproved: 1, createdAt: -1, qualityScore: -1 });
 
+// TTL index to automatically remove expired content (stories/statuses)
+contentSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+
 // Calculate quality score before save
 contentSchema.pre('save', function (next) {
       // Quality = helpfulness ratio + engagement quality (not raw counts)

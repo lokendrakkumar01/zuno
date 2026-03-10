@@ -18,7 +18,11 @@ const getFeed = async (req, res) => {
             let query = {
                   status: 'published',
                   visibility: 'public',
-                  isApproved: true
+                  isApproved: true,
+                  $or: [
+                        { expiresAt: null },
+                        { expiresAt: { $gt: new Date() } }
+                  ]
             };
 
             // Mode-specific filtering
