@@ -629,23 +629,6 @@ const blockUser = async (req, res) => {
       }
 };
 
-const unblockUser = async (req, res) => {
-      try {
-            const userIdToUnblock = req.params.id;
-            const currentUser = await User.findById(req.user.id);
-
-            if (!currentUser.blockedUsers.includes(userIdToUnblock)) {
-                  return res.status(400).json({ success: false, message: "User is not blocked" });
-            }
-
-            await currentUser.updateOne({ $pull: { blockedUsers: userIdToUnblock } });
-
-            res.json({ success: true, message: "User unblocked successfully" });
-      } catch (error) {
-            res.status(500).json({ success: false, message: "Failed to unblock user", error: error.message });
-      }
-};
-
 // @desc    Get blocked users list
 // @route   GET /api/users/blocked
 // @access  Private
