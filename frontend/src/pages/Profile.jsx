@@ -597,7 +597,7 @@ const Profile = () => {
                                                 </div>
 
                                                 {/* Profile Song Display (Instagram Style) */}
-                                                {profileUser.profileSong && (
+                                                {profileUser.profileSong && profileUser.profileSong.name ? (
                                                       <div
                                                             className="mt-lg animate-fadeInUp"
                                                             style={{
@@ -610,12 +610,23 @@ const Profile = () => {
                                                                   alignItems: 'center',
                                                                   gap: '12px',
                                                                   boxShadow: '0 4px 15px rgba(0, 0, 0, 0.05)',
-                                                                  maxWidth: '100%'
+                                                                  maxWidth: '100%',
+                                                                  cursor: isOwnProfile ? 'pointer' : 'default'
+                                                            }}
+                                                            onClick={() => {
+                                                                  if (isOwnProfile) {
+                                                                        setEditing(true);
+                                                                        // Small scroll delay to let the edit section render
+                                                                        setTimeout(() => {
+                                                                              const searchSection = document.getElementById('spotify-search-input');
+                                                                              if (searchSection) searchSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                                        }, 100);
+                                                                  }
                                                             }}
                                                       >
                                                             <div style={{ position: 'relative', width: '40px', height: '40px', flexShrink: 0 }}>
                                                                   <img
-                                                                        src={profileUser.profileSong.albumArt}
+                                                                        src={profileUser.profileSong.albumArt || 'https://images.unsplash.com/photo-1514525253361-bee21394f6c1?w=100&h=100&fit=crop&q=80'}
                                                                         alt=""
                                                                         style={{ width: '100%', height: '100%', borderRadius: '8px', objectFit: 'cover' }}
                                                                   />
@@ -639,13 +650,47 @@ const Profile = () => {
                                                                         </button>
                                                                   )}
                                                             </div>
-                                                            <div className="flex-1 min-w-0" style={{ cursor: 'pointer' }} onClick={() => profileUser.profileSong.previewUrl && playTrack(profileUser.profileSong)}>
+                                                            <div className="flex-1 min-w-0" style={{ cursor: 'pointer' }} onClick={(e) => {
+                                                                  if (!isOwnProfile && profileUser.profileSong.previewUrl) {
+                                                                        e.stopPropagation();
+                                                                        playTrack(profileUser.profileSong);
+                                                                  }
+                                                            }}>
                                                                   <div className="font-bold text-sm truncate">{profileUser.profileSong.name}</div>
                                                                   <div className="text-xs text-muted truncate">{profileUser.profileSong.artist}</div>
                                                             </div>
                                                             {isOwnProfile && (
-                                                                  <div className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded ml-2">MY TRACK</div>
+                                                                  <div className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded ml-2 shadow-sm border border-indigo-100">MY TRACK</div>
                                                             )}
+                                                      </div>
+                                                ) : isOwnProfile && (
+                                                      <div
+                                                            className="mt-lg animate-fadeInUp"
+                                                            style={{
+                                                                  display: 'inline-flex',
+                                                                  alignItems: 'center',
+                                                                  gap: '8px',
+                                                                  padding: '8px 16px',
+                                                                  background: 'var(--gradient-primary)',
+                                                                  color: 'white',
+                                                                  borderRadius: '20px',
+                                                                  fontSize: '0.85rem',
+                                                                  fontWeight: '600',
+                                                                  cursor: 'pointer',
+                                                                  boxShadow: 'var(--shadow-md)',
+                                                                  transition: 'all 0.2s ease'
+                                                            }}
+                                                            onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                                                            onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                                                            onClick={() => {
+                                                                  setEditing(true);
+                                                                  setTimeout(() => {
+                                                                        const searchDiv = document.getElementById('spotify-search-wrapper');
+                                                                        if (searchDiv) searchDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                                  }, 100);
+                                                            }}
+                                                      >
+                                                            <span>🎵 Add Music to Profile</span>
                                                       </div>
                                                 )}
                                           </div>
@@ -745,10 +790,11 @@ const Profile = () => {
                                                 ))}
                                           </div>
                                     </div>
-                                    <div className="input-group mt-lg">
+                                    <div className="input-group mt-lg" id="spotify-search-wrapper">
                                           <SpotifySearch
                                                 selectedTrack={editData.profileSong}
                                                 onSelect={(track) => setEditData(prev => ({ ...prev, profileSong: track }))}
+                                                inputId="spotify-search-input"
                                           />
                                     </div>
                                     <div className="flex gap-md mt-xl">

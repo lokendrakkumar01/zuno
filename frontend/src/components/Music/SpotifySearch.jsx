@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { API_URL } from '../../config';
 import { useAuth } from '../../context/AuthContext';
 
-const SpotifySearch = ({ onSelect, selectedTrack }) => {
+const SpotifySearch = ({ onSelect, selectedTrack, inputId }) => {
       const [query, setQuery] = useState('');
       const [results, setResults] = useState([]);
       const [loading, setLoading] = useState(false);
@@ -43,9 +43,10 @@ const SpotifySearch = ({ onSelect, selectedTrack }) => {
       return (
             <div className="spotify-search-container">
                   <div className="input-group mb-md">
-                        <label className="input-label">🎵 Add Music (Spotify)</label>
+                        <label className="input-label" htmlFor={inputId}>🎵 Add Music (Spotify)</label>
                         <div style={{ position: 'relative' }}>
                               <input
+                                    id={inputId}
                                     type="text"
                                     className="input"
                                     placeholder="Search for a song or artist..."
