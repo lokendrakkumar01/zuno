@@ -1011,8 +1011,9 @@ const Profile = () => {
                                     </div>
                               )
                         }
-                  </>
-                  );
+                  </div>
+            </>
+      );
 };
 
-                  export default Profile;
+export default Profile;
