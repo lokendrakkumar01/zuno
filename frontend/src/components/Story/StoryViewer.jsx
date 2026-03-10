@@ -172,7 +172,8 @@ const StoryViewer = ({ group, onClose }) => {
 
       const media = currentStory.media && currentStory.media.length > 0 ? currentStory.media[0] : null;
       const isVideo = media?.type === 'video';
-      const isTextStatus = !media && currentStory.backgroundColor;
+      // Text status = contentType is text-status, OR story has body text but no media
+      const isTextStatus = currentStory.contentType === 'text-status' || (!media && !!currentStory.body);
 
       return (
             <div style={{
@@ -333,7 +334,8 @@ const StoryViewer = ({ group, onClose }) => {
                                     justifyContent: 'center',
                                     position: 'relative',
                                     overflow: 'hidden',
-                                    backgroundColor: isTextStatus ? currentStory.backgroundColor : 'black'
+                                    backgroundColor: isTextStatus ? (currentStory.backgroundColor || 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)') : 'black',
+                                    background: isTextStatus ? (currentStory.backgroundColor || 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)') : undefined
                               }}
                         >
                               {isTextStatus ? (
