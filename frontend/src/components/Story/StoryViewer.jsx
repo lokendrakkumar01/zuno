@@ -82,17 +82,68 @@ const StoryViewer = ({ group, onClose }) => {
       const isTextStatus = !media && currentStory.backgroundColor;
 
       return (
-            <div className="fixed inset-0 z-[100] bg-black flex items-center justify-center">
-                  <button onClick={onClose} className="absolute top-4 right-4 text-white text-2xl z-[110] hover:scale-110 transition-transform">✕</button>
+            <div style={{
+                  position: 'fixed',
+                  inset: 0,
+                  zIndex: 1000,
+                  backgroundColor: 'black',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+            }}>
+                  <button
+                        onClick={onClose}
+                        style={{
+                              position: 'absolute',
+                              top: '24px',
+                              right: '24px',
+                              color: 'white',
+                              fontSize: '32px',
+                              zIndex: 1100,
+                              background: 'transparent',
+                              border: 'none',
+                              cursor: 'pointer',
+                              transition: 'transform 0.2s'
+                        }}
+                  >
+                        ✕
+                  </button>
 
-                  <div className="relative w-full max-w-md h-full md:h-[90vh] bg-gray-900 md:rounded-2xl overflow-hidden flex flex-col">
+                  <div style={{
+                        position: 'relative',
+                        width: '100%',
+                        maxWidth: '450px',
+                        height: '100%',
+                        maxHeight: '100vh',
+                        backgroundColor: '#111',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        overflow: 'hidden',
+                        borderRadius: window.innerWidth > 768 ? '16px' : '0'
+                  }}>
                         {/* Progress Bar */}
-                        <div className="absolute top-2 left-2 right-2 flex gap-1 z-20">
+                        <div style={{
+                              position: 'absolute',
+                              top: '12px',
+                              left: '8px',
+                              right: '8px',
+                              display: 'flex',
+                              gap: '4px',
+                              zIndex: 20
+                        }}>
                               {group.stories.map((_, idx) => (
-                                    <div key={idx} className="h-1 flex-1 bg-gray-600/50 rounded-full overflow-hidden">
+                                    <div key={idx} style={{
+                                          height: '3px',
+                                          flex: 1,
+                                          backgroundColor: 'rgba(255,255,255,0.3)',
+                                          borderRadius: '2px',
+                                          overflow: 'hidden'
+                                    }}>
                                           <div
-                                                className="h-full bg-white transition-all duration-100"
                                                 style={{
+                                                      height: '100%',
+                                                      backgroundColor: 'white',
+                                                      transition: 'width 0.1s linear',
                                                       width: idx < currentIndex ? '100%' : idx === currentIndex ? `${progress}%` : '0%'
                                                 }}
                                           ></div>
@@ -101,7 +152,15 @@ const StoryViewer = ({ group, onClose }) => {
                         </div>
 
                         {/* User Info */}
-                        <div className="absolute top-8 left-4 flex items-center gap-3 z-20">
+                        <div style={{
+                              position: 'absolute',
+                              top: '32px',
+                              left: '16px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '12px',
+                              zIndex: 20
+                        }}>
                               <div style={{
                                     width: '40px',
                                     height: '40px',
@@ -121,52 +180,94 @@ const StoryViewer = ({ group, onClose }) => {
                                           }}
                                     />
                               </div>
-                              <div>
-                                    <span className="text-white font-semibold text-sm">{group.creator.displayName || group.creator.username}</span>
-                                    <span className="text-gray-400 text-xs ml-2">{getTimeAgo(currentStory.createdAt)}</span>
+                              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                    <span style={{ color: 'white', fontWeight: '600', fontSize: '14px' }}>{group.creator.displayName || group.creator.username}</span>
+                                    <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: '11px' }}>{getTimeAgo(currentStory.createdAt)}</span>
                               </div>
                         </div>
 
                         {/* Music Info Overlay */}
                         {currentStory.music && currentStory.music.previewUrl && (
-                              <div className="absolute top-20 left-4 right-4 z-20 animate-fadeIn">
-                                    <div className="flex items-center gap-2 bg-black/30 backdrop-blur-md p-2 rounded-lg border border-white/10 max-w-fit">
-                                          <div className="w-8 h-8 rounded bg-green-500 flex items-center justify-center flex-shrink-0">
-                                                <div className="flex gap-[2px] items-center h-3">
-                                                      <div className="w-[2px] bg-white h-full animate-pulse" style={{ animationDelay: '0ms' }}></div>
-                                                      <div className="w-[2px] bg-white h-2/3 animate-pulse" style={{ animationDelay: '150ms' }}></div>
-                                                      <div className="w-[2px] bg-white h-full animate-pulse" style={{ animationDelay: '300ms' }}></div>
+                              <div style={{
+                                    position: 'absolute',
+                                    top: '84px',
+                                    left: '16px',
+                                    right: '16px',
+                                    zIndex: 20,
+                                    animation: 'fadeIn 0.3s ease'
+                              }}>
+                                    <div style={{
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '8px',
+                                          background: 'rgba(0,0,0,0.3)',
+                                          backdropFilter: 'blur(8px)',
+                                          padding: '8px',
+                                          borderRadius: '8px',
+                                          border: '1px solid rgba(255,255,255,0.1)',
+                                          maxWidth: 'fit-content'
+                                    }}>
+                                          <div style={{
+                                                width: '32px',
+                                                height: '32px',
+                                                borderRadius: '4px',
+                                                backgroundColor: '#22c55e',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                flexShrink: 0
+                                          }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '2px', height: '12px' }}>
+                                                      <div style={{ width: '2px', height: '100%', backgroundColor: 'white', animation: 'pulse 1s infinite' }}></div>
+                                                      <div style={{ width: '2px', height: '60%', backgroundColor: 'white', animation: 'pulse 1s infinite 0.15s' }}></div>
+                                                      <div style={{ width: '2px', height: '100%', backgroundColor: 'white', animation: 'pulse 1s infinite 0.3s' }}></div>
                                                 </div>
                                           </div>
-                                          <div className="flex flex-col min-w-0 pr-2">
-                                                <span className="text-white text-xs font-bold truncate">{currentStory.music.name}</span>
-                                                <span className="text-gray-300 text-[10px] truncate">{currentStory.music.artist}</span>
+                                          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, paddingRight: '8px' }}>
+                                                <span style={{ color: 'white', fontSize: '12px', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentStory.music.name}</span>
+                                                <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentStory.music.artist}</span>
                                           </div>
-
                                     </div>
                               </div>
                         )}
 
                         {/* Content Area */}
-                        <div className="flex-1 flex items-center justify-center relative overflow-hidden" style={{ backgroundColor: isTextStatus ? currentStory.backgroundColor : 'black' }}>
+                        <div
+                              style={{
+                                    flex: 1,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    position: 'relative',
+                                    overflow: 'hidden',
+                                    backgroundColor: isTextStatus ? currentStory.backgroundColor : 'black'
+                              }}
+                        >
                               {isTextStatus ? (
-                                    <div className="p-8 text-center animate-fadeInUp">
-                                          <h2 className="text-white text-3xl font-bold leading-tight break-words" style={{ textShadow: '0 2px 10px rgba(0,0,0,0.2)' }}>
+                                    <div style={{ padding: '32px', textAlign: 'center' }}>
+                                          <h2 style={{
+                                                color: 'white',
+                                                fontSize: '28px',
+                                                fontWeight: 'bold',
+                                                lineHeight: '1.2',
+                                                wordBreak: 'break-word',
+                                                textShadow: '0 2px 10px rgba(0,0,0,0.3)'
+                                          }}>
                                                 {currentStory.body}
                                           </h2>
                                     </div>
                               ) : (
                                     <>
                                           {!isVideo && !imageLoaded && !error && (
-                                                <div className="absolute inset-0 flex items-center justify-center">
-                                                      <div className="w-10 h-10 border-4 border-gray-600 border-t-white rounded-full animate-spin"></div>
+                                                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyCenter: 'center' }}>
+                                                      <div className="animate-spin" style={{ width: '40px', height: '40px', border: '4px solid rgba(255,255,255,0.2)', borderTopColor: 'white', borderRadius: '50%' }}></div>
                                                 </div>
                                           )}
 
                                           {isVideo ? (
                                                 <video
                                                       src={getMediaUrl(media.url)}
-                                                      className="w-full h-full object-contain"
+                                                      style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                                                       autoPlay
                                                       playsInline
                                                       onEnded={handleNext}
@@ -176,7 +277,13 @@ const StoryViewer = ({ group, onClose }) => {
                                           ) : (
                                                 <img
                                                       src={getMediaUrl(media.url)}
-                                                      className={`w-full h-full object-contain transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+                                                      style={{
+                                                            width: '100%',
+                                                            height: '100%',
+                                                            objectFit: 'contain',
+                                                            transition: 'opacity 0.3s',
+                                                            opacity: imageLoaded ? 1 : 0
+                                                      }}
                                                       onLoad={() => setImageLoaded(true)}
                                                       onError={() => setError(true)}
                                                 />
@@ -185,21 +292,27 @@ const StoryViewer = ({ group, onClose }) => {
                               )}
 
                               {error && (
-                                    <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
-                                          <span className="text-4xl mb-2">⚠️</span>
-                                          <p className="text-gray-400">Failed to load story</p>
+                                    <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+                                          <span style={{ fontSize: '40px', marginBottom: '8px' }}>⚠️</span>
+                                          <p style={{ color: 'rgba(255,255,255,0.6)' }}>Failed to load story</p>
                                     </div>
                               )}
 
                               {/* Navigation Zones */}
-                              <div className="absolute inset-y-0 left-0 w-1/3 cursor-pointer" onClick={handlePrev}></div>
-                              <div className="absolute inset-y-0 right-0 w-1/3 cursor-pointer" onClick={handleNext}></div>
+                              <div style={{ position: 'absolute', inset: '0 auto 0 0', width: '33.33%', cursor: 'pointer' }} onClick={handlePrev}></div>
+                              <div style={{ position: 'absolute', inset: '0 0 0 auto', width: '33.33%', cursor: 'pointer' }} onClick={handleNext}></div>
                         </div>
 
                         {/* Story expires in indicator */}
                         {currentStory.expiresAt && (
-                              <div className="absolute bottom-4 left-0 right-0 text-center">
-                                    <span className="text-gray-500 text-xs bg-black/50 px-3 py-1 rounded-full">
+                              <div style={{ position: 'absolute', bottom: '16px', left: 0, right: 0, textAlign: 'center' }}>
+                                    <span style={{
+                                          color: 'rgba(255,255,255,0.5)',
+                                          fontSize: '12px',
+                                          backgroundColor: 'rgba(0,0,0,0.5)',
+                                          padding: '4px 12px',
+                                          borderRadius: '999px'
+                                    }}>
                                           ⏳ Expires {getTimeAgo(currentStory.expiresAt)}
                                     </span>
                               </div>

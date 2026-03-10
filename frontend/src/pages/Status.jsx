@@ -11,6 +11,8 @@ const Status = () => {
       const [storyGroups, setStoryGroups] = useState([]);
       const [loading, setLoading] = useState(true);
       const [selectedGroup, setSelectedGroup] = useState(null);
+      const [searchTerm, setSearchTerm] = useState('');
+      const [isSearching, setIsSearching] = useState(false);
 
       useEffect(() => {
             if (!isAuthenticated) {
@@ -37,8 +39,14 @@ const Status = () => {
             fetchStatuses();
       }, [isAuthenticated, token, navigate]);
 
-      const myStories = storyGroups.find(group => group.creator._id === user?._id);
-      const otherStories = storyGroups.filter(group => group.creator._id !== user?._id);
+      // Filter groups by searchTerm
+      const filteredGroups = storyGroups.filter(group => {
+            const name = (group.creator.displayName || group.creator.username || '').toLowerCase();
+            return name.includes(searchTerm.toLowerCase());
+      });
+
+      const myStories = filteredGroups.find(group => group.creator._id === user?._id);
+      const otherStories = filteredGroups.filter(group => group.creator._id !== user?._id);
 
       // Filter into Recent updates
       const recentUpdates = otherStories;
@@ -46,15 +54,51 @@ const Status = () => {
       return (
             <div className="status-page container animate-fadeIn" style={{ paddingBottom: '96px' }}>
                   <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', paddingTop: '16px' }}>
-                        <h1 style={{ fontSize: '24px', fontWeight: 'bold' }}>Status</h1>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                              <button className="btn btn-icon" style={{ background: 'var(--color-bg-hover)', fontSize: '20px' }}>
-                                    🔍
-                              </button>
-                              <button className="btn btn-icon" style={{ background: 'var(--color-bg-hover)', fontSize: '20px' }}>
-                                    ⋮
-                              </button>
-                        </div>
+                        {isSearching ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', background: 'var(--color-bg-secondary)', padding: '8px 12px', borderRadius: '12px' }}>
+                                    <button
+                                          className="btn btn-icon"
+                                          style={{ width: '32px', height: '32px', minWidth: '32px', background: 'transparent', fontSize: '18px' }}
+                                          onClick={() => {
+                                                setIsSearching(false);
+                                                setSearchTerm('');
+                                          }}
+                                    >
+                                          ←
+                                    </button>
+                                    <input
+                                          type="text"
+                                          placeholder="Search status..."
+                                          value={searchTerm}
+                                          onChange={(e) => setSearchTerm(e.target.value)}
+                                          autoFocus
+                                          style={{
+                                                width: '100%',
+                                                background: 'transparent',
+                                                border: 'none',
+                                                outline: 'none',
+                                                fontSize: '16px',
+                                                color: 'var(--color-text-primary)'
+                                          }}
+                                    />
+                              </div>
+                        ) : (
+                              <>
+                                    <h1 style={{ fontSize: '24px', fontWeight: 'bold' }}>Status</h1>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                          <button
+                                                className="btn btn-icon"
+                                                style={{ background: 'var(--color-bg-hover)', fontSize: '20px' }}
+                                                onClick={() => setIsSearching(true)}
+                                          >
+                                                🔍
+                                          </button>
+                                          <button className="btn btn-icon" style={{ background: 'var(--color-bg-hover)', fontSize: '20px' }}>
+                                                ⋮
+                                          </button>
+                                    </div>
+                              </>
+                        )}
                   </header>
 
                   {/* My Status */}
