@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useSocketContext } from '../../context/SocketContext';
 import { API_URL } from '../../config';
+import UserAvatar from '../../components/User/UserAvatar';
 
 const Messages = () => {
       const { token, isAuthenticated, user } = useAuth();
@@ -255,13 +256,7 @@ const Messages = () => {
                                           className={`conversation-item ${conv.unreadCount > 0 ? 'unread' : ''}`}
                                     >
                                           <div className="msg-avatar" style={{ position: 'relative' }}>
-                                                {conv.user?.avatar ? (
-                                                      <img src={conv.user.avatar} alt={conv.user.displayName} />
-                                                ) : (
-                                                      <span>
-                                                            {conv.user?.displayName?.charAt(0) || conv.user?.username?.charAt(0) || 'U'}
-                                                      </span>
-                                                )}
+                                                <UserAvatar user={conv.user} size={44} />
                                                 {onlineUsers.some(id => id.toString() === conv.user?._id?.toString()) && (
                                                       <span style={{
                                                             position: 'absolute',

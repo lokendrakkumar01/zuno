@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useSocketContext } from '../../context/SocketContext';
 import { API_URL } from '../../config';
 import { useCallContext } from '../../context/CallContext';
+import UserAvatar from '../../components/User/UserAvatar';
 
 // Common emojis organized by category
 const EMOJI_DATA = {
@@ -738,11 +739,7 @@ const Chat = () => {
                         </button>
                         <Link to={`/u/${otherUser?.username}`} className="chat-user-info" style={{ flex: 1 }}>
                               <div className="msg-avatar msg-avatar-sm">
-                                    {otherUser?.avatar ? (
-                                          <img src={otherUser.avatar} alt={otherUser.displayName} />
-                                    ) : (
-                                          <span>{otherUser?.displayName?.charAt(0) || otherUser?.username?.charAt(0) || 'U'}</span>
-                                    )}
+                                    <UserAvatar user={otherUser} size={38} />
                               </div>
                               <div>
                                     <div className="font-semibold">{otherUser?.displayName || otherUser?.username || 'Loading...'}</div>

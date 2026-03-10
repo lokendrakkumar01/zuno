@@ -5,6 +5,7 @@ import { API_URL } from '../config';
 import ContentCard from '../components/Content/ContentCard';
 import SpotifySearch from '../components/Music/SpotifySearch';
 import { useMusic } from '../context/MusicContext';
+import UserAvatar from '../components/User/UserAvatar';
 
 const INTERESTS = [
       'learning', 'technology', 'creativity', 'health',
@@ -469,19 +470,26 @@ const Profile = () => {
                                                             cursor: profileUser.avatar ? 'pointer' : 'default',
                                                             transition: 'all 0.3s ease',
                                                             border: '3px solid rgba(99, 102, 241, 0.5)',
-                                                            position: 'relative'
+                                                            position: 'relative',
+                                                            overflow: 'hidden',
+                                                            borderRadius: '50%',
+                                                            width: '100px',
+                                                            height: '100px',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
                                                       }}
                                                       onMouseOver={(e) => isOwnProfile && (e.currentTarget.style.transform = 'scale(1.05)')}
                                                       onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
                                                 >
                                                       {uploadingPhoto ? (
                                                             <span style={{ fontSize: '1.5rem' }}>⏳</span>
-                                                      ) : profileUser.avatar ? (
-                                                            <img src={profileUser.avatar} alt={profileUser.displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                                       ) : (
-                                                            <span style={{ fontSize: '2.5rem' }}>
-                                                                  {profileUser.displayName?.charAt(0).toUpperCase() || profileUser.username?.charAt(0).toUpperCase() || 'Z'}
-                                                            </span>
+                                                            <UserAvatar
+                                                                  user={profileUser}
+                                                                  size={94}
+                                                                  style={{ border: 'none' }}
+                                                            />
                                                       )}
 
                                                       {/* Play button on Avatar */}

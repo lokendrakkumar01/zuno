@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { API_URL } from '../../config';
 import StoryViewer from './StoryViewer';
+import UserAvatar from '../User/UserAvatar';
 
 const StoryBar = () => {
       const [storyGroups, setStoryGroups] = useState(() => {
@@ -95,24 +96,11 @@ const StoryBar = () => {
                                           width: '66px',
                                           height: '66px'
                                     }}>
-                                          <div style={{
-                                                width: '66px',
-                                                height: '66px',
-                                                borderRadius: '50%',
-                                                border: '2px solid #efefef',
-                                                overflow: 'hidden',
-                                                background: '#fafafa'
-                                          }}>
-                                                <img
-                                                      src={user?.avatar || 'https://via.placeholder.com/66'}
-                                                      alt="Your Story"
-                                                      style={{
-                                                            width: '100%',
-                                                            height: '100%',
-                                                            objectFit: 'cover'
-                                                      }}
-                                                />
-                                          </div>
+                                          <UserAvatar
+                                                user={user}
+                                                size={62}
+                                                style={{ border: '2px solid #efefef' }}
+                                          />
                                           {/* Plus icon */}
                                           <div style={{
                                                 position: 'absolute',
@@ -160,24 +148,11 @@ const StoryBar = () => {
                                     }}
                               >
                                     <div style={gradientRingStyle}>
-                                          <div style={{
-                                                width: '60px',
-                                                height: '60px',
-                                                borderRadius: '50%',
-                                                border: '3px solid white',
-                                                overflow: 'hidden',
-                                                background: 'white'
-                                          }}>
-                                                <img
-                                                      src={group.creator.avatar || 'https://via.placeholder.com/60'}
-                                                      alt={group.creator.displayName}
-                                                      style={{
-                                                            width: '100%',
-                                                            height: '100%',
-                                                            objectFit: 'cover'
-                                                      }}
-                                                />
-                                          </div>
+                                          <UserAvatar
+                                                user={group.creator}
+                                                size={60}
+                                                style={{ border: '3px solid white' }}
+                                          />
                                     </div>
                                     {/* Follow icon for non-followed users - Like Instagram */}
                                     {!group.isFollowing && (
