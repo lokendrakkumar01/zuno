@@ -39,17 +39,44 @@ const Messages = () => {
       // Socket listener for real-time updates
       useEffect(() => {
             if (socket) {
-                  const handleUpdate = () => {
-                        fetchConversations();
+                  // On new message: optimistically update conversation list without full API refetch
+                  const handleNewMessage = (newMsg) => {
+                        const senderId = (newMsg.sender?._id || newMsg.sender || '').toString();
+                        const receiverId = (newMsg.receiver?._id || newMsg.receiver || '').toString();
+                        const currentId = (user?._id || '').toString();
+
+                        // Determine the 'other' person in this conversation
+                        const otherUserId = senderId === currentId ? receiverId : senderId;
+
+                        setConversations(prev => {
+                              const exists = prev.findIndex(c => c.user?._id?.toString() === otherUserId);
+                              if (exists === -1) {
+                                    // Unknown conversation — do a full refresh
+                                    fetchConversations();
+                                    return prev;
+                              }
+                              const updated = [...prev];
+                              const conv = { ...updated[exists] };
+                              conv.lastMessage = newMsg;
+                              // Only increment unread if message is from other user (not ourselves)
+                              if (senderId !== currentId) {
+                                    conv.unreadCount = (conv.unreadCount || 0) + 1;
+                              }
+                              updated.splice(exists, 1);
+                              updated.unshift(conv); // Move to top
+                              return updated;
+                        });
                   };
-                  socket.on('newMessage', handleUpdate);
-                  socket.on('messageRead', handleUpdate);
+
+                  const handleRead = () => fetchConversations();
+                  socket.on('newMessage', handleNewMessage);
+                  socket.on('messageRead', handleRead);
                   return () => {
-                        socket.off('newMessage', handleUpdate);
-                        socket.off('messageRead', handleUpdate);
+                        socket.off('newMessage', handleNewMessage);
+                        socket.off('messageRead', handleRead);
                   };
             }
-      }, [socket]);
+      }, [socket, user?._id]);
 
       const fetchConversations = async () => {
             if (conversations.length === 0) setLoading(true);
@@ -244,7 +271,7 @@ const Messages = () => {
                                                             height: '12px',
                                                             backgroundColor: '#10b981',
                                                             borderRadius: '50%',
-                                                            border: '2px solid white'
+                                                            border: '2px solid var(--color-bg-primary)'
                                                       }}></span>
                                                 )}
                                           </div>

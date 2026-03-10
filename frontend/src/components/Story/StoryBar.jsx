@@ -58,8 +58,8 @@ const StoryBar = () => {
 
       return (
             <div style={{
-                  background: 'white',
-                  borderBottom: '1px solid #efefef',
+                  background: 'var(--color-bg-primary)',
+                  borderBottom: '1px solid var(--color-border)',
                   padding: '12px 0',
                   marginBottom: '16px',
                   overflowX: 'auto',
@@ -135,7 +135,7 @@ const StoryBar = () => {
                                     </div>
                                     <span style={{
                                           fontSize: '11px',
-                                          color: '#262626',
+                                          color: 'var(--color-text-primary)',
                                           textAlign: 'center',
                                           maxWidth: '65px',
                                           overflow: 'hidden',
@@ -203,7 +203,7 @@ const StoryBar = () => {
                                     )}
                                     <span style={{
                                           fontSize: '11px',
-                                          color: '#262626',
+                                          color: 'var(--color-text-primary)',
                                           textAlign: 'center',
                                           maxWidth: '65px',
                                           overflow: 'hidden',

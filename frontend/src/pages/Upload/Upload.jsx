@@ -85,8 +85,12 @@ const Upload = () => {
       }
 
       const handleTypeSelect = (type) => {
-            // For text status, we can skip straight to details
-            setFormData(prev => ({ ...prev, contentType: type }));
+            setFormData(prev => ({
+                  ...prev,
+                  contentType: type,
+                  // Auto-set purpose for story/text-status so backend validation passes
+                  purpose: (type === 'story' || type === 'text-status') ? 'story' : prev.purpose
+            }));
             setStep(2);
       };
 
@@ -530,10 +534,14 @@ const Upload = () => {
                                     <button
                                           onClick={() => setStep(3)}
                                           className="btn btn-primary flex-[2]"
-                                          disabled={!formData.body && !formData.media}
+                                          disabled={
+                                                formData.contentType === 'text-status'
+                                                      ? !formData.body.trim()
+                                                      : (!formData.body && !formData.media)
+                                          }
                                           style={{ borderRadius: '12px' }}
                                     >
-                                          Next: Categorize
+                                          Next: Finalize
                                     </button>
                               </div>
                         </div>

@@ -13,7 +13,9 @@ const StoryViewer = ({ group, onClose }) => {
       const [isEditing, setIsEditing] = useState(false);
       const [editBody, setEditBody] = useState('');
       const [isDeleting, setIsDeleting] = useState(false);
-      const currentStory = group.stories[currentIndex];
+      // Local copy of stories to avoid direct prop mutation
+      const [localStories, setLocalStories] = useState(() => [...group.stories]);
+      const currentStory = localStories[currentIndex];
       const videoRef = useRef(null);
 
       const isOwner = user?._id === group.creator._id;
@@ -36,7 +38,7 @@ const StoryViewer = ({ group, onClose }) => {
             }, 50); // 5 sec duration roughly if step is small
 
             return () => clearInterval(timer);
-      }, [currentIndex, group.stories.length]);
+      }, [currentIndex, localStories.length]);
 
       // Music Handling
       useEffect(() => {
@@ -50,7 +52,7 @@ const StoryViewer = ({ group, onClose }) => {
       }, [currentStory, playTrack, stopTrack]);
 
       const handleNext = () => {
-            if (currentIndex < group.stories.length - 1) {
+            if (currentIndex < localStories.length - 1) {
                   setCurrentIndex(prev => prev + 1);
                   setProgress(0);
             } else {
@@ -93,18 +95,18 @@ const StoryViewer = ({ group, onClose }) => {
                   });
                   const data = await res.json();
                   if (data.success) {
-                        if (group.stories.length === 1) {
+                        if (localStories.length === 1) {
                               onClose();
                               window.location.reload(); // Refresh to update list
                         } else {
-                              // If multiple stories, just move to next or previous
-                              if (currentIndex < group.stories.length - 1) {
-                                    handleNext();
-                                    group.stories.splice(currentIndex, 1);
-                              } else {
-                                    handlePrev();
-                                    group.stories.splice(currentIndex, 1);
+                              // Remove story from local state (no prop mutation)
+                              const updated = localStories.filter((_, i) => i !== currentIndex);
+                              setLocalStories(updated);
+                              // Adjust index if we were at the last story
+                              if (currentIndex >= updated.length) {
+                                    setCurrentIndex(updated.length - 1);
                               }
+                              setProgress(0);
                         }
                   }
             } catch (err) {
@@ -126,7 +128,10 @@ const StoryViewer = ({ group, onClose }) => {
                   });
                   const data = await res.json();
                   if (data.success) {
-                        currentStory.body = editBody;
+                        // Update the story text locally without mutating props
+                        setLocalStories(prev => prev.map((s, i) =>
+                              i === currentIndex ? { ...s, body: editBody } : s
+                        ));
                         setIsEditing(false);
                   }
             } catch (err) {
@@ -149,6 +154,18 @@ const StoryViewer = ({ group, onClose }) => {
             if (hours > 0) return `${hours}h`;
             if (minutes > 0) return `${minutes}m`;
             return 'now';
+      };
+
+      // Calculate time remaining until expiry
+      const getTimeRemaining = (date) => {
+            const now = new Date();
+            const diff = new Date(date) - now;
+            if (diff <= 0) return 'Expired';
+            const hours = Math.floor(diff / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            if (hours > 0) return `${hours}h left`;
+            if (minutes > 0) return `${minutes}m left`;
+            return 'Expiring soon';
       };
 
       if (!currentStory) return null;
@@ -207,7 +224,7 @@ const StoryViewer = ({ group, onClose }) => {
                               gap: '4px',
                               zIndex: 20
                         }}>
-                              {group.stories.map((_, idx) => (
+                              {localStories.map((_, idx) => (
                                     <div key={idx} style={{
                                           height: '3px',
                                           flex: 1,
@@ -430,7 +447,7 @@ const StoryViewer = ({ group, onClose }) => {
                                           padding: '4px 10px',
                                           borderRadius: '999px'
                                     }}>
-                                          ⏳ {getTimeAgo(currentStory.expiresAt)}
+                                          ⏳ {getTimeRemaining(currentStory.expiresAt)}
                                     </span>
                               )}
                         </div>

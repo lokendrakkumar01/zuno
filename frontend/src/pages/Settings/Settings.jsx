@@ -15,7 +15,6 @@ const Settings = () => {
 
       // Modal states
       const [showActivity, setShowActivity] = useState(false);
-      const [showCloseFriends, setShowCloseFriends] = useState(false);
       const [showArchive, setShowArchive] = useState(false);
       const [showCreatorTools, setShowCreatorTools] = useState(false);
       const [showBlocked, setShowBlocked] = useState(false);
@@ -136,12 +135,6 @@ const Settings = () => {
                         {/* Who Can See Your Content Section */}
                         <SectionTitle title={t('whoCanSeeContent')} />
                         <SettingsOption
-                              icon="📥"
-                              label="Archive"
-                              subtitle="View and restore archived content"
-                              onClick={() => setShowArchive(true)}
-                        />
-                        <SettingsOption
                               icon="🔒"
                               label={t('privacy')}
                               value={user?.isPrivate ? 'Private' : 'Public'}
@@ -249,21 +242,6 @@ const Settings = () => {
                         />
                   </div>
 
-                  {/* Modal for Your Activity */}
-                  {showActivity && (
-                        <ActivityModal onClose={() => setShowActivity(false)} />
-                  )}
-
-                  {/* Modal for Archive */}
-                  {showArchive && (
-                        <ArchiveModal onClose={() => setShowArchive(false)} />
-                  )}
-
-                  {/* Modal for Close Friends */}
-                  {showCloseFriends && (
-                        <CloseFriendsModal onClose={() => setShowCloseFriends(false)} />
-                  )}
-
                   {/* Modal for Archive */}
                   {showArchive && (
                         <ArchiveModal onClose={() => setShowArchive(false)} />
@@ -306,41 +284,6 @@ const ActivityModal = ({ onClose }) => (
       </ModalWrapper>
 );
 
-const CloseFriendsModal = ({ onClose }) => (
-      <ModalWrapper title="Close Friends" onClose={onClose}>
-            <div style={{ padding: '24px', textAlign: 'center' }}>
-                  <div style={{
-                        width: '80px',
-                        height: '80px',
-                        borderRadius: '50%',
-                        background: 'rgba(34, 197, 94, 0.1)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        margin: '0 auto 20px auto',
-                        fontSize: '40px'
-                  }}>👥</div>
-                  <h3 style={{ marginBottom: '12px', color: 'var(--color-text-primary)', fontSize: '20px' }}>Close Friends</h3>
-                  <p style={{ color: 'var(--color-text-secondary)', marginBottom: '32px', lineHeight: '1.5' }}>
-                        Create a special list of people you want to share more personal moments with on ZUNO.
-                  </p>
-                  <button style={{
-                        width: '100%',
-                        padding: '16px',
-                        borderRadius: '14px',
-                        border: 'none',
-                        background: 'var(--gradient-primary, linear-gradient(135deg, #6366f1 0%, #a855f7 100%))',
-                        color: 'white',
-                        fontWeight: '700',
-                        fontSize: '16px',
-                        cursor: 'pointer',
-                        boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
-                  }}>
-                        Get Started
-                  </button>
-            </div>
-      </ModalWrapper>
-);
 
 
 const CreatorToolsModal = ({ onClose }) => (
@@ -352,10 +295,10 @@ const CreatorToolsModal = ({ onClose }) => (
                         <p style={{ color: 'var(--color-text-secondary)', fontSize: '14px' }}>Elevate your presence on ZUNO</p>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        <SettingsOption icon="💎" label="Verification" subtitle="Apply for the blue tick" />
-                        <SettingsOption icon="📈" label="Channel Insights" subtitle="Track your growth" />
-                        <SettingsOption icon="💰" label="Monetization" badge="Locked" subtitle="Coming soon to your region" />
-                        <SettingsOption icon="📱" label="Branded Content" subtitle="Manage your partnerships" />
+                        <SettingsOption icon="💎" label="Verification" subtitle="Apply for the blue tick" onClick={() => toast.info('Verification — Coming soon!')} />
+                        <SettingsOption icon="📈" label="Channel Insights" subtitle="Track your growth" onClick={() => toast.info('Channel Insights — Coming soon!')} />
+                        <SettingsOption icon="💰" label="Monetization" badge="Locked" subtitle="Coming soon to your region" onClick={() => toast.info('Monetization — Coming soon in your region!')} />
+                        <SettingsOption icon="📱" label="Branded Content" subtitle="Manage your partnerships" onClick={() => toast.info('Branded Content — Coming soon!')} />
                   </div>
             </div>
       </ModalWrapper>

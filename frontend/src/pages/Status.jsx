@@ -8,8 +8,16 @@ import StoryViewer from '../components/Story/StoryViewer';
 const Status = () => {
       const { user, token, isAuthenticated } = useAuth();
       const navigate = useNavigate();
-      const [storyGroups, setStoryGroups] = useState([]);
-      const [loading, setLoading] = useState(true);
+      const CACHE_KEY = `zuno_stories_cache_${user?._id}`;
+      // Initialize from cache for instant display
+      const [storyGroups, setStoryGroups] = useState(() => {
+            try {
+                  const cached = localStorage.getItem(`zuno_stories_cache_${user?._id}`);
+                  return cached ? JSON.parse(cached) : [];
+            } catch { return []; }
+      });
+      // Only show spinner if no cache exists
+      const [loading, setLoading] = useState(() => !localStorage.getItem(`zuno_stories_cache_${user?._id}`));
       const [selectedGroup, setSelectedGroup] = useState(null);
       const [searchTerm, setSearchTerm] = useState('');
       const [isSearching, setIsSearching] = useState(false);
@@ -28,6 +36,7 @@ const Status = () => {
                         const data = await res.json();
                         if (data.success) {
                               setStoryGroups(data.data);
+                              try { localStorage.setItem(CACHE_KEY, JSON.stringify(data.data)); } catch (e) {}
                         }
                   } catch (error) {
                         console.error("Failed to fetch statuses", error);
@@ -175,7 +184,7 @@ const Status = () => {
                   {/* WhatsApp FAB Style for text status */}
                   <div style={{ position: 'fixed', bottom: '112px', right: '24px', display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', zIndex: 100 }}>
                         <button
-                              style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'white', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', fontSize: '20px' }}
+                              style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--color-bg-card)', boxShadow: '0 4px 12px rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--color-border)', cursor: 'pointer', fontSize: '20px', color: 'var(--color-text-primary)' }}
                               onClick={() => navigate('/upload?type=text-status')}
                               title="Text Status"
                         >

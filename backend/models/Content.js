@@ -44,11 +44,11 @@ const contentSchema = new mongoose.Schema({
             }
       }],
 
-      // Purpose-based category (ZUNO unique)
+      // Purpose-based category (ZUNO unique — optional for stories/statuses)
       purpose: {
             type: String,
             enum: ['idea', 'skill', 'explain', 'story', 'question', 'discussion', 'learning', 'inspiration', 'solution'],
-            required: true
+            // Not required — stories and text-statuses don't need a purpose
       },
 
       // Topics/tags for interest-based discovery
