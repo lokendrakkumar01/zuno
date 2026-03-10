@@ -144,6 +144,28 @@ export const AuthProvider = ({ children }) => {
             localStorage.removeItem('zuno_user');
       };
 
+      const updateProfile = async (userData) => {
+            try {
+                  const res = await fetch(`${API_URL}/users/profile`, {
+                        method: 'PUT',
+                        headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify(userData)
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                        setUser(data.data.user);
+                        localStorage.setItem('zuno_user', JSON.stringify(data.data.user));
+                        return { success: true, message: data.message };
+                  }
+                  return { success: false, message: data.message };
+            } catch (error) {
+                  return { success: false, message: 'Failed to update profile' };
+            }
+      };
+
       const blockUser = async (userId) => {
             try {
                   const res = await fetch(`${API_URL}/users/${userId}/block`, {
