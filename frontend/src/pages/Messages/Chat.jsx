@@ -42,6 +42,9 @@ const Chat = () => {
       const pollRef = useRef(null);
       const fileInputRef = useRef(null);
       const sentMsgIds = useRef(new Set()); // Track confirmed sent message IDs to avoid duplicates
+      const sendSoundRef = useRef(null);
+      const receiveSoundRef = useRef(null);
+      const lastMsgSenderId = useRef(null);
 
       // Edit & Delete states
       const [activeMenu, setActiveMenu] = useState(null);
@@ -170,6 +173,26 @@ const Chat = () => {
             sentMsgIds.current = new Set();
       }, [userId]);
 
+      // Initialize sounds
+      useEffect(() => {
+            sendSoundRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3'); // Subtle pop/send
+            receiveSoundRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3'); // Subtle ding/receive
+
+            // Preload
+            sendSoundRef.current.load();
+            receiveSoundRef.current.load();
+      }, []);
+
+      const playSound = (type) => {
+            try {
+                  const sound = type === 'send' ? sendSoundRef.current : receiveSoundRef.current;
+                  if (sound) {
+                        sound.currentTime = 0;
+                        sound.play().catch(e => console.log('Audio play blocked or failed', e));
+                  }
+            } catch (e) { }
+      };
+
       useEffect(() => {
             if (!socket) return;
 
@@ -207,6 +230,12 @@ const Chat = () => {
                         const newId = newMessage._id?.toString();
                         // Skip if already in the list
                         if (prev.some(m => (m._id?.toString()) === newId)) return prev;
+
+                        // Play receive sound if it's from the other user and not just an echo
+                        if (isFromOtherUser) {
+                              playSound('receive');
+                        }
+
                         return [...prev, newMessage];
                   });
 
@@ -271,7 +300,9 @@ const Chat = () => {
       }, [socket, userId, token, user]);
 
       useEffect(() => {
-            scrollToBottom();
+            const lastMsg = messages[messages.length - 1];
+            const isMySent = lastMsg?.sender?._id === user?._id || lastMsg?.sender === user?._id;
+            scrollToBottom(isMySent); // Use instant scroll for my own messages
       }, [messages]);
 
       // Close menu/emoji on click outside
@@ -284,8 +315,12 @@ const Chat = () => {
             return () => document.removeEventListener('click', handleClickOutside);
       }, []);
 
-      const scrollToBottom = () => {
-            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      const scrollToBottom = (instant = false) => {
+            if (instant) {
+                  messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+            } else {
+                  messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            }
       };
 
       const fetchMessages = async () => {
@@ -399,6 +434,7 @@ const Chat = () => {
 
             setMessages(prev => [...prev, optimisticMsg]);
             setNewMessage('');
+            playSound('send'); // Play send sound instantly for optimistic update
             setMediaFile(null);
             setMediaPreview(null);
             setReplyingTo(null);
@@ -876,11 +912,24 @@ const Chat = () => {
                                                                         )}
                                                                         {msg.text && <p className="chat-bubble-text">{msg.text}</p>}
                                                                         <div className="chat-bubble-meta">
-                                                                              {msg.edited && <span className="chat-edited-label">edited</span>}
-                                                                              <span className="chat-bubble-time">{formatTime(msg.createdAt)}</span>
+                                                                              {msg.edited && <span className="chat-edited-label" style={{ fontSize: '0.7rem', opacity: 0.6 }}>edited</span>}
+                                                                              <span className="chat-bubble-time" style={{ fontSize: '0.7rem', opacity: 0.7 }}>{formatTime(msg.createdAt)}</span>
                                                                               {isMine && (
-                                                                                    <span className={`chat-bubble-status ${msg.read ? 'read' : ''}`} style={(msg.read && !msg._sending) ? { color: '#3b82f6' } : {}}>
-                                                                                          {msg._sending ? <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>🕒</span> : (msg.read ? '✓✓' : '✓')}
+                                                                                    <span className={`chat-bubble-status ${msg.read ? 'read' : ''}`} style={{
+                                                                                          display: 'flex',
+                                                                                          alignItems: 'center',
+                                                                                          color: msg.read ? '#3b82f6' : 'rgba(255,255,255,0.7)',
+                                                                                          fontSize: '11px',
+                                                                                          fontWeight: 'bold',
+                                                                                          lineHeight: 1
+                                                                                    }}>
+                                                                                          {msg._sending ? (
+                                                                                                <span style={{ fontSize: '10px' }}>🕒</span>
+                                                                                          ) : msg.read ? (
+                                                                                                <span style={{ fontSize: '14px', letterSpacing: '-4px', marginRight: '4px' }}>✓✓</span>
+                                                                                          ) : (
+                                                                                                <span style={{ fontSize: '14px' }}>✓</span>
+                                                                                          )}
                                                                                     </span>
                                                                               )}
                                                                         </div>
