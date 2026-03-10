@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useRef, useEffect } from 'react';
+import { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react';
 
 const MusicContext = createContext();
 
@@ -37,11 +37,13 @@ export const MusicProvider = ({ children }) => {
             };
       }, []);
 
-      const playTrack = (track) => {
+      const currentTrackRef = useRef(null);
+
+      const playTrack = useCallback((track) => {
             if (!track || !track.previewUrl) return;
 
             // If it's the same track and already playing, do nothing
-            if (currentTrack?.trackId === track.trackId && !audioRef.current.paused) {
+            if (currentTrackRef.current?.trackId === track.trackId && !audioRef.current.paused) {
                   return;
             }
 
@@ -60,23 +62,25 @@ export const MusicProvider = ({ children }) => {
                   });
             }
 
+            currentTrackRef.current = track;
             setCurrentTrack(track);
-      };
+      }, []);
 
-      const stopTrack = () => {
+      const stopTrack = useCallback(() => {
             audioRef.current.pause();
             audioRef.current.src = "";
+            currentTrackRef.current = null;
             setCurrentTrack(null);
             setIsPlaying(false);
-      };
+      }, []);
 
-      const togglePlay = () => {
+      const togglePlay = useCallback(() => {
             if (audioRef.current.paused) {
                   audioRef.current.play().catch(() => setIsPlaying(false));
             } else {
                   audioRef.current.pause();
             }
-      };
+      }, []);
 
       // Cleanup on unmount
       useEffect(() => {

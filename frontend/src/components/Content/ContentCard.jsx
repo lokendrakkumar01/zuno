@@ -477,9 +477,8 @@ const ContentCard = ({ content, onDelete }) => {
                               }}
                               onClick={() => {
                                     // Single click = play music if exists, and open fullscreen
-                                    if (content.music && content.music.previewUrl && !isPlayingMusic) {
-                                          audioRef.current?.play();
-                                          setIsPlayingMusic(true);
+                                    if (content.music && content.music.previewUrl && !isThisPlaying) {
+                                          playTrack(content.music);
                                     }
                                     setIsFullscreen(true);
                               }}
