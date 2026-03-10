@@ -410,13 +410,23 @@ const Chat = () => {
       };
 
       const handleSend = async (e) => {
-            e.preventDefault();
+            if (e) e.preventDefault();
+
+            // If already sending media, block. But allow concurrent text-only sends.
             if ((!newMessage.trim() && !mediaFile) || (sending && !!mediaFile)) return;
 
             const msgText = newMessage.trim();
             const currentMedia = mediaFile;
+
+            // Clear input INSTANTLY for maximum perceived speed
+            setNewMessage('');
+            setMediaFile(null);
+            setMediaPreview(null);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+
             const currentPreview = mediaPreview;
             const currentReplyTarget = replyingTo;
+            setReplyingTo(null);
 
             // Optimistic UI — show message immediately with local preview
             const tempId = 'temp_' + Date.now();
@@ -433,16 +443,11 @@ const Chat = () => {
             };
 
             setMessages(prev => [...prev, optimisticMsg]);
-            setNewMessage('');
-            playSound('send'); // Play send sound instantly for optimistic update
-            setMediaFile(null);
-            setMediaPreview(null);
-            setReplyingTo(null);
-            if (fileInputRef.current) fileInputRef.current.value = '';
+            playSound('send'); // Play send sound instantly
 
             socket?.emit("stopTyping", { receiverId: userId });
 
-            setSending(true);
+            if (currentMedia) setSending(true); // Only globally 'sending' if it's media
             try {
                   let res;
                   if (currentMedia) {
@@ -1144,10 +1149,10 @@ const Chat = () => {
                               <button
                                     type="submit"
                                     className="chat-send-btn"
-                                    disabled={(!newMessage.trim() && !mediaFile) || sending}
+                                    disabled={(!newMessage.trim() && !mediaFile) || (sending && mediaFile)}
                                     style={{ background: chatCustomization.themeColor || 'var(--color-primary)', opacity: (!newMessage.trim() && !mediaFile) ? 0.6 : 1 }}
                               >
-                                    {sending ? (
+                                    {(sending && mediaFile) ? (
                                           <span style={{ fontSize: '18px' }}>⏳</span>
                                     ) : (
                                           <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
