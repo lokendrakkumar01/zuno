@@ -143,6 +143,15 @@ const userSchema = new mongoose.Schema({
             followsNotifications: { type: Boolean, default: true },
             mentionsNotifications: { type: Boolean, default: true },
             sharesNotifications: { type: Boolean, default: true }
+      },
+
+      // Profile Song (Instagram style)
+      profileSong: {
+            trackId: String,
+            name: String,
+            artist: String,
+            albumArt: String,
+            previewUrl: String
       }
 
 }, { timestamps: true });
@@ -180,6 +189,7 @@ userSchema.methods.getPublicProfile = function () {
             isVerified: this.isVerified,
             followersCount: this.followers ? this.followers.length : 0,
             followingCount: this.following ? this.following.length : 0,
+            profileSong: this.profileSong,
             stats: this.stats,
             createdAt: this.createdAt
       };

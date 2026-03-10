@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config';
 import ContentCard from '../components/Content/ContentCard';
+import SpotifySearch from '../components/Music/SpotifySearch';
+import { useMusic } from '../context/MusicContext';
 
 const INTERESTS = [
       'learning', 'technology', 'creativity', 'health',
@@ -23,6 +25,7 @@ const Profile = () => {
       const { user, token, isAuthenticated, updateProfile, logout } = useAuth();
       const navigate = useNavigate();
       const fileInputRef = useRef(null);
+      const { playTrack, stopTrack, currentTrack, isPlaying: isMusicPlayingGlobal } = useMusic();
 
       const [profileUser, setProfileUser] = useState(() => {
             const targetUsername = username || user?.username;
@@ -120,7 +123,8 @@ const Profile = () => {
                                           interests: data.data.user.interests || [],
                                           preferredFeedMode: data.data.user.preferredFeedMode || 'learning',
                                           focusModeEnabled: data.data.user.focusModeEnabled || false,
-                                          dailyUsageLimit: data.data.user.dailyUsageLimit || 0
+                                          dailyUsageLimit: data.data.user.dailyUsageLimit || 0,
+                                          profileSong: data.data.user.profileSong || null
                                     });
                               }
                         }
@@ -521,430 +525,494 @@ const Profile = () => {
                                                             <span className="tag tag-success">✅ Verified</span>
                                                       )}
                                                 </div>
-                                          </div>
 
-                                          {/* Action Buttons */}
-                                          {isOwnProfile ? (
-                                                <div className="flex gap-md flex-wrap w-full mt-sm">
-                                                      <button
-                                                            onClick={() => setEditing(!editing)}
-                                                            className={`btn ${editing ? 'btn-ghost' : 'btn-secondary'} flex-1 min-w-[120px]`}
+                                                {/* Profile Song Display (Instagram Style) */}
+                                                {profileUser.profileSong && (
+                                                      <div
+                                                            className="mt-lg animate-fadeInUp"
+                                                            style={{
+                                                                  background: 'rgba(255, 255, 255, 0.4)',
+                                                                  backdropFilter: 'blur(10px)',
+                                                                  border: '1px solid rgba(255, 255, 255, 0.3)',
+                                                                  borderRadius: '16px',
+                                                                  padding: '10px 16px',
+                                                                  display: 'inline-flex',
+                                                                  alignItems: 'center',
+                                                                  gap: '12px',
+                                                                  boxShadow: '0 4px 15px rgba(0, 0, 0, 0.05)',
+                                                                  maxWidth: '100%'
+                                                            }}
                                                       >
-                                                            {editing ? '❌ Cancel' : '✏️ Edit Profile'}
-                                                      </button>
-                                                      <button
-                                                            onClick={() => navigate('/messages')}
-                                                            className="btn btn-secondary flex-1 min-w-[120px]"
-                                                            style={{ position: 'relative' }}
-                                                      >
-                                                            💬 Messages
-                                                      </button>
-                                                      <button
-                                                            onClick={() => navigate('/settings')}
-                                                            className="btn btn-secondary flex-1 min-w-[120px]"
-                                                      >
-                                                            ⚙️ Settings
-                                                      </button>
-                                                </div>
-                                          ) : isAuthenticated && (
-                                                <div className="flex gap-md flex-wrap w-full mt-sm">
-                                                      <button
-                                                            onClick={handleFollow}
-                                                            disabled={followLoading}
-                                                            className={`btn ${isFollowing ? 'btn-secondary' : 'btn-primary'} flex-1 min-w-[120px]`}
-                                                      >
-                                                            {followLoading ? (
-                                                                  <span style={{ fontSize: '16px' }}>⏳</span>
-                                                            ) : isFollowing ? (
-                                                                  '✓ Following'
-                                                            ) : (
-                                                                  '+ Follow'
+                                                            <div style={{ position: 'relative', width: '40px', height: '40px', flexShrink: 0 }}>
+                                                                  <img
+                                                                        src={profileUser.profileSong.albumArt}
+                                                                        alt=""
+                                                                        style={{ width: '100%', height: '100%', borderRadius: '8px', objectFit: 'cover' }}
+                                                                  />
+                                                                  {(isMusicPlayingGlobal && currentTrack?.trackId === profileUser.profileSong.trackId) ? (
+                                                                        <button
+                                                                              onClick={(e) => { e.stopPropagation(); stopTrack(); }}
+                                                                              style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', border: 'none', color: 'white', cursor: 'pointer' }}
+                                                                        >
+                                                                              <div className="flex gap-[2px] items-center h-4">
+                                                                                    <div className="w-[3px] bg-white h-full animate-pulse" style={{ animationDelay: '0ms' }}></div>
+                                                                                    <div className="w-[3px] bg-white h-2/3 animate-pulse" style={{ animationDelay: '150ms' }}></div>
+                                                                                    <div className="w-[3px] bg-white h-full animate-pulse" style={{ animationDelay: '300ms' }}></div>
+                                                                              </div>
+                                                                        </button>
+                                                                  ) : profileUser.profileSong.previewUrl && (
+                                                                        <button
+                                                                              onClick={(e) => { e.stopPropagation(); playTrack(profileUser.profileSong); }}
+                                                                              style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', border: 'none', color: 'white', cursor: 'pointer' }}
+                                                                        >
+                                                                              ▶️
+                                                                        </button>
+                                                                  )}
+                                                            </div>
+                                                            <div className="flex-1 min-w-0" style={{ cursor: 'pointer' }} onClick={() => profileUser.profileSong.previewUrl && playTrack(profileUser.profileSong)}>
+                                                                  <div className="font-bold text-sm truncate">{profileUser.profileSong.name}</div>
+                                                                  <div className="text-xs text-muted truncate">{profileUser.profileSong.artist}</div>
+                                                            </div>
+                                                            {isOwnProfile && (
+                                                                  <div className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded ml-2">MY TRACK</div>
                                                             )}
-                                                      </button>
-                                                      <button
-                                                            onClick={() => navigate(`/messages/${profileUser._id}`)}
-                                                            className="btn btn-secondary flex-1 min-w-[120px]"
-                                                      >
-                                                            💬 Message
-                                                      </button>
-                                                </div>
-                                          )}
+                                                      </div>
+                                                )}
+                                          </div>
+                                    </div>
+
+                                    {/* Action Buttons */}
+                                    {isOwnProfile ? (
+                                          <div className="flex gap-md flex-wrap w-full mt-sm">
+                                                <button
+                                                      onClick={() => setEditing(!editing)}
+                                                      className={`btn ${editing ? 'btn-ghost' : 'btn-secondary'} flex-1 min-w-[120px]`}
+                                                >
+                                                      {editing ? '❌ Cancel' : '✏️ Edit Profile'}
+                                                </button>
+                                                <button
+                                                      onClick={() => navigate('/messages')}
+                                                      className="btn btn-secondary flex-1 min-w-[120px]"
+                                                      style={{ position: 'relative' }}
+                                                >
+                                                      💬 Messages
+                                                </button>
+                                                <button
+                                                      onClick={() => navigate('/settings')}
+                                                      className="btn btn-secondary flex-1 min-w-[120px]"
+                                                >
+                                                      ⚙️ Settings
+                                                </button>
+                                          </div>
+                                    ) : isAuthenticated && (
+                                          <div className="flex gap-md flex-wrap w-full mt-sm">
+                                                <button
+                                                      onClick={handleFollow}
+                                                      disabled={followLoading}
+                                                      className={`btn ${isFollowing ? 'btn-secondary' : 'btn-primary'} flex-1 min-w-[120px]`}
+                                                >
+                                                      {followLoading ? (
+                                                            <span style={{ fontSize: '16px' }}>⏳</span>
+                                                      ) : isFollowing ? (
+                                                            '✓ Following'
+                                                      ) : (
+                                                            '+ Follow'
+                                                      )}
+                                                </button>
+                                                <button
+                                                      onClick={() => navigate(`/messages/${profileUser._id}`)}
+                                                      className="btn btn-secondary flex-1 min-w-[120px]"
+                                                >
+                                                      💬 Message
+                                                </button>
+                                          </div>
+                                    )}
+                              </div>
+                        </div>
+
+                        {message && (
+                              <div className="card p-md mb-lg animate-fadeIn" style={{
+                                    background: message.includes('✅') ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                                    borderColor: message.includes('✅') ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'
+                              }}>
+                                    <p>{message}</p>
+                              </div>
+                        )}
+
+                        {isOwnProfile && (
+                              <div className="mode-pills mb-xl" style={{ maxWidth: '500px' }}>
+                                    <button className={`mode-pill ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => setActiveTab('profile')}>👤 Profile</button>
+                                    <button className={`mode-pill ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>⚙️ Settings</button>
+                                    <button className={`mode-pill ${activeTab === 'stats' ? 'active' : ''}`} onClick={() => setActiveTab('stats')}>📊 Stats</button>
+                              </div>
+                        )}
+
+                        {editing && isOwnProfile && (
+                              <div className="card mb-xl animate-fadeInUp">
+                                    <h2 className="text-xl font-semibold mb-lg flex items-center gap-sm">✏️ Edit Profile</h2>
+                                    <div className="grid grid-cols-2 gap-lg">
+                                          <div className="input-group">
+                                                <label className="input-label">Display Name</label>
+                                                <input type="text" className="input" value={editData.displayName} onChange={(e) => setEditData(prev => ({ ...prev, displayName: e.target.value }))} placeholder="Your display name" />
+                                          </div>
+                                          <div className="input-group">
+                                                <label className="input-label">Preferred Feed Mode</label>
+                                                <select className="input select" value={editData.preferredFeedMode} onChange={(e) => setEditData(prev => ({ ...prev, preferredFeedMode: e.target.value }))}>
+                                                      {FEED_MODES.map(mode => <option key={mode.id} value={mode.id}>{mode.label}</option>)}
+                                                </select>
+                                          </div>
+                                    </div>
+                                    <div className="input-group mt-lg">
+                                          <label className="input-label">Bio</label>
+                                          <textarea className="input" rows={3} value={editData.bio} onChange={(e) => setEditData(prev => ({ ...prev, bio: e.target.value }))} placeholder="Tell us about yourself..." maxLength={200} />
+                                          <p className="text-xs text-muted mt-xs">{editData.bio?.length || 0}/200</p>
+                                    </div>
+                                    <div className="input-group mt-lg">
+                                          <label className="input-label">Interests (affects your feed)</label>
+                                          <div className="flex gap-sm flex-wrap">
+                                                {INTERESTS.map(interest => (
+                                                      <button key={interest} type="button" className={`tag ${editData.interests?.includes(interest) ? 'tag-primary' : ''}`} onClick={() => handleInterestToggle(interest)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}>{interest}</button>
+                                                ))}
+                                          </div>
+                                    </div>
+                                    <div className="input-group mt-lg">
+                                          <SpotifySearch
+                                                selectedTrack={editData.profileSong}
+                                                onSelect={(track) => setEditData(prev => ({ ...prev, profileSong: track }))}
+                                          />
+                                    </div>
+                                    <div className="flex gap-md mt-xl">
+                                          <button onClick={handleSaveProfile} className="btn btn-primary">💾 Save Changes</button>
+                                          <button onClick={() => setEditing(false)} className="btn btn-ghost">Cancel</button>
                                     </div>
                               </div>
+                        )}
 
-                              {message && (
-                                    <div className="card p-md mb-lg animate-fadeIn" style={{
-                                          background: message.includes('✅') ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                                          borderColor: message.includes('✅') ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'
-                                    }}>
-                                          <p>{message}</p>
-                                    </div>
-                              )}
-
-                              {isOwnProfile && (
-                                    <div className="mode-pills mb-xl" style={{ maxWidth: '500px' }}>
-                                          <button className={`mode-pill ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => setActiveTab('profile')}>👤 Profile</button>
-                                          <button className={`mode-pill ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>⚙️ Settings</button>
-                                          <button className={`mode-pill ${activeTab === 'stats' ? 'active' : ''}`} onClick={() => setActiveTab('stats')}>📊 Stats</button>
-                                    </div>
-                              )}
-
-                              {editing && isOwnProfile && (
-                                    <div className="card mb-xl animate-fadeInUp">
-                                          <h2 className="text-xl font-semibold mb-lg flex items-center gap-sm">✏️ Edit Profile</h2>
-                                          <div className="grid grid-cols-2 gap-lg">
-                                                <div className="input-group">
-                                                      <label className="input-label">Display Name</label>
-                                                      <input type="text" className="input" value={editData.displayName} onChange={(e) => setEditData(prev => ({ ...prev, displayName: e.target.value }))} placeholder="Your display name" />
-                                                </div>
-                                                <div className="input-group">
-                                                      <label className="input-label">Preferred Feed Mode</label>
-                                                      <select className="input select" value={editData.preferredFeedMode} onChange={(e) => setEditData(prev => ({ ...prev, preferredFeedMode: e.target.value }))}>
-                                                            {FEED_MODES.map(mode => <option key={mode.id} value={mode.id}>{mode.label}</option>)}
-                                                      </select>
-                                                </div>
-                                          </div>
-                                          <div className="input-group mt-lg">
-                                                <label className="input-label">Bio</label>
-                                                <textarea className="input" rows={3} value={editData.bio} onChange={(e) => setEditData(prev => ({ ...prev, bio: e.target.value }))} placeholder="Tell us about yourself..." maxLength={200} />
-                                                <p className="text-xs text-muted mt-xs">{editData.bio?.length || 0}/200</p>
-                                          </div>
-                                          <div className="input-group mt-lg">
-                                                <label className="input-label">Interests (affects your feed)</label>
+                        {activeTab === 'profile' && !editing && (
+                              <>
+                                    {profileUser.interests && profileUser.interests.length > 0 && (
+                                          <div className="card mb-lg animate-fadeInUp">
+                                                <h3 className="font-semibold mb-md flex items-center gap-sm">🎯 Interests</h3>
                                                 <div className="flex gap-sm flex-wrap">
-                                                      {INTERESTS.map(interest => (
-                                                            <button key={interest} type="button" className={`tag ${editData.interests?.includes(interest) ? 'tag-primary' : ''}`} onClick={() => handleInterestToggle(interest)} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}>{interest}</button>
+                                                      {profileUser.interests.map(interest => (
+                                                            <span key={interest} className="tag tag-primary">{interest}</span>
                                                       ))}
                                                 </div>
                                           </div>
-                                          <div className="flex gap-md mt-xl">
-                                                <button onClick={handleSaveProfile} className="btn btn-primary">💾 Save Changes</button>
-                                                <button onClick={() => setEditing(false)} className="btn btn-ghost">Cancel</button>
-                                          </div>
-                                    </div>
-                              )}
+                                    )}
 
-                              {activeTab === 'profile' && !editing && (
-                                    <>
-                                          {profileUser.interests && profileUser.interests.length > 0 && (
-                                                <div className="card mb-lg animate-fadeInUp">
-                                                      <h3 className="font-semibold mb-md flex items-center gap-sm">🎯 Interests</h3>
-                                                      <div className="flex gap-sm flex-wrap">
-                                                            {profileUser.interests.map(interest => (
-                                                                  <span key={interest} className="tag tag-primary">{interest}</span>
-                                                            ))}
-                                                      </div>
-                                                </div>
+                                    {/* User Posts */}
+                                    <h3 id="posts-section" className="text-xl font-bold mb-md mt-xl">Posts</h3>
+
+                                    {postsError && (
+                                          <div className="card p-md mb-lg" style={{ background: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
+                                                <p className="text-center text-red-500">{postsError}</p>
+                                                <button onClick={() => fetchUserPosts(profileUser.username)} className="btn btn-primary mt-sm mx-auto flex">🔄 Retry</button>
+                                          </div>
+                                    )}
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                          {!postsError && userPosts.length > 0 ? (
+                                                userPosts.map(post => (
+                                                      <ContentCard key={post._id} content={post} onDelete={handleDeleteContent} />
+                                                ))
+                                          ) : !postsError && (
+                                                <div className="text-center text-gray-500 py-xl">No posts yet.</div>
                                           )}
-
-                                          {/* User Posts */}
-                                          <h3 id="posts-section" className="text-xl font-bold mb-md mt-xl">Posts</h3>
-
-                                          {postsError && (
-                                                <div className="card p-md mb-lg" style={{ background: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
-                                                      <p className="text-center text-red-500">{postsError}</p>
-                                                      <button onClick={() => fetchUserPosts(profileUser.username)} className="btn btn-primary mt-sm mx-auto flex">🔄 Retry</button>
-                                                </div>
-                                          )}
-
-                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                                                {!postsError && userPosts.length > 0 ? (
-                                                      userPosts.map(post => (
-                                                            <ContentCard key={post._id} content={post} onDelete={handleDeleteContent} />
-                                                      ))
-                                                ) : !postsError && (
-                                                      <div className="text-center text-gray-500 py-xl">No posts yet.</div>
-                                                )}
-                                          </div>
-
-                                          {isOwnProfile && (
-                                                <div className="grid grid-cols-3 gap-md mb-lg mt-xl">
-                                                      <button onClick={() => navigate('/upload')} className="feature-card animate-fadeInUp stagger-1" style={{ padding: 'var(--space-lg)' }}>
-                                                            <div style={{ fontSize: '2rem', marginBottom: 'var(--space-sm)' }}>📤</div>
-                                                            <div className="font-semibold">Upload</div>
-                                                      </button>
-                                                      <button onClick={() => setEditing(true)} className="feature-card animate-fadeInUp stagger-2" style={{ padding: 'var(--space-lg)' }}>
-                                                            <div style={{ fontSize: '2rem', marginBottom: 'var(--space-sm)' }}>✏️</div>
-                                                            <div className="font-semibold">Edit Profile</div>
-                                                      </button>
-                                                      <button onClick={handlePhotoClick} className="feature-card animate-fadeInUp stagger-3" style={{ padding: 'var(--space-lg)' }}>
-                                                            <div style={{ fontSize: '2rem', marginBottom: 'var(--space-sm)' }}>📷</div>
-                                                            <div className="font-semibold">Change Photo</div>
-                                                      </button>
-                                                </div>
-                                          )}
-                                    </>
-                              )}
-
-                              {activeTab === 'settings' && isOwnProfile && (
-                                    <div className="card animate-fadeInUp">
-                                          <h3 className="text-lg font-semibold mb-lg">🧘 Wellness Settings</h3>
-                                          <div className="flex items-center gap-lg p-md mb-md" style={{ background: 'rgba(99, 102, 241, 0.1)', borderRadius: 'var(--radius-lg)' }}>
-                                                <input type="checkbox" id="focusMode" checked={editData.focusModeEnabled} onChange={(e) => { setEditData(prev => ({ ...prev, focusModeEnabled: e.target.checked })); updateProfile({ focusModeEnabled: e.target.checked }); }} style={{ width: '24px', height: '24px', accentColor: 'var(--color-accent-primary)' }} />
-                                                <label htmlFor="focusMode" style={{ cursor: 'pointer', flex: 1 }}><div className="font-semibold">🧘 Focus Mode</div><p className="text-sm text-muted">Hide all counts and metrics for peaceful browsing</p></label>
-                                          </div>
-                                          <div className="input-group mt-lg">
-                                                <label className="input-label">⏰ Daily Usage Limit (minutes)</label>
-                                                <input type="number" className="input" min="0" max="480" value={editData.dailyUsageLimit} onChange={(e) => { const value = parseInt(e.target.value) || 0; setEditData(prev => ({ ...prev, dailyUsageLimit: value })); }} placeholder="0 = unlimited" />
-                                                <p className="text-xs text-muted mt-xs">Set 0 for unlimited.</p>
-                                          </div>
-                                          <button onClick={handleSaveProfile} className="btn btn-primary mt-lg">💾 Save Settings</button>
-                                          <hr style={{ border: 'none', borderTop: '1px solid var(--color-border)', margin: 'var(--space-xl) 0' }} />
-                                          <button onClick={handleLogout} className="btn btn-ghost" style={{ color: '#ef4444' }}>🚪 Logout</button>
                                     </div>
-                              )}
 
-                              {activeTab === 'stats' && isOwnProfile && user?.stats && (
-                                    <div className="animate-fadeInUp">
-                                          <div className="grid grid-cols-3 gap-lg mb-lg">
-                                                <div className="stat-card"><div className="stat-value">{user.stats.contentCount || 0}</div><div className="stat-label">📝 Content Created</div></div>
-                                                <div className="stat-card"><div className="stat-value">{user.stats.helpfulReceived || 0}</div><div className="stat-label">👍 Helpful Received</div></div>
-                                                <div className="stat-card"><div className="stat-value">{user.stats.helpfulGiven || 0}</div><div className="stat-label">💚 Helpful Given</div></div>
+                                    {isOwnProfile && (
+                                          <div className="grid grid-cols-3 gap-md mb-lg mt-xl">
+                                                <button onClick={() => navigate('/upload')} className="feature-card animate-fadeInUp stagger-1" style={{ padding: 'var(--space-lg)' }}>
+                                                      <div style={{ fontSize: '2rem', marginBottom: 'var(--space-sm)' }}>📤</div>
+                                                      <div className="font-semibold">Upload</div>
+                                                </button>
+                                                <button onClick={() => setEditing(true)} className="feature-card animate-fadeInUp stagger-2" style={{ padding: 'var(--space-lg)' }}>
+                                                      <div style={{ fontSize: '2rem', marginBottom: 'var(--space-sm)' }}>✏️</div>
+                                                      <div className="font-semibold">Edit Profile</div>
+                                                </button>
+                                                <button onClick={handlePhotoClick} className="feature-card animate-fadeInUp stagger-3" style={{ padding: 'var(--space-lg)' }}>
+                                                      <div style={{ fontSize: '2rem', marginBottom: 'var(--space-sm)' }}>📷</div>
+                                                      <div className="font-semibold">Change Photo</div>
+                                                </button>
                                           </div>
-                                          <div className="card p-md" style={{ background: 'rgba(34, 197, 94, 0.1)', borderColor: 'rgba(34, 197, 94, 0.3)' }}><p className="text-sm" style={{ color: '#22c55e' }}>🔒 Your stats are private and only visible to you</p></div>
-                                    </div>
-                              )}
-                        </div>
-                  </div>
+                                    )}
+                              </>
+                        )}
 
-                  {/* Photo Modal */}
-                  {showPhotoModal && profileUser?.avatar && (
-                        <div
-                              className="modal-overlay"
-                              style={{
-                                    position: 'fixed',
-                                    top: 0,
-                                    left: 0,
-                                    right: 0,
-                                    bottom: 0,
-                                    background: 'rgba(0,0,0,0.8)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    zIndex: 2000,
-                                    backdropFilter: 'blur(4px)'
-                              }}
-                              onClick={() => setShowPhotoModal(false)}
-                        >
-                              <div
-                                    style={{
-                                          position: 'relative',
-                                          maxWidth: '90%',
-                                          maxHeight: '90vh'
-                                    }}
-                                    onClick={(e) => e.stopPropagation()}
-                              >
-                                    <button
-                                          onClick={() => setShowPhotoModal(false)}
-                                          className="btn btn-ghost"
+                        {activeTab === 'settings' && isOwnProfile && (
+                              <div className="card animate-fadeInUp">
+                                    <h3 className="text-lg font-semibold mb-lg">🧘 Wellness Settings</h3>
+                                    <div className="flex items-center gap-lg p-md mb-md" style={{ background: 'rgba(99, 102, 241, 0.1)', borderRadius: 'var(--radius-lg)' }}>
+                                          <input type="checkbox" id="focusMode" checked={editData.focusModeEnabled} onChange={(e) => { setEditData(prev => ({ ...prev, focusModeEnabled: e.target.checked })); updateProfile({ focusModeEnabled: e.target.checked }); }} style={{ width: '24px', height: '24px', accentColor: 'var(--color-accent-primary)' }} />
+                                          <label htmlFor="focusMode" style={{ cursor: 'pointer', flex: 1 }}><div className="font-semibold">🧘 Focus Mode</div><p className="text-sm text-muted">Hide all counts and metrics for peaceful browsing</p></label>
+                                    </div>
+                                    <div className="input-group mt-lg">
+                                          <label className="input-label">⏰ Daily Usage Limit (minutes)</label>
+                                          <input type="number" className="input" min="0" max="480" value={editData.dailyUsageLimit} onChange={(e) => { const value = parseInt(e.target.value) || 0; setEditData(prev => ({ ...prev, dailyUsageLimit: value })); }} placeholder="0 = unlimited" />
+                                          <p className="text-xs text-muted mt-xs">Set 0 for unlimited.</p>
+                                    </div>
+                                    <button onClick={handleSaveProfile} className="btn btn-primary mt-lg">💾 Save Settings</button>
+                                    <hr style={{ border: 'none', borderTop: '1px solid var(--color-border)', margin: 'var(--space-xl) 0' }} />
+                                    <button onClick={handleLogout} className="btn btn-ghost" style={{ color: '#ef4444' }}>🚪 Logout</button>
+                              </div>
+                        )}
+
+                        {activeTab === 'stats' && isOwnProfile && user?.stats && (
+                              <div className="animate-fadeInUp">
+                                    <div className="grid grid-cols-3 gap-lg mb-lg">
+                                          <div className="stat-card"><div className="stat-value">{user.stats.contentCount || 0}</div><div className="stat-label">📝 Content Created</div></div>
+                                          <div className="stat-card"><div className="stat-value">{user.stats.helpfulReceived || 0}</div><div className="stat-label">👍 Helpful Received</div></div>
+                                          <div className="stat-card"><div className="stat-value">{user.stats.helpfulGiven || 0}</div><div className="stat-label">💚 Helpful Given</div></div>
+                                    </div>
+                                    <div className="card p-md" style={{ background: 'rgba(34, 197, 94, 0.1)', borderColor: 'rgba(34, 197, 94, 0.3)' }}><p className="text-sm" style={{ color: '#22c55e' }}>🔒 Your stats are private and only visible to you</p></div>
+                              </div>
+                        )}
+
+                        {/* Photo Modal */}
+                        {
+                              showPhotoModal && profileUser?.avatar && (
+                                    <div
+                                          className="modal-overlay"
                                           style={{
-                                                position: 'absolute',
-                                                top: '-40px',
-                                                right: '0',
-                                                color: 'white',
-                                                background: 'rgba(0,0,0,0.5)',
-                                                borderRadius: '50%',
-                                                width: '40px',
-                                                height: '40px',
+                                                position: 'fixed',
+                                                top: 0,
+                                                left: 0,
+                                                right: 0,
+                                                bottom: 0,
+                                                background: 'rgba(0,0,0,0.8)',
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 justifyContent: 'center',
-                                                padding: '0'
+                                                zIndex: 2000,
+                                                backdropFilter: 'blur(4px)'
                                           }}
-                                    >✕</button>
-                                    <img
-                                          src={profileUser.avatar}
-                                          alt="Profile"
+                                          onClick={() => setShowPhotoModal(false)}
+                                    >
+                                          <div
+                                                style={{
+                                                      position: 'relative',
+                                                      maxWidth: '90%',
+                                                      maxHeight: '90vh'
+                                                }}
+                                                onClick={(e) => e.stopPropagation()}
+                                          >
+                                                <button
+                                                      onClick={() => setShowPhotoModal(false)}
+                                                      className="btn btn-ghost"
+                                                      style={{
+                                                            position: 'absolute',
+                                                            top: '-40px',
+                                                            right: '0',
+                                                            color: 'white',
+                                                            background: 'rgba(0,0,0,0.5)',
+                                                            borderRadius: '50%',
+                                                            width: '40px',
+                                                            height: '40px',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            padding: '0'
+                                                      }}
+                                                >✕</button>
+                                                <img
+                                                      src={profileUser.avatar}
+                                                      alt="Profile"
+                                                      style={{
+                                                            maxWidth: '100%',
+                                                            maxHeight: '90vh',
+                                                            objectFit: 'contain',
+                                                            borderRadius: 'var(--radius-lg)'
+                                                      }}
+                                                />
+                                          </div>
+                                    </div>
+                              )
+                        }
+
+                        {/* Followers Modal */}
+                        {
+                              showFollowersModal && (
+                                    <div
+                                          className="modal-overlay"
                                           style={{
-                                                maxWidth: '100%',
-                                                maxHeight: '90vh',
-                                                objectFit: 'contain',
-                                                borderRadius: 'var(--radius-lg)'
+                                                position: 'fixed',
+                                                top: 0,
+                                                left: 0,
+                                                right: 0,
+                                                bottom: 0,
+                                                background: 'rgba(0,0,0,0.6)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                zIndex: 1000,
+                                                backdropFilter: 'blur(4px)'
                                           }}
-                                    />
-                              </div>
-                        </div>
-                  )}
-
-                  {/* Followers Modal */}
-                  {showFollowersModal && (
-                        <div
-                              className="modal-overlay"
-                              style={{
-                                    position: 'fixed',
-                                    top: 0,
-                                    left: 0,
-                                    right: 0,
-                                    bottom: 0,
-                                    background: 'rgba(0,0,0,0.6)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    zIndex: 1000,
-                                    backdropFilter: 'blur(4px)'
-                              }}
-                              onClick={() => setShowFollowersModal(false)}
-                        >
-                              <div
-                                    className="modal-content card animate-fadeIn"
-                                    style={{
-                                          maxWidth: '400px',
-                                          width: '90%',
-                                          maxHeight: '70vh',
-                                          overflow: 'auto'
-                                    }}
-                                    onClick={(e) => e.stopPropagation()}
-                              >
-                                    <div className="flex items-center justify-between mb-lg">
-                                          <h3 className="text-lg font-bold">👥 Followers</h3>
-                                          <button
-                                                onClick={() => setShowFollowersModal(false)}
-                                                className="btn btn-ghost btn-sm"
-                                                style={{ padding: '4px 8px' }}
-                                          >✕</button>
-                                    </div>
-                                    {modalLoading ? (
-                                          <div className="text-center py-lg">
-                                                <span style={{ fontSize: '1.5rem' }}>⏳</span>
-                                          </div>
-                                    ) : followersList.length > 0 ? (
-                                          <div className="flex flex-col gap-md">
-                                                {followersList.map(follower => (
-                                                      <div
-                                                            key={follower._id}
-                                                            className="flex items-center gap-md p-sm"
-                                                            style={{
-                                                                  background: 'rgba(99, 102, 241, 0.05)',
-                                                                  borderRadius: 'var(--radius-md)',
-                                                                  cursor: 'pointer'
-                                                            }}
-                                                            onClick={() => {
-                                                                  setShowFollowersModal(false);
-                                                                  navigate(`/u/${follower.username}`);
-                                                            }}
-                                                      >
-                                                            <div className="avatar avatar-md" style={{ overflow: 'hidden' }}>
-                                                                  {follower.avatar ? (
-                                                                        <img src={follower.avatar} alt={follower.displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                                                  ) : (
-                                                                        <span>{follower.displayName?.charAt(0) || follower.username?.charAt(0) || 'U'}</span>
-                                                                  )}
-                                                            </div>
-                                                            <div className="flex-1">
-                                                                  <div className="font-semibold text-sm">{follower.displayName || follower.username}</div>
-                                                                  <div className="text-xs text-gray-500">@{follower.username}</div>
-                                                                  {follower.bio && (
-                                                                        <div className="text-xs text-gray-400 mt-xs" style={{
-                                                                              overflow: 'hidden',
-                                                                              textOverflow: 'ellipsis',
-                                                                              whiteSpace: 'nowrap',
-                                                                              maxWidth: '200px'
-                                                                        }}>
-                                                                              {follower.bio}
-                                                                        </div>
-                                                                  )}
-                                                            </div>
-                                                            {follower.isVerified && <span className="text-blue-500">✓</span>}
+                                          onClick={() => setShowFollowersModal(false)}
+                                    >
+                                          <div
+                                                className="modal-content card animate-fadeIn"
+                                                style={{
+                                                      maxWidth: '400px',
+                                                      width: '90%',
+                                                      maxHeight: '70vh',
+                                                      overflow: 'auto'
+                                                }}
+                                                onClick={(e) => e.stopPropagation()}
+                                          >
+                                                <div className="flex items-center justify-between mb-lg">
+                                                      <h3 className="text-lg font-bold">👥 Followers</h3>
+                                                      <button
+                                                            onClick={() => setShowFollowersModal(false)}
+                                                            className="btn btn-ghost btn-sm"
+                                                            style={{ padding: '4px 8px' }}
+                                                      >✕</button>
+                                                </div>
+                                                {modalLoading ? (
+                                                      <div className="text-center py-lg">
+                                                            <span style={{ fontSize: '1.5rem' }}>⏳</span>
                                                       </div>
-                                                ))}
-                                          </div>
-                                    ) : (
-                                          <div className="text-center text-gray-500 py-lg">No followers yet</div>
-                                    )}
-                              </div>
-                        </div>
-                  )}
-
-                  {/* Following Modal */}
-                  {showFollowingModal && (
-                        <div
-                              className="modal-overlay"
-                              style={{
-                                    position: 'fixed',
-                                    top: 0,
-                                    left: 0,
-                                    right: 0,
-                                    bottom: 0,
-                                    background: 'rgba(0,0,0,0.6)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    zIndex: 1000,
-                                    backdropFilter: 'blur(4px)'
-                              }}
-                              onClick={() => setShowFollowingModal(false)}
-                        >
-                              <div
-                                    className="modal-content card animate-fadeIn"
-                                    style={{
-                                          maxWidth: '400px',
-                                          width: '90%',
-                                          maxHeight: '70vh',
-                                          overflow: 'auto'
-                                    }}
-                                    onClick={(e) => e.stopPropagation()}
-                              >
-                                    <div className="flex items-center justify-between mb-lg">
-                                          <h3 className="text-lg font-bold">👤 Following</h3>
-                                          <button
-                                                onClick={() => setShowFollowingModal(false)}
-                                                className="btn btn-ghost btn-sm"
-                                                style={{ padding: '4px 8px' }}
-                                          >✕</button>
-                                    </div>
-                                    {modalLoading ? (
-                                          <div className="text-center py-lg">
-                                                <span style={{ fontSize: '1.5rem' }}>⏳</span>
-                                          </div>
-                                    ) : followingList.length > 0 ? (
-                                          <div className="flex flex-col gap-md">
-                                                {followingList.map(following => (
-                                                      <div
-                                                            key={following._id}
-                                                            className="flex items-center gap-md p-sm"
-                                                            style={{
-                                                                  background: 'rgba(99, 102, 241, 0.05)',
-                                                                  borderRadius: 'var(--radius-md)',
-                                                                  cursor: 'pointer'
-                                                            }}
-                                                            onClick={() => {
-                                                                  setShowFollowingModal(false);
-                                                                  navigate(`/u/${following.username}`);
-                                                            }}
-                                                      >
-                                                            <div className="avatar avatar-md" style={{ overflow: 'hidden' }}>
-                                                                  {following.avatar ? (
-                                                                        <img src={following.avatar} alt={following.displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                                                  ) : (
-                                                                        <span>{following.displayName?.charAt(0) || following.username?.charAt(0) || 'U'}</span>
-                                                                  )}
-                                                            </div>
-                                                            <div className="flex-1">
-                                                                  <div className="font-semibold text-sm">{following.displayName || following.username}</div>
-                                                                  <div className="text-xs text-gray-500">@{following.username}</div>
-                                                                  {following.bio && (
-                                                                        <div className="text-xs text-gray-400 mt-xs" style={{
-                                                                              overflow: 'hidden',
-                                                                              textOverflow: 'ellipsis',
-                                                                              whiteSpace: 'nowrap',
-                                                                              maxWidth: '200px'
-                                                                        }}>
-                                                                              {following.bio}
+                                                ) : followersList.length > 0 ? (
+                                                      <div className="flex flex-col gap-md">
+                                                            {followersList.map(follower => (
+                                                                  <div
+                                                                        key={follower._id}
+                                                                        className="flex items-center gap-md p-sm"
+                                                                        style={{
+                                                                              background: 'rgba(99, 102, 241, 0.05)',
+                                                                              borderRadius: 'var(--radius-md)',
+                                                                              cursor: 'pointer'
+                                                                        }}
+                                                                        onClick={() => {
+                                                                              setShowFollowersModal(false);
+                                                                              navigate(`/u/${follower.username}`);
+                                                                        }}
+                                                                  >
+                                                                        <div className="avatar avatar-md" style={{ overflow: 'hidden' }}>
+                                                                              {follower.avatar ? (
+                                                                                    <img src={follower.avatar} alt={follower.displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                                              ) : (
+                                                                                    <span>{follower.displayName?.charAt(0) || follower.username?.charAt(0) || 'U'}</span>
+                                                                              )}
                                                                         </div>
-                                                                  )}
-                                                            </div>
-                                                            {following.isVerified && <span className="text-blue-500">✓</span>}
+                                                                        <div className="flex-1">
+                                                                              <div className="font-semibold text-sm">{follower.displayName || follower.username}</div>
+                                                                              <div className="text-xs text-gray-500">@{follower.username}</div>
+                                                                              {follower.bio && (
+                                                                                    <div className="text-xs text-gray-400 mt-xs" style={{
+                                                                                          overflow: 'hidden',
+                                                                                          textOverflow: 'ellipsis',
+                                                                                          whiteSpace: 'nowrap',
+                                                                                          maxWidth: '200px'
+                                                                                    }}>
+                                                                                          {follower.bio}
+                                                                                    </div>
+                                                                              )}
+                                                                        </div>
+                                                                        {follower.isVerified && <span className="text-blue-500">✓</span>}
+                                                                  </div>
+                                                            ))}
                                                       </div>
-                                                ))}
+                                                ) : (
+                                                      <div className="text-center text-gray-500 py-lg">No followers yet</div>
+                                                )}
                                           </div>
-                                    ) : (
-                                          <div className="text-center text-gray-500 py-lg">Not following anyone yet</div>
-                                    )}
-                              </div>
-                        </div>
-                  )}
-            </>
-      );
+                                    </div>
+                              )
+                        }
+
+                        {/* Following Modal */}
+                        {
+                              showFollowingModal && (
+                                    <div
+                                          className="modal-overlay"
+                                          style={{
+                                                position: 'fixed',
+                                                top: 0,
+                                                left: 0,
+                                                right: 0,
+                                                bottom: 0,
+                                                background: 'rgba(0,0,0,0.6)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                zIndex: 1000,
+                                                backdropFilter: 'blur(4px)'
+                                          }}
+                                          onClick={() => setShowFollowingModal(false)}
+                                    >
+                                          <div
+                                                className="modal-content card animate-fadeIn"
+                                                style={{
+                                                      maxWidth: '400px',
+                                                      width: '90%',
+                                                      maxHeight: '70vh',
+                                                      overflow: 'auto'
+                                                }}
+                                                onClick={(e) => e.stopPropagation()}
+                                          >
+                                                <div className="flex items-center justify-between mb-lg">
+                                                      <h3 className="text-lg font-bold">👤 Following</h3>
+                                                      <button
+                                                            onClick={() => setShowFollowingModal(false)}
+                                                            className="btn btn-ghost btn-sm"
+                                                            style={{ padding: '4px 8px' }}
+                                                      >✕</button>
+                                                </div>
+                                                {modalLoading ? (
+                                                      <div className="text-center py-lg">
+                                                            <span style={{ fontSize: '1.5rem' }}>⏳</span>
+                                                      </div>
+                                                ) : followingList.length > 0 ? (
+                                                      <div className="flex flex-col gap-md">
+                                                            {followingList.map(following => (
+                                                                  <div
+                                                                        key={following._id}
+                                                                        className="flex items-center gap-md p-sm"
+                                                                        style={{
+                                                                              background: 'rgba(99, 102, 241, 0.05)',
+                                                                              borderRadius: 'var(--radius-md)',
+                                                                              cursor: 'pointer'
+                                                                        }}
+                                                                        onClick={() => {
+                                                                              setShowFollowingModal(false);
+                                                                              navigate(`/u/${following.username}`);
+                                                                        }}
+                                                                  >
+                                                                        <div className="avatar avatar-md" style={{ overflow: 'hidden' }}>
+                                                                              {following.avatar ? (
+                                                                                    <img src={following.avatar} alt={following.displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                                              ) : (
+                                                                                    <span>{following.displayName?.charAt(0) || following.username?.charAt(0) || 'U'}</span>
+                                                                              )}
+                                                                        </div>
+                                                                        <div className="flex-1">
+                                                                              <div className="font-semibold text-sm">{following.displayName || following.username}</div>
+                                                                              <div className="text-xs text-gray-500">@{following.username}</div>
+                                                                              {following.bio && (
+                                                                                    <div className="text-xs text-gray-400 mt-xs" style={{
+                                                                                          overflow: 'hidden',
+                                                                                          textOverflow: 'ellipsis',
+                                                                                          whiteSpace: 'nowrap',
+                                                                                          maxWidth: '200px'
+                                                                                    }}>
+                                                                                          {following.bio}
+                                                                                    </div>
+                                                                              )}
+                                                                        </div>
+                                                                        {following.isVerified && <span className="text-blue-500">✓</span>}
+                                                                  </div>
+                                                            ))}
+                                                      </div>
+                                                ) : (
+                                                      <div className="text-center text-gray-500 py-lg">Not following anyone yet</div>
+                                                )}
+                                          </div>
+                                    </div>
+                              )
+                        }
+                  </>
+                  );
 };
 
-export default Profile;
+                  export default Profile;

@@ -250,6 +250,13 @@ const Upload = () => {
                                     align-items: center;
                                     justify-content: center;
                                     min-height: 200px;
+                                    cursor: pointer;
+                                    transition: all 0.2s ease;
+                                    position: relative;
+                              }
+                              .preview-container:hover {
+                                    border-color: var(--color-accent-primary);
+                                    background: rgba(99, 102, 241, 0.02);
                               }
                         `}
                   </style>
@@ -380,23 +387,27 @@ const Upload = () => {
 
                               {/* Real-time Media Preview */}
                               {(formData.contentType === 'photo' || formData.contentType.includes('video') || formData.contentType === 'story') && (
-                                    <div className="preview-container">
+                                    <div
+                                          className="preview-container"
+                                          onClick={() => document.getElementById('media-upload-input').click()}
+                                    >
                                           {formData.mediaPreview ? (
                                                 <div style={{ width: '100%', position: 'relative' }}>
                                                       {formData.contentType.includes('video') || (formData.contentType === 'story' && formData.media && formData.media[0].type.includes('video')) ? (
-                                                            <video src={formData.mediaPreview} controls style={{ width: '100%', maxHeight: '400px', borderRadius: '8px' }} />
+                                                            <video src={formData.mediaPreview} controls style={{ width: '100%', maxHeight: '400px', borderRadius: '8px' }} onClick={(e) => e.stopPropagation()} />
                                                       ) : (
                                                             <img src={formData.mediaPreview} alt="Preview" style={{ width: '100%', maxHeight: '400px', objectFit: 'contain', borderRadius: '8px' }} />
                                                       )}
                                                       <button
-                                                            style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.5)', color: 'white', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer' }}
-                                                            onClick={() => setFormData(prev => ({ ...prev, media: null, mediaPreview: null }))}
+                                                            style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.5)', color: 'white', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', zIndex: 10 }}
+                                                            onClick={(e) => { e.stopPropagation(); setFormData(prev => ({ ...prev, media: null, mediaPreview: null })); }}
                                                       >✕</button>
                                                 </div>
                                           ) : (
                                                 <div style={{ textAlign: 'center', color: '#999' }}>
                                                       <div style={{ fontSize: '40px', marginBottom: '8px' }}>📸</div>
-                                                      <p>No media selected</p>
+                                                      <p className="font-semibold">Click to upload media</p>
+                                                      <p style={{ fontSize: '11px', marginTop: '4px' }}>Photos, videos or stories</p>
                                                 </div>
                                           )}
                                     </div>
@@ -442,6 +453,7 @@ const Upload = () => {
                                                       {formData.media ? 'Change File' : 'Choose File'}
                                                 </button>
                                                 <input
+                                                      id="media-upload-input"
                                                       type="file"
                                                       accept={formData.contentType === 'story' ? 'image/*,video/*' : formData.contentType === 'photo' ? 'image/*' : 'video/*'}
                                                       multiple={formData.contentType === 'photo'}
