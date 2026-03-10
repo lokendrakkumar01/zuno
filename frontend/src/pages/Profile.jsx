@@ -424,7 +424,8 @@ const Profile = () => {
                                                       style={{
                                                             cursor: profileUser.avatar ? 'pointer' : 'default',
                                                             transition: 'all 0.3s ease',
-                                                            border: '3px solid rgba(99, 102, 241, 0.5)'
+                                                            border: '3px solid rgba(99, 102, 241, 0.5)',
+                                                            position: 'relative'
                                                       }}
                                                       onMouseOver={(e) => isOwnProfile && (e.currentTarget.style.transform = 'scale(1.05)')}
                                                       onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
@@ -437,6 +438,50 @@ const Profile = () => {
                                                             <span style={{ fontSize: '2.5rem' }}>
                                                                   {profileUser.displayName?.charAt(0).toUpperCase() || profileUser.username?.charAt(0).toUpperCase() || 'Z'}
                                                             </span>
+                                                      )}
+
+                                                      {/* Play button on Avatar */}
+                                                      {profileUser.profileSong && profileUser.profileSong.previewUrl && (
+                                                            <button
+                                                                  onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        if (isMusicPlayingGlobal && currentTrack?.trackId === profileUser.profileSong.trackId) {
+                                                                              stopTrack();
+                                                                        } else {
+                                                                              playTrack(profileUser.profileSong);
+                                                                        }
+                                                                  }}
+                                                                  style={{
+                                                                        position: 'absolute',
+                                                                        inset: 0,
+                                                                        background: (isMusicPlayingGlobal && currentTrack?.trackId === profileUser.profileSong.trackId) ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.25)',
+                                                                        border: 'none',
+                                                                        display: 'flex',
+                                                                        alignItems: 'center',
+                                                                        justifyContent: 'center',
+                                                                        color: 'white',
+                                                                        fontSize: '24px',
+                                                                        borderRadius: '50%',
+                                                                        opacity: (isMusicPlayingGlobal && currentTrack?.trackId === profileUser.profileSong.trackId) ? 1 : 0,
+                                                                        transition: 'opacity 0.2s',
+                                                                        cursor: 'pointer'
+                                                                  }}
+                                                                  className="avatar-play-btn"
+                                                                  onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
+                                                                  onMouseLeave={(e) => {
+                                                                        if (!(isMusicPlayingGlobal && currentTrack?.trackId === profileUser.profileSong.trackId)) {
+                                                                              e.currentTarget.style.opacity = 0;
+                                                                        }
+                                                                  }}
+                                                            >
+                                                                  {(isMusicPlayingGlobal && currentTrack?.trackId === profileUser.profileSong.trackId) ? (
+                                                                        <div className="flex gap-[3px] items-center h-5">
+                                                                              <div className="w-[4px] bg-white h-full animate-pulse" style={{ animationDelay: '0ms' }}></div>
+                                                                              <div className="w-[4px] bg-white h-2/3 animate-pulse" style={{ animationDelay: '150ms' }}></div>
+                                                                              <div className="w-[4px] bg-white h-full animate-pulse" style={{ animationDelay: '300ms' }}></div>
+                                                                        </div>
+                                                                  ) : '▶️'}
+                                                            </button>
                                                       )}
                                                 </div>
 
@@ -456,10 +501,35 @@ const Profile = () => {
                                                                   justifyContent: 'center',
                                                                   cursor: 'pointer',
                                                                   boxShadow: 'var(--shadow-md)',
-                                                                  fontSize: '1rem'
+                                                                  fontSize: '1rem',
+                                                                  zIndex: 10
                                                             }}
                                                       >
                                                             📷
+                                                      </div>
+                                                )}
+
+                                                {/* Smaller music indicator badge */}
+                                                {profileUser.profileSong && (
+                                                      <div
+                                                            style={{
+                                                                  position: 'absolute',
+                                                                  top: '0',
+                                                                  right: '0',
+                                                                  width: '28px',
+                                                                  height: '28px',
+                                                                  background: '#1DB954', // Spotify green
+                                                                  borderRadius: '50%',
+                                                                  display: 'flex',
+                                                                  alignItems: 'center',
+                                                                  justifyContent: 'center',
+                                                                  boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                                                                  fontSize: '14px',
+                                                                  zIndex: 5,
+                                                                  border: '2px solid white'
+                                                            }}
+                                                      >
+                                                            🎶
                                                       </div>
                                                 )}
                                                 <input ref={fileInputRef} type="file" accept="image/*" onChange={handlePhotoChange} style={{ display: 'none' }} />

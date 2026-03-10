@@ -1,15 +1,22 @@
 import { useState, useEffect, useRef } from 'react';
 import { useMusic } from '../../context/MusicContext';
-import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../context/AuthContext';
+import { API_BASE_URL, API_URL } from '../../config';
 
 const StoryViewer = ({ group, onClose }) => {
+      const { user, token } = useAuth();
       const [currentIndex, setCurrentIndex] = useState(0);
       const [progress, setProgress] = useState(0);
       const [imageLoaded, setImageLoaded] = useState(false);
       const { playTrack, stopTrack } = useMusic();
       const [error, setError] = useState(false);
+      const [isEditing, setIsEditing] = useState(false);
+      const [editBody, setEditBody] = useState('');
+      const [isDeleting, setIsDeleting] = useState(false);
       const currentStory = group.stories[currentIndex];
       const videoRef = useRef(null);
+
+      const isOwner = user?._id === group.creator._id;
 
       // Reset state for new story
       useEffect(() => {
@@ -55,6 +62,75 @@ const StoryViewer = ({ group, onClose }) => {
             if (currentIndex > 0) {
                   setCurrentIndex(prev => prev - 1);
                   setProgress(0);
+            }
+      };
+
+      const handleShare = async () => {
+            const shareUrl = `${window.location.origin}/status/${group.creator.username}`;
+            if (navigator.share) {
+                  try {
+                        await navigator.share({
+                              title: `Check out ${group.creator.displayName || group.creator.username}'s ZUNO status`,
+                              url: shareUrl
+                        });
+                        await fetch(`${API_URL}/content/${currentStory._id}/share`, { method: 'POST' });
+                  } catch (err) {
+                        console.error('Share failed:', err);
+                  }
+            } else {
+                  navigator.clipboard.writeText(shareUrl);
+                  alert('Status link copied to clipboard!');
+            }
+      };
+
+      const handleDelete = async () => {
+            if (!window.confirm('Are you sure you want to delete this status?')) return;
+            setIsDeleting(true);
+            try {
+                  const res = await fetch(`${API_URL}/content/${currentStory._id}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                        if (group.stories.length === 1) {
+                              onClose();
+                              window.location.reload(); // Refresh to update list
+                        } else {
+                              // If multiple stories, just move to next or previous
+                              if (currentIndex < group.stories.length - 1) {
+                                    handleNext();
+                                    group.stories.splice(currentIndex, 1);
+                              } else {
+                                    handlePrev();
+                                    group.stories.splice(currentIndex, 1);
+                              }
+                        }
+                  }
+            } catch (err) {
+                  console.error('Delete failed:', err);
+            } finally {
+                  setIsDeleting(false);
+            }
+      };
+
+      const handleSaveEdit = async () => {
+            try {
+                  const res = await fetch(`${API_URL}/content/${currentStory._id}`, {
+                        method: 'PUT',
+                        headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ body: editBody })
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                        currentStory.body = editBody;
+                        setIsEditing(false);
+                  }
+            } catch (err) {
+                  console.error('Edit failed:', err);
             }
       };
 
@@ -303,18 +379,107 @@ const StoryViewer = ({ group, onClose }) => {
                               <div style={{ position: 'absolute', inset: '0 0 0 auto', width: '33.33%', cursor: 'pointer' }} onClick={handleNext}></div>
                         </div>
 
-                        {/* Story expires in indicator */}
-                        {currentStory.expiresAt && (
-                              <div style={{ position: 'absolute', bottom: '16px', left: 0, right: 0, textAlign: 'center' }}>
+                        {/* Bottom Actions */}
+                        <div style={{
+                              position: 'absolute',
+                              bottom: '24px',
+                              left: '16px',
+                              right: '16px',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              zIndex: 100
+                        }}>
+                              <div style={{ display: 'flex', gap: '12px' }}>
+                                    <button
+                                          onClick={handleShare}
+                                          style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)', border: 'none', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                                          title="Share"
+                                    >
+                                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" /><polyline points="16 6 12 2 8 6" /><line x1="12" y1="2" x2="12" y2="15" /></svg>
+                                    </button>
+                                    {isOwner && (
+                                          <>
+                                                <button
+                                                      onClick={() => {
+                                                            setEditBody(currentStory.body || '');
+                                                            setIsEditing(true);
+                                                      }}
+                                                      style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)', border: 'none', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                                                      title="Edit"
+                                                >
+                                                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                                                </button>
+                                                <button
+                                                      onClick={handleDelete}
+                                                      disabled={isDeleting}
+                                                      style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(239,68,68,0.3)', backdropFilter: 'blur(10px)', border: 'none', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                                                      title="Delete"
+                                                >
+                                                      {isDeleting ? '...' : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></svg>}
+                                                </button>
+                                          </>
+                                    )}
+                              </div>
+
+                              {currentStory.expiresAt && (
                                     <span style={{
                                           color: 'rgba(255,255,255,0.5)',
-                                          fontSize: '12px',
+                                          fontSize: '11px',
                                           backgroundColor: 'rgba(0,0,0,0.5)',
-                                          padding: '4px 12px',
+                                          padding: '4px 10px',
                                           borderRadius: '999px'
                                     }}>
-                                          ⏳ Expires {getTimeAgo(currentStory.expiresAt)}
+                                          ⏳ {getTimeAgo(currentStory.expiresAt)}
                                     </span>
+                              )}
+                        </div>
+
+                        {/* Edit Overlay */}
+                        {isEditing && (
+                              <div style={{
+                                    position: 'absolute',
+                                    inset: 0,
+                                    zIndex: 500,
+                                    background: 'rgba(0,0,0,0.85)',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    padding: '24px',
+                                    justifyContent: 'center'
+                                    // backdropFilter: 'blur(10px)'
+                              }}>
+                                    <h3 style={{ color: 'white', marginBottom: '16px' }}>Edit Status</h3>
+                                    <textarea
+                                          value={editBody}
+                                          onChange={(e) => setEditBody(e.target.value)}
+                                          style={{
+                                                width: '100%',
+                                                height: '150px',
+                                                background: 'rgba(255,255,255,0.1)',
+                                                border: '1px solid rgba(255,255,255,0.2)',
+                                                borderRadius: '12px',
+                                                color: 'white',
+                                                padding: '12px',
+                                                fontSize: '16px',
+                                                outline: 'none',
+                                                marginBottom: '20px'
+                                          }}
+                                          autoFocus
+                                    />
+                                    <div style={{ display: 'flex', gap: '12px' }}>
+                                          <button
+                                                onClick={handleSaveEdit}
+                                                style={{ flex: 1, padding: '12px', borderRadius: '12px', background: 'var(--color-accent-primary, #6366f1)', color: 'white', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}
+                                          >
+                                                Save Changes
+                                          </button>
+                                          <button
+                                                onClick={() => setIsEditing(false)}
+                                                style={{ flex: 1, padding: '12px', borderRadius: '12px', background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}
+                                          >
+                                                Cancel
+                                          </button>
+                                    </div>
                               </div>
                         )}
                   </div>
