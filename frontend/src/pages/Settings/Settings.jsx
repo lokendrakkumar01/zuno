@@ -134,7 +134,13 @@ const Settings = () => {
                         />
 
                         {/* Who Can See Your Content Section */}
-                        <SectionTitle title={t('whoCanSee')} />
+                        <SectionTitle title={t('whoCanSeeContent')} />
+                        <SettingsOption
+                              icon="📥"
+                              label="Archive"
+                              subtitle="View and restore archived content"
+                              onClick={() => setShowArchive(true)}
+                        />
                         <SettingsOption
                               icon="🔒"
                               label={t('privacy')}
@@ -246,6 +252,11 @@ const Settings = () => {
                   {/* Modal for Your Activity */}
                   {showActivity && (
                         <ActivityModal onClose={() => setShowActivity(false)} />
+                  )}
+
+                  {/* Modal for Archive */}
+                  {showArchive && (
+                        <ArchiveModal onClose={() => setShowArchive(false)} />
                   )}
 
                   {/* Modal for Close Friends */}
@@ -559,6 +570,111 @@ const BlockedUsersModal = ({ onClose }) => {
                                                 >
                                                       Unblock
                                                 </button>
+                                          </div>
+                                    ))}
+                              </div>
+                        )}
+                  </div>
+            </ModalWrapper>
+      );
+};
+
+const ArchiveModal = ({ onClose }) => {
+      const { token } = useAuth();
+      const [archivedContent, setArchivedContent] = useState([]);
+      const [loading, setLoading] = useState(true);
+
+      useEffect(() => {
+            const fetchArchived = async () => {
+                  try {
+                        // Assuming backend filter by status=archived
+                        const res = await fetch(`${API_URL}/content/me?status=archived`, {
+                              headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                              setArchivedContent(data.data.contents);
+                        }
+                  } catch (error) {
+                        toast.error('Failed to load archive');
+                  } finally {
+                        setLoading(false);
+                  }
+            };
+            fetchArchived();
+      }, [token]);
+
+      const handleRestore = async (contentId) => {
+            try {
+                  const res = await fetch(`${API_URL}/content/${contentId}/publish`, {
+                        method: 'PATCH',
+                        headers: {
+                              'Authorization': `Bearer ${token}`
+                        }
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                        setArchivedContent(prev => prev.filter(c => c._id !== contentId));
+                        toast.success('Content restored');
+                  }
+            } catch (error) {
+                  toast.error('Failed to restore content');
+            }
+      };
+
+      return (
+            <ModalWrapper title="Your Archive" onClose={onClose}>
+                  <div style={{ padding: '20px' }}>
+                        {loading ? (
+                              <div style={{ textAlign: 'center', padding: '40px' }}>
+                                    <span style={{ fontSize: '24px' }}>⏳</span>
+                                    <p style={{ marginTop: '12px', color: 'var(--color-text-secondary)' }}>Loading archive...</p>
+                              </div>
+                        ) : archivedContent.length === 0 ? (
+                              <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+                                    <div style={{ fontSize: '48px', marginBottom: '16px' }}>📥</div>
+                                    <h3 style={{ color: 'var(--color-text-primary)', marginBottom: '8px' }}>Archive is empty</h3>
+                                    <p style={{ color: 'var(--color-text-secondary)', fontSize: '14px' }}>Posts you archive will appear here. No one else can see them.</p>
+                              </div>
+                        ) : (
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '12px' }}>
+                                    {archivedContent.map(item => (
+                                          <div key={item._id} style={{
+                                                borderRadius: '12px',
+                                                overflow: 'hidden',
+                                                backgroundColor: 'var(--color-bg-secondary)',
+                                                border: '1px solid var(--color-border)',
+                                                position: 'relative',
+                                                aspectRatio: '1/1'
+                                          }}>
+                                                {item.media?.[0]?.type === 'image' || !item.media?.[0]?.type ? (
+                                                      <img
+                                                            src={item.media?.[0]?.url.startsWith('http') ? item.media[0].url : `${API_BASE_URL}${item.media?.[0]?.url.startsWith('/') ? '' : '/'}${item.media?.[0]?.url}`}
+                                                            alt=""
+                                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                                      />
+                                                ) : (
+                                                      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000' }}>
+                                                            <span style={{ fontSize: '24px' }}>🎥</span>
+                                                      </div>
+                                                )}
+                                                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '8px', background: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center' }}>
+                                                      <button
+                                                            onClick={() => handleRestore(item._id)}
+                                                            style={{
+                                                                  fontSize: '11px',
+                                                                  padding: '4px 10px',
+                                                                  borderRadius: '12px',
+                                                                  border: 'none',
+                                                                  background: 'var(--color-primary)',
+                                                                  color: 'white',
+                                                                  fontWeight: '600',
+                                                                  cursor: 'pointer'
+                                                            }}
+                                                      >
+                                                            Restore
+                                                      </button>
+                                                </div>
                                           </div>
                                     ))}
                               </div>

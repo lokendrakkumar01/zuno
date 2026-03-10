@@ -210,6 +210,18 @@ export const AuthProvider = ({ children }) => {
             }
       };
 
+      const updateFollowState = (targetUserId, isFollowing) => {
+            if (!user) return;
+
+            const newFollowing = isFollowing
+                  ? [...(user.following || []), targetUserId]
+                  : (user.following || []).filter(id => id !== targetUserId);
+
+            const updatedUser = { ...user, following: newFollowing };
+            setUser(updatedUser);
+            localStorage.setItem('zuno_user', JSON.stringify(updatedUser));
+      };
+
       const value = {
             user,
             token,
@@ -220,7 +232,8 @@ export const AuthProvider = ({ children }) => {
             logout,
             updateProfile,
             blockUser,
-            unblockUser
+            unblockUser,
+            updateFollowState
       };
 
       return (

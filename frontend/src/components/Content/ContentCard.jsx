@@ -6,7 +6,7 @@ import { API_URL, API_BASE_URL } from '../../config';
 import CommentSection from './CommentSection';
 
 const ContentCard = ({ content, onDelete }) => {
-      const { user: currentUser, token } = useAuth();
+      const { user: currentUser, token, updateFollowState } = useAuth();
       const [isHelpful, setIsHelpful] = useState(content.interactions?.some(i => i.user === currentUser?._id && i.type === 'helpful') || false);
       const [isSaved, setIsSaved] = useState(content.interactions?.some(i => i.user === currentUser?._id && i.type === 'save') || false);
       const [shareCount, setShareCount] = useState(content.metrics?.shareCount || 0);
@@ -284,8 +284,8 @@ const ContentCard = ({ content, onDelete }) => {
                   // Optimistic update
                   setIsFollowing(!isFollowing);
 
-                  // Note: In a real app, you might want to update the global user context here 
-                  // to keep currentUser.following in sync, but for this card UI, local state is sufficient for immediate feedback.
+                  // Update global auth context
+                  updateFollowState(content.creator._id, !isFollowing);
             } catch (error) {
                   console.error('Failed to toggle follow:', error);
             }

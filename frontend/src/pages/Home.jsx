@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import ContentCard from '../components/Content/ContentCard';
@@ -36,6 +36,10 @@ const CATEGORIES = [
 const Home = () => {
       const { token, isAuthenticated, user } = useAuth();
       const { t } = useLanguage();
+      const [searchParams, setSearchParams] = useSearchParams();
+      const navigate = useNavigate();
+
+      const topicParam = searchParams.get('topic') || '';
       const [mode, setMode] = useState('all');
 
       // Always initialize from cache - NEVER show loading to user
@@ -55,7 +59,7 @@ const Home = () => {
       const [hasMore, setHasMore] = useState(true);
       const [stats, setStats] = useState({ users: '1K+', content: '500+', helpful: '10K+' });
 
-      const fetchFeed = async (currentMode, currentPage, append = false) => {
+      const fetchFeed = async (currentMode, currentPage, append = false, currentTopic = topicParam) => {
             // STALE-WHILE-REVALIDATE:
             // 1. Immediately show cached data (no loading shown)
             // 2. Fetch fresh data silently in background
@@ -86,7 +90,13 @@ const Home = () => {
 
             try {
                   const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-                  const res = await fetch(`${API_URL}/feed?mode=${currentMode}&page=${currentPage}&limit=10`, {
+                  const url = new URL(`${API_URL}/feed`);
+                  url.searchParams.append('mode', currentMode);
+                  url.searchParams.append('page', currentPage);
+                  url.searchParams.append('limit', 10);
+                  if (currentTopic) url.searchParams.append('topic', currentTopic);
+
+                  const res = await fetch(url.toString(), {
                         headers,
                         signal: controller.signal
                   });
@@ -125,8 +135,8 @@ const Home = () => {
 
       useEffect(() => {
             setPage(1);
-            fetchFeed(mode, 1, false);
-      }, [mode, token]);
+            fetchFeed(mode, 1, false, topicParam);
+      }, [mode, token, topicParam]);
 
       const loadMore = () => {
             const nextPage = page + 1;
@@ -269,7 +279,7 @@ const Home = () => {
                                                 }}
                                                 onClick={(e) => {
                                                       e.preventDefault();
-                                                      // Could filter by topic
+                                                      setSearchParams({ topic: cat.id });
                                                 }}
                                           >
                                                 <div
@@ -293,9 +303,19 @@ const Home = () => {
                         <div className="container">
                               <div className="feed-header animate-fadeIn">
                                     <h2 className="section-title">
-                                          Your <span className="text-gradient">Feed</span>
+                                          Your <span className="text-gradient">{topicParam ? `${topicParam.charAt(0).toUpperCase() + topicParam.slice(1)}` : 'Feed'}</span>
                                     </h2>
-                                    <p className="section-subtitle">Choose your vibe. No algorithm forcing content on you.</p>
+                                    <p className="section-subtitle">
+                                          {topicParam ? `Showing top content for ${topicParam}` : 'Choose your vibe. No algorithm forcing content on you.'}
+                                    </p>
+                                    {topicParam && (
+                                          <button
+                                                className="btn btn-sm btn-secondary mt-sm"
+                                                onClick={() => setSearchParams({})}
+                                          >
+                                                ✕ Clear Filter
+                                          </button>
+                                    )}
 
                                     <div className="mode-pills" style={{ maxWidth: '800px', margin: '0 auto' }}>
                                           {FEED_MODES.map(m => (
@@ -400,7 +420,7 @@ const Home = () => {
                                                 <p className="text-sm text-muted">Manage your settings</p>
                                           </Link>
 
-                                          <Link to="/?mode=calm" className="feature-card animate-fadeInUp stagger-3" onClick={() => setMode('calm')}>
+                                          <Link to="/" className="feature-card animate-fadeInUp stagger-3" onClick={() => { setMode('calm'); setSearchParams({}); }}>
                                                 <div className="feature-icon" style={{ background: 'linear-gradient(135deg, #06b6d4, #22d3ee)' }}>
                                                       🧘
                                                 </div>
