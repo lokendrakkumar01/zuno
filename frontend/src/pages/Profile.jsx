@@ -64,6 +64,7 @@ const Profile = () => {
       const [followLoading, setFollowLoading] = useState(false);
       const [blockLoading, setBlockLoading] = useState(false);
       const [showPhotoModal, setShowPhotoModal] = useState(false);
+      const [openPostIdx, setOpenPostIdx] = useState(null);
 
       // Followers/Following modal states
       const [showFollowersModal, setShowFollowersModal] = useState(false);
@@ -877,24 +878,81 @@ const Profile = () => {
                                           </div>
                                     )}
 
-                                    {/* User Posts */}
-                                    <h3 id="posts-section" className="text-xl font-bold mb-md mt-xl">Posts</h3>
+                                    {/* User Posts - Instagram Grid */}
+                                    <div id="posts-section" style={{ borderTop: '1px solid var(--color-border)', paddingTop: '2px' }}>
+                                          {postsError && (
+                                                <div className="card p-md mb-lg" style={{ background: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.3)', margin: '16px' }}>
+                                                      <p className="text-center text-red-500">{postsError}</p>
+                                                      <button onClick={() => fetchUserPosts(profileUser.username)} className="btn btn-primary mt-sm mx-auto flex">🔄 Retry</button>
+                                                </div>
+                                          )}
 
-                                    {postsError && (
-                                          <div className="card p-md mb-lg" style={{ background: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
-                                                <p className="text-center text-red-500">{postsError}</p>
-                                                <button onClick={() => fetchUserPosts(profileUser.username)} className="btn btn-primary mt-sm mx-auto flex">🔄 Retry</button>
-                                          </div>
-                                    )}
-
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                                          {!postsError && userPosts.length > 0 ? (
-                                                userPosts.map(post => (
-                                                      <ContentCard key={post._id} content={post} onDelete={handleDeleteContent} />
-                                                ))
-                                          ) : !postsError && (
+                                          {!postsError && userPosts.length === 0 && (
                                                 <div className="text-center text-gray-500 py-xl">No posts yet.</div>
                                           )}
+
+                                          {!postsError && userPosts.length > 0 && (() => {
+                                                const GRADIENTS = [
+                                                      'linear-gradient(135deg, #667eea, #764ba2)',
+                                                      'linear-gradient(135deg, #f093fb, #f5576c)',
+                                                      'linear-gradient(135deg, #4facfe, #00f2fe)',
+                                                      'linear-gradient(135deg, #43e97b, #38f9d7)',
+                                                      'linear-gradient(135deg, #fa709a, #fee140)',
+                                                      'linear-gradient(135deg, #a18cd1, #fbc2eb)',
+                                                      'linear-gradient(135deg, #fd746c, #ff9068)',
+                                                      'linear-gradient(135deg, #0ba360, #3cba92)',
+                                                ];
+                                                const API_BASE = window.location.origin.includes('localhost') ? 'http://localhost:5000' : '';
+
+                                                return (
+                                                      <>
+                                                            <div className="profile-posts-grid">
+                                                                  {userPosts.map((post, idx) => {
+                                                                        const isVid = post.contentType === 'video' || (post.media?.[0] && /\.(mp4|webm|mov|avi)/i.test(post.media[0]));
+                                                                        const hasMedia = post.media && post.media.length > 0;
+                                                                        const rawUrl = hasMedia ? post.media[0] : null;
+                                                                        const resolved = rawUrl ? (rawUrl.startsWith('http') ? rawUrl : API_BASE + rawUrl) : null;
+                                                                        const gradient = GRADIENTS[idx % GRADIENTS.length];
+
+                                                                        return (
+                                                                              <div key={post._id} className="profile-post-thumb" onClick={() => setOpenPostIdx(idx)}>
+                                                                                    {hasMedia ? (
+                                                                                          isVid ? (
+                                                                                                <video src={resolved} muted playsInline preload="metadata" style={{ pointerEvents: 'none' }} />
+                                                                                          ) : (
+                                                                                                <img src={resolved} alt={post.title || ''} loading="lazy" />
+                                                                                          )
+                                                                                    ) : (
+                                                                                          <div style={{ width: '100%', height: '100%', background: gradient, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px' }}>
+                                                                                                <span style={{ fontSize: '11px', fontWeight: '700', color: 'white', textAlign: 'center', lineHeight: 1.3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical' }}>
+                                                                                                      {post.title || post.body || '📝'}
+                                                                                                </span>
+                                                                                          </div>
+                                                                                    )}
+                                                                                    <div className="profile-post-thumb-overlay">
+                                                                                          <span style={{ fontSize: '22px', color: 'white', textShadow: '0 2px 6px rgba(0,0,0,0.5)' }}>{isVid ? '▶️' : '🔍'}</span>
+                                                                                    </div>
+                                                                                    <div className="profile-post-type-badge">{isVid ? '🎬' : !hasMedia ? '📝' : ''}</div>
+                                                                              </div>
+                                                                        );
+                                                                  })}
+                                                            </div>
+
+                                                            {/* ContentCard fullscreen modal for selected thumbnail */}
+                                                            {openPostIdx !== null && (
+                                                                  <div style={{ position: 'fixed', inset: 0, zIndex: 200000, pointerEvents: 'auto' }}>
+                                                                        <ContentCard
+                                                                              key={userPosts[openPostIdx]._id}
+                                                                              content={userPosts[openPostIdx]}
+                                                                              onDelete={handleDeleteContent}
+                                                                              autoOpenFullscreen={true}
+                                                                              onCloseFullscreen={() => setOpenPostIdx(null)}
+                                                                        />
+                                                                  </div>
+                                                            )}
+                                                      </>
+                                                );
+                                          })()}
                                     </div>
 
                                     {isOwnProfile && (

@@ -364,11 +364,11 @@ const Home = () => {
                                     </div>
                               ) : (
                                     <>
-                                          <div className="reel-snap-wrapper">
+                                          <div className="home-feed-grid">
                                                 {contents.map((content, idx) => (
                                                       <div
                                                             key={content._id}
-                                                            className={`reel-snap-item animate-fadeInUp stagger-${(idx % 3) + 1}`}
+                                                            style={{ animationDelay: `${(idx % 6) * 0.07}s` }}
                                                       >
                                                             <ContentCard content={content} />
                                                       </div>

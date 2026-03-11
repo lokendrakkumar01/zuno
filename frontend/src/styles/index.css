@@ -1485,30 +1485,36 @@ textarea.input {
 
 .standard-card {
   background: white;
-  max-width: 600px;
-  margin: 0 auto 24px auto;
+  max-width: 100%;
+  margin: 0 0 0 0;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  /* Slight shadow for separation */
+  border-radius: 14px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.07);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  animation: cardSlideIn 0.4s ease forwards;
+  opacity: 0;
+}
+
+.standard-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
 }
 
 /* Specific styling for the Reels container */
 .reel-card {
   background: #000;
   width: 100%;
-  /* Fix width collapse */
-  max-width: 450px;
-  margin: 0 auto 30px auto;
-  border-radius: 12px;
+  max-width: 380px;
+  margin: 0 auto;
+  border-radius: 16px;
   border: none;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 700px;
-  /* Force tall height like mobile */
-  /* Remove bottom margin/border on reels since everything is overlay */
+  min-height: 560px;
+  animation: cardSlideIn 0.4s ease forwards;
+  opacity: 0;
 }
 
 .reel-video-container {
@@ -1594,14 +1600,20 @@ textarea.input {
 .content-card-media img,
 .content-card-media video {
   width: 100%;
-  max-height: 400px;
+  max-height: 280px;
   object-fit: cover;
-  transition: transform var(--transition-slow);
+  transition: transform 0.35s ease;
+}
+
+.standard-card .content-card-media img {
+  max-height: 260px;
+  min-height: 180px;
+  border-radius: 0;
 }
 
 .content-card:hover .content-card-media img,
 .content-card:hover .content-card-media video {
-  transform: scale(1.03);
+  transform: scale(1.04);
 }
 
 .content-card-body {
@@ -3017,6 +3029,48 @@ video.chat-media-content {
 }
 
 /* ========================================
+   New Animations
+   ======================================== */
+
+@keyframes cardSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes cardExpandIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideUpFade {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ripple {
+  0% { transform: scale(0); opacity: 1; }
+  100% { transform: scale(4); opacity: 0; }
+}
+
+/* ========================================
    Instagram Features (Post Double-Click & View)
    ======================================== */
 
@@ -3028,7 +3082,7 @@ video.chat-media-content {
 
   15% {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1.2);
+    transform: translate(-50%, -50%) scale(1.3);
   }
 
   30% {
@@ -3062,35 +3116,40 @@ video.chat-media-content {
   position: fixed;
   inset: 0;
   z-index: 99999;
-  background-color: #000;
+  background-color: rgba(0, 0, 0, 0.97);
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
-  animation: fadeIn 0.2s ease-out forwards;
+  animation: fadeIn 0.25s ease-out forwards;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .fullscreen-media-content {
   position: relative;
   width: 100%;
-  height: 100%;
-  max-width: 500px;
+  min-height: 100dvh;
+  max-width: 520px;
+  margin: 0 auto;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
   background: #000;
+  animation: cardExpandIn 0.3s ease-out forwards;
 }
 
 .fullscreen-media-content video {
   width: 100%;
   height: 100dvh;
+  max-height: 100dvh;
   object-fit: cover;
+  flex-shrink: 0;
 }
 
 .fullscreen-close {
-  position: absolute;
+  position: fixed;
   top: 16px;
   left: 16px;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.55);
   color: white;
   border: none;
   border-radius: 50%;
@@ -3168,36 +3227,128 @@ video.chat-media-content {
 }
 
 /* ========================================
-   Instagram Feed Reel Scrolling (Snap)
+   Home Feed Grid Layout
    ======================================== */
 
-.reel-snap-wrapper {
-  /* This ensures the page itself handles scrolling gracefully or the wrapper takes over */
-  height: calc(100dvh - 60px);
-  /* minus bottom nav */
-  width: 100%;
-  overflow-y: scroll;
-  scroll-snap-type: y mandatory;
-  scroll-behavior: smooth;
-  -ms-overflow-style: none;
-  /* IE and Edge */
-  scrollbar-width: none;
-  /* Firefox */
+.home-feed-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  max-width: 780px;
+  margin: 0 auto;
 }
 
-.reel-snap-wrapper::-webkit-scrollbar {
-  display: none;
+.home-feed-grid .reel-card {
+  grid-column: 1 / -1;
+  max-width: 380px;
+  margin: 0 auto;
+}
+
+@media (max-width: 640px) {
+  .home-feed-grid {
+    grid-template-columns: 1fr;
+    gap: 0;
+    max-width: 100%;
+  }
+
+  .home-feed-grid > div {
+    border-bottom: 1px solid var(--color-border-light);
+  }
+
+  .home-feed-grid > div:last-child {
+    border-bottom: none;
+  }
+
+  .home-feed-grid .reel-card {
+    max-width: 100%;
+    border-radius: 0;
+  }
+}
+
+/* Legacy reel-snap-wrapper (kept for backward compat) */
+.reel-snap-wrapper {
+  width: 100%;
 }
 
 .reel-snap-item {
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
+  display: contents;
+}
+
+/* ========================================
+   Profile Posts Instagram Grid
+   ======================================== */
+
+.profile-posts-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+  width: 100%;
+  margin-top: 16px;
+}
+
+.profile-post-thumb {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  cursor: pointer;
+  background: var(--color-bg-tertiary);
+}
+
+.profile-post-thumb img,
+.profile-post-thumb video {
+  width: 100%;
   height: 100%;
-  /* Or 100dvh for complete takeover */
-  min-height: calc(100dvh - 60px);
+  object-fit: cover;
+  display: block;
+  transition: transform 0.3s ease;
+}
+
+.profile-post-thumb:hover img,
+.profile-post-thumb:hover video {
+  transform: scale(1.06);
+}
+
+.profile-post-thumb-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0);
   display: flex;
   align-items: center;
   justify-content: center;
-  /* Add padding to ensure content card doesn't touch the very edges if not full screen */
-  padding: 10px 0;
+  transition: background 0.25s ease;
+  opacity: 0;
+}
+
+.profile-post-thumb:hover .profile-post-thumb-overlay {
+  background: rgba(0,0,0,0.35);
+  opacity: 1;
+}
+
+.profile-post-thumb-text {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: white;
+  text-align: center;
+  overflow: hidden;
+  line-height: 1.3;
+}
+
+.profile-post-type-badge {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  font-size: 12px;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.7));
+}
+
+@media (max-width: 480px) {
+  .profile-posts-grid {
+    gap: 2px;
+  }
 }

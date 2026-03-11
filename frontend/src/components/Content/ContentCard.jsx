@@ -5,7 +5,7 @@ import { useMusic } from '../../context/MusicContext';
 import { API_URL, API_BASE_URL } from '../../config';
 import CommentSection from './CommentSection';
 
-const ContentCard = ({ content, onDelete }) => {
+const ContentCard = ({ content, onDelete, autoOpenFullscreen = false, onCloseFullscreen }) => {
       const { user: currentUser, token, updateFollowState } = useAuth();
       const [isHelpful, setIsHelpful] = useState(content.interactions?.some(i => i.user === currentUser?._id && i.type === 'helpful') || false);
       const [isSaved, setIsSaved] = useState(content.interactions?.some(i => i.user === currentUser?._id && i.type === 'save') || false);
@@ -40,7 +40,24 @@ const ContentCard = ({ content, onDelete }) => {
 
       // Instagram Style Features
       const [showBigHeart, setShowBigHeart] = useState(false);
-      const [isFullscreen, setIsFullscreen] = useState(false);
+      const [isFullscreen, setIsFullscreen] = useState(autoOpenFullscreen);
+
+      // When fullscreen closes, call onCloseFullscreen if provided
+      useEffect(() => {
+            if (!isFullscreen && autoOpenFullscreen && onCloseFullscreen) {
+                  onCloseFullscreen();
+            }
+      }, [isFullscreen]);
+
+      // Lock body scroll while fullscreen
+      useEffect(() => {
+            if (isFullscreen) {
+                  document.body.style.overflow = 'hidden';
+            } else {
+                  document.body.style.overflow = '';
+            }
+            return () => { document.body.style.overflow = ''; };
+      }, [isFullscreen]);
 
       // Media status tracking for polling
       // Default to 'ready' if status is undefined or empty - the backend sets status after save
@@ -469,14 +486,13 @@ const ContentCard = ({ content, onDelete }) => {
                               style={{
                                     position: 'relative',
                                     background: isVideo ? '#000' : 'var(--color-bg-tertiary)',
-                                    minHeight: isVideo ? '400px' : '200px',
+                                    minHeight: isVideo ? '300px' : '180px',
                                     width: '100%',
                                     overflow: 'hidden',
                                     zIndex: 1,
-                                    cursor: 'pointer' // explicitly show pointer
+                                    cursor: 'pointer'
                               }}
                               onClick={() => {
-                                    // Single click = play music if exists, and open fullscreen
                                     if (content.music && content.music.previewUrl && !isThisPlaying) {
                                           playTrack(content.music);
                                     }
@@ -836,15 +852,15 @@ const ContentCard = ({ content, onDelete }) => {
                   {/* Body & Standard Footer (Hidden for Videos since they use overlays) */}
                   {!isVideo && (
                         <>
-                              <div className="content-card-body pb-2">
+                              <div className="content-card-body pb-1" style={{ padding: '8px 12px 4px', cursor: 'pointer' }} onClick={() => setIsFullscreen(true)}>
                                     {content.title && (
-                                          <h3 className="font-bold text-sm mb-1">
-                                                <Link to={`/content/${content._id}`}>{content.title}</Link>
+                                          <h3 style={{ fontWeight: '700', fontSize: '13px', marginBottom: '2px', lineHeight: '1.3', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical' }}>
+                                                {content.title}
                                           </h3>
                                     )}
                                     {content.body && (
-                                          <p className="text-sm text-gray-800">
-                                                <span className="font-bold mr-2">{content.creator?.username}</span>
+                                          <p style={{ fontSize: '12px', color: '#555', lineHeight: '1.4', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', margin: 0 }}>
+                                                <span style={{ fontWeight: '700', marginRight: '4px', color: '#262626' }}>{content.creator?.username}</span>
                                                 {content.body}
                                           </p>
                                     )}
@@ -1110,144 +1126,174 @@ const ContentCard = ({ content, onDelete }) => {
                         </div>
                   )}
 
-                  {/* Fullscreen Media Viewer (Instagram Reel Style) */}
+                  {/* Fullscreen / Expanded Modal — YouTube + Instagram style */}
                   {isFullscreen && (
                         <div
                               className="fullscreen-media-modal"
+                              onClick={(e) => { if (e.target === e.currentTarget) setIsFullscreen(false); }}
                         >
+                              {/* Close Button */}
                               <button
                                     className="fullscreen-close"
-                                    onClick={(e) => {
-                                          e.stopPropagation();
-                                          setIsFullscreen(false);
-                                    }}
+                                    onClick={(e) => { e.stopPropagation(); setIsFullscreen(false); }}
                               >
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                                           <line x1="18" y1="6" x2="6" y2="18" />
                                           <line x1="6" y1="6" x2="18" y2="18" />
                                     </svg>
                               </button>
 
-                              <div
-                                    className="fullscreen-media-content"
-                                    onClick={(e) => {
-                                          e.stopPropagation();
-                                          // Toggle play/pause for video in fullscreen
-                                          if (isVideo) {
-                                                const vid = e.currentTarget.querySelector('video');
-                                                if (vid) {
-                                                      vid.paused ? vid.play() : vid.pause();
+                              <div className="fullscreen-media-content">
+
+                                    {/* ── MEDIA SECTION ── */}
+                                    <div
+                                          style={{ position: 'relative', width: '100%', minHeight: isVideo ? '100dvh' : 'auto', flex: isVideo ? '1' : '0 0 auto', cursor: 'pointer' }}
+                                          onDoubleClick={(e) => { e.preventDefault(); handleDoubleTap(); }}
+                                          onClick={(e) => {
+                                                if (isVideo) {
+                                                      const vid = e.currentTarget.querySelector('video');
+                                                      if (vid) vid.paused ? vid.play() : vid.pause();
                                                 }
-                                          }
-                                    }}
-                                    onDoubleClick={(e) => {
-                                          e.preventDefault();
-                                          e.stopPropagation();
-                                          handleDoubleTap();
-                                    }}
-                              >
-                                    <div className="fullscreen-gradient"></div>
+                                          }}
+                                    >
+                                          {/* Big Heart */}
+                                          {showBigHeart && (
+                                                <div className="animate-heart-pop" style={{ filter: 'drop-shadow(0 0 20px rgba(255,0,60,0.7))' }}>
+                                                      <svg width="110" height="110" viewBox="0 0 24 24" fill="#ef4444" stroke="#ef4444" strokeWidth="0.5">
+                                                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                                                      </svg>
+                                                </div>
+                                          )}
 
-                                    {/* Big Heart Animation for Double Tap */}
-                                    {showBigHeart && (
-                                          <div className="animate-heart-pop text-white shadow-2xl z-[99999]" style={{ filter: 'drop-shadow(0 0 20px rgba(0,0,0,0.5))' }}>
-                                                <svg width="120" height="120" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1">
-                                                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                                                </svg>
-                                          </div>
-                                    )}
-
-                                    {/* Media Element */}
-                                    {!isVideo ? (
-                                          <img
-                                                src={getMediaUrl(mediaUrl)}
-                                                alt={content.title || 'Fullscreen media'}
-                                                style={{ width: '100%', height: '100dvh', objectFit: 'contain' }}
-                                          />
-                                    ) : (
-                                          <video
-                                                src={getMediaUrl(mediaUrl)}
-                                                autoPlay
-                                                loop
-                                                playsInline
-                                                muted={isMuted} // follow normal app setting
-                                          />
-                                    )}
-
-                                    {/* Action Buttons Overlay (Right Side) */}
-                                    <div className="fullscreen-actions">
-                                          <button className="fullscreen-action-btn" onClick={(e) => { e.stopPropagation(); handleHelpful(); }}>
-                                                <svg width="32" height="32" viewBox="0 0 24 24" fill={isHelpful ? "var(--color-accent-helpful)" : "none"} stroke={isHelpful ? "var(--color-accent-helpful)" : "white"} strokeWidth="2">
-                                                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                                                </svg>
-                                                <span className="fullscreen-action-label">{content.metrics?.helpfulCount + (isHelpful && !content.metrics?.helpfulCount ? 1 : 0) || 'Like'}</span>
-                                          </button>
-
-                                          <button className="fullscreen-action-btn" onClick={(e) => { e.stopPropagation(); setShowComments(!showComments); setIsFullscreen(false); }}>
-                                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-                                                      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-                                                </svg>
-                                                <span className="fullscreen-action-label">{commentCount || 'Comment'}</span>
-                                          </button>
-
-                                          <button className="fullscreen-action-btn" onClick={(e) => {
-                                                e.stopPropagation();
-                                                navigator.clipboard.writeText(`${window.location.origin}/content/${content._id}`);
-                                                alert('Link copied to share!');
-                                          }}>
-                                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" style={{ transform: 'translateY(-2px)' }}>
-                                                      <line x1="22" y1="2" x2="11" y2="13" />
-                                                      <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                                                </svg>
-                                                <span className="fullscreen-action-label">Share</span>
-                                          </button>
-
-                                          <button className="fullscreen-action-btn" onClick={(e) => { e.stopPropagation(); handleSave(); }}>
-                                                <svg width="32" height="32" viewBox="0 0 24 24" fill={isSaved ? "white" : "none"} stroke="white" strokeWidth="2">
-                                                      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-                                                </svg>
-                                                <span className="fullscreen-action-label">Save</span>
-                                          </button>
-                                    </div>
-
-                                    {/* Creator Info (Bottom Left) */}
-                                    <div className="fullscreen-creator-info">
-                                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                                          {!isVideo ? (
                                                 <img
-                                                      src={content.creator?.avatar || 'https://via.placeholder.com/40'}
-                                                      alt={content.creator?.displayName}
-                                                      style={{ width: '40px', height: '40px', borderRadius: '50%', border: '2px solid white', objectFit: 'cover', flexShrink: 0 }}
+                                                      src={getMediaUrl(mediaUrl)}
+                                                      alt={content.title || 'Full image'}
+                                                      style={{ width: '100%', maxHeight: '70vh', objectFit: 'contain', background: '#000', display: 'block' }}
                                                 />
-                                                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                                      <span style={{ fontWeight: '700', fontSize: '14px', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
-                                                            {content.creator?.displayName || 'Anonymous'}
-                                                      </span>
-                                                      {content.creator?.username && (
-                                                            <span style={{ fontSize: '12px', color: '#d1d5db', textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
-                                                                  @{content.creator.username}
-                                                            </span>
+                                          ) : (
+                                                <video
+                                                      src={getMediaUrl(mediaUrl)}
+                                                      autoPlay
+                                                      loop
+                                                      playsInline
+                                                      muted={isMuted}
+                                                      style={{ width: '100%', height: '100dvh', objectFit: 'cover', display: 'block' }}
+                                                />
+                                          )}
+
+                                          {/* Gradient overlay for video */}
+                                          {isVideo && <div className="fullscreen-gradient" />}
+
+                                          {/* Video action buttons (right side overlay) */}
+                                          {isVideo && (
+                                                <div className="fullscreen-actions">
+                                                      <button className="fullscreen-action-btn" onClick={(e) => { e.stopPropagation(); handleHelpful(); }}>
+                                                            <svg width="30" height="30" viewBox="0 0 24 24" fill={isHelpful ? '#ef4444' : 'none'} stroke={isHelpful ? '#ef4444' : 'white'} strokeWidth="2">
+                                                                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                                                            </svg>
+                                                            <span className="fullscreen-action-label">{likeCount || ''}</span>
+                                                      </button>
+                                                      <button className="fullscreen-action-btn" onClick={(e) => { e.stopPropagation(); setShowComments(!showComments); }}>
+                                                            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                                                                  <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                                                            </svg>
+                                                            <span className="fullscreen-action-label">{commentCount || ''}</span>
+                                                      </button>
+                                                      <button className="fullscreen-action-btn" onClick={(e) => { e.stopPropagation(); handleShare(); }}>
+                                                            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
+                                                            <span className="fullscreen-action-label">Share</span>
+                                                      </button>
+                                                      <button className="fullscreen-action-btn" onClick={(e) => { e.stopPropagation(); handleSave(); }}>
+                                                            <svg width="30" height="30" viewBox="0 0 24 24" fill={isSaved ? 'white' : 'none'} stroke="white" strokeWidth="2">
+                                                                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                                                            </svg>
+                                                            <span className="fullscreen-action-label">Save</span>
+                                                      </button>
+                                                      <button onClick={(e) => { e.stopPropagation(); setIsMuted(m => !m); if (videoRef.current) videoRef.current.muted = !isMuted; }} className="fullscreen-action-btn">
+                                                            {isMuted
+                                                                  ? <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><line x1="23" y1="9" x2="17" y2="15" /><line x1="17" y1="9" x2="23" y2="15" /></svg>
+                                                                  : <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" /></svg>
+                                                            }
+                                                      </button>
+                                                </div>
+                                          )}
+
+                                          {/* Video creator info bottom left */}
+                                          {isVideo && (
+                                                <div className="fullscreen-creator-info">
+                                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                                                            <img src={content.creator?.avatar || 'https://via.placeholder.com/36'} alt="" style={{ width: '36px', height: '36px', borderRadius: '50%', border: '2px solid white', objectFit: 'cover' }} />
+                                                            <span style={{ fontWeight: '700', fontSize: '14px', textShadow: '0 1px 3px rgba(0,0,0,0.9)', color: 'white' }}>{content.creator?.username}</span>
+                                                            {currentUser?._id !== content.creator?._id && !isFollowing && (
+                                                                  <button onClick={(e) => { e.stopPropagation(); handleFollow(); }} style={{ background: 'transparent', border: '1.5px solid white', borderRadius: '6px', color: 'white', padding: '2px 10px', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}>Follow</button>
+                                                            )}
+                                                      </div>
+                                                      {(content.title || content.body) && (
+                                                            <div style={{ fontSize: '13px', color: 'white', textShadow: '0 1px 2px rgba(0,0,0,0.9)', lineHeight: 1.4 }}>
+                                                                  {content.title && <span style={{ fontWeight: '700', marginRight: '4px' }}>{content.title}</span>}
+                                                                  <span>{content.body}</span>
+                                                            </div>
                                                       )}
                                                 </div>
-                                                {currentUser?._id !== content.creator?._id && !isFollowing && (
-                                                      <button
-                                                            className="ml-2 px-3 py-1 bg-transparent border border-white rounded-md text-xs font-bold transition-colors hover:bg-white hover:text-black"
-                                                            onClick={(e) => { e.stopPropagation(); handleFollow(); }}
-                                                      >
-                                                            Follow
-                                                      </button>
-                                                )}
-                                          </div>
-                                          {content.title && (
-                                                <p className="text-sm font-medium drop-shadow-md line-clamp-2">
-                                                      {content.title}
-                                                </p>
-                                          )}
-                                          {content.body && (
-                                                <p className="text-xs text-gray-200 mt-1 line-clamp-2 drop-shadow-md">
-                                                      {content.body}
-                                                </p>
                                           )}
                                     </div>
+
+                                    {/* ── INFO SECTION (images/posts) ── */}
+                                    {!isVideo && (
+                                          <div style={{ background: '#fff', padding: '16px', borderTop: '1px solid #efefef' }}>
+                                                {/* Creator row */}
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                                                      <img src={content.creator?.avatar || 'https://via.placeholder.com/40'} alt="" style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #eee' }} />
+                                                      <div style={{ flex: 1 }}>
+                                                            <div style={{ fontWeight: '700', fontSize: '14px' }}>{content.creator?.displayName || content.creator?.username}</div>
+                                                            <div style={{ fontSize: '12px', color: '#8e8e8e' }}>@{content.creator?.username}</div>
+                                                      </div>
+                                                      {currentUser?._id !== content.creator?._id && (
+                                                            <button onClick={handleFollow} style={{ background: isFollowing ? '#efefef' : 'var(--color-accent-primary)', color: isFollowing ? '#262626' : 'white', border: 'none', borderRadius: '8px', padding: '6px 16px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>
+                                                                  {isFollowing ? 'Following' : 'Follow'}
+                                                            </button>
+                                                      )}
+                                                </div>
+
+                                                {/* Title + body */}
+                                                {content.title && <h3 style={{ fontWeight: '700', fontSize: '15px', marginBottom: '6px' }}>{content.title}</h3>}
+                                                {content.body && <p style={{ fontSize: '14px', color: '#262626', lineHeight: 1.5, marginBottom: '10px' }}>{content.body}</p>}
+
+                                                {/* Actions row */}
+                                                <div style={{ display: 'flex', gap: '16px', borderTop: '1px solid #efefef', paddingTop: '10px', marginTop: '6px', alignItems: 'center' }}>
+                                                      <button onClick={handleHelpful} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', transform: animateHelpful ? 'scale(1.25)' : 'scale(1)', transition: 'transform 0.2s' }}>
+                                                            <svg width="24" height="24" viewBox="0 0 24 24" fill={isHelpful ? '#ef4444' : 'none'} stroke={isHelpful ? '#ef4444' : '#262626'} strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>
+                                                            {likeCount > 0 && <span style={{ fontWeight: '700', fontSize: '13px' }}>{likeCount}</span>}
+                                                      </button>
+                                                      <button onClick={() => setShowComments(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#262626" strokeWidth="2" style={{ transform: 'scaleX(-1)' }}><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
+                                                            {commentCount > 0 && <span style={{ fontWeight: '700', fontSize: '13px' }}>{commentCount}</span>}
+                                                      </button>
+                                                      <button onClick={handleShare} style={{ background: 'none', border: 'none', cursor: 'pointer', transform: animateShare ? 'scale(1.25)' : 'scale(1)', transition: 'transform 0.2s' }}>
+                                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#262626" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
+                                                      </button>
+                                                      <div style={{ flex: 1 }} />
+                                                      <button onClick={handleSave} style={{ background: 'none', border: 'none', cursor: 'pointer', transform: animateSave ? 'scale(1.25)' : 'scale(1)', transition: 'transform 0.2s' }}>
+                                                            <svg width="24" height="24" viewBox="0 0 24 24" fill={isSaved ? '#262626' : 'none'} stroke="#262626" strokeWidth="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
+                                                      </button>
+                                                </div>
+
+                                                {/* Comments section */}
+                                                {showComments && (
+                                                      <div style={{ marginTop: '12px', borderTop: '1px solid #efefef', paddingTop: '12px' }}>
+                                                            <CommentSection contentId={content._id} />
+                                                      </div>
+                                                )}
+                                          </div>
+                                    )}
+
+                                    {/* Video comments shown below */}
+                                    {isVideo && showComments && (
+                                          <div style={{ background: '#fff', padding: '16px', borderTop: '1px solid #efefef' }}>
+                                                <CommentSection contentId={content._id} />
+                                          </div>
+                                    )}
                               </div>
                         </div>
                   )}
