@@ -908,7 +908,11 @@ const Profile = () => {
                                                       <>
                                                             <div className="profile-posts-grid">
                                                                   {userPosts.map((post, idx) => {
-                                                                        const isVid = post.contentType === 'video' || (post.media?.[0] && /\.(mp4|webm|mov|avi)/i.test(post.media[0]));
+                                                                         const rawMediaType = post.media?.[0]?.type;
+                                                                        const rawMediaUrl = post.media?.[0]?.url || (typeof post.media?.[0] === 'string' ? post.media[0] : '');
+                                                                        const isVid = post.type === 'short-video' || post.type === 'long-video' ||
+                                                                              post.contentType === 'video' || rawMediaType === 'video' ||
+                                                                              /\.(mp4|webm|mov|avi|mkv|flv)/i.test(rawMediaUrl);
                                                                         const hasMedia = post.media && post.media.length > 0;
                                                                         const rawUrl = hasMedia ? (post.media[0]?.url || post.media[0]) : null;
                                                                         const resolved = rawUrl && typeof rawUrl === 'string' ? (rawUrl.startsWith('http') ? rawUrl : API_BASE + rawUrl) : null;
@@ -918,7 +922,7 @@ const Profile = () => {
                                                                               <div key={post._id} className="profile-post-thumb" onClick={() => setOpenPostIdx(idx)}>
                                                                                     {hasMedia ? (
                                                                                           isVid ? (
-                                                                                                <video src={resolved} muted playsInline preload="metadata" style={{ pointerEvents: 'none' }} />
+                                                                                                <video src={resolved} muted playsInline preload="metadata" style={{ pointerEvents: 'none', width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                                                                                           ) : (
                                                                                                 <img src={resolved} alt={post.title || ''} loading="lazy" />
                                                                                           )
