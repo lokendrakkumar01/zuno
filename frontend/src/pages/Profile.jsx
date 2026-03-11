@@ -910,8 +910,8 @@ const Profile = () => {
                                                                   {userPosts.map((post, idx) => {
                                                                         const isVid = post.contentType === 'video' || (post.media?.[0] && /\.(mp4|webm|mov|avi)/i.test(post.media[0]));
                                                                         const hasMedia = post.media && post.media.length > 0;
-                                                                        const rawUrl = hasMedia ? post.media[0] : null;
-                                                                        const resolved = rawUrl ? (rawUrl.startsWith('http') ? rawUrl : API_BASE + rawUrl) : null;
+                                                                        const rawUrl = hasMedia ? (post.media[0]?.url || post.media[0]) : null;
+                                                                        const resolved = rawUrl && typeof rawUrl === 'string' ? (rawUrl.startsWith('http') ? rawUrl : API_BASE + rawUrl) : null;
                                                                         const gradient = GRADIENTS[idx % GRADIENTS.length];
 
                                                                         return (

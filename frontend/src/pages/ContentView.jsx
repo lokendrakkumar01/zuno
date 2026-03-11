@@ -8,7 +8,7 @@ import { API_URL, API_BASE_URL } from '../config';
 const MediaItem = ({ m, content }) => {
       const [loaded, setLoaded] = useState(false);
       const [error, setError] = useState(false);
-      const mediaUrl = m.url.startsWith('http') ? m.url : `${API_BASE_URL}${m.url}`;
+      const mediaUrl = m.url?.startsWith('http') ? m.url : `${API_BASE_URL}${m.url || ''}`;
 
       return (
             <div className="relative bg-gray-100" style={{ minHeight: '200px' }}>
