@@ -274,13 +274,13 @@ const markHelpful = async (req, res) => {
                   if (existing.type === 'helpful') {
                         // Remove the helpful mark
                         await Interaction.findByIdAndDelete(existing._id);
-                        content.metrics.helpfulCount -= 1;
+                        content.metrics.helpfulCount = Math.max(0, content.metrics.helpfulCount - 1);
                   } else {
                         // Change from not-useful to helpful
                         existing.type = 'helpful';
                         await existing.save();
                         content.metrics.helpfulCount += 1;
-                        content.metrics.notUsefulCount -= 1;
+                        content.metrics.notUsefulCount = Math.max(0, content.metrics.notUsefulCount - 1);
                   }
             } else {
                   // Create new interaction
@@ -355,12 +355,12 @@ const markNotUseful = async (req, res) => {
             if (existing) {
                   if (existing.type === 'not-useful') {
                         await Interaction.findByIdAndDelete(existing._id);
-                        content.metrics.notUsefulCount -= 1;
+                        content.metrics.notUsefulCount = Math.max(0, content.metrics.notUsefulCount - 1);
                   } else {
                         existing.type = 'not-useful';
                         await existing.save();
                         content.metrics.notUsefulCount += 1;
-                        content.metrics.helpfulCount -= 1;
+                        content.metrics.helpfulCount = Math.max(0, content.metrics.helpfulCount - 1);
                   }
             } else {
                   await Interaction.create({
@@ -408,7 +408,7 @@ const saveContent = async (req, res) => {
 
             if (existing) {
                   await Interaction.findByIdAndDelete(existing._id);
-                  content.metrics.saveCount -= 1;
+                        content.metrics.saveCount = Math.max(0, content.metrics.saveCount - 1);
                   await content.save();
 
                   res.json({

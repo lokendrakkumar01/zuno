@@ -121,12 +121,19 @@ const ContentView = () => {
             fetchContent();
       }, [id]);
 
+      const hasAutoPlayed = useRef(false);
       useEffect(() => {
-            if (content?.music?.previewUrl) {
+            // Only auto-play music on first content load, not on every update
+            if (content?.music?.previewUrl && !hasAutoPlayed.current) {
+                  hasAutoPlayed.current = true;
                   playTrack(content.music);
             }
-            return () => stopTrack(); // Stop music when leaving the view
-      }, [content]);
+      }, [content?._id]); // Only re-run when content ID changes (new page)
+
+      // Stop music only when leaving the page (unmount)
+      useEffect(() => {
+            return () => stopTrack();
+      }, []);
 
       const handleHelpful = async () => {
             if (!token) return;

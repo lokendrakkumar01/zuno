@@ -19,6 +19,7 @@ const getFeed = async (req, res) => {
                   status: 'published',
                   visibility: 'public',
                   isApproved: true,
+                  contentType: { $ne: 'story' }, // Stories go to Status page, not feed
                   $or: [
                         { expiresAt: null },
                         { expiresAt: { $gt: new Date() } }
@@ -231,9 +232,7 @@ const getCreatorFeed = async (req, res) => {
 
             const total = await Content.countDocuments(query);
 
-            console.log(`[getCreatorFeed] Username requested: ${username}`);
-            console.log(`[getCreatorFeed] Query:`, query);
-            console.log(`[getCreatorFeed] Found contents length: ${contents.length}`);
+            // No debug logs in production
 
             res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
             res.setHeader('Pragma', 'no-cache');
