@@ -19,11 +19,9 @@ const getFeed = async (req, res) => {
                   status: 'published',
                   visibility: 'public',
                   isApproved: true,
-                  contentType: { $ne: 'story' }, // Stories go to Status page, not feed
-                  $or: [
-                        { expiresAt: null },
-                        { expiresAt: { $gt: new Date() } }
-                  ]
+                  contentType: { $nin: ['story', 'status', 'text-status'] }, // Stories/Statuses go to Status page, not feed
+                  // Exclude anything that has an expiration date; only permanent content in feed
+                  expiresAt: { $exists: false }
             };
 
             // Mode-specific filtering
@@ -144,7 +142,9 @@ const getFeedByTopic = async (req, res) => {
                   status: 'published',
                   visibility: 'public',
                   isApproved: true,
-                  topics: topic
+                  topics: topic,
+                  contentType: { $nin: ['story', 'status', 'text-status'] },
+                  expiresAt: { $exists: false }
             };
 
             const contents = await Content.find(query)
@@ -214,7 +214,9 @@ const getCreatorFeed = async (req, res) => {
 
             let query = {
                   creator: creator._id,
-                  isApproved: true
+                  isApproved: true,
+                  contentType: { $nin: ['story', 'status', 'text-status'] },
+                  expiresAt: { $exists: false }
             };
 
             // Only show public/published content if viewer is NOT the creator
