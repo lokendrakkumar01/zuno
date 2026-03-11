@@ -596,7 +596,7 @@ const ContentCard = ({ content, onDelete, autoOpenFullscreen = false, onCloseFul
                                                       src={getMediaUrl(mediaUrl)}
                                                       playsInline
                                                       preload="metadata"
-                                                      poster={content.media[0].thumbnail}
+                                                      poster={content.media?.[0]?.thumbnail ? getMediaUrl(content.media[0].thumbnail) : undefined}
                                                       style={{
                                                             position: 'absolute',
                                                             top: 0,

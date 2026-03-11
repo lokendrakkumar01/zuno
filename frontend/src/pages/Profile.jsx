@@ -908,23 +908,31 @@ const Profile = () => {
                                                       <>
                                                             <div className="profile-posts-grid">
                                                                   {userPosts.map((post, idx) => {
-                                                                         const rawMediaType = post.media?.[0]?.type;
+                                                                        const rawMediaType = post.media?.[0]?.type;
                                                                         const rawMediaUrl = post.media?.[0]?.url || (typeof post.media?.[0] === 'string' ? post.media[0] : '');
                                                                         const isVid = post.type === 'short-video' || post.type === 'long-video' ||
                                                                               post.contentType === 'video' || rawMediaType === 'video' ||
                                                                               /\.(mp4|webm|mov|avi|mkv|flv)/i.test(rawMediaUrl);
+
                                                                         const hasMedia = post.media && post.media.length > 0;
                                                                         const rawUrl = hasMedia ? (post.media[0]?.url || post.media[0]) : null;
+                                                                        const thumbnailRaw = hasMedia ? post.media[0]?.thumbnail : null;
+                                                                        
                                                                         const resolved = rawUrl && typeof rawUrl === 'string' ? (rawUrl.startsWith('http') ? rawUrl : API_BASE + rawUrl) : null;
+                                                                        const resolvedThumb = thumbnailRaw && typeof thumbnailRaw === 'string' ? (thumbnailRaw.startsWith('http') ? thumbnailRaw : API_BASE + thumbnailRaw) : null;
                                                                         const gradient = GRADIENTS[idx % GRADIENTS.length];
 
                                                                         return (
                                                                               <div key={post._id} className="profile-post-thumb" onClick={() => setOpenPostIdx(idx)}>
                                                                                     {hasMedia ? (
                                                                                           isVid ? (
-                                                                                                <video src={resolved} muted playsInline preload="metadata" style={{ pointerEvents: 'none', width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                                                                                                resolvedThumb ? (
+                                                                                                      <img src={resolvedThumb} alt={post.title || 'Video thumbnail'} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }} />
+                                                                                                ) : (
+                                                                                                      <video src={resolved ? (resolved + (resolved.includes('#t=') ? '' : '#t=0.1')) : undefined} muted playsInline preload="metadata" style={{ pointerEvents: 'none', width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                                                                                                )
                                                                                           ) : (
-                                                                                                <img src={resolved} alt={post.title || ''} loading="lazy" />
+                                                                                                <img src={resolved} alt={post.title || ''} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                                                                                           )
                                                                                     ) : (
                                                                                           <div style={{ width: '100%', height: '100%', background: gradient, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px' }}>
