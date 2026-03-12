@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { sendLoginEmail } = require('../config/emailService');
 
 // Generate JWT Token
 const generateToken = (id) => {
@@ -96,6 +97,14 @@ const login = async (req, res) => {
 
             // Generate token
             const token = generateToken(user._id);
+
+            // Send login alert email (fire-and-forget, does not affect login speed)
+            const loginTime = new Date().toLocaleString('en-IN', {
+                  timeZone: 'Asia/Kolkata',
+                  dateStyle: 'medium',
+                  timeStyle: 'short'
+            });
+            sendLoginEmail(user.email, user.displayName || user.username, `${loginTime} IST`).catch(() => {});
 
             res.json({
                   success: true,

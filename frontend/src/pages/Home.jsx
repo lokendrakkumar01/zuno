@@ -344,8 +344,36 @@ const Home = () => {
                                           </button>
                                     </div>
                               ) : contents.length === 0 && silentRefreshing ? (
-                                    <div className="empty-state">
-                                          {/* Silent loading */}
+                                    <div className="animate-fadeIn" style={{ padding: 'var(--space-xl) 0' }}>
+                                          {/* Loading skeleton cards */}
+                                          <div className="home-feed-grid">
+                                                {[1, 2, 3, 4, 5, 6].map(i => (
+                                                      <div key={i} style={{
+                                                            background: 'var(--color-surface)',
+                                                            border: '1px solid var(--color-border)',
+                                                            borderRadius: '16px',
+                                                            padding: '20px',
+                                                            animationDelay: `${i * 0.1}s`
+                                                      }}>
+                                                            {/* Avatar + name row */}
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                                                                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'linear-gradient(90deg, var(--color-border) 25%, rgba(255,255,255,0.05) 50%, var(--color-border) 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite' }}></div>
+                                                                  <div style={{ flex: 1 }}>
+                                                                        <div style={{ height: '12px', width: '120px', borderRadius: '6px', background: 'linear-gradient(90deg, var(--color-border) 25%, rgba(255,255,255,0.05) 50%, var(--color-border) 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite', marginBottom: '8px' }}></div>
+                                                                        <div style={{ height: '10px', width: '80px', borderRadius: '5px', background: 'linear-gradient(90deg, var(--color-border) 25%, rgba(255,255,255,0.05) 50%, var(--color-border) 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite' }}></div>
+                                                                  </div>
+                                                            </div>
+                                                            {/* Thumbnail */}
+                                                            <div style={{ height: '160px', borderRadius: '10px', background: 'linear-gradient(90deg, var(--color-border) 25%, rgba(255,255,255,0.05) 50%, var(--color-border) 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite', marginBottom: '14px' }}></div>
+                                                            {/* Title lines */}
+                                                            <div style={{ height: '14px', width: '90%', borderRadius: '6px', background: 'linear-gradient(90deg, var(--color-border) 25%, rgba(255,255,255,0.05) 50%, var(--color-border) 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite', marginBottom: '8px' }}></div>
+                                                            <div style={{ height: '12px', width: '60%', borderRadius: '5px', background: 'linear-gradient(90deg, var(--color-border) 25%, rgba(255,255,255,0.05) 50%, var(--color-border) 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite' }}></div>
+                                                      </div>
+                                                ))}
+                                          </div>
+                                          <p style={{ textAlign: 'center', color: 'var(--color-text-muted)', marginTop: '24px', fontSize: '14px' }}>
+                                                ⚡ Loading your feed...
+                                          </p>
                                     </div>
                               ) : contents.length === 0 ? (
                                     <div className="empty-state animate-fadeIn">

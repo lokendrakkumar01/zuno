@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const { getReceiverSocketId, io } = require('../socket/socket');
+const { sendProfileUpdateEmail } = require('../config/emailService');
 
 // @desc    Get user profile by MongoDB ID
 // @route   GET /api/users/id/:id
@@ -57,9 +58,11 @@ const updateProfile = async (req, res) => {
             ];
 
             const updates = {};
+            const changedFields = [];
             for (const key of allowedUpdates) {
                   if (req.body[key] !== undefined) {
                         updates[key] = req.body[key];
+                        changedFields.push(key);
                   }
             }
 
@@ -68,6 +71,18 @@ const updateProfile = async (req, res) => {
                   updates,
                   { new: true, runValidators: true }
             );
+
+            // Fetch the full user to get email for notification
+            const fullUser = await User.findById(req.user.id).select('email displayName username');
+
+            // Send profile update email (fire-and-forget)
+            if (changedFields.length > 0 && fullUser && fullUser.email) {
+                  sendProfileUpdateEmail(
+                        fullUser.email,
+                        fullUser.displayName || fullUser.username,
+                        changedFields
+                  ).catch(() => {});
+            }
 
             res.json({
                   success: true,
