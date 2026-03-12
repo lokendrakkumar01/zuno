@@ -105,15 +105,37 @@ const Register = () => {
 
                         {error && (
                               <div
-                                    className="card p-md mb-lg animate-fadeIn"
+                                    className="animate-fadeIn"
                                     style={{
                                           background: 'rgba(239, 68, 68, 0.1)',
-                                          borderColor: 'rgba(239, 68, 68, 0.3)'
+                                          border: '1px solid rgba(239, 68, 68, 0.35)',
+                                          borderRadius: '12px',
+                                          padding: '12px 16px',
+                                          marginBottom: 'var(--space-md)',
+                                          display: 'flex',
+                                          alignItems: 'flex-start',
+                                          gap: '10px'
                                     }}
                               >
-                                    <p style={{ color: '#ef4444', fontSize: 'var(--font-size-sm)' }}>⚠️ {error}</p>
+                                    <span style={{ fontSize: '18px', flexShrink: 0 }}>⚠️</span>
+                                    <div style={{ flex: 1 }}>
+                                          <p style={{ color: '#ef4444', fontSize: '14px', fontWeight: 600, margin: 0 }}>
+                                                {error.includes('already exists') || error.includes('already taken')
+                                                      ? '🚫 Username or email already taken'
+                                                      : error.includes('timed out') || error.includes('waking')
+                                                      ? '⏳ Server is starting up, please wait a moment and try again'
+                                                      : error.includes('network') || error.includes('fetch')
+                                                      ? '📡 No internet connection. Please check and retry.'
+                                                      : error}
+                                          </p>
+                                    </div>
+                                    <button
+                                          onClick={() => setError('')}
+                                          style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: 0, flexShrink: 0 }}
+                                    >✕</button>
                               </div>
                         )}
+
 
                         <form onSubmit={handleSubmit} className="auth-form">
                               {/* Step 1: Basic Info */}
