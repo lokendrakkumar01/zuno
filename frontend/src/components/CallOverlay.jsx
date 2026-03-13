@@ -1,185 +1,426 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useCallContext } from '../context/CallContext';
 
+/* ── Inject CSS once ── */
+const CallStyles = () => {
+  useEffect(() => {
+    const id = 'zuno-call-styles';
+    if (document.getElementById(id)) return;
+    const style = document.createElement('style');
+    style.id = id;
+    style.textContent = `
+      @keyframes callPulseRing {
+        0%   { transform: scale(1);   opacity:.9; }
+        50%  { transform: scale(1.18);opacity:.5; }
+        100% { transform: scale(1);   opacity:.9; }
+      }
+      @keyframes callRingWave {
+        0%   { transform:scale(1);   opacity:.7; }
+        100% { transform:scale(2.2); opacity:0; }
+      }
+      @keyframes callFadeIn {
+        from { opacity:0; transform:scale(.92); }
+        to   { opacity:1; transform:scale(1); }
+      }
+      @keyframes callSlideUp {
+        from { opacity:0; transform:translateY(40px); }
+        to   { opacity:1; transform:translateY(0); }
+      }
+      @keyframes callDot {
+        0%,80%,100% { transform:scale(0); opacity:0; }
+        40%          { transform:scale(1); opacity:1; }
+      }
+      @keyframes callBtnPop {
+        0%  { transform:scale(1); }
+        40% { transform:scale(.88); }
+        100%{ transform:scale(1); }
+      }
+      @keyframes callNeonGlow {
+        0%,100% { box-shadow: 0 0 12px rgba(99,102,241,.5), 0 0 30px rgba(99,102,241,.2); }
+        50%     { box-shadow: 0 0 20px rgba(99,102,241,.9), 0 0 50px rgba(99,102,241,.4); }
+      }
+
+      .call-overlay-modal {
+        position:fixed; inset:0; z-index:999999;
+        display:flex; align-items:center; justify-content:center;
+        background:rgba(0,0,0,.8); backdrop-filter:blur(12px);
+        animation: callFadeIn .3s ease;
+      }
+      .call-modal-card {
+        background:linear-gradient(160deg,#1a1a2e,#16213e);
+        border:1px solid rgba(99,102,241,.25); border-radius:28px;
+        padding:44px 36px; text-align:center; min-width:300px; max-width:380px; width:90%;
+        box-shadow:0 32px 80px rgba(0,0,0,.7), 0 0 0 1px rgba(99,102,241,.1);
+        animation: callSlideUp .35s ease;
+      }
+      .call-avatar-wrap {
+        position:relative; width:100px; height:100px;
+        margin:0 auto 20px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+      }
+      .call-avatar-wave {
+        position:absolute; inset:0; border-radius:50%;
+        border:2px solid rgba(99,102,241,.6);
+        animation: callRingWave 2s ease-out infinite;
+      }
+      .call-avatar-wave:nth-child(2) { animation-delay:.5s; }
+      .call-avatar-wave:nth-child(3) { animation-delay:1s; }
+      .call-avatar-img {
+        width:100px; height:100px; border-radius:50%; object-fit:cover;
+        border:3px solid rgba(99,102,241,.5); position:relative; z-index:2;
+        box-shadow:0 8px 32px rgba(0,0,0,.5);
+        animation: callNeonGlow 2.5s ease-in-out infinite;
+      }
+      .call-avatar-initials {
+        width:100px; height:100px; border-radius:50%;
+        background:linear-gradient(135deg,#6366f1,#8b5cf6);
+        display:flex; align-items:center; justify-content:center;
+        font-size:2.4rem; font-weight:800; color:#fff; position:relative; z-index:2;
+        box-shadow:0 8px 32px rgba(99,102,241,.4);
+        animation: callNeonGlow 2.5s ease-in-out infinite;
+      }
+      .call-name { font-size:1.3rem; font-weight:800; color:#f1f5f9; margin:0 0 6px; }
+      .call-status {
+        font-size:.9rem; color:#94a3b8; margin-bottom:32px;
+        display:flex; align-items:center; justify-content:center; gap:6px;
+      }
+      .call-status-dot {
+        width:7px; height:7px; border-radius:50%; background:#6366f1;
+        animation: callDot 1.4s ease-in-out infinite;
+        display:inline-block;
+      }
+      .call-status-dot:nth-child(2) { animation-delay:.16s; }
+      .call-status-dot:nth-child(3) { animation-delay:.32s; }
+      .call-btn-row { display:flex; gap:16px; justify-content:center; }
+      .call-btn {
+        width:64px; height:64px; border-radius:50%; border:none;
+        cursor:pointer; display:flex; align-items:center; justify-content:center;
+        font-size:1.5rem; transition:all .18s ease; box-shadow:0 6px 20px rgba(0,0,0,.4);
+      }
+      .call-btn:active { animation: callBtnPop .2s ease; }
+      .call-btn-end  { background:linear-gradient(135deg,#ef4444,#dc2626); color:#fff; }
+      .call-btn-end:hover  { transform:scale(1.08) translateY(-2px); box-shadow:0 10px 30px rgba(239,68,68,.5); }
+      .call-btn-answer{ background:linear-gradient(135deg,#10b981,#059669); color:#fff; }
+      .call-btn-answer:hover{ transform:scale(1.08) translateY(-2px); box-shadow:0 10px 30px rgba(16,185,129,.5); }
+      .call-type-badge {
+        display:inline-flex; align-items:center; gap:6px; background:rgba(99,102,241,.15);
+        border:1px solid rgba(99,102,241,.25); border-radius:99px; padding:4px 14px;
+        font-size:.8rem; font-weight:600; color:#818cf8; margin-bottom:24px;
+      }
+
+      /* Active Call Screen */
+      .call-active-overlay {
+        position:fixed; inset:0; z-index:999999;
+        background:#0a0a14; display:flex; flex-direction:column;
+        /* iPhone safe area */
+        padding-top: env(safe-area-inset-top, 0px);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+      }
+      .call-active-header {
+        padding:16px 20px; display:flex; align-items:center; justify-content:space-between;
+        background:rgba(255,255,255,.04); border-bottom:1px solid rgba(255,255,255,.06);
+        backdrop-filter:blur(10px);
+      }
+      .call-header-info { display:flex; align-items:center; gap:12px; }
+      .call-header-name { font-weight:700; font-size:1rem; color:#f1f5f9; }
+      .call-header-timer { font-size:.78rem; color:#6366f1; font-weight:600; }
+      .call-header-badge {
+        background:rgba(99,102,241,.15); border:1px solid rgba(99,102,241,.3); border-radius:99px;
+        padding:4px 12px; font-size:.75rem; color:#818cf8; font-weight:600;
+      }
+      .call-video-area { flex:1; position:relative; overflow:hidden; background:#0a0a14; }
+      .call-remote-video { width:100%; height:100%; object-fit:cover; }
+      .call-local-pip {
+        position:absolute; bottom:20px; right:16px;
+        width:110px; height:150px; border-radius:14px; overflow:hidden;
+        border:2.5px solid rgba(255,255,255,.25); box-shadow:0 8px 24px rgba(0,0,0,.6);
+        z-index:10; transition:transform .2s;
+        /* Draggable feel */
+        cursor:grab;
+      }
+      .call-local-pip:active { cursor:grabbing; transform:scale(.97); }
+      .call-local-pip video { width:100%; height:100%; object-fit:cover; }
+      .call-avatar-center {
+        position:absolute; inset:0; display:flex; align-items:center;
+        justify-content:center; flex-direction:column; background:#0a0a14;
+      }
+      .call-avatar-center-img {
+        width:120px; height:120px; border-radius:50%; object-fit:cover;
+        border:3px solid #6366f1; box-shadow:0 0 40px rgba(99,102,241,.5);
+        animation: callNeonGlow 3s ease-in-out infinite;
+        margin-bottom:20px;
+      }
+      .call-avatar-center-init {
+        width:120px; height:120px; border-radius:50%;
+        background:linear-gradient(135deg,#6366f1,#8b5cf6);
+        display:flex; align-items:center; justify-content:center;
+        font-size:3rem; font-weight:800; color:#fff;
+        box-shadow:0 0 40px rgba(99,102,241,.5);
+        animation: callNeonGlow 3s ease-in-out infinite;
+        margin-bottom:20px;
+      }
+      .call-center-name { font-size:1.2rem; font-weight:700; color:#f1f5f9; margin-bottom:6px; }
+      .call-center-status { color:#94a3b8; font-size:.9rem; display:flex; align-items:center; gap:6px; }
+      .call-controls {
+        padding:24px 20px;
+        padding-bottom: max(24px, env(safe-area-inset-bottom, 24px));
+        display:flex; justify-content:center; gap:20px; align-items:center;
+        background:rgba(255,255,255,.04); border-top:1px solid rgba(255,255,255,.06);
+        backdrop-filter:blur(20px); flex-wrap:wrap;
+      }
+      .call-ctrl-btn {
+        width:60px; height:60px; border-radius:50%; border:none;
+        cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center;
+        font-size:1.3rem; transition:all .18s ease; gap:4px;
+      }
+      .call-ctrl-btn:hover { transform:translateY(-3px) scale(1.05); }
+      .call-ctrl-btn:active { animation: callBtnPop .2s ease; }
+      .call-ctrl-mute   { background:rgba(255,255,255,.1); color:#e2e8f0; }
+      .call-ctrl-muted  { background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; }
+      .call-ctrl-video  { background:rgba(255,255,255,.1); color:#e2e8f0; }
+      .call-ctrl-vidoff { background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; }
+      .call-ctrl-end    { background:linear-gradient(135deg,#ef4444,#dc2626); color:#fff; width:68px; height:68px; box-shadow:0 6px 20px rgba(239,68,68,.5); }
+      .call-ctrl-end:hover { transform:translateY(-3px) scale(1.05); box-shadow:0 12px 35px rgba(239,68,68,.6); }
+      .call-ctrl-label  { font-size:.58rem; color:rgba(255,255,255,.5); text-align:center; line-height:1; }
+
+      @media(max-width:480px) {
+        .call-modal-card { padding:32px 20px; border-radius:20px; }
+        .call-ctrl-btn { width:52px; height:52px; font-size:1.1rem; }
+        .call-ctrl-end { width:60px; height:60px; }
+        .call-local-pip { width:90px; height:120px; bottom:10px; right:10px; }
+        .call-controls { gap:14px; padding:18px 12px; }
+      }
+    `;
+    document.head.appendChild(style);
+  }, []);
+  return null;
+};
+
+/* ── Call Timer ── */
+const useCallTimer = (active) => {
+  const [secs, setSecs] = useState(0);
+  useEffect(() => {
+    if (!active) { setSecs(0); return; }
+    const id = setInterval(() => setSecs(s => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [active]);
+  const m = String(Math.floor(secs / 60)).padStart(2, '0');
+  const s = String(secs % 60).padStart(2, '0');
+  return `${m}:${s}`;
+};
+
+/* ── Avatar helper ── */
+const CallAvatar = ({ user, size = 100, className = '', style = {} }) => {
+  const initial = (user?.displayName?.[0] || user?.username?.[0] || 'U').toUpperCase();
+  if (user?.avatar) {
+    return <img src={user.avatar} alt={initial} className={className || 'call-avatar-img'} style={{ width: size, height: size, ...style }} />;
+  }
+  return (
+    <div className={className || 'call-avatar-initials'} style={{ width: size, height: size, ...style }}>
+      {initial}
+    </div>
+  );
+};
+
+/* ══════════════════════════════════════════════════
+   MAIN COMPONENT
+══════════════════════════════════════════════════ */
 const CallOverlay = () => {
-      const {
-            stream, myVideo, userVideo,
-            receivingCall, caller, callAccepted, callEnded, callType,
-            isCalling, showCallModal, answerCall, leaveCall, rejectCall,
-            isMuted, isVideoOff, toggleMute, toggleVideo
-      } = useCallContext();
+  const {
+    stream, myVideo, userVideo,
+    receivingCall, caller, callAccepted, callEnded, callType,
+    isCalling, showCallModal, answerCall, leaveCall, rejectCall,
+    isMuted, isVideoOff, toggleMute, toggleVideo
+  } = useCallContext();
 
-      const otherUser = caller;
+  const timer = useCallTimer(callAccepted && !callEnded);
+  const otherUser = caller;
 
-      // Active Call UI Overlay
-      return (
-            <>
-                  {/* ===== Outgoing Call Modal (Dialing) ===== */}
-                  {showCallModal === 'calling' && !callAccepted && (
-                        <div style={{
-                              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                              background: 'rgba(0,0,0,0.75)', zIndex: 999999,
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              backdropFilter: 'blur(6px)'
-                        }}>
-                              <div style={{
-                                    background: 'var(--color-bg-card)', padding: '40px 32px',
-                                    borderRadius: '24px', textAlign: 'center', minWidth: '300px',
-                                    boxShadow: 'var(--shadow-xl)'
-                              }}>
-                                    <div style={{ fontSize: '3.5rem', marginBottom: '16px' }}>
-                                          {callType === 'video' ? '📹' : '📞'}
-                                    </div>
-                                    <div style={{ fontWeight: 700, fontSize: '1.2rem', marginBottom: '8px' }}>
-                                          {otherUser?.displayName || otherUser?.username || 'User'}
-                                    </div>
-                                    <div style={{ color: 'var(--color-text-secondary)', fontSize: '1rem', marginBottom: '28px', animation: 'pulse 1.5s infinite', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                                          <span style={{ fontSize: '1.2rem' }}>{callType === 'video' ? '📹' : '📞'}</span>
-                                          Ringing...
-                                    </div>
-                                    <button
-                                          onClick={() => leaveCall(true)}
-                                          style={{
-                                                width: '64px', height: '64px', borderRadius: '50%',
-                                                background: '#ef4444', color: 'white', border: 'none',
-                                                cursor: 'pointer', fontSize: '1.5rem',
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                margin: '0 auto', boxShadow: '0 4px 12px rgba(239,68,68,0.4)'
-                                          }}
-                                    >
-                                          <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
-                                                <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z" />
-                                          </svg>
-                                    </button>
-                              </div>
-                        </div>
-                  )}
+  return (
+    <>
+      <CallStyles />
 
-                  {/* ===== Active Call View ===== */}
-                  {(isCalling || callAccepted) && !callEnded && (
-                        <div className="chat-call-overlay" style={{
-                              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                              background: 'var(--color-bg-primary)', zIndex: 999999, display: 'flex', flexDirection: 'column'
-                        }}>
-                              <div className="chat-call-header" style={{ padding: '24px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--color-bg-secondary)', color: 'var(--color-text-primary)', borderBottom: '1px solid var(--color-border)' }}>
-                                    <div className="font-bold text-lg">{isCalling && !callAccepted ? 'Calling...' : `${callType === 'video' ? 'Video' : 'Voice'} Call`}</div>
-                                    <div className="font-semibold text-lg">{otherUser?.displayName || otherUser?.username || 'User'}</div>
-                              </div>
-                              <div className="chat-call-video-container" style={{ flex: 1, position: 'relative', background: 'var(--color-bg-primary)' }}>
-                                    {/* Main Video (Remote User) */}
-                                    <video
-                                          playsInline
-                                          ref={userVideo}
-                                          autoPlay
-                                          style={{ width: '100%', height: '100%', objectFit: 'cover', display: callAccepted && callType === 'video' ? 'block' : 'none' }}
-                                    />
-                                    {/* PIP Video (Local User) */}
-                                    <video
-                                          playsInline
-                                          muted
-                                          ref={myVideo}
-                                          autoPlay
-                                          style={{
-                                                position: 'absolute', bottom: '20px', right: '20px',
-                                                width: '120px', height: '160px', objectFit: 'cover',
-                                                borderRadius: '12px', border: '2px solid white',
-                                                boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-                                                display: stream && callType === 'video' ? 'block' : 'none'
-                                          }}
-                                    />
+      {/* ── Outgoing Call (Dialing) ── */}
+      {showCallModal === 'calling' && !callAccepted && (
+        <div className="call-overlay-modal">
+          <div className="call-modal-card">
+            <div className="call-avatar-wrap">
+              <div className="call-avatar-wave" />
+              <div className="call-avatar-wave" />
+              <div className="call-avatar-wave" />
+              {otherUser?.avatar
+                ? <img src={otherUser.avatar} alt="" className="call-avatar-img" />
+                : <div className="call-avatar-initials">{(otherUser?.displayName?.[0] || otherUser?.username?.[0] || 'U').toUpperCase()}</div>
+              }
+            </div>
+            <h2 className="call-name">{otherUser?.displayName || otherUser?.username || 'User'}</h2>
+            <div className="call-type-badge">
+              {callType === 'video' ? '📹 Video Call' : '📞 Voice Call'}
+            </div>
+            <div className="call-status">
+              Calling<span className="call-status-dot" /><span className="call-status-dot" /><span className="call-status-dot" />
+            </div>
+            <div className="call-btn-row">
+              <button
+                className="call-btn call-btn-end"
+                onClick={() => leaveCall(true)}
+                title="Cancel call"
+              >
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-                                    {/* Avatar placeholder if voice call or video not connected or video paused */}
-                                    {(!callAccepted || callType === 'voice' || (callAccepted && isVideoOff)) && (
-                                          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', background: 'var(--color-bg-tertiary)' }}>
-                                                <div className="msg-avatar" style={{ width: '120px', height: '120px', fontSize: '4rem', marginBottom: '24px', boxShadow: 'var(--shadow-lg)' }}>
-                                                      {otherUser?.avatar ? <img src={otherUser.avatar} alt="Avatar" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : (otherUser?.displayName?.charAt(0) || otherUser?.username?.charAt(0) || 'U')}
-                                                </div>
-                                                {isCalling && !callAccepted && <div style={{ color: 'var(--color-accent-primary)', fontSize: '1.2rem', animation: 'pulse 1.5s infinite', fontWeight: 'bold' }}>Ringing...</div>}
-                                                {callAccepted && isVideoOff && <div style={{ color: 'var(--color-text-secondary)', fontSize: '1.2rem' }}>Camera Paused</div>}
-                                          </div>
-                                    )}
-                              </div>
-                              <div className="chat-call-controls" style={{ padding: '32px 24px', display: 'flex', justifyContent: 'center', gap: '32px', background: 'var(--color-bg-secondary)', borderTop: '1px solid var(--color-border)' }}>
-                                    {/* Mute/Unmute Button */}
-                                    <button onClick={toggleMute} title={isMuted ? "Unmute" : "Mute"} style={{
-                                          width: '64px', height: '64px', borderRadius: '50%', background: isMuted ? 'var(--color-accent-primary)' : 'var(--color-bg-hover)',
-                                          color: isMuted ? 'white' : 'var(--color-text-primary)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.2s', boxShadow: 'var(--shadow-md)'
-                                    }}>
-                                          {isMuted ? (
-                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                                                      <path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02 3.28l-1.63-1.63c.09-.54.15-1.09.15-1.65V5c0-1.66-1.34-3-3-3S7.5 3.34 7.5 5v3.13l-1.63-1.63V5c0-2.76 2.24-5 5-5s5 2.24 5 5v6c0 .59-.1 1.15-.27 1.68l-1.35-1.35c.03-.33.05-.66.05-1.01h-1.7V11c0 .61-.1 1.2-.27 1.76l-1.35-1.35c-.01-.37-.03-.74-.03-1.12zm-3.8 2.37l-1.63-1.63v1.36h1.7c-.02-.12-.04-.24-.07-.36zM3.41 2.86L2 4.27l5.95 5.95c-.29.43-.53.9-.71 1.4L5.61 9.98c.5-.83 1.14-1.55 1.88-2.11L11.5 11.89v1.6l1.63 1.63C12.59 13.9 12 13.62 12 13.5v-1.6l3.35 3.35c-.86.53-1.85.87-2.92.98v2.77H10.43v-2.77c-2.82-.28-5.18-2.43-5.63-5.23L4.85 11.23c.31 1.96 1.67 3.59 3.5 4.31l1.73 1.73c-1.36-.18-2.61-.79-3.62-1.71l-1.61 1.61z" />
-                                                </svg>
-                                          ) : (
-                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                                                      <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
-                                                </svg>
-                                          )}
-                                    </button>
+      {/* ── Incoming Call ── */}
+      {showCallModal === 'incoming' && !callAccepted && (
+        <div className="call-overlay-modal">
+          <div className="call-modal-card">
+            <div className="call-avatar-wrap">
+              <div className="call-avatar-wave" />
+              <div className="call-avatar-wave" />
+              <div className="call-avatar-wave" />
+              {caller?.avatar
+                ? <img src={caller.avatar} alt="" className="call-avatar-img" />
+                : <div className="call-avatar-initials">{(caller?.displayName?.[0] || caller?.username?.[0] || 'U').toUpperCase()}</div>
+              }
+            </div>
+            <h2 className="call-name">{otherUser?.displayName || otherUser?.username || 'Someone'}</h2>
+            <div className="call-type-badge">
+              {callType === 'video' ? '📹 Incoming Video Call' : '📞 Incoming Voice Call'}
+            </div>
+            <div className="call-status">
+              Incoming<span className="call-status-dot" /><span className="call-status-dot" /><span className="call-status-dot" />
+            </div>
+            <div className="call-btn-row">
+              <button className="call-btn call-btn-end" onClick={rejectCall} title="Decline">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>
+                </svg>
+              </button>
+              <button className="call-btn call-btn-answer" onClick={answerCall} title="Answer">
+                📱
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-                                    {/* Video Toggle Button (Only show if it's a video call) */}
-                                    {callType === 'video' && (
-                                          <button onClick={toggleVideo} title={isVideoOff ? "Turn Camera On" : "Turn Camera Off"} style={{
-                                                width: '64px', height: '64px', borderRadius: '50%', background: isVideoOff ? 'var(--color-accent-primary)' : 'var(--color-bg-hover)',
-                                                color: isVideoOff ? 'white' : 'var(--color-text-primary)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.2s', boxShadow: 'var(--shadow-md)'
-                                          }}>
-                                                {isVideoOff ? (
-                                                      <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                                                            <path d="M21 6.5l-4 4V7c0-.55-.45-1-1-1H9.82L21 17.18V6.5zM3.27 2L2 3.27 4.73 6H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.21 0 .39-.08.54-.18L19.73 21 21 19.73 3.27 2z" />
-                                                      </svg>
-                                                ) : (
-                                                      <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                                                            <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
-                                                      </svg>
-                                                )}
-                                          </button>
-                                    )}
+      {/* ── Active Call Screen ── */}
+      {(isCalling || callAccepted) && !callEnded && (
+        <div className="call-active-overlay">
+          {/* Header */}
+          <div className="call-active-header">
+            <div className="call-header-info">
+              <CallAvatar user={otherUser} size={36} style={{ borderRadius:'50%', border:'2px solid #6366f1', flexShrink:0 }} />
+              <div>
+                <div className="call-header-name">{otherUser?.displayName || otherUser?.username || 'User'}</div>
+                <div className="call-header-timer">{callAccepted ? timer : 'Connecting...'}</div>
+              </div>
+            </div>
+            <span className="call-header-badge">
+              {callType === 'video' ? '📹 Video' : '📞 Voice'}
+            </span>
+          </div>
 
-                                    <button onClick={() => leaveCall(true)} className="chat-call-end-btn" style={{
-                                          width: '64px', height: '64px', borderRadius: '50%', background: '#ef4444',
-                                          color: 'white', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-md)'
-                                    }}>
-                                          <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
-                                                <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z" />
-                                          </svg>
-                                    </button>
-                              </div>
-                        </div>
-                  )}
+          {/* Video / Avatar Area */}
+          <div className="call-video-area">
+            {/* Remote video */}
+            <video
+              playsInline ref={userVideo} autoPlay
+              className="call-remote-video"
+              style={{ display: callAccepted && callType === 'video' && !isVideoOff ? 'block' : 'none' }}
+            />
 
-                  {/* Incoming Call Modal */}
-                  {showCallModal === 'incoming' && !callAccepted && (
-                        <div className="chat-call-modal-overlay" style={{ zIndex: 999999, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
-                              <div className="chat-call-modal" onClick={(e) => e.stopPropagation()} style={{ background: 'var(--color-bg-card)', padding: '32px', borderRadius: '24px', textAlign: 'center', minWidth: '320px', boxShadow: 'var(--shadow-xl)' }}>
-                                    {/* Caller Avatar */}
-                                    <div style={{ width: '80px', height: '80px', borderRadius: '50%', margin: '0 auto 16px', overflow: 'hidden', background: 'var(--color-bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', border: '3px solid var(--color-accent-primary)' }}>
-                                          {caller?.avatar ? (
-                                                <img src={caller.avatar} alt="Caller" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                          ) : (
-                                                <span>{(caller?.displayName || caller?.username || 'U').charAt(0).toUpperCase()}</span>
-                                          )}
-                                    </div>
-                                    <div className="chat-call-modal-icon" style={{ fontSize: '1.8rem', marginBottom: '8px' }}>
-                                          {callType === 'video' ? '📹' : '📞'}
-                                    </div>
-                                    <h3 className="text-lg font-bold mb-sm">
-                                          {otherUser?.displayName || otherUser?.username || 'Someone'}
-                                    </h3>
-                                    <p className="text-muted text-sm mb-lg">
-                                          Incoming {callType === 'video' ? 'Video' : 'Voice'} Call
-                                    </p>
-                                    <div style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
-                                          <button onClick={rejectCall} className="btn" style={{ flex: 1, background: '#ef4444', color: 'white', border: 'none', borderRadius: '12px', padding: '12px', fontWeight: 600 }}>
-                                                📵 Decline
-                                          </button>
-                                          <button onClick={answerCall} className="btn" style={{ flex: 1, background: '#10b981', color: 'white', border: 'none', borderRadius: '12px', padding: '12px', fontWeight: 600 }}>
-                                                📱 Answer
-                                          </button>
-                                    </div>
-                              </div>
-                        </div>
-                  )}
-            </>
-      );
+            {/* Avatar shown when voice call or video off or not yet connected */}
+            {(!callAccepted || callType === 'voice' || isVideoOff) && (
+              <div className="call-avatar-center">
+                <div style={{ position:'relative', width:120, height:120, margin:'0 auto 20px' }}>
+                  <div style={{ position:'absolute', inset:0, border:'2px solid rgba(99,102,241,.5)', borderRadius:'50%', animation:'callRingWave 2s ease-out infinite' }} />
+                  <div style={{ position:'absolute', inset:0, border:'2px solid rgba(99,102,241,.4)', borderRadius:'50%', animation:'callRingWave 2s ease-out infinite', animationDelay:'.7s' }} />
+                  {otherUser?.avatar
+                    ? <img src={otherUser.avatar} alt="" className="call-avatar-center-img" style={{ width:120, height:120 }} />
+                    : <div className="call-avatar-center-init" style={{ width:120, height:120, fontSize:'3rem' }}>{(otherUser?.displayName?.[0] || otherUser?.username?.[0] || 'U').toUpperCase()}</div>
+                  }
+                </div>
+                <div className="call-center-name">{otherUser?.displayName || otherUser?.username}</div>
+                {isCalling && !callAccepted && (
+                  <div className="call-center-status">
+                    Ringing<span className="call-status-dot" style={{ background:'#6366f1' }} /><span className="call-status-dot" style={{ background:'#6366f1', animationDelay:'.16s' }} /><span className="call-status-dot" style={{ background:'#6366f1', animationDelay:'.32s' }} />
+                  </div>
+                )}
+                {callAccepted && isVideoOff && (
+                  <div className="call-center-status">📵 Camera Paused</div>
+                )}
+              </div>
+            )}
+
+            {/* Local PiP */}
+            {stream && callType === 'video' && (
+              <div className="call-local-pip">
+                <video playsInline muted ref={myVideo} autoPlay style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+              </div>
+            )}
+          </div>
+
+          {/* Controls Bar */}
+          <div className="call-controls">
+            {/* Mute */}
+            <button
+              onClick={toggleMute}
+              className={`call-ctrl-btn ${isMuted ? 'call-ctrl-muted' : 'call-ctrl-mute'}`}
+              title={isMuted ? 'Unmute' : 'Mute'}
+            >
+              {isMuted ? (
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02 3.28l-1.63-1.63c.09-.54.15-1.09.15-1.65V5c0-1.66-1.34-3-3-3S7.5 3.34 7.5 5v3.13l-1.63-1.63V5c0-2.76 2.24-5 5-5s5 2.24 5 5v6c0 .59-.1 1.15-.27 1.65zM3.41 2.86L2 4.27l5.95 5.95c-.29.43-.53.9-.7 1.4-.17.5-.25 1.03-.25 1.38H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c.87-.13 1.69-.44 2.43-.86l1.9 1.9L18.73 17.6 3.41 2.86z"/>
+                </svg>
+              ) : (
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                </svg>
+              )}
+              <span className="call-ctrl-label">{isMuted ? 'Unmute' : 'Mute'}</span>
+            </button>
+
+            {/* Video toggle — only for video calls */}
+            {callType === 'video' && (
+              <button
+                onClick={toggleVideo}
+                className={`call-ctrl-btn ${isVideoOff ? 'call-ctrl-vidoff' : 'call-ctrl-video'}`}
+                title={isVideoOff ? 'Turn camera on' : 'Turn camera off'}
+              >
+                {isVideoOff ? (
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M21 6.5l-4 4V7c0-.55-.45-1-1-1H9.82L21 17.18V6.5zM3.27 2L2 3.27 4.73 6H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.21 0 .39-.08.54-.18L19.73 21 21 19.73 3.27 2z"/>
+                  </svg>
+                ) : (
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
+                  </svg>
+                )}
+                <span className="call-ctrl-label">{isVideoOff ? 'Cam On' : 'Cam Off'}</span>
+              </button>
+            )}
+
+            {/* End call */}
+            <button
+              onClick={() => leaveCall(true)}
+              className="call-ctrl-btn call-ctrl-end"
+              title="End call"
+            >
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>
+              </svg>
+              <span className="call-ctrl-label">End</span>
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
 };
 
 export default CallOverlay;

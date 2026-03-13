@@ -127,6 +127,25 @@ const userSchema = new mongoose.Schema({
             default: false
       },
 
+      // Blue Tick Verification Request
+      verificationRequest: {
+            status: {
+                  type: String,
+                  enum: ['none', 'pending', 'approved', 'rejected'],
+                  default: 'none'
+            },
+            reason: {
+                  type: String,
+                  default: ''
+            },
+            requestedAt: {
+                  type: Date
+            },
+            reviewedAt: {
+                  type: Date
+            }
+      },
+
       // Language preference
       language: {
             type: String,
@@ -193,6 +212,9 @@ userSchema.methods.getPublicProfile = function () {
             role: this.role,
             interests: this.interests,
             isVerified: this.isVerified,
+            verificationRequest: this.verificationRequest
+                  ? { status: this.verificationRequest.status, requestedAt: this.verificationRequest.requestedAt }
+                  : null,
             followersCount: this.followers ? this.followers.length : 0,
             followingCount: this.following ? this.following.length : 0,
             profileSong: this.profileSong,
@@ -200,5 +222,6 @@ userSchema.methods.getPublicProfile = function () {
             createdAt: this.createdAt
       };
 };
+
 
 module.exports = mongoose.model('User', userSchema);

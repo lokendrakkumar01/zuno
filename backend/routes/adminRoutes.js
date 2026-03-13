@@ -4,6 +4,9 @@ const {
       getDashboardStats,
       getAllUsers,
       updateUser,
+      toggleUserBan,
+      getPendingVerifications,
+      handleVerification,
       getAllContent,
       moderateContent,
       getReports,
@@ -20,6 +23,9 @@ router.use(protect);
 router.get('/stats', adminOnly, getDashboardStats);
 router.get('/users', adminOnly, getAllUsers);
 router.put('/users/:id', adminOnly, updateUser);
+router.put('/users/:id/ban', adminOnly, toggleUserBan);
+router.get('/verifications', adminOnly, getPendingVerifications);
+router.put('/verifications/:id', adminOnly, handleVerification);
 router.get('/config', adminOnly, getConfigs);
 router.put('/config/:key', adminOnly, updateConfig);
 router.post('/config/init', adminOnly, initializeConfigs);

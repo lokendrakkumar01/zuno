@@ -21,8 +21,10 @@ const {
       deleteAccount,
       blockUser,
       unblockUser,
-      getBlockedUsers
+      getBlockedUsers,
+      requestVerification
 } = require('../controllers/userController');
+
 const { protect } = require('../middleware/auth');
 
 // Get user by MongoDB ID (used by Chat component for fast lookup)
@@ -44,6 +46,8 @@ router.put('/feed-preferences', protect, updateFeedPreferences);
 router.put('/focus-mode', protect, toggleFocusMode);
 router.delete('/account', protect, deleteAccount);
 router.get('/blocked', protect, getBlockedUsers);
+router.post('/request-verification', protect, requestVerification);
+
 
 // Social
 router.post('/:id/follow', protect, followUser);

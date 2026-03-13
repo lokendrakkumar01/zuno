@@ -65,6 +65,9 @@ const Profile = () => {
       const [blockLoading, setBlockLoading] = useState(false);
       const [showPhotoModal, setShowPhotoModal] = useState(false);
       const [openPostIdx, setOpenPostIdx] = useState(null);
+      const [verificationReqMsg, setVerificationReqMsg] = useState('');
+      const [verificationReqLoading, setVerificationReqLoading] = useState(false);
+
 
       // Followers/Following modal states
       const [showFollowersModal, setShowFollowersModal] = useState(false);
@@ -410,6 +413,27 @@ const Profile = () => {
             }));
       };
 
+      const handleRequestVerification = async () => {
+            if (!token) return;
+            setVerificationReqLoading(true);
+            setVerificationReqMsg('');
+            try {
+                  const res = await fetch(`${API_URL}/users/request-verification`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({ reason: 'Public figure / notable account' })
+                  });
+                  const data = await res.json();
+                  setVerificationReqMsg(data.message || (data.success ? '✅ Request submitted!' : '⚠️ Failed'));
+                  setTimeout(() => setVerificationReqMsg(''), 5000);
+            } catch {
+                  setVerificationReqMsg('⚠️ Network error. Please try again.');
+            } finally {
+                  setVerificationReqLoading(false);
+            }
+      };
+
+
       const handleLogout = () => {
             logout();
             navigate('/');
@@ -638,16 +662,35 @@ const Profile = () => {
                                                       <p className="text-secondary mt-sm" style={{ maxWidth: '500px' }}>{profileUser.bio}</p>
                                                 )}
 
-                                                <div className="flex gap-sm mt-lg flex-wrap">
+                                                <div className="flex gap-sm mt-lg flex-wrap" style={{ alignItems: 'center' }}>
                                                       <span className="tag tag-primary" style={{ fontSize: 'var(--font-size-sm)' }}>
                                                             {profileUser.role === 'admin' ? '👑 Admin' :
                                                                   profileUser.role === 'creator' ? '✨ Creator' :
                                                                         profileUser.role === 'mentor' ? '🎓 Mentor' : '👤 User'}
                                                       </span>
                                                       {profileUser.isVerified && (
-                                                            <span className="tag tag-success">✅ Verified</span>
+                                                            <span style={{
+                                                                  display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                                                  background: 'linear-gradient(135deg,rgba(59,130,246,.15),rgba(99,102,241,.15))',
+                                                                  border: '1px solid rgba(59,130,246,.4)', borderRadius: '99px',
+                                                                  padding: '3px 12px', fontSize: '.82rem', fontWeight: 800,
+                                                                  color: '#3b82f6', boxShadow: '0 0 14px rgba(59,130,246,.25)'
+                                                            }}>
+                                                                  ✓ Verified
+                                                            </span>
+                                                      )}
+                                                      {isOwnProfile && !profileUser.isVerified && profileUser.verificationRequest?.status === 'pending' && (
+                                                            <span style={{ background:'rgba(245,158,11,.12)', border:'1px solid rgba(245,158,11,.3)', borderRadius:'99px', padding:'3px 10px', fontSize:'.75rem', color:'#f59e0b', fontWeight:700 }}>
+                                                                  ⏳ Verification Pending
+                                                            </span>
+                                                      )}
+                                                      {isOwnProfile && !profileUser.isVerified && profileUser.verificationRequest?.status === 'rejected' && (
+                                                            <span style={{ background:'rgba(239,68,68,.1)', border:'1px solid rgba(239,68,68,.2)', borderRadius:'99px', padding:'3px 10px', fontSize:'.75rem', color:'#ef4444', fontWeight:700 }}>
+                                                                  ✗ Verification Rejected
+                                                            </span>
                                                       )}
                                                 </div>
+
 
                                                 {/* Profile Song Display (Instagram Style) */}
                                                 {profileUser.profileSong && profileUser.profileSong.name ? (
@@ -771,8 +814,25 @@ const Profile = () => {
                                                 >
                                                       ⚙️ Settings
                                                 </button>
+                                                {/* Request Blue Tick — only shown if not already verified and not pending */}
+                                                {!profileUser?.isVerified && profileUser?.verificationRequest?.status !== 'pending' && (
+                                                      <button
+                                                            onClick={handleRequestVerification}
+                                                            disabled={verificationReqLoading}
+                                                            className="btn btn-ghost flex-1 min-w-[140px]"
+                                                            style={{
+                                                                  background: 'linear-gradient(135deg,rgba(59,130,246,.1),rgba(99,102,241,.1))',
+                                                                  border: '1px solid rgba(59,130,246,.3)',
+                                                                  color: '#3b82f6', fontWeight: 700,
+                                                                  transition: 'all .2s'
+                                                            }}
+                                                      >
+                                                            {verificationReqLoading ? '⏳ Sending...' : '✓ Request Verification'}
+                                                      </button>
+                                                )}
                                           </div>
                                     ) : isAuthenticated && (
+
                                           <div className="flex gap-md flex-wrap w-full mt-sm">
                                                 <button
                                                       onClick={handleFollow}
@@ -806,6 +866,16 @@ const Profile = () => {
                               </div>
                         </div>
 
+                        {/* Verification request feedback */}
+                        {verificationReqMsg && (
+                              <div className="card p-md mb-lg animate-fadeIn" style={{
+                                    background: verificationReqMsg.includes('✅') ? 'rgba(59,130,246,.1)' : 'rgba(245,158,11,.1)',
+                                    borderColor: verificationReqMsg.includes('✅') ? 'rgba(59,130,246,.3)' : 'rgba(245,158,11,.3)'
+                              }}>
+                                    <p>{verificationReqMsg}</p>
+                              </div>
+                        )}
+
                         {message && (
                               <div className="card p-md mb-lg animate-fadeIn" style={{
                                     background: message.includes('✅') ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
@@ -814,6 +884,7 @@ const Profile = () => {
                                     <p>{message}</p>
                               </div>
                         )}
+
 
                         {isOwnProfile && (
                               <div className="mode-pills mb-xl" style={{ maxWidth: '500px' }}>

@@ -95,17 +95,18 @@ const getAllUsers = async (req, res) => {
       }
 };
 
-// @desc    Update user role/status
+// @desc    Update user role/status/verification
 // @route   PUT /api/admin/users/:id
 // @access  Admin
 const updateUser = async (req, res) => {
       try {
-            const { role, isActive, trustLevel } = req.body;
+            const { role, isActive, trustLevel, isVerified } = req.body;
 
             const updates = {};
             if (role) updates.role = role;
             if (isActive !== undefined) updates.isActive = isActive;
             if (trustLevel !== undefined) updates.trustLevel = trustLevel;
+            if (isVerified !== undefined) updates.isVerified = isVerified;
 
             const user = await User.findByIdAndUpdate(
                   req.params.id,
@@ -133,6 +134,71 @@ const updateUser = async (req, res) => {
             });
       }
 };
+
+// @desc    Toggle user ban (active/inactive)
+// @route   PUT /api/admin/users/:id/ban
+// @access  Admin
+const toggleUserBan = async (req, res) => {
+      try {
+            const user = await User.findById(req.params.id).select('-password');
+            if (!user) {
+                  return res.status(404).json({ success: false, message: 'User not found' });
+            }
+            user.isActive = !user.isActive;
+            await user.save();
+            res.json({
+                  success: true,
+                  message: `User ${user.isActive ? 'unbanned' : 'banned'} successfully`,
+                  data: { user }
+            });
+      } catch (error) {
+            res.status(500).json({ success: false, message: 'Failed to toggle ban', error: error.message });
+      }
+};
+
+// @desc    Get pending verification requests
+// @route   GET /api/admin/verifications
+// @access  Admin
+const getPendingVerifications = async (req, res) => {
+      try {
+            const users = await User.find({ 'verificationRequest.status': 'pending' })
+                  .select('-password')
+                  .sort({ 'verificationRequest.requestedAt': 1 });
+            res.json({ success: true, data: { users } });
+      } catch (error) {
+            res.status(500).json({ success: false, message: 'Failed to get verifications', error: error.message });
+      }
+};
+
+// @desc    Approve or reject a verification request
+// @route   PUT /api/admin/verifications/:id
+// @access  Admin
+const handleVerification = async (req, res) => {
+      try {
+            const { action } = req.body; // 'approve' or 'reject'
+            const user = await User.findById(req.params.id).select('-password');
+            if (!user) {
+                  return res.status(404).json({ success: false, message: 'User not found' });
+            }
+            if (action === 'approve') {
+                  user.isVerified = true;
+                  user.verificationRequest.status = 'approved';
+            } else {
+                  user.isVerified = false;
+                  user.verificationRequest.status = 'rejected';
+            }
+            user.verificationRequest.reviewedAt = new Date();
+            await user.save();
+            res.json({
+                  success: true,
+                  message: `Verification ${action}d successfully`,
+                  data: { user }
+            });
+      } catch (error) {
+            res.status(500).json({ success: false, message: 'Failed to handle verification', error: error.message });
+      }
+};
+
 
 // @desc    Get all content for moderation
 // @route   GET /api/admin/content
@@ -350,6 +416,9 @@ module.exports = {
       getDashboardStats,
       getAllUsers,
       updateUser,
+      toggleUserBan,
+      getPendingVerifications,
+      handleVerification,
       getAllContent,
       moderateContent,
       getReports,
@@ -357,3 +426,4 @@ module.exports = {
       updateConfig,
       initializeConfigs
 };
+

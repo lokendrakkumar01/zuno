@@ -659,6 +659,30 @@ const getBlockedUsers = async (req, res) => {
       }
 };
 
+// @desc    Request blue tick verification
+// @route   POST /api/users/request-verification
+// @access  Private
+const requestVerification = async (req, res) => {
+      try {
+            const { reason } = req.body;
+            const user = await User.findById(req.user.id);
+            if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+            if (user.isVerified) return res.status(400).json({ success: false, message: 'You are already verified!' });
+            if (user.verificationRequest?.status === 'pending') {
+                  return res.status(400).json({ success: false, message: 'You already have a pending verification request.' });
+            }
+            user.verificationRequest = {
+                  status: 'pending',
+                  reason: reason || '',
+                  requestedAt: new Date()
+            };
+            await user.save();
+            res.json({ success: true, message: 'Verification request submitted! Admin will review it soon. ✅' });
+      } catch (error) {
+            res.status(500).json({ success: false, message: 'Failed to submit request', error: error.message });
+      }
+};
+
 module.exports = {
       getUserById,
       getUserProfile,
@@ -680,5 +704,6 @@ module.exports = {
       deleteAccount,
       blockUser,
       unblockUser,
-      getBlockedUsers
+      getBlockedUsers,
+      requestVerification
 };
