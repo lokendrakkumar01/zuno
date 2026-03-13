@@ -71,7 +71,7 @@ const sendLoginEmail = async (email, displayName, loginTime) => {
 
       <!-- CTA -->
       <div style="text-align:center;">
-        <a href="https://zuno-frontend.onrender.com/profile" style="display:inline-block;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;text-decoration:none;padding:14px 32px;border-radius:12px;font-weight:700;font-size:15px;">Visit Your Profile →</a>
+        <a href="${process.env.CLIENT_URL || 'https://zuno-frontend-bevi.onrender.com'}/profile" style="display:inline-block;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;text-decoration:none;padding:14px 32px;border-radius:12px;font-weight:700;font-size:15px;">Visit Your Profile →</a>
       </div>
     </div>
 
@@ -180,7 +180,7 @@ const sendProfileUpdateEmail = async (email, displayName, changedFields) => {
 
       <!-- CTA -->
       <div style="text-align:center;">
-        <a href="https://zuno-frontend.onrender.com/profile" style="display:inline-block;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;text-decoration:none;padding:14px 32px;border-radius:12px;font-weight:700;font-size:15px;">View Your Profile →</a>
+        <a href="${process.env.CLIENT_URL || 'https://zuno-frontend-bevi.onrender.com'}/profile" style="display:inline-block;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;text-decoration:none;padding:14px 32px;border-radius:12px;font-weight:700;font-size:15px;">View Your Profile →</a>
       </div>
     </div>
 

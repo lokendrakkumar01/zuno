@@ -203,8 +203,9 @@ export const CallProvider = ({ children }) => {
             pendingSignals.current = []; // Reset signals
 
             try {
-                  const mediaStream = await navigator.mediaDevices.getUserMedia({
+                  const mediaConstraints = {
                         video: type === 'video' ? {
+                              facingMode: 'user',
                               width: { ideal: 1280, max: 1920 },
                               height: { ideal: 720, max: 1080 },
                               frameRate: { ideal: 30, max: 60 }
@@ -214,7 +215,9 @@ export const CallProvider = ({ children }) => {
                               noiseSuppression: true,
                               autoGainControl: true
                         }
-                  });
+                  };
+                  
+                  const mediaStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
                   setStream(mediaStream);
                   if (myVideo.current) {
                         myVideo.current.srcObject = mediaStream;
@@ -291,8 +294,9 @@ export const CallProvider = ({ children }) => {
             callStartTime.current = Date.now();
 
             try {
-                  const mediaStream = await navigator.mediaDevices.getUserMedia({
+                  const mediaConstraints = {
                         video: callType === 'video' ? {
+                              facingMode: 'user',
                               width: { ideal: 1280, max: 1920 },
                               height: { ideal: 720, max: 1080 },
                               frameRate: { ideal: 30, max: 60 }
@@ -302,7 +306,9 @@ export const CallProvider = ({ children }) => {
                               noiseSuppression: true,
                               autoGainControl: true
                         }
-                  });
+                  };
+
+                  const mediaStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
                   setStream(mediaStream);
                   if (myVideo.current) {
                         myVideo.current.srcObject = mediaStream;
@@ -376,19 +382,21 @@ export const CallProvider = ({ children }) => {
 
       const toggleMute = () => {
             if (stream) {
-                  stream.getAudioTracks().forEach((track) => {
-                        track.enabled = !track.enabled;
-                  });
-                  setIsMuted(!stream.getAudioTracks()[0]?.enabled);
+                  const audioTrack = stream.getAudioTracks()[0];
+                  if (audioTrack) {
+                        audioTrack.enabled = !audioTrack.enabled;
+                        setIsMuted(!audioTrack.enabled);
+                  }
             }
       };
 
       const toggleVideo = () => {
             if (stream) {
-                  stream.getVideoTracks().forEach((track) => {
-                        track.enabled = !track.enabled;
-                  });
-                  setIsVideoOff(!stream.getVideoTracks()[0]?.enabled);
+                  const videoTrack = stream.getVideoTracks()[0];
+                  if (videoTrack) {
+                        videoTrack.enabled = !videoTrack.enabled;
+                        setIsVideoOff(!videoTrack.enabled);
+                  }
             }
       };
 

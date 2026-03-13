@@ -305,7 +305,7 @@ const ContentView = () => {
                                           onClick={async () => {
                                                 try {
                                                       const media = content.media[0];
-                                                      const url = media.url.startsWith('http') ? media.url : `${API_BASE_URL}${media.url}`;
+                                                      const url = media.url?.startsWith('http') ? media.url : `${API_BASE_URL}${media.url}`;
                                                       const filename = `zuno-${content._id}.${media.type === 'video' ? 'mp4' : 'jpg'}`;
 
                                                       const res = await fetch(url);

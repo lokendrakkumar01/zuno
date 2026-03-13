@@ -562,7 +562,7 @@ const ArchiveModal = ({ onClose }) => {
                                           }}>
                                                 {item.media?.[0]?.type === 'image' || !item.media?.[0]?.type ? (
                                                       <img
-                                                            src={item.media?.[0]?.url.startsWith('http') ? item.media[0].url : `${API_BASE_URL}${item.media?.[0]?.url.startsWith('/') ? '' : '/'}${item.media?.[0]?.url}`}
+                                                            src={item.media?.[0]?.url?.startsWith('http') ? item.media[0].url : `${API_BASE_URL}${item.media?.[0]?.url?.startsWith('/') ? '' : '/'}${item.media?.[0]?.url}`}
                                                             alt=""
                                                             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                                       />
