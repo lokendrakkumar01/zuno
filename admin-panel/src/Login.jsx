@@ -17,15 +17,25 @@ export default function Login({ onLogin }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
-      const data = await res.json();
-      if (data.success && data.data.user.role === 'admin') {
+      
+      let data;
+      try {
+        data = await res.json();
+      } catch (parseErr) {
+        throw new Error('Invalid server response');
+      }
+
+      if (res.ok && data.success && data.data && data.data.user.role === 'admin') {
         localStorage.setItem('admin_token', data.data.token);
         localStorage.setItem('admin_user', JSON.stringify(data.data.user));
         onLogin(data.data.token, data.data.user);
+      } else if (res.ok && data.success && data.data.user.role !== 'admin') {
+        setError('⚠️ Admin privileges required to access this panel.');
       } else {
-        setError(data.message || '⚠️ Admin access required');
+        setError(data.message || '⚠️ Invalid credentials or server error');
       }
     } catch (err) {
+      console.error(err);
       setError('⚠️ Network error. Please try again.');
     } finally {
       setLoading(false);
