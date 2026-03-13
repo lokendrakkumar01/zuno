@@ -87,7 +87,7 @@ const updateProfile = async (req, res) => {
             res.json({
                   success: true,
                   message: 'Profile updated successfully',
-                  data: { user: user.getPublicProfile() }
+                  data: { user: user.getAuthProfile() }
             });
       } catch (error) {
             res.status(500).json({

@@ -207,7 +207,7 @@ const getAllContent = async (req, res) => {
       try {
             const { page = 1, limit = 20, status, contentType, isApproved } = req.query;
 
-            let query = {};
+            let query = { status: { $ne: 'removed' } };
             if (status) query.status = status;
             if (contentType) query.contentType = contentType;
             if (isApproved !== undefined) query.isApproved = isApproved === 'true';
@@ -347,15 +347,16 @@ const updateConfig = async (req, res) => {
             const { key } = req.params;
             const { value, description, category, isActive } = req.body;
 
+            const updates = {};
+            if (value !== undefined) updates.value = value;
+            if (description !== undefined) updates.description = description;
+            if (category !== undefined) updates.category = category;
+            if (isActive !== undefined) updates.isActive = isActive;
+            updates.updatedBy = req.user.id;
+
             const config = await AdminConfig.findOneAndUpdate(
                   { key },
-                  {
-                        value,
-                        description,
-                        category,
-                        isActive,
-                        updatedBy: req.user.id
-                  },
+                  { $set: updates },
                   { new: true, upsert: true }
             );
 

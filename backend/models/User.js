@@ -223,5 +223,24 @@ userSchema.methods.getPublicProfile = function () {
       };
 };
 
+// Method to get full authenticated profile (includes private fields for the user themselves)
+userSchema.methods.getAuthProfile = function () {
+      return {
+            ...this.getPublicProfile(),
+            email: this.email,
+            preferredFeedMode: this.preferredFeedMode,
+            focusModeEnabled: this.focusModeEnabled,
+            dailyUsageLimit: this.dailyUsageLimit,
+            language: this.language,
+            following: this.following,
+            notificationSettings: this.notificationSettings,
+            blockedUsers: this.blockedUsers,
+            preferredContentTypes: this.preferredContentTypes,
+            isPrivate: this.isPrivate,
+            profileVisibility: this.profileVisibility
+      };
+};
+
+
 
 module.exports = mongoose.model('User', userSchema);

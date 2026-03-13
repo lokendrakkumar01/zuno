@@ -41,7 +41,7 @@ const register = async (req, res) => {
                   success: true,
                   message: 'Welcome to ZUNO! 🎉',
                   data: {
-                        user: user.getPublicProfile(),
+                        user: user.getAuthProfile(),
                         token
                   }
             });
@@ -110,7 +110,7 @@ const login = async (req, res) => {
                   success: true,
                   message: 'Welcome back! 👋',
                   data: {
-                        user: user.getPublicProfile(),
+                        user: user.getAuthProfile(),
                         token
                   }
             });
@@ -132,18 +132,7 @@ const getMe = async (req, res) => {
             res.json({
                   success: true,
                   data: {
-                        user: {
-                              ...user.getPublicProfile(),
-                              email: user.email,
-                              preferredFeedMode: user.preferredFeedMode,
-                              focusModeEnabled: user.focusModeEnabled,
-                              dailyUsageLimit: user.dailyUsageLimit,
-                              language: user.language,
-                              following: user.following, // send following list for frontend checks
-                              stats: user.stats,
-                              notificationSettings: user.notificationSettings,
-                              blockedUsers: user.blockedUsers
-                        }
+                        user: user.getAuthProfile()
                   }
             });
       } catch (error) {

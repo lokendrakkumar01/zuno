@@ -3,6 +3,9 @@ import { useNavigate, Routes, Route, Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext';
 import { API_URL } from '../../config';
 
+// Global cache to eliminate loading screens between tab switches
+const adminCache = { stats: null, users: null, verifications: null, contents: null, configs: null };
+
 /* ── Inject admin-specific CSS once ── */
 const AdminStyles = () => {
   useEffect(() => {
@@ -279,12 +282,17 @@ const AdminDashboard = () => {
    DASHBOARD HOME — Animated Stats
 ══════════════════════════════════════════════════ */
 const DashboardHome = ({ token }) => {
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState(adminCache.stats || null);
+  const [loading, setLoading] = useState(!adminCache.stats);
 
   useEffect(() => {
     fetch(`${API_URL}/admin/stats`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json()).then(d => { if (d.success) setStats(d.data); })
+      .then(r => r.json()).then(d => { 
+        if (d.success) {
+          setStats(d.data);
+          adminCache.stats = d.data;
+        }
+      })
       .catch(() => {}).finally(() => setLoading(false));
   }, [token]);
 
@@ -345,23 +353,26 @@ const DashboardHome = ({ token }) => {
    USERS MANAGEMENT
 ══════════════════════════════════════════════════ */
 const UsersManagement = ({ token }) => {
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [users, setUsers] = useState(adminCache.users || []);
+  const [loading, setLoading] = useState(!adminCache.users);
   const [search, setSearch] = useState('');
   const { show, Toast } = useToast();
 
-  const fetchUsers = async (q = search) => {
-    setLoading(true);
+  const fetchUsers = async (q = search, showSpinner = false) => {
+    if (showSpinner) setLoading(true);
     try {
       const res = await fetch(`${API_URL}/admin/users?search=${encodeURIComponent(q)}&limit=50`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
-      if (data.success) setUsers(data.data.users);
+      if (data.success) {
+        setUsers(data.data.users);
+        if (!q) adminCache.users = data.data.users;
+      }
     } catch {/**/} finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchUsers(''); }, [token]);
+  useEffect(() => { fetchUsers('', !adminCache.users); }, [token]);
 
   const handleRoleChange = async (userId, newRole) => {
     await fetch(`${API_URL}/admin/users/${userId}`, {
@@ -406,9 +417,9 @@ const UsersManagement = ({ token }) => {
           placeholder="🔍 Search by name or email..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && fetchUsers()}
+          onKeyDown={e => e.key === 'Enter' && fetchUsers(search, true)}
         />
-        <button className="admin-btn admin-btn-primary" onClick={() => fetchUsers()}>Search</button>
+        <button className="admin-btn admin-btn-primary" onClick={() => fetchUsers(search, true)}>Search</button>
       </div>
 
       {loading ? <div className="admin-spinner" /> : (
@@ -497,12 +508,12 @@ const UsersManagement = ({ token }) => {
    VERIFICATIONS MANAGEMENT (Blue Tick)
 ══════════════════════════════════════════════════ */
 const VerificationsManagement = ({ token, onUpdate }) => {
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [users, setUsers] = useState(adminCache.verifications || []);
+  const [loading, setLoading] = useState(!adminCache.verifications);
   const { show, Toast } = useToast();
 
-  const fetchVerifications = async () => {
-    setLoading(true);
+  const fetchVerifications = async (showSpinner = false) => {
+    if (showSpinner) setLoading(true);
     try {
       const res = await fetch(`${API_URL}/admin/verifications`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -510,12 +521,13 @@ const VerificationsManagement = ({ token, onUpdate }) => {
       const data = await res.json();
       if (data.success) {
         setUsers(data.data.users);
+        adminCache.verifications = data.data.users;
         onUpdate?.(data.data.users.length);
       }
     } catch {/**/} finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchVerifications(); }, [token]);
+  useEffect(() => { fetchVerifications(!adminCache.verifications); }, [token]);
 
   const handle = async (userId, action) => {
     const res = await fetch(`${API_URL}/admin/verifications/${userId}`, {
@@ -589,20 +601,23 @@ const VerificationsManagement = ({ token, onUpdate }) => {
    CONTENT MANAGEMENT
 ══════════════════════════════════════════════════ */
 const ContentManagement = ({ token }) => {
-  const [contents, setContents] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [contents, setContents] = useState(adminCache.contents || []);
+  const [loading, setLoading] = useState(!adminCache.contents);
   const { show, Toast } = useToast();
 
-  const fetchContent = async () => {
-    setLoading(true);
+  const fetchContent = async (showSpinner = false) => {
+    if (showSpinner) setLoading(true);
     try {
       const res = await fetch(`${API_URL}/admin/content?limit=30`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
-      if (data.success) setContents(data.data.contents);
+      if (data.success) {
+        setContents(data.data.contents);
+        adminCache.contents = data.data.contents;
+      }
     } catch {/**/} finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchContent(); }, [token]);
+  useEffect(() => { fetchContent(!adminCache.contents); }, [token]);
 
   const handleModerate = async (id, body) => {
     await fetch(`${API_URL}/admin/content/${id}`, {
@@ -664,19 +679,23 @@ const ContentManagement = ({ token }) => {
    CONFIG MANAGEMENT
 ══════════════════════════════════════════════════ */
 const ConfigManagement = ({ token }) => {
-  const [configs, setConfigs] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [configs, setConfigs] = useState(adminCache.configs || []);
+  const [loading, setLoading] = useState(!adminCache.configs);
   const { show, Toast } = useToast();
 
-  const fetchConfigs = async () => {
+  const fetchConfigs = async (showSpinner = false) => {
+    if (showSpinner) setLoading(true);
     try {
       const res = await fetch(`${API_URL}/admin/config`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
-      if (data.success) setConfigs(data.data.configs);
+      if (data.success) {
+        setConfigs(data.data.configs);
+        adminCache.configs = data.data.configs;
+      }
     } catch {/**/} finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchConfigs(); }, [token]);
+  useEffect(() => { fetchConfigs(!adminCache.configs); }, [token]);
 
   const initConfigs = async () => {
     await fetch(`${API_URL}/admin/config/init`, { method:'POST', headers: { Authorization: `Bearer ${token}` } });
