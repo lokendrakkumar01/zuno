@@ -140,16 +140,26 @@ const AdminStyles = () => {
       /* Verification card */
       .admin-verify-card { background:#1e1e32; border:1px solid rgba(99,102,241,.15); border-radius:16px; padding:20px; animation:adminFadeUp .4s ease; transition:transform .2s,box-shadow .2s; }
       .admin-verify-card:hover { transform:translateY(-2px); box-shadow:0 8px 30px rgba(0,0,0,.4); }
+      
+      .admin-action-bar { display:flex; gap:12px; margin-bottom:24px; flex-wrap:nowrap; }
+      
       @media(max-width:768px) {
-        .admin-sidebar { transform:translateX(-100%); }
+        .admin-sidebar { transform:translateX(-100%); width:260px; box-shadow: 10px 0 30px rgba(0,0,0,0.5); }
         .admin-sidebar.mobile-open { transform:translateX(0); }
-        .admin-main { margin-left:0; padding:16px; padding-top:60px; }
+        .admin-main { margin-left:0; padding:16px; padding-top:60px; width:100vw; overflow-x:hidden; box-sizing:border-box; }
+        .admin-page-header { margin-bottom:20px; }
         .admin-hamburger { display:block; }
         .admin-overlay { display:block; }
         .admin-overlay.hidden { display:none; }
-        .admin-stat-grid { grid-template-columns:repeat(2,1fr); }
-        .admin-search { width:100%; }
-        .admin-table { display:block; overflow-x:auto; }
+        .admin-stat-grid { grid-template-columns:repeat(2,1fr); gap:12px; }
+        .admin-stat-card { padding:16px; }
+        .admin-stat-num { font-size:1.5rem; }
+        .admin-action-bar { flex-direction:column; gap:12px; }
+        .admin-search { width:100%; box-sizing:border-box; }
+        .admin-btn { justify-content:center; }
+        .admin-table-wrap { width:100%; overflow-x:auto; }
+        .admin-table { min-width:600px; } /* Ensures table content doesn't squish unreadably */
+        .admin-verify-card { padding:16px; }
       }
     `;
     document.head.appendChild(style);
@@ -409,7 +419,7 @@ const UsersManagement = ({ token }) => {
         <p className="admin-page-sub">Manage users, roles, and account status.</p>
       </div>
 
-      <div style={{ display:'flex', gap:'12px', marginBottom:'24px', flexWrap:'wrap' }}>
+      <div className="admin-action-bar">
         <input
           className="admin-search"
           placeholder="🔍 Search by name or email..."
