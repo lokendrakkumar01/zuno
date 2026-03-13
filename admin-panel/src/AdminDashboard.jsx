@@ -208,14 +208,17 @@ const AdminDashboard = ({ token, user, onLogout }) => {
   }
 
   const navItems = [
-    { path:'/admin', label:'Dashboard', icon:'📊', exact:true },
-    { path:'/admin/users', label:'Users', icon:'👥' },
-    { path:'/admin/verifications', label:'Verifications', icon:'✅', badge: pendingCount > 0 ? pendingCount : null },
-    { path:'/admin/content', label:'Content', icon:'🖼️' },
-    { path:'/admin/config', label:'Config', icon:'⚙️' },
+    { path:'', label:'Dashboard', icon:'📊', exact:true },
+    { path:'users', label:'Users', icon:'👥' },
+    { path:'verifications', label:'Verifications', icon:'✅', badge: pendingCount > 0 ? pendingCount : null },
+    { path:'content', label:'Content', icon:'🖼️' },
+    { path:'config', label:'Config', icon:'⚙️' },
   ];
 
-  const isActive = (path, exact) => exact ? location.pathname === path : location.pathname.startsWith(path);
+  const isActive = (path, exact) => {
+    const p = path === '' ? '/' : `/${path}`;
+    return exact ? location.pathname === p : location.pathname.startsWith(p);
+  };
 
   return (
     <>
@@ -264,11 +267,16 @@ const AdminDashboard = ({ token, user, onLogout }) => {
         {/* Main content */}
         <main className="admin-main">
           <Routes>
-            <Route index element={<DashboardHome token={token} />} />
-            <Route path="users" element={<UsersManagement token={token} />} />
-            <Route path="verifications" element={<VerificationsManagement token={token} onUpdate={setPendingCount} />} />
-            <Route path="content" element={<ContentManagement token={token} />} />
-            <Route path="config" element={<ConfigManagement token={token} />} />
+            <Route path="/" element={<DashboardHome token={token} />} />
+            <Route path="/admin" element={<DashboardHome token={token} />} />
+            <Route path="/admin/users" element={<UsersManagement token={token} />} />
+            <Route path="/users" element={<UsersManagement token={token} />} />
+            <Route path="/admin/verifications" element={<VerificationsManagement token={token} onUpdate={setPendingCount} />} />
+            <Route path="/verifications" element={<VerificationsManagement token={token} onUpdate={setPendingCount} />} />
+            <Route path="/admin/content" element={<ContentManagement token={token} />} />
+            <Route path="/content" element={<ContentManagement token={token} />} />
+            <Route path="/admin/config" element={<ConfigManagement token={token} />} />
+            <Route path="/config" element={<ConfigManagement token={token} />} />
           </Routes>
         </main>
       </div>
