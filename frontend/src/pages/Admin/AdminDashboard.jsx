@@ -4,7 +4,10 @@ import { useAuth } from '../../context/AuthContext';
 import { API_URL } from '../../config';
 
 // Global cache to eliminate loading screens between tab switches
-const adminCache = { stats: null, users: null, verifications: null, contents: null, configs: null };
+const adminCache = { stats: null, users: null, verifications: null, contents: null, configs: null, reports: null };
+
+// Global event emitter for forces refreshing
+const refreshEvent = new EventTarget();
 
 /* ── Inject admin-specific CSS once ── */
 const AdminStyles = () => {
@@ -215,6 +218,7 @@ const AdminDashboard = () => {
     { path:'/admin/users', label:'Users', icon:'👥' },
     { path:'/admin/verifications', label:'Verifications', icon:'✅', badge: pendingCount > 0 ? pendingCount : null },
     { path:'/admin/content', label:'Content', icon:'🖼️' },
+    { path:'/admin/reports', label:'Reports', icon:'🚨' },
     { path:'/admin/config', label:'Config', icon:'⚙️' },
   ];
 
@@ -256,7 +260,21 @@ const AdminDashboard = () => {
               </Link>
             ))}
             <div style={{ flex:1 }} />
-            <Link to="/" className="admin-nav-link" style={{ marginTop:'auto', color:'#ef4444' }} onClick={() => setSidebarOpen(false)}>
+            
+            <button 
+              className="admin-nav-link" 
+              style={{ color:'#3b82f6', marginBottom:'8px' }}
+              onClick={() => {
+                // Clear all cache and fire refresh event to child components
+                Object.keys(adminCache).forEach(k => adminCache[k] = null);
+                refreshEvent.dispatchEvent(new Event('refreshAll'));
+              }}
+            >
+              <span className="admin-nav-icon">🔄</span>
+              Sync / Refresh All
+            </button>
+
+            <Link to="/" className="admin-nav-link" style={{ color:'#ef4444' }} onClick={() => setSidebarOpen(false)}>
               <span className="admin-nav-icon">🚪</span>
               Exit Admin
             </Link>
@@ -270,6 +288,7 @@ const AdminDashboard = () => {
             <Route path="users" element={<UsersManagement token={token} />} />
             <Route path="verifications" element={<VerificationsManagement token={token} onUpdate={setPendingCount} />} />
             <Route path="content" element={<ContentManagement token={token} />} />
+            <Route path="reports" element={<ReportsManagement token={token} />} />
             <Route path="config" element={<ConfigManagement token={token} />} />
           </Routes>
         </main>
@@ -285,7 +304,8 @@ const DashboardHome = ({ token }) => {
   const [stats, setStats] = useState(adminCache.stats || null);
   const [loading, setLoading] = useState(!adminCache.stats);
 
-  useEffect(() => {
+  const fetchStats = () => {
+    setLoading(true);
     fetch(`${API_URL}/admin/stats`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json()).then(d => { 
         if (d.success) {
@@ -294,6 +314,14 @@ const DashboardHome = ({ token }) => {
         }
       })
       .catch(() => {}).finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    if (!adminCache.stats) fetchStats();
+    
+    const onRefresh = () => fetchStats();
+    refreshEvent.addEventListener('refreshAll', onRefresh);
+    return () => refreshEvent.removeEventListener('refreshAll', onRefresh);
   }, [token]);
 
   const cards = [
@@ -372,7 +400,12 @@ const UsersManagement = ({ token }) => {
     } catch {/**/} finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchUsers('', !adminCache.users); }, [token]);
+  useEffect(() => { 
+    fetchUsers('', !adminCache.users); 
+    const onRefresh = () => fetchUsers(search, true);
+    refreshEvent.addEventListener('refreshAll', onRefresh);
+    return () => refreshEvent.removeEventListener('refreshAll', onRefresh);
+  }, [token]);
 
   const handleRoleChange = async (userId, newRole) => {
     await fetch(`${API_URL}/admin/users/${userId}`, {
@@ -527,7 +560,12 @@ const VerificationsManagement = ({ token, onUpdate }) => {
     } catch {/**/} finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchVerifications(!adminCache.verifications); }, [token]);
+  useEffect(() => { 
+    fetchVerifications(!adminCache.verifications); 
+    const onRefresh = () => fetchVerifications(true);
+    refreshEvent.addEventListener('refreshAll', onRefresh);
+    return () => refreshEvent.removeEventListener('refreshAll', onRefresh);
+  }, [token]);
 
   const handle = async (userId, action) => {
     const res = await fetch(`${API_URL}/admin/verifications/${userId}`, {
@@ -617,7 +655,12 @@ const ContentManagement = ({ token }) => {
     } catch {/**/} finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchContent(!adminCache.contents); }, [token]);
+  useEffect(() => { 
+    fetchContent(!adminCache.contents); 
+    const onRefresh = () => fetchContent(true);
+    refreshEvent.addEventListener('refreshAll', onRefresh);
+    return () => refreshEvent.removeEventListener('refreshAll', onRefresh);
+  }, [token]);
 
   const handleModerate = async (id, body) => {
     await fetch(`${API_URL}/admin/content/${id}`, {
@@ -676,6 +719,115 @@ const ContentManagement = ({ token }) => {
 };
 
 /* ══════════════════════════════════════════════════
+   REPORTS MANAGEMENT
+══════════════════════════════════════════════════ */
+const ReportsManagement = ({ token }) => {
+  const [reports, setReports] = useState(adminCache.reports || []);
+  const [loading, setLoading] = useState(!adminCache.reports);
+  const { show, Toast } = useToast();
+
+  const fetchReports = async (showSpinner = false) => {
+    if (showSpinner) setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/admin/reports?limit=50`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (data.success) {
+        setReports(data.data.reports);
+        adminCache.reports = data.data.reports;
+      }
+    } catch {/**/} finally { setLoading(false); }
+  };
+
+  useEffect(() => { 
+    fetchReports(!adminCache.reports); 
+    const onRefresh = () => fetchReports(true);
+    refreshEvent.addEventListener('refreshAll', onRefresh);
+    return () => refreshEvent.removeEventListener('refreshAll', onRefresh);
+  }, [token]);
+
+  const handleAction = async (reportId, action) => {
+    // In a real app we would hit an endpoint like: /admin/reports/:id
+    // Wait for API mapping on backend, for now just update locally to simulate
+    show(`Report marked as ${action} ✓`, '✅');
+    setReports(prev => prev.filter(r => r._id !== reportId));
+    
+    // Attempt removal if action is 'removed'
+    if(action === 'removed') {
+         const report = reports.find(r => r._id === reportId);
+         if(report && report.targetId) {
+            await fetch(`${API_URL}/admin/content/${report.targetId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ status: 'removed' })
+            }).catch(()=>{});
+         }
+    }
+  };
+
+  return (
+    <div>
+      {Toast}
+      <div className="admin-page-header">
+        <h1 className="admin-page-title">User Reports 🚨</h1>
+        <p className="admin-page-sub">Review content flagged by the community.</p>
+      </div>
+
+      {loading ? <div className="admin-spinner" /> : (
+        <div className="admin-table-wrap">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Target</th>
+                <th>Type</th>
+                <th>Reason</th>
+                <th>Reporter</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reports.map(r => (
+                <tr key={r._id}>
+                  <td>
+                    <div style={{ fontWeight:600 }}>{r.targetModel}</div>
+                    <div style={{ fontSize:'.75rem', color:'#64748b', fontFamily:'monospace' }}>{r.targetId}</div>
+                  </td>
+                  <td>
+                    <span className="admin-badge-role admin-badge-pending" style={{ textTransform:'capitalize' }}>
+                      {r.reason}
+                    </span>
+                  </td>
+                  <td>
+                    <p style={{ margin:0, fontSize:'.85rem', color:'#e2e8f0', maxWidth:'250px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                      {r.details || 'No additional details provided.'}
+                    </p>
+                  </td>
+                  <td style={{ color:'#94a3b8', fontSize:'.82rem' }}>
+                    @{r.reporter?.username || 'Unknown'}
+                  </td>
+                  <td>
+                    <div style={{ display:'flex', gap:'6px' }}>
+                      <button className="admin-btn admin-btn-sm admin-btn-ghost" onClick={() => handleAction(r._id, 'dismissed')} title="Dismiss Report">
+                        Dismiss
+                      </button>
+                      <button className="admin-btn admin-btn-sm admin-btn-danger" onClick={() => handleAction(r._id, 'removed')} title="Remove Content">
+                        Remove Content
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {reports.length === 0 && (
+                <tr><td colSpan="5"><div className="admin-empty"><div className="admin-empty-icon">🛡️</div>No pending reports!</div></td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ══════════════════════════════════════════════════
    CONFIG MANAGEMENT
 ══════════════════════════════════════════════════ */
 const ConfigManagement = ({ token }) => {
@@ -695,7 +847,12 @@ const ConfigManagement = ({ token }) => {
     } catch {/**/} finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchConfigs(!adminCache.configs); }, [token]);
+  useEffect(() => { 
+    fetchConfigs(!adminCache.configs); 
+    const onRefresh = () => fetchConfigs(true);
+    refreshEvent.addEventListener('refreshAll', onRefresh);
+    return () => refreshEvent.removeEventListener('refreshAll', onRefresh);
+  }, [token]);
 
   const initConfigs = async () => {
     await fetch(`${API_URL}/admin/config/init`, { method:'POST', headers: { Authorization: `Bearer ${token}` } });
