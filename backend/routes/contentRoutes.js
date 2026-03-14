@@ -6,6 +6,7 @@ const {
       getContent,
       updateContent,
       deleteContent,
+      markHelpful,
       markNotUseful,
       saveContent,
       reportContent,
