@@ -6,9 +6,9 @@ const {
       getContent,
       updateContent,
       deleteContent,
-      markHelpful,
       markNotUseful,
       saveContent,
+      reportContent,
       getMyContent,
       getSavedContent,
       shareContent
@@ -55,6 +55,7 @@ router.post('/:id/helpful', protect, markHelpful);
 router.post('/:id/not-useful', protect, markNotUseful);
 router.post('/:id/dislike', protect, markNotUseful);  // Alias for not-useful (dislike)
 router.post('/:id/save', protect, saveContent);
+router.post('/:id/report', protect, reportContent);
 // Share is public (can track if logged in, but allowing public for now as per controller - wait controller doesn't use req.user, it is public)
 router.post('/:id/share', shareContent);
 

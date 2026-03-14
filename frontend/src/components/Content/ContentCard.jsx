@@ -24,6 +24,11 @@ const ContentCard = ({ content, onDelete, autoOpenFullscreen = false, onCloseFul
       const [commentCount, setCommentCount] = useState(content.metrics?.commentCount || 0);
       const [imageLoaded, setImageLoaded] = useState(false);
 
+      const [showReportModal, setShowReportModal] = useState(false);
+      const [reportReason, setReportReason] = useState('spam');
+      const [reportNote, setReportNote] = useState('');
+      const [isReporting, setIsReporting] = useState(false);
+
       // Music Playback via Global Context
       const { playTrack, stopTrack, currentTrack, isPlaying: isMusicPlayingGlobal } = useMusic();
       const isThisPlaying = isMusicPlayingGlobal && currentTrack?.trackId === content.music?.trackId;
@@ -421,6 +426,36 @@ const ContentCard = ({ content, onDelete, autoOpenFullscreen = false, onCloseFul
       };
 
       const placeholderImage = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300"%3E%3Crect fill="%23f0f0f0" width="400" height="300"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="18" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3ENo Image Available%3C/text%3E%3C/svg%3E';
+
+      const handleReport = async (e) => {
+            if (e) e.preventDefault();
+            if (!currentUser) return alert('Please login to report content');
+            
+            setIsReporting(true);
+            try {
+                  const res = await fetch(`${API_URL}/content/${content._id}/report`, {
+                        method: 'POST',
+                        headers: {
+                              'Content-Type': 'application/json',
+                              Authorization: `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ reason: reportReason, note: reportNote })
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                        alert('Report submitted successfully. Thank you for keeping our community safe.');
+                        setShowReportModal(false);
+                        setReportNote('');
+                  } else {
+                        alert(data.message || 'Failed to submit report');
+                  }
+            } catch (err) {
+                  console.error('Report error:', err);
+                  alert('Something went wrong processing your request');
+            } finally {
+                  setIsReporting(false);
+            }
+      };
 
       // ... existing code ...
 
@@ -1096,7 +1131,7 @@ const ContentCard = ({ content, onDelete, autoOpenFullscreen = false, onCloseFul
 
                               <button
                                     onClick={() => {
-                                          alert('Report feature coming soon');
+                                          setShowReportModal(true);
                                           setShowMenu(false);
                                     }}
                                     className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gradient-to-r hover:from-orange-50 hover:to-amber-50 rounded-lg flex items-center gap-3 transition-all"
@@ -1294,6 +1329,65 @@ const ContentCard = ({ content, onDelete, autoOpenFullscreen = false, onCloseFul
                                                 <CommentSection contentId={content._id} />
                                           </div>
                                     )}
+                              </div>
+                        </div>
+                  )}
+
+                  {/* Report Modal */}
+                  {showReportModal && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowReportModal(false)}>
+                              <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+                                    <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                                          <h3 className="text-lg font-bold text-gray-800">Report Content</h3>
+                                          <button onClick={() => setShowReportModal(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                          </button>
+                                    </div>
+                                    <div className="p-5">
+                                          <label className="block text-sm font-semibold text-gray-700 mb-2">Why are you reporting this?</label>
+                                          <select 
+                                                value={reportReason}
+                                                onChange={(e) => setReportReason(e.target.value)}
+                                                className="w-full p-3 border border-gray-200 rounded-xl mb-4 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all"
+                                          >
+                                                <option value="spam">Spam or misleading</option>
+                                                <option value="inappropriate">Inappropriate content</option>
+                                                <option value="harassment">Harassment or bullying</option>
+                                                <option value="hate_speech">Hate speech</option>
+                                                <option value="copyright">Copyright violation</option>
+                                                <option value="other">Other</option>
+                                          </select>
+
+                                          <label className="block text-sm font-semibold text-gray-700 mb-2">Additional details (optional)</label>
+                                          <textarea 
+                                                value={reportNote}
+                                                onChange={(e) => setReportNote(e.target.value)}
+                                                placeholder="Please provide more information..."
+                                                className="w-full p-3 border border-gray-200 rounded-xl mb-6 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all resize-none"
+                                                rows="3"
+                                          ></textarea>
+
+                                          <div className="flex gap-3">
+                                                <button 
+                                                      onClick={() => setShowReportModal(false)}
+                                                      className="flex-1 py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold rounded-xl transition-colors"
+                                                >
+                                                      Cancel
+                                                </button>
+                                                <button 
+                                                      onClick={handleReport}
+                                                      disabled={isReporting}
+                                                      className="flex-1 py-3 px-4 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl shadow-md shadow-red-200 transition-colors disabled:opacity-70 flex justify-center items-center gap-2"
+                                                >
+                                                      {isReporting ? (
+                                                            <>
+                                                                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                                                  <span>Reporting...</span>
+                                                            </>
+                                                      ) : 'Submit Report'}
+                                                </button>
+                                          </div>
+                                    </div>
                               </div>
                         </div>
                   )}

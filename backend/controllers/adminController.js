@@ -2,6 +2,7 @@ const User = require('../models/User');
 const Content = require('../models/Content');
 const AdminConfig = require('../models/AdminConfig');
 const Interaction = require('../models/Interaction');
+const { sendCustomAdminEmail } = require('../config/emailService');
 
 // @desc    Get admin dashboard stats
 // @route   GET /api/admin/stats
@@ -153,6 +154,32 @@ const toggleUserBan = async (req, res) => {
             });
       } catch (error) {
             res.status(500).json({ success: false, message: 'Failed to toggle ban', error: error.message });
+      }
+};
+
+// @desc    Send email to a user
+// @route   POST /api/admin/users/:id/email
+// @access  Admin
+const sendUserEmail = async (req, res) => {
+      try {
+            const { subject, message } = req.body;
+            if (!subject || !message) {
+                  return res.status(400).json({ success: false, message: 'Subject and message are required' });
+            }
+
+            const user = await User.findById(req.params.id);
+            if (!user) {
+                  return res.status(404).json({ success: false, message: 'User not found' });
+            }
+
+            await sendCustomAdminEmail(user.email, user.displayName || user.username, subject, message);
+
+            res.json({
+                  success: true,
+                  message: `Email sent to ${user.email} successfully`
+            });
+      } catch (error) {
+            res.status(500).json({ success: false, message: 'Failed to send email', error: error.message });
       }
 };
 
@@ -320,6 +347,48 @@ const getReports = async (req, res) => {
       }
 };
 
+// @desc    Handle report action
+// @route   PUT /api/admin/reports/:id
+// @access  Admin/Moderator
+const handleReportAction = async (req, res) => {
+      try {
+            const { action } = req.body; // 'dismissed' or 'removed'
+            const report = await Interaction.findById(req.params.id);
+
+            if (!report || report.type !== 'report') {
+                  return res.status(404).json({
+                        success: false,
+                        message: 'Report not found'
+                  });
+            }
+
+            if (action === 'removed') {
+                  // Delete the reported content
+                  if (report.content) {
+                        const content = await Content.findById(report.content);
+                        if (content) {
+                              content.status = 'removed';
+                              await content.save();
+                        }
+                  }
+            }
+
+            // After handling, delete the report Interaction
+            await Interaction.findByIdAndDelete(req.params.id);
+
+            res.json({
+                  success: true,
+                  message: `Report marked as ${action}`
+            });
+      } catch (error) {
+            res.status(500).json({
+                  success: false,
+                  message: 'Failed to handle report',
+                  error: error.message
+            });
+      }
+};
+
 // @desc    Get all feature flags
 // @route   GET /api/admin/config
 // @access  Admin
@@ -418,11 +487,13 @@ module.exports = {
       getAllUsers,
       updateUser,
       toggleUserBan,
+      sendUserEmail,
       getPendingVerifications,
       handleVerification,
       getAllContent,
       moderateContent,
       getReports,
+      handleReportAction,
       getConfigs,
       updateConfig,
       initializeConfigs

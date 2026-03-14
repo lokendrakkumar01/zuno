@@ -438,6 +438,57 @@ const saveContent = async (req, res) => {
       }
 };
 
+// @desc    Report content
+// @route   POST /api/content/:id/report
+// @access  Private
+const reportContent = async (req, res) => {
+      try {
+            const content = await Content.findById(req.params.id);
+
+            if (!content) {
+                  return res.status(404).json({
+                        success: false,
+                        message: 'Content not found'
+                  });
+            }
+
+            const { reason, note } = req.body;
+
+            // Check if already reported
+            const existing = await Interaction.findOne({
+                  user: req.user.id,
+                  content: req.params.id,
+                  type: 'report'
+            });
+
+            if (existing) {
+                  return res.status(400).json({
+                        success: false,
+                        message: 'You have already reported this content'
+                  });
+            }
+
+            await Interaction.create({
+                  user: req.user.id,
+                  content: req.params.id,
+                  type: 'report',
+                  reportReason: reason || 'other',
+                  reportNote: note || ''
+            });
+
+            res.json({
+                  success: true,
+                  message: 'Report submitted successfully. We will review it shortly.'
+            });
+      } catch (error) {
+            res.status(500).json({
+                  success: false,
+                  message: 'Failed to submit report',
+                  error: error.message
+            });
+      }
+};
+
 // @desc    Get user's content
 // @route   GET /api/content/my
 // @access  Private
@@ -540,6 +591,7 @@ module.exports = {
       markHelpful,
       markNotUseful,
       saveContent,
+      reportContent,
       getMyContent,
       getSavedContent,
       shareContent

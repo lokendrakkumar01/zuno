@@ -386,6 +386,43 @@ const UsersManagement = ({ token }) => {
   const [search, setSearch] = useState('');
   const { show, Toast } = useToast();
 
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailMessage, setEmailMessage] = useState('');
+  const [sendingEmail, setSendingEmail] = useState(false);
+
+  const openEmailModal = (user) => {
+    setSelectedUser(user);
+    setEmailSubject('');
+    setEmailMessage('');
+    setEmailModalOpen(true);
+  };
+
+  const handleSendEmail = async () => {
+    if (!emailSubject || !emailMessage) return show('Subject and message required', '⚠️');
+    setSendingEmail(true);
+    try {
+      const res = await fetch(`${API_URL}/admin/users/${selectedUser._id}/email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ subject: emailSubject, message: emailMessage })
+      });
+      const data = await res.json();
+      if (data.success) {
+        show('Email sent successfully!', '📧');
+        setEmailModalOpen(false);
+      } else {
+        show(data.message || 'Failed to send email', '❌');
+      }
+    } catch (err) {
+      console.error(err);
+      show('Error sending email', '❌');
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
   const fetchUsers = async (q = search, showSpinner = false) => {
     if (showSpinner) setLoading(true);
     try {
@@ -522,6 +559,14 @@ const UsersManagement = ({ token }) => {
                       >
                         {u.isActive ? '🔒 Ban' : '🔓 Unban'}
                       </button>
+                      <button
+                        className="admin-btn admin-btn-sm admin-btn-ghost"
+                        style={{ border: '1px solid rgba(255,255,255,0.1)' }}
+                        onClick={() => openEmailModal(u)}
+                        title="Send Email"
+                      >
+                        📧 Email
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -531,6 +576,45 @@ const UsersManagement = ({ token }) => {
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Email Modal */}
+      {emailModalOpen && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', backdropFilter:'blur(4px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:'20px' }}>
+          <div className="admin-card" style={{ width:'100%', maxWidth:'500px', background:'#1e1e32' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px' }}>
+              <h3 style={{ margin:0, color:'#f1f5f9' }}>📧 Send Email to {selectedUser?.displayName || selectedUser?.username}</h3>
+              <button onClick={() => setEmailModalOpen(false)} style={{ background:'none', border:'none', color:'#94a3b8', fontSize:'1.2rem', cursor:'pointer' }}>✕</button>
+            </div>
+            <div style={{ marginBottom:'16px' }}>
+              <label style={{ display:'block', color:'#94a3b8', fontSize:'.85rem', marginBottom:'8px' }}>Subject</label>
+              <input
+                type="text"
+                value={emailSubject}
+                onChange={(e) => setEmailSubject(e.target.value)}
+                className="admin-search"
+                style={{ width:'100%', padding:'12px', background:'#0f0f1a' }}
+                placeholder="Email subject..."
+              />
+            </div>
+            <div style={{ marginBottom:'24px' }}>
+              <label style={{ display:'block', color:'#94a3b8', fontSize:'.85rem', marginBottom:'8px' }}>Message</label>
+              <textarea
+                value={emailMessage}
+                onChange={(e) => setEmailMessage(e.target.value)}
+                className="admin-search"
+                style={{ width:'100%', padding:'12px', minHeight:'120px', resize:'vertical', background:'#0f0f1a' }}
+                placeholder="Write your message here..."
+              />
+            </div>
+            <div style={{ display:'flex', gap:'12px', justifyContent:'flex-end' }}>
+              <button className="admin-btn admin-btn-ghost" onClick={() => setEmailModalOpen(false)}>Cancel</button>
+              <button className="admin-btn admin-btn-primary" onClick={handleSendEmail} disabled={sendingEmail}>
+                {sendingEmail ? 'Sending...' : 'Send Email 🚀'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -746,21 +830,25 @@ const ReportsManagement = ({ token }) => {
   }, [token]);
 
   const handleAction = async (reportId, action) => {
-    // In a real app we would hit an endpoint like: /admin/reports/:id
-    // Wait for API mapping on backend, for now just update locally to simulate
-    show(`Report marked as ${action} ✓`, '✅');
-    setReports(prev => prev.filter(r => r._id !== reportId));
-    
-    // Attempt removal if action is 'removed'
-    if(action === 'removed') {
-         const report = reports.find(r => r._id === reportId);
-         if(report && report.targetId) {
-            await fetch(`${API_URL}/admin/content/${report.targetId}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-              body: JSON.stringify({ status: 'removed' })
-            }).catch(()=>{});
-         }
+    try {
+      const res = await fetch(`${API_URL}/admin/reports/${reportId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action })
+      });
+      const data = await res.json();
+      if (data.success) {
+        show(`Report marked as ${action} ✓`, '✅');
+        setReports(prev => prev.filter(r => r._id !== reportId));
+        if (adminCache.reports) {
+          adminCache.reports = adminCache.reports.filter(r => r._id !== reportId);
+        }
+      } else {
+        show(data.message || 'Failed to update report', '❌');
+      }
+    } catch (err) {
+      console.error('Error handling report:', err);
+      show('Failed to process report action', '❌');
     }
   };
 

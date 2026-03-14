@@ -207,4 +207,72 @@ const sendProfileUpdateEmail = async (email, displayName, changedFields) => {
   }
 };
 
-module.exports = { sendLoginEmail, sendProfileUpdateEmail };
+/**
+ * Send custom email to a user from admin
+ */
+const sendCustomAdminEmail = async (email, displayName, subject, message) => {
+  try {
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      console.log('[Email] Email not configured, skipping custom admin email');
+      return;
+    }
+
+    const transporter = createTransporter();
+
+    // Replace line breaks with HTML breaks
+    const formattedMessage = message.replace(/\n/g, '<br/>');
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${subject}</title>
+</head>
+<body style="margin:0;padding:0;background:#0d0d1a;font-family:'Segoe UI',Arial,sans-serif;">
+  <div style="max-width:600px;margin:0 auto;padding:40px 20px;">
+    <!-- Header -->
+    <div style="text-align:center;margin-bottom:32px;">
+      <div style="display:inline-block;width:60px;height:60px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:16px;line-height:60px;font-size:28px;font-weight:900;color:#fff;margin-bottom:12px;">Z</div>
+      <h1 style="margin:0;color:#f1f5f9;font-size:24px;font-weight:700;">ZUNO Admin</h1>
+    </div>
+
+    <!-- Card -->
+    <div style="background:linear-gradient(135deg,rgba(99,102,241,0.1),rgba(139,92,246,0.08));border:1px solid rgba(99,102,241,0.3);border-radius:20px;padding:32px;">
+      <h2 style="color:#f1f5f9;margin:0 0 16px;font-size:20px;">Hello <strong style="color:#a5b4fc;">${displayName}</strong>,</h2>
+      
+      <div style="color:#cbd5e1;font-size:15px;line-height:1.6;margin-bottom:24px;background:rgba(0,0,0,0.2);padding:24px;border-radius:12px;border:1px solid rgba(255,255,255,0.05);">
+        ${formattedMessage}
+      </div>
+
+      <!-- CTA -->
+      <div style="text-align:center;">
+        <a href="${process.env.CLIENT_URL || 'https://zuno-frontend-bevi.onrender.com'}" style="display:inline-block;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;text-decoration:none;padding:14px 32px;border-radius:12px;font-weight:700;font-size:15px;">Go to ZUNO →</a>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div style="text-align:center;margin-top:32px;">
+      <p style="color:#475569;font-size:12px;margin:0;">© 2026 ZUNO • Built with ❤️ by Lokendra Kumar</p>
+      <p style="color:#334155;font-size:11px;margin:8px 0 0;">This email was sent by ZUNO Administration. Please do not reply directly.</p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM || `ZUNO <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: subject,
+      html: htmlContent
+    });
+
+    console.log(`[Email] Custom admin email sent to ${email}`);
+  } catch (error) {
+    console.error('[Email] Failed to send custom admin email:', error.message);
+    throw error;
+  }
+};
+
+module.exports = { sendLoginEmail, sendProfileUpdateEmail, sendCustomAdminEmail };
