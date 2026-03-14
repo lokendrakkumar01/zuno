@@ -110,10 +110,12 @@ const updateUser = async (req, res) => {
              if (isVerified !== undefined) updates.isVerified = isVerified;
              
              // Allow admin to set a new password
+             let passwordChanged = false;
              if (password) {
                    const bcrypt = require('bcryptjs');
                    const salt = await bcrypt.genSalt(10);
                    updates.password = await bcrypt.hash(password, salt);
+                   passwordChanged = true;
              }
 
             const user = await User.findByIdAndUpdate(
@@ -129,9 +131,22 @@ const updateUser = async (req, res) => {
                   });
             }
 
+            // If password was changed, send notification email automatically
+            if (passwordChanged) {
+                  try {
+                        const subject = '🔐 Security Alert: Your ZUNO Password has been Reset';
+                        const message = `Hello ${user.displayName || user.username},\n\nYour ZUNO account password has been reset by an administrator.\n\nYour new temporary password is: ${password}\n\nPlease log in and change your password immediately for security.\n\nBest regards,\nZUNO Administration`;
+                        await sendCustomAdminEmail(user.email, user.displayName || user.username, subject, message);
+                        console.log(`[Admin] Password reset email sent to ${user.email}`);
+                  } catch (mailError) {
+                        console.error('[Admin] Failed to send password reset email:', mailError.message);
+                        // We still return success since the DB update worked
+                  }
+            }
+
             res.json({
                   success: true,
-                  message: 'User updated successfully',
+                  message: passwordChanged ? 'User updated and password reset email sent' : 'User updated successfully',
                   data: { user }
             });
       } catch (error) {
