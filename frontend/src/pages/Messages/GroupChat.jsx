@@ -471,6 +471,30 @@ const GroupChat = () => {
             }
       };
 
+      const handleDeleteGroup = async () => {
+            const type = groupInfo?.isChannel ? 'Channel' : 'Group';
+            if (!window.confirm(`Are you sure you want to DELETE this ${type}? All messages and participants will be removed. This cannot be undone.`)) return;
+            
+            try {
+                  const res = await fetch(`${API_URL}/messages/group/${groupId}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                        localStorage.removeItem(`zuno_group_chat_cache_${groupId}`);
+                        localStorage.removeItem(`zuno_group_info_cache_${groupId}`);
+                        navigate('/messages');
+                        window.location.reload(); // Refresh to update conversation list
+                  } else {
+                        alert(data.message || `Failed to delete ${type}`);
+                  }
+            } catch (err) {
+                  console.error(`Failed to delete ${type}`, err);
+                  alert(`An error occurred while deleting the ${type.toLowerCase()}`);
+            }
+      };
+
       const handleDownloadMedia = async (url, type) => {
             try {
                   const res = await fetch(url);
@@ -608,6 +632,16 @@ const GroupChat = () => {
                                                       >
                                                             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: '8px' }}><path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1zM18 7H6v12c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7z" /></svg>
                                                             Clear Chat
+                                                      </button>
+                                                )}
+                                                {isAdmin && (
+                                                      <button
+                                                            onClick={() => { setActiveMenu(null); handleDeleteGroup(); }}
+                                                            className="chat-msg-menu-item delete"
+                                                            style={{ color: '#ff4444' }}
+                                                      >
+                                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: '8px' }}><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" /></svg>
+                                                            {groupInfo?.isChannel ? 'Delete Channel' : 'Delete Group'}
                                                       </button>
                                                 )}
                                           </div>

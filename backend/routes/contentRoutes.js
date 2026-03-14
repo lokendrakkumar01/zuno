@@ -12,7 +12,8 @@ const {
       reportContent,
       getMyContent,
       getSavedContent,
-      shareContent
+      shareContent,
+      markAsViewed
 } = require('../controllers/contentController');
 const { protect } = require('../middleware/auth');
 const { uploadMultiple } = require('../middleware/upload');
@@ -57,8 +58,9 @@ router.post('/:id/not-useful', protect, markNotUseful);
 router.post('/:id/dislike', protect, markNotUseful);  // Alias for not-useful (dislike)
 router.post('/:id/save', protect, saveContent);
 router.post('/:id/report', protect, reportContent);
-// Share is public (can track if logged in, but allowing public for now as per controller - wait controller doesn't use req.user, it is public)
+// Share is public
 router.post('/:id/share', shareContent);
+router.post('/:id/view', protect, markAsViewed);
 
 // User's content
 router.get('/user/my', protect, getMyContent);

@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { API_BASE_URL, API_URL } from '../../config';
 
 const StoryViewer = ({ group, onClose }) => {
-      const { user, token } = useAuth();
+      const { user, token, isAuthenticated } = useAuth();
       const [currentIndex, setCurrentIndex] = useState(0);
       const [progress, setProgress] = useState(0);
       const [imageLoaded, setImageLoaded] = useState(false);
@@ -13,6 +13,7 @@ const StoryViewer = ({ group, onClose }) => {
       const [isEditing, setIsEditing] = useState(false);
       const [editBody, setEditBody] = useState('');
       const [isDeleting, setIsDeleting] = useState(false);
+      const [showViewers, setShowViewers] = useState(false);
       // Local copy of stories to avoid direct prop mutation
       const [localStories, setLocalStories] = useState(() => [...group.stories]);
       const currentStory = localStories[currentIndex];
@@ -24,7 +25,15 @@ const StoryViewer = ({ group, onClose }) => {
       useEffect(() => {
             setImageLoaded(false);
             setError(false);
-      }, [currentIndex]);
+            
+            // Mark as viewed if not owner and authenticated
+            if (isAuthenticated && !isOwner && currentStory) {
+                  fetch(`${API_URL}/content/${currentStory._id}/view`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                  }).catch(err => console.error('Failed to mark as viewed:', err));
+            }
+      }, [currentIndex, currentStory?._id, isAuthenticated, isOwner, token]);
 
       useEffect(() => {
             const timer = setInterval(() => {
@@ -217,13 +226,13 @@ const StoryViewer = ({ group, onClose }) => {
                   }}>
                         {/* Progress Bar */}
                         <div style={{
-                              position: 'absolute',
-                              top: '12px',
-                              left: '8px',
-                              right: '8px',
-                              display: 'flex',
-                              gap: '4px',
-                              zIndex: 20
+                               position: 'absolute',
+                               top: '12px',
+                               left: '8px',
+                               right: '8px',
+                               display: 'flex',
+                               gap: '4px',
+                               zIndex: 20
                         }}>
                               {localStories.map((_, idx) => (
                                     <div key={idx} style={{
@@ -247,13 +256,13 @@ const StoryViewer = ({ group, onClose }) => {
 
                         {/* User Info */}
                         <div style={{
-                              position: 'absolute',
-                              top: '32px',
-                              left: '16px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '12px',
-                              zIndex: 20
+                               position: 'absolute',
+                               top: '32px',
+                               left: '16px',
+                               display: 'flex',
+                               alignItems: 'center',
+                               gap: '12px',
+                               zIndex: 20
                         }}>
                               <div style={{
                                     width: '40px',
@@ -371,7 +380,7 @@ const StoryViewer = ({ group, onClose }) => {
                               })() : (
                                     <>
                                           {!isVideo && !imageLoaded && !error && (
-                                                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyCenter: 'center' }}>
+                                                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                       <div className="animate-spin" style={{ width: '40px', height: '40px', border: '4px solid rgba(255,255,255,0.2)', borderTopColor: 'white', borderRadius: '50%' }}></div>
                                                 </div>
                                           )}
@@ -417,14 +426,14 @@ const StoryViewer = ({ group, onClose }) => {
 
                         {/* Bottom Actions */}
                         <div style={{
-                              position: 'absolute',
-                              bottom: '24px',
-                              left: '16px',
-                              right: '16px',
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              zIndex: 100
+                               position: 'absolute',
+                               bottom: '24px',
+                               left: '16px',
+                               right: '16px',
+                               display: 'flex',
+                               justifyContent: 'space-between',
+                               alignItems: 'center',
+                               zIndex: 100
                         }}>
                               <div style={{ display: 'flex', gap: '12px' }}>
                                     <button
@@ -457,6 +466,28 @@ const StoryViewer = ({ group, onClose }) => {
                                           </>
                                     )}
                               </div>
+
+                              {isOwner && (
+                                    <button
+                                          onClick={() => setShowViewers(true)}
+                                          style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '6px',
+                                                background: 'rgba(255,255,255,0.2)',
+                                                backdropFilter: 'blur(10px)',
+                                                padding: '6px 12px',
+                                                borderRadius: '20px',
+                                                color: 'white',
+                                                fontSize: '13px',
+                                                border: 'none',
+                                                cursor: 'pointer'
+                                          }}
+                                    >
+                                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                                          {currentStory.metrics?.viewedBy?.length || 0}
+                                    </button>
+                              )}
 
                               {currentStory.expiresAt && (
                                     <span style={{
@@ -518,7 +549,54 @@ const StoryViewer = ({ group, onClose }) => {
                                     </div>
                               </div>
                         )}
+
+                        {/* Viewers Overlay */}
+                        {showViewers && (
+                              <div style={{
+                                    position: 'absolute',
+                                    inset: 'auto 0 0 0',
+                                    height: '60%',
+                                    zIndex: 600,
+                                    background: '#1a1a1a',
+                                    borderTopLeftRadius: '20px',
+                                    borderTopRightRadius: '20px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    animation: 'slideUp 0.3s ease'
+                              }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                                          <h3 style={{ color: 'white', margin: 0, fontSize: '16px' }}>Viewed by</h3>
+                                          <button onClick={() => setShowViewers(false)} style={{ background: 'none', border: 'none', color: 'white', fontSize: '20px', cursor: 'pointer' }}>✕</button>
+                                    </div>
+                                    <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+                                          {currentStory.metrics?.viewedBy && currentStory.metrics.viewedBy.length > 0 ? (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                                      {currentStory.metrics.viewedBy.map(vUser => (
+                                                            <div key={vUser._id} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                                  <img
+                                                                        src={vUser.avatar || 'https://via.placeholder.com/32'}
+                                                                        alt={vUser.username}
+                                                                        style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }}
+                                                                  />
+                                                                  <span style={{ color: 'white', fontSize: '14px' }}>{vUser.displayName || vUser.username}</span>
+                                                            </div>
+                                                      ))}
+                                                </div>
+                                          ) : (
+                                                <div style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'center', marginTop: '40px' }}>No views yet</div>
+                                          )}
+                                    </div>
+                              </div>
+                        )}
                   </div>
+                  <style>
+                        {`
+                              @keyframes slideUp {
+                                    from { transform: translateY(100%); }
+                                    to { transform: translateY(0); }
+                              }
+                        `}
+                  </style>
             </div>
       );
 };

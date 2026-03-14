@@ -12,7 +12,8 @@ const {
       clearChat,
       createGroup,
       getGroupMessages,
-      sendGroupMessage
+      sendGroupMessage,
+      deleteGroup
 } = require('../controllers/messageController');
 const { protect } = require('../middleware/auth');
 const { uploadMultiple } = require('../middleware/upload');
@@ -27,6 +28,7 @@ router.get('/conversations', getConversations);
 router.post('/group/create', uploadMultiple.single('avatar'), createGroup);
 router.get('/group/:groupId', getGroupMessages);
 router.post('/group/:groupId', uploadMultiple.single('media'), sendGroupMessage);
+router.delete('/group/:groupId', deleteGroup);
 
 // Unread count (must be before /:userId)
 router.get('/unread/count', getUnreadCount);

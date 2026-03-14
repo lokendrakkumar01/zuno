@@ -348,9 +348,7 @@ const getActiveStories = async (req, res) => {
 
             // Group by creator
             const groupedStories = {};
-            filteredStories.forEach(story => {
-                  // If private, only show if following (handled in frontend usually or filtered here)
-                  // For simplicity, showing all public stories.
+            for (const story of filteredStories) {
                   const creatorId = story.creator._id.toString();
                   if (!groupedStories[creatorId]) {
                         groupedStories[creatorId] = {
@@ -358,8 +356,35 @@ const getActiveStories = async (req, res) => {
                               stories: []
                         };
                   }
+
+                  // If owner, populate viewedBy details
+                  if (req.user && creatorId === req.user.id) {
+                        // We need to re-fetch or populate manually since .lean() was used
+                        // For simplicity, let's just make sure viewedBy is populated if it exists
+                        // But since we used .lean(), we have to handle it carefully.
+                        // Actually, let's just use .populate() in the initial query or here.
+                  }
+                  
                   groupedStories[creatorId].stories.push(story);
-            });
+            }
+
+            // After grouping, if req.user exists, populate viewedBy for their own stories
+            if (req.user) {
+                  for (const group of Object.values(groupedStories)) {
+                        if (group.creator._id.toString() === req.user.id) {
+                              // Populate viewedBy for these stories
+                              for (let i = 0; i < group.stories.length; i++) {
+                                    const storyId = group.stories[i]._id;
+                                    const fullStory = await Content.findById(storyId)
+                                          .populate('metrics.viewedBy', 'username displayName avatar')
+                                          .lean();
+                                    if (fullStory) {
+                                          group.stories[i] = fullStory;
+                                    }
+                              }
+                        }
+                  }
+            }
 
             res.json({
                   success: true,

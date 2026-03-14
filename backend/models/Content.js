@@ -96,6 +96,7 @@ const contentSchema = new mongoose.Schema({
             helpfulCount: { type: Number, default: 0 },
             notUsefulCount: { type: Number, default: 0 },
             viewCount: { type: Number, default: 0 },
+            viewedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
             saveCount: { type: Number, default: 0 },
             shareCount: { type: Number, default: 0 }
       },

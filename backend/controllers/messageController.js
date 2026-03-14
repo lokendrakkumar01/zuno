@@ -787,6 +787,37 @@ const sendGroupMessage = async (req, res) => {
       }
 };
 
+// @desc    Delete a group or channel
+// @route   DELETE /api/messages/group/:groupId
+// @access  Private
+const deleteGroup = async (req, res) => {
+      try {
+            const { groupId } = req.params;
+            const conversation = await Conversation.findById(groupId);
+            
+            if (!conversation || !conversation.isGroup) {
+                  return res.status(404).json({ success: false, message: 'Group not found' });
+            }
+            
+            // Only group admin can delete
+            const isAdmin = conversation.groupAdmin.toString() === req.user.id;
+            if (!isAdmin) {
+                  return res.status(403).json({ success: false, message: 'Only the group admin can delete this' });
+            }
+            
+            // Delete all messages in this conversation
+            await Message.deleteMany({ conversationId: groupId });
+            
+            // Delete the conversation
+            await Conversation.findByIdAndDelete(groupId);
+            
+            res.json({ success: true, message: 'Group/Channel deleted successfully' });
+      } catch (error) {
+            console.error('deleteGroup error:', error);
+            res.status(500).json({ success: false, message: 'Failed to delete group', error: error.message });
+      }
+};
+
 module.exports = {
       getConversations,
       getMessages,
@@ -799,5 +830,6 @@ module.exports = {
       clearChat,
       createGroup,
       getGroupMessages,
-      sendGroupMessage
+      sendGroupMessage,
+      deleteGroup
 };

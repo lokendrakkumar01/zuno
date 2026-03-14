@@ -132,6 +132,12 @@ const getContent = async (req, res) => {
 
             // Increment view count (not shown publicly if silentMode)
             content.metrics.viewCount += 1;
+            
+            // Record who viewed it if logged in
+            if (req.user && !content.metrics.viewedBy.includes(req.user.id)) {
+                  content.metrics.viewedBy.push(req.user.id);
+            }
+            
             await content.save();
 
             // Prepare response (hide metrics if silentMode)
@@ -583,6 +589,35 @@ const shareContent = async (req, res) => {
       }
 };
 
+// @desc    Mark content as viewed
+// @route   POST /api/content/:id/view
+// @access  Private
+const markAsViewed = async (req, res) => {
+      try {
+            const { id } = req.params;
+            const content = await Content.findById(id);
+
+            if (!content) {
+                  return res.status(404).json({ success: false, message: 'Content not found' });
+            }
+
+            // Increment count
+            content.metrics.viewCount += 1;
+
+            // Record who viewed it
+            if (req.user && !content.metrics.viewedBy.includes(req.user.id)) {
+                  content.metrics.viewedBy.push(req.user.id);
+            }
+
+            await content.save();
+
+            res.json({ success: true, message: 'View recorded' });
+      } catch (error) {
+            console.error('markAsViewed error:', error);
+            res.status(500).json({ success: false, message: 'Failed to record view', error: error.message });
+      }
+};
+
 module.exports = {
       createContent,
       getContent,
@@ -594,5 +629,6 @@ module.exports = {
       reportContent,
       getMyContent,
       getSavedContent,
-      shareContent
+      shareContent,
+      markAsViewed
 };
