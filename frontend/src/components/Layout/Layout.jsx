@@ -5,6 +5,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useState, useEffect } from 'react';
 import zunoLogo from '../../assets/zuno-logo.png';
 import { API_URL } from '../../config';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const Layout = () => {
       // 1. All hooks at the very top
@@ -159,7 +160,18 @@ const Layout = () => {
 
                   {/* Main Content */}
                   <main className="main">
-                        <Outlet />
+                        <AnimatePresence mode="wait">
+                              <motion.div
+                                    key={location.pathname}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    transition={{ duration: 0.2 }}
+                                    style={{ width: '100%', height: '100%' }}
+                              >
+                                    <Outlet />
+                              </motion.div>
+                        </AnimatePresence>
                   </main>
 
                   {/* Mobile Bottom Navigation */}

@@ -81,7 +81,9 @@ const updateProfile = async (req, res) => {
                         fullUser.email,
                         fullUser.displayName || fullUser.username,
                         changedFields
-                  ).catch(() => {});
+                  ).catch((err) => {
+                        console.error('[User] Background profile update email failed:', err);
+                  });
             }
 
             res.json({

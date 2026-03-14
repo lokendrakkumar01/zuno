@@ -168,6 +168,11 @@ body {
   overflow-x: hidden;
 }
 
+/* Global focus and tap highlight removal for cleaner interactions */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* Custom Scrollbar */
 body::-webkit-scrollbar {
   width: 8px;
@@ -451,6 +456,11 @@ video {
   overflow: hidden;
 }
 
+.btn:active {
+  transform: scale(0.95) !important;
+  transition: transform 0.05s ease !important;
+}
+
 .btn::before {
   content: '';
   position: absolute;
@@ -536,6 +546,11 @@ video {
   overflow: hidden;
 }
 
+.card:active {
+  transform: scale(0.98) !important;
+  transition: transform 0.05s ease !important;
+}
+
 .card::before {
   content: '';
   position: absolute;
@@ -579,6 +594,11 @@ video {
   transition: all var(--transition-normal);
   position: relative;
   overflow: hidden;
+}
+
+.feature-card:active {
+  transform: scale(0.95) !important;
+  transition: transform 0.05s ease !important;
 }
 
 .feature-card::after {

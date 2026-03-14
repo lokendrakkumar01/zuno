@@ -104,7 +104,9 @@ const login = async (req, res) => {
                   dateStyle: 'medium',
                   timeStyle: 'short'
             });
-            sendLoginEmail(user.email, user.displayName || user.username, `${loginTime} IST`).catch(() => {});
+            sendLoginEmail(user.email, user.displayName || user.username, `${loginTime} IST`).catch((err) => {
+                  console.error('[Auth] Background login email failed:', err);
+            });
 
             res.json({
                   success: true,
