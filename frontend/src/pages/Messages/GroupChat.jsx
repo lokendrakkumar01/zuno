@@ -573,10 +573,10 @@ const GroupChat = () => {
                         </button>
                         <div className="chat-user-info" style={{ flex: 1 }}>
                               <div className="msg-avatar msg-avatar-sm">
-                                    <UserAvatar user={groupInfo} size={38} isGroup={true} />
+                                    <UserAvatar src={groupInfo?.groupAvatar} name={groupInfo?.groupName} size={38} />
                               </div>
                               <div>
-                                    <div className="font-semibold">{groupInfo?.name || 'Loading...'}</div>
+                                    <div className="font-semibold">{groupInfo?.groupName || ''}</div>
                                     <div className="text-xs text-muted">
                                           {groupInfo?.isChannel ? 'Broadcast Channel' : `${groupInfo?.participants?.length || 0} participants`}
                                     </div>
@@ -778,7 +778,7 @@ const GroupChat = () => {
                         ) : (
                               <div className="empty-state" style={{ padding: '3rem 1rem' }}>
                                     <div className="empty-state-icon">👋</div>
-                                    <h3 className="text-lg font-semibold mb-sm">Welcome to {groupInfo?.name}</h3>
+                                    <h3 className="text-lg font-semibold mb-sm">Welcome to {groupInfo?.groupName}</h3>
                                     <p className="text-muted">
                                           {groupInfo?.isChannel ? 'Only admins can post here.' : 'Start a conversation with the group!'}
                                     </p>

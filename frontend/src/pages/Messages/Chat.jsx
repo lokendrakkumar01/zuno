@@ -742,7 +742,7 @@ const Chat = () => {
                                     <UserAvatar user={otherUser} size={38} />
                               </div>
                               <div>
-                                    <div className="font-semibold">{otherUser?.displayName || otherUser?.username || 'Loading...'}</div>
+                                    <div className="font-semibold">{otherUser?.displayName || otherUser?.username || ''}</div>
                                     <div className="text-xs text-muted">
                                           {isTyping ? (
                                                 <span style={{ color: 'var(--color-primary)' }}>typing...</span>
