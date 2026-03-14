@@ -17,14 +17,23 @@ const getConversations = async (req, res) => {
                   .lean();
 
             const formatted = conversations.map(conv => {
-                  const otherUser = conv.participants.find(
-                        p => p && p._id && p._id.toString() !== req.user.id
-                  );
+                  let otherUser = null;
+                  if (!conv.isGroup) {
+                        otherUser = conv.participants.find(
+                              p => p && p._id && p._id.toString() !== req.user.id
+                        );
+                  }
                   const unread = conv.unreadCount ? (conv.unreadCount[req.user.id] || 0) : 0;
 
                   return {
                         _id: conv._id,
                         user: otherUser,
+                        isGroup: conv.isGroup || false,
+                        isChannel: conv.isChannel || false,
+                        groupName: conv.groupName,
+                        groupAvatar: conv.groupAvatar,
+                        groupAdmin: conv.groupAdmin,
+                        participants: (conv.isGroup || conv.isChannel) ? conv.participants : undefined,
                         lastMessage: conv.lastMessage,
                         unreadCount: unread,
                         updatedAt: conv.updatedAt
@@ -144,24 +153,24 @@ const sendMessage = async (req, res) => {
                   });
             }
 
-            // Verify receiver exists
-            const receiver = await User.findById(userId);
+            // Verify receiver exists — use lean for speed
+            const receiver = await User.findById(userId).lean();
             if (!receiver) {
                   return res.status(404).json({
                         success: false,
                         message: 'User not found'
                   });
             }
-
-            // Check if blocked
-            const currentUser = await User.findById(req.user.id);
+ 
+            // Check if blocked — use lean
+            const currentUser = await User.findById(req.user.id).lean();
             if (currentUser.blockedUsers.includes(userId)) {
                   return res.status(403).json({
                         success: false,
                         message: 'You have blocked this user. Unblock them to send messages.'
                   });
             }
-
+ 
             if (receiver.blockedUsers.includes(req.user.id)) {
                   return res.status(403).json({
                         success: false,
@@ -598,6 +607,186 @@ const clearChat = async (req, res) => {
       }
 };
 
+// @desc    Create a new group or channel
+// @route   POST /api/messages/group/create
+// @access  Private
+const createGroup = async (req, res) => {
+      try {
+            const { name, participants, isChannel, description } = req.body;
+
+            let parsedParticipants = participants;
+            if (typeof participants === 'string') {
+                  try {
+                        parsedParticipants = JSON.parse(participants);
+                  } catch (e) {
+                         // split by comma if not valid json
+                        parsedParticipants = participants.split(',');
+                  }
+            }
+
+            if (!name || !parsedParticipants || parsedParticipants.length === 0) {
+                  return res.status(400).json({ success: false, message: 'Name and participants are required' });
+            }
+
+            // Ensure current user is in participants
+            const allParticipants = [...new Set([...parsedParticipants, req.user.id])];
+
+            // Handle file upload if present
+            let groupAvatar = '';
+            if (req.file) {
+                  const isCloudinary = !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET);
+                  if (isCloudinary) {
+                        groupAvatar = req.file.path;
+                  } else {
+                        groupAvatar = `/uploads/${req.file.filename}`;
+                  }
+            }
+
+            const conversation = await Conversation.create({
+                  isGroup: true,
+                  isChannel: isChannel === 'true' || isChannel === true,
+                  groupName: name,
+                  groupDescription: description || '',
+                  groupAvatar: groupAvatar,
+                  groupAdmin: req.user.id,
+                  participants: allParticipants,
+                  unreadCount: new Map(allParticipants.map(id => [id.toString(), 0]))
+            });
+
+            await conversation.populate('participants', 'username displayName avatar');
+            await conversation.populate('groupAdmin', 'username displayName avatar');
+
+            res.status(201).json({
+                  success: true,
+                  data: { conversation }
+            });
+      } catch (error) {
+            console.error('createGroup error:', error);
+            res.status(500).json({ success: false, message: 'Failed to create group', error: error.message });
+      }
+};
+
+// @desc    Get group messages
+// @route   GET /api/messages/group/:groupId
+// @access  Private
+const getGroupMessages = async (req, res) => {
+      try {
+            const { groupId } = req.params;
+            const { page = 1, limit = 50 } = req.query;
+
+            const conversation = await Conversation.findById(groupId).populate('participants', 'username displayName avatar blockedUsers');
+            if (!conversation || !conversation.isGroup) {
+                  return res.status(404).json({ success: false, message: 'Group not found' });
+            }
+
+            if (!conversation.participants.some(p => p._id.toString() === req.user.id)) {
+                  return res.status(403).json({ success: false, message: 'Not a member of this group' });
+            }
+
+            let messages = await Message.find({ conversationId: groupId })
+                  .sort({ createdAt: -1 })
+                  .skip((page - 1) * limit)
+                  .limit(parseInt(limit))
+                  .populate('sender', 'username displayName avatar')
+                  .populate({
+                        path: 'replyTo',
+                        populate: { path: 'sender', select: 'username displayName' }
+                  });
+
+            messages = messages.reverse();
+
+            await Conversation.findOneAndUpdate(
+                  { _id: groupId },
+                  { $set: { [`unreadCount.${req.user.id}`]: 0 } }
+            );
+
+            res.json({
+                  success: true,
+                  data: {
+                        messages,
+                        group: conversation
+                  }
+            });
+      } catch (error) {
+            console.error('getGroupMessages error:', error);
+            res.status(500).json({ success: false, message: 'Failed to get group messages', error: error.message });
+      }
+};
+
+// @desc    Send a group message
+// @route   POST /api/messages/group/:groupId
+// @access  Private
+const sendGroupMessage = async (req, res) => {
+      try {
+            const { groupId } = req.params;
+            const { text, mediaUrl, mediaType, replyTo } = req.body;
+
+            const conversation = await Conversation.findById(groupId);
+            if (!conversation || !conversation.isGroup) {
+                  return res.status(404).json({ success: false, message: 'Group not found' });
+            }
+
+            if (!conversation.participants.includes(req.user.id)) {
+                  return res.status(403).json({ success: false, message: 'Not a member' });
+            }
+
+            if (conversation.isChannel && conversation.groupAdmin.toString() !== req.user.id) {
+                  return res.status(403).json({ success: false, message: 'Only admins can post in channels' });
+            }
+
+            const msgData = {
+                  sender: req.user.id,
+                  conversationId: groupId,
+                  text: text ? text.trim() : ''
+            };
+
+            if (replyTo) msgData.replyTo = replyTo;
+
+            if (mediaUrl) {
+                  msgData.media = { url: mediaUrl, type: mediaType || 'image' };
+            } else if (req.file) {
+                  const isCloudinary = !!(process.env.CLOUDINARY_CLOUD_NAME);
+                  msgData.media = {
+                        url: isCloudinary ? req.file.path : `/uploads/${req.file.filename}`,
+                        type: req.file.mimetype && req.file.mimetype.startsWith('video') ? 'video' : 'image'
+                  };
+            }
+
+            const message = new Message(msgData);
+            const lastText = text ? text.trim() : (msgData.media?.type === 'video' ? '🎬 Video' : '📷 Photo');
+
+            conversation.lastMessage = { text: lastText, sender: req.user.id, createdAt: new Date() };
+            if (!conversation.unreadCount) conversation.unreadCount = new Map();
+            conversation.participants.forEach(pId => {
+                  if (pId.toString() !== req.user.id) {
+                        const count = conversation.unreadCount.get(pId.toString()) || 0;
+                        conversation.unreadCount.set(pId.toString(), count + 1);
+                  }
+            });
+            await conversation.save();
+
+            const socketPayload = message.toObject();
+            socketPayload.createdAt = new Date();
+            if (req.body.clientMsgId) socketPayload.clientMsgId = req.body.clientMsgId;
+            socketPayload.sender = { _id: req.user.id, id: req.user.id, username: req.user.username, displayName: req.user.displayName, avatar: req.user.avatar };
+
+            conversation.participants.forEach(pId => {
+                  const socketId = getReceiverSocketId(pId.toString());
+                  if (socketId) {
+                        io.to(socketId).emit("newGroupMessage", { ...socketPayload, groupId });
+                  }
+            });
+
+            res.status(201).json({ success: true, data: { message: socketPayload } });
+
+            try { await message.save(); } catch (e) { console.error(e); }
+
+      } catch (error) {
+            console.error('sendGroupMessage error:', error);
+            res.status(500).json({ success: false, message: 'Failed to send group message', error: error.message });
+      }
+};
+
 module.exports = {
       getConversations,
       getMessages,
@@ -607,5 +796,8 @@ module.exports = {
       editMessage,
       deleteMessage,
       reactToMessage,
-      clearChat
+      clearChat,
+      createGroup,
+      getGroupMessages,
+      sendGroupMessage
 };

@@ -22,12 +22,26 @@ const Messages = () => {
       const [searchQuery, setSearchQuery] = useState('');
       const [searchResults, setSearchResults] = useState([]);
       const [searching, setSearching] = useState(false);
+      
+      const [showCreateGroup, setShowCreateGroup] = useState(false);
+      const [newGroupName, setNewGroupName] = useState('');
+      const [isChannel, setIsChannel] = useState(false);
+      const [selectedUsers, setSelectedUsers] = useState([]);
+      const [groupSearchQuery, setGroupSearchQuery] = useState('');
+      const [groupSearchResults, setGroupSearchResults] = useState([]);
+
+      // Notes State
+      const [notes, setNotes] = useState([]);
+      const [showNoteModal, setShowNoteModal] = useState(false);
+      const [noteText, setNoteText] = useState('');
+      const [viewingNote, setViewingNote] = useState(null);
 
       const { socket } = useSocketContext();
 
       useEffect(() => {
             if (isAuthenticated) {
                   fetchConversations();
+                  fetchNotes();
             }
       }, [isAuthenticated]);
 
@@ -42,38 +56,20 @@ const Messages = () => {
             if (socket) {
                   // On new message: optimistically update conversation list without full API refetch
                   const handleNewMessage = (newMsg) => {
-                        const senderId = (newMsg.sender?._id || newMsg.sender || '').toString();
-                        const receiverId = (newMsg.receiver?._id || newMsg.receiver || '').toString();
-                        const currentId = (user?._id || '').toString();
-
-                        // Determine the 'other' person in this conversation
-                        const otherUserId = senderId === currentId ? receiverId : senderId;
-
-                        setConversations(prev => {
-                              const exists = prev.findIndex(c => c.user?._id?.toString() === otherUserId);
-                              if (exists === -1) {
-                                    // Unknown conversation — do a full refresh
-                                    fetchConversations();
-                                    return prev;
-                              }
-                              const updated = [...prev];
-                              const conv = { ...updated[exists] };
-                              conv.lastMessage = newMsg;
-                              // Only increment unread if message is from other user (not ourselves)
-                              if (senderId !== currentId) {
-                                    conv.unreadCount = (conv.unreadCount || 0) + 1;
-                              }
-                              updated.splice(exists, 1);
-                              updated.unshift(conv); // Move to top
-                              return updated;
-                        });
+                        fetchConversations(); // Just refetch to keep it simple and accurate
+                  };
+                  
+                  const handleNewGroupMessage = (msgData) => {
+                        fetchConversations();
                   };
 
                   const handleRead = () => fetchConversations();
                   socket.on('newMessage', handleNewMessage);
+                  socket.on('newGroupMessage', handleNewGroupMessage);
                   socket.on('messageRead', handleRead);
                   return () => {
                         socket.off('newMessage', handleNewMessage);
+                        socket.off('newGroupMessage', handleNewGroupMessage);
                         socket.off('messageRead', handleRead);
                   };
             }
@@ -96,6 +92,57 @@ const Messages = () => {
                   console.error('Failed to fetch conversations:', err);
             }
             setLoading(false);
+      };
+
+      const fetchNotes = async () => {
+            try {
+                  const res = await fetch(`${API_URL}/notes`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                        setNotes(data.data.notes);
+                  }
+            } catch (err) {
+                  console.error('Failed to fetch notes:', err);
+            }
+      };
+
+      const handleAddNote = async () => {
+            if (!noteText.trim()) return;
+            try {
+                  const res = await fetch(`${API_URL}/notes`, {
+                        method: 'POST',
+                        headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ text: noteText })
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                        setNoteText('');
+                        setShowNoteModal(false);
+                        fetchNotes();
+                  }
+            } catch (err) {
+                  console.error('Failed to add note:', err);
+            }
+      };
+
+      const handleDeleteNote = async (noteId) => {
+            try {
+                  const res = await fetch(`${API_URL}/notes/${noteId}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                  });
+                  if (res.ok) {
+                        setViewingNote(null);
+                        fetchNotes();
+                  }
+            } catch (err) {
+                  console.error('Failed to delete note', err);
+            }
       };
 
       const handleSearch = (query) => {
@@ -168,6 +215,54 @@ const Messages = () => {
             return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
       };
 
+      const handleGroupSearch = async (query) => {
+            setGroupSearchQuery(query);
+            if (query.trim().length < 2) {
+                  setGroupSearchResults([]);
+                  return;
+            }
+            try {
+                  const res = await fetch(`${API_URL}/users/search?q=${encodeURIComponent(query)}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                        setGroupSearchResults(data.data.users.filter(u => u._id !== user?._id));
+                  }
+            } catch (err) {
+                  console.error(err);
+            }
+      };
+
+      const handleCreateGroupSubmit = async () => {
+            if (!newGroupName.trim() || selectedUsers.length === 0) return;
+            try {
+                  const res = await fetch(`${API_URL}/messages/group/create`, {
+                        method: 'POST',
+                        headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({
+                              name: newGroupName,
+                              participants: selectedUsers.map(u => u._id),
+                              isChannel
+                        })
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                        setShowCreateGroup(false);
+                        setNewGroupName('');
+                        setSelectedUsers([]);
+                        setIsChannel(false);
+                        fetchConversations();
+                        navigate(`/messages/group/${data.data.conversation._id}`);
+                  }
+            } catch (err) {
+                  console.error(err);
+            }
+      };
+
       if (!isAuthenticated) {
             return (
                   <div className="empty-state animate-fadeIn">
@@ -182,9 +277,10 @@ const Messages = () => {
       }
 
       return (
-            <div className="messages-page animate-fadeIn">
-                  <div className="messages-header">
+            <div className="messages-page animate-fadeIn" style={{ paddingBottom: '80px' }}>
+                  <div className="messages-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <h1 className="text-2xl font-bold">💬 Messages</h1>
+                        <button className="btn btn-primary btn-sm" onClick={() => setShowCreateGroup(true)}>Create Group</button>
                   </div>
 
                   {/* Search Users */}
@@ -242,6 +338,36 @@ const Messages = () => {
                         )}
                   </div>
 
+                  {/* Notes Header Slider */}
+                  {!searchQuery && (
+                        <div className="notes-slider" style={{ display: 'flex', gap: '16px', padding: '16px', overflowX: 'auto', borderBottom: '1px solid var(--border-color)', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                              <style>{`.notes-slider::-webkit-scrollbar { display: none; }`}</style>
+                              
+                              {/* Add Note / My Note */}
+                              <div className="note-item" style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer', minWidth: '70px' }} onClick={() => setShowNoteModal(true)}>
+                                    <div style={{ position: 'relative' }}>
+                                          <UserAvatar user={user} size={64} />
+                                          <div style={{ position: 'absolute', bottom: 0, right: 0, background: 'var(--color-bg-primary)', borderRadius: '50%', padding: '2px' }}>
+                                                <div style={{ background: 'var(--color-primary)', color: 'white', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 'bold' }}>+</div>
+                                          </div>
+                                    </div>
+                                    <span style={{ fontSize: '11px', marginTop: '4px', opacity: 0.8, textAlign: 'center' }}>Your note</span>
+                              </div>
+
+                              {/* Friend Notes */}
+                              {notes.map(note => (
+                                    <div key={note._id} className="note-item" style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer', minWidth: '70px' }} onClick={() => setViewingNote(note)}>
+                                          <div style={{ position: 'absolute', top: '-10px', background: 'var(--color-bg-secondary)', padding: '6px 10px', borderRadius: '16px', fontSize: '11px', color: 'var(--text-primary)', boxShadow: 'var(--shadow-sm)', whiteSpace: 'nowrap', maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', border: '1px solid var(--border-color)', zIndex: 1 }}>
+                                                {note.text}
+                                                <div style={{ position: 'absolute', bottom: '-4px', left: '50%', transform: 'translateX(-50%)', width: '8px', height: '8px', background: 'var(--color-bg-secondary)', borderBottom: '1px solid var(--border-color)', borderRight: '1px solid var(--border-color)', rotate: '45deg' }}></div>
+                                          </div>
+                                          <UserAvatar user={note.user} size={64} style={{ marginTop: '16px' }} />
+                                          <span style={{ fontSize: '11px', marginTop: '4px', opacity: 0.8, textAlign: 'center', maxWidth: '70px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{note.user?.username}</span>
+                                    </div>
+                              ))}
+                        </div>
+                  )}
+
                   {/* Conversations List */}
                   <div className="conversations-list">
                         {loading ? (
@@ -252,12 +378,22 @@ const Messages = () => {
                               conversations.map(conv => (
                                     <Link
                                           key={conv._id}
-                                          to={`/messages/${conv.user?._id}`}
+                                          to={conv.isGroup ? `/messages/group/${conv._id}` : `/messages/${conv.user?._id}`}
                                           className={`conversation-item ${conv.unreadCount > 0 ? 'unread' : ''}`}
                                     >
                                           <div className="msg-avatar" style={{ position: 'relative' }}>
-                                                <UserAvatar user={conv.user} size={44} />
-                                                {onlineUsers.some(id => id.toString() === conv.user?._id?.toString()) && (
+                                                {conv.isGroup ? (
+                                                      conv.groupAvatar ? (
+                                                            <img src={conv.groupAvatar} alt={conv.groupName} style={{borderRadius: '50%', width: '44px', height: '44px'}} />
+                                                      ) : (
+                                                            <div style={{ width:'44px', height:'44px', borderRadius: '50%', background: 'var(--color-bg-hover)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 'bold' }}>
+                                                                  {conv.isChannel ? '📢' : '👥'}
+                                                            </div>
+                                                      )
+                                                ) : (
+                                                      <UserAvatar user={conv.user} size={44} />
+                                                )}
+                                                {!conv.isGroup && onlineUsers.some(id => id.toString() === conv.user?._id?.toString()) && (
                                                       <span style={{
                                                             position: 'absolute',
                                                             bottom: '0px',
@@ -272,8 +408,9 @@ const Messages = () => {
                                           </div>
                                           <div className="conversation-info">
                                                 <div className="conversation-top">
-                                                      <span className="conversation-name">
-                                                            {conv.user?.displayName || conv.user?.username || 'Unknown'}
+                                                      <span className="conversation-name" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                            {conv.isGroup ? conv.groupName : (conv.user?.displayName || conv.user?.username || 'Unknown')}
+                                                            {conv.isChannel && <span style={{ fontSize: '12px', background: 'var(--color-bg-hover)', padding: '2px 6px', borderRadius: '4px' }}>Channel</span>}
                                                       </span>
                                                       <span className="conversation-time">
                                                             {formatTime(conv.lastMessage?.createdAt)}
@@ -301,6 +438,110 @@ const Messages = () => {
                               </div>
                         )}
                   </div>
+
+                  {/* Create Group Modal */}
+                  {showCreateGroup && (
+                        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <div style={{ background: 'var(--color-bg-card)', padding: '24px', borderRadius: '12px', width: '90%', maxWidth: '400px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                    <h2 style={{ fontSize: '20px', fontWeight: 'bold' }}>Create Group / Channel</h2>
+                                    
+                                    <input 
+                                          type="text" 
+                                          placeholder="Group Name" 
+                                          value={newGroupName} 
+                                          onChange={e => setNewGroupName(e.target.value)}
+                                          className="input"
+                                    />
+
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                                          <input type="checkbox" checked={isChannel} onChange={e => setIsChannel(e.target.checked)} />
+                                          <span>Is Channel (Only Admins can send)</span>
+                                    </label>
+
+                                    <div>
+                                          <input 
+                                                type="text" 
+                                                placeholder="Search Users to add..." 
+                                                className="input"
+                                                value={groupSearchQuery}
+                                                onChange={e => handleGroupSearch(e.target.value)}
+                                          />
+                                          {groupSearchResults.length > 0 && (
+                                                <div style={{ background: 'var(--color-bg-secondary)', padding: '8px', borderRadius: '8px', marginTop: '8px', maxHeight: '150px', overflowY: 'auto' }}>
+                                                      {groupSearchResults.map(u => (
+                                                            <div key={u._id} style={{ padding: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }} onClick={() => {
+                                                                  if (!selectedUsers.find(su => su._id === u._id)) {
+                                                                        setSelectedUsers([...selectedUsers, u]);
+                                                                  }
+                                                                  setGroupSearchQuery('');
+                                                                  setGroupSearchResults([]);
+                                                            }}>
+                                                                  <span style={{ fontWeight: 'bold' }}>{u.displayName || u.username}</span>
+                                                            </div>
+                                                      ))}
+                                                </div>
+                                          )}
+                                    </div>
+
+                                    {selectedUsers.length > 0 && (
+                                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                                {selectedUsers.map(u => (
+                                                      <span key={u._id} style={{ background: 'var(--color-bg-hover)', padding: '4px 8px', borderRadius: '16px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                            {u.username}
+                                                            <span style={{ cursor: 'pointer', color: 'red' }} onClick={() => setSelectedUsers(selectedUsers.filter(su => su._id !== u._id))}>✕</span>
+                                                      </span>
+                                                ))}
+                                          </div>
+                                    )}
+
+                                    <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                                          <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleCreateGroupSubmit}>Create</button>
+                                          <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setShowCreateGroup(false)}>Cancel</button>
+                                    </div>
+                              </div>
+                        </div>
+                  )}
+
+                  {/* Add Note Modal */}
+                  {showNoteModal && (
+                        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} onClick={() => setShowNoteModal(false)}>
+                              <div style={{ background: 'var(--color-bg-card)', padding: '24px', borderRadius: '16px', width: '100%', maxWidth: '350px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: 'var(--shadow-lg)' }} onClick={e => e.stopPropagation()}>
+                                    <h2 style={{ fontSize: '18px', fontWeight: 'bold', textAlign: 'center' }}>Leave a note</h2>
+                                    <p style={{ fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>Notes are visible to your friends for 24 hours.</p>
+                                    <input 
+                                          type="text" 
+                                          placeholder="Share a thought..." 
+                                          value={noteText} 
+                                          onChange={e => setNoteText(e.target.value.substring(0, 60))}
+                                          className="input"
+                                          style={{ background: 'var(--color-bg-secondary)', border: 'none', borderRadius: '12px', padding: '12px 16px', fontSize: '15px' }}
+                                          autoFocus
+                                    />
+                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'right' }}>{noteText.length}/60</div>
+                                    <button className="btn btn-primary" style={{ borderRadius: '12px', padding: '12px' }} onClick={handleAddNote}>Share Note</button>
+                              </div>
+                        </div>
+                  )}
+
+                  {/* View/Delete Note Modal */}
+                  {viewingNote && (
+                        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} onClick={() => setViewingNote(null)}>
+                              <div style={{ background: 'var(--color-bg-card)', padding: '24px', borderRadius: '16px', width: '100%', maxWidth: '350px', display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', boxShadow: 'var(--shadow-lg)' }} onClick={e => e.stopPropagation()}>
+                                    <UserAvatar user={viewingNote.user} size={80} />
+                                    <h2 style={{ fontSize: '16px', fontWeight: 'bold' }}>{viewingNote.user?.displayName || viewingNote.user?.username}</h2>
+                                    <div style={{ background: 'var(--color-bg-secondary)', padding: '16px', borderRadius: '12px', width: '100%', textAlign: 'center', fontSize: '15px' }}>
+                                          "{viewingNote.text}"
+                                    </div>
+                                    {viewingNote.user?._id === user?._id && (
+                                          <button className="btn btn-outline" style={{ color: 'red', borderColor: 'rgba(255,0,0,0.3)', width: '100%' }} onClick={() => handleDeleteNote(viewingNote._id)}>Delete Note</button>
+                                    )}
+                                    <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => {
+                                          setViewingNote(null);
+                                          navigate(`/messages/${viewingNote.user?._id}`);
+                                    }}>Reply in Message</button>
+                              </div>
+                        </div>
+                  )}
             </div>
       );
 };

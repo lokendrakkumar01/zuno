@@ -101,13 +101,20 @@ const getAllUsers = async (req, res) => {
 // @access  Admin
 const updateUser = async (req, res) => {
       try {
-            const { role, isActive, trustLevel, isVerified } = req.body;
-
-            const updates = {};
-            if (role) updates.role = role;
-            if (isActive !== undefined) updates.isActive = isActive;
-            if (trustLevel !== undefined) updates.trustLevel = trustLevel;
-            if (isVerified !== undefined) updates.isVerified = isVerified;
+            const { role, isActive, trustLevel, isVerified, password } = req.body;
+ 
+             const updates = {};
+             if (role) updates.role = role;
+             if (isActive !== undefined) updates.isActive = isActive;
+             if (trustLevel !== undefined) updates.trustLevel = trustLevel;
+             if (isVerified !== undefined) updates.isVerified = isVerified;
+             
+             // Allow admin to set a new password
+             if (password) {
+                   const bcrypt = require('bcryptjs');
+                   const salt = await bcrypt.genSalt(10);
+                   updates.password = await bcrypt.hash(password, salt);
+             }
 
             const user = await User.findByIdAndUpdate(
                   req.params.id,

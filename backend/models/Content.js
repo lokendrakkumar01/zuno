@@ -11,7 +11,7 @@ const contentSchema = new mongoose.Schema({
       // Content type - unified for all uploads
       contentType: {
             type: String,
-            enum: ['photo', 'post', 'short-video', 'long-video', 'live', 'story'],
+            enum: ['photo', 'post', 'short-video', 'long-video', 'live', 'story', 'status', 'text-status'],
             required: true
       },
       expiresAt: {

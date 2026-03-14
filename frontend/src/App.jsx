@@ -29,6 +29,7 @@ import Search from './pages/Search/Search';
 import SavedContent from './pages/SavedContent';
 import Messages from './pages/Messages/Messages';
 import Chat from './pages/Messages/Chat';
+import GroupChat from './pages/Messages/GroupChat';
 import Status from './pages/Status';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -107,6 +108,7 @@ function AppRouter() {
                               <Route path="status" element={<Status />} />
                               <Route path="search" element={<Search />} />
                               <Route path="messages" element={<Messages />} />
+                              <Route path="messages/group/:groupId" element={<GroupChat />} />
                               <Route path="messages/:userId" element={<Chat />} />
                               <Route path="saved" element={<SavedContent />} />
                               <Route path="content/saved" element={<SavedContent />} />

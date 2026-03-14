@@ -397,18 +397,19 @@ const ContentCard = ({ content, onDelete, autoOpenFullscreen = false, onCloseFul
                   return '';
             }
 
+            // Defensive check for potential non-string inputs (like minified "yt" variable issues)
+            let safeUrl = String(url);
+
             // Normalize path by replacing backslashes with forward slashes
-            const normalizedUrl = url.replace(/\\/g, '/');
+            const normalizedUrl = safeUrl.replace(/\\/g, '/');
 
             // If it's already a full URL, return as-is
             if (normalizedUrl.startsWith('http://') || normalizedUrl.startsWith('https://')) {
-                  console.log('getMediaUrl: Full URL detected:', normalizedUrl);
                   return normalizedUrl;
             }
 
             // If it's a data URL, return as-is  
             if (normalizedUrl.startsWith('data:')) {
-                  console.log('getMediaUrl: Data URL detected');
                   return normalizedUrl;
             }
 
@@ -420,9 +421,7 @@ const ContentCard = ({ content, onDelete, autoOpenFullscreen = false, onCloseFul
                   cleanUrl = `/${cleanUrl}`;
             }
 
-            const fullUrl = `${API_BASE_URL}${cleanUrl}`;
-            console.log('getMediaUrl: Constructed URL:', fullUrl, '(from:', url, ')');
-            return fullUrl;
+            return `${API_BASE_URL}${cleanUrl}`;
       };
 
       const placeholderImage = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300"%3E%3Crect fill="%23f0f0f0" width="400" height="300"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="18" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3ENo Image Available%3C/text%3E%3C/svg%3E';

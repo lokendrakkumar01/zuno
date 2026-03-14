@@ -9,7 +9,12 @@ const messageSchema = new mongoose.Schema({
       receiver: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User',
-            required: true
+            required: false // Optional for group messages
+      },
+      conversationId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Conversation',
+            required: false // Optional for legacy DM messages
       },
       text: {
             type: String,
@@ -60,7 +65,13 @@ const conversationSchema = new mongoose.Schema({
             type: Map,
             of: Number,
             default: {}
-      }
+      },
+      isGroup: { type: Boolean, default: false },
+      isChannel: { type: Boolean, default: false },
+      groupName: { type: String, trim: true },
+      groupDescription: { type: String, trim: true },
+      groupAvatar: { type: String, default: '' },
+      groupAdmin: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 }, { timestamps: true });
 
 // Index for efficient participant and sorting queries

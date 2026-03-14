@@ -9,7 +9,10 @@ const {
       editMessage,
       deleteMessage,
       reactToMessage,
-      clearChat
+      clearChat,
+      createGroup,
+      getGroupMessages,
+      sendGroupMessage
 } = require('../controllers/messageController');
 const { protect } = require('../middleware/auth');
 const { uploadMultiple } = require('../middleware/upload');
@@ -19,6 +22,11 @@ router.use(protect);
 
 // Conversations
 router.get('/conversations', getConversations);
+
+// Group Chat specific routes
+router.post('/group/create', uploadMultiple.single('avatar'), createGroup);
+router.get('/group/:groupId', getGroupMessages);
+router.post('/group/:groupId', uploadMultiple.single('media'), sendGroupMessage);
 
 // Unread count (must be before /:userId)
 router.get('/unread/count', getUnreadCount);

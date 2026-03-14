@@ -390,12 +390,14 @@ const UsersManagement = ({ token }) => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [emailSubject, setEmailSubject] = useState('');
   const [emailMessage, setEmailMessage] = useState('');
+  const [userPassword, setUserPassword] = useState(''); // New state for password reset
   const [sendingEmail, setSendingEmail] = useState(false);
 
   const openEmailModal = (user) => {
     setSelectedUser(user);
-    setEmailSubject('');
-    setEmailMessage('');
+    setEmailSubject('Your ZUNO Account Details');
+    setEmailMessage(`Hello ${user.displayName || user.username},\n\nYour account has been updated by the administrator.`);
+    setUserPassword('');
     setEmailModalOpen(true);
   };
 
@@ -403,14 +405,26 @@ const UsersManagement = ({ token }) => {
     if (!emailSubject || !emailMessage) return show('Subject and message required', '⚠️');
     setSendingEmail(true);
     try {
+      // If password is provided, update it first
+      if (userPassword) {
+        await fetch(`${API_URL}/admin/users/${selectedUser._id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ password: userPassword })
+        });
+      }
+
       const res = await fetch(`${API_URL}/admin/users/${selectedUser._id}/email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ subject: emailSubject, message: emailMessage })
+        body: JSON.stringify({ 
+          subject: emailSubject, 
+          message: userPassword ? `${emailMessage}\n\nYour new password is: ${userPassword}\n\nPlease change it after logging in.` : emailMessage 
+        })
       });
       const data = await res.json();
       if (data.success) {
-        show('Email sent successfully!', '📧');
+        show(userPassword ? 'Password reset & Email sent!' : 'Email sent successfully!', '📧');
         setEmailModalOpen(false);
       } else {
         show(data.message || 'Failed to send email', '❌');
@@ -597,6 +611,18 @@ const UsersManagement = ({ token }) => {
                 style={{ width:'100%', padding:'12px', background:'#0f0f1a' }}
                 placeholder="Email subject..."
               />
+            </div>
+            <div style={{ marginBottom:'16px' }}>
+              <label style={{ display:'block', color:'#f59e0b', fontSize:'.85rem', marginBottom:'8px', fontWeight:700 }}>🔐 Reset Password (Optional)</label>
+              <input
+                type="text"
+                value={userPassword}
+                onChange={(e) => setUserPassword(e.target.value)}
+                className="admin-search"
+                style={{ width:'100%', padding:'12px', background:'#0f0f1a', borderColor:'rgba(245,158,11,0.3)' }}
+                placeholder="Leave blank to keep current password..."
+              />
+              <p style={{ fontSize:'.7rem', color:'#64748b', marginTop:'4px' }}>If provided, the password will be updated and included in the email.</p>
             </div>
             <div style={{ marginBottom:'24px' }}>
               <label style={{ display:'block', color:'#94a3b8', fontSize:'.85rem', marginBottom:'8px' }}>Message</label>
