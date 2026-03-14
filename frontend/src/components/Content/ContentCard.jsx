@@ -1335,56 +1335,90 @@ const ContentCard = ({ content, onDelete, autoOpenFullscreen = false, onCloseFul
 
                   {/* Report Modal */}
                   {showReportModal && (
-                        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowReportModal(false)}>
-                              <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
-                                    <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-                                          <h3 className="text-lg font-bold text-gray-800">Report Content</h3>
-                                          <button onClick={() => setShowReportModal(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        <div 
+                              className="fixed inset-0 z-[100] flex items-center justify-center p-4 transition-all duration-300"
+                              style={{ background: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(8px)' }}
+                              onClick={() => setShowReportModal(false)}
+                        >
+                              <div 
+                                    className="bg-white rounded-3xl w-full max-w-md overflow-hidden transform transition-all duration-300 scale-100 opacity-100 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.5)] border border-gray-100" 
+                                    style={{ animation: 'adminFadeUp 0.3s ease-out forwards' }}
+                                    onClick={e => e.stopPropagation()}
+                              >
+                                    <div className="p-5 border-b border-gray-100 flex items-center justify-between" style={{ background: 'linear-gradient(to right, #fafafa, #ffffff)' }}>
+                                          <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center text-red-500">
+                                                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                                                </div>
+                                                <h3 className="text-xl font-bold text-gray-800">Report Content</h3>
+                                          </div>
+                                          <button 
+                                                onClick={() => setShowReportModal(false)} 
+                                                className="p-2 w-10 h-10 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-all"
+                                          >
+                                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                                           </button>
                                     </div>
-                                    <div className="p-5">
-                                          <label className="block text-sm font-semibold text-gray-700 mb-2">Why are you reporting this?</label>
-                                          <select 
-                                                value={reportReason}
-                                                onChange={(e) => setReportReason(e.target.value)}
-                                                className="w-full p-3 border border-gray-200 rounded-xl mb-4 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all"
-                                          >
-                                                <option value="spam">Spam or misleading</option>
-                                                <option value="inappropriate">Inappropriate content</option>
-                                                <option value="harassment">Harassment or bullying</option>
-                                                <option value="hate_speech">Hate speech</option>
-                                                <option value="copyright">Copyright violation</option>
-                                                <option value="other">Other</option>
-                                          </select>
+                                    
+                                    <div className="p-6">
+                                          <p className="text-sm text-gray-500 mb-5">Your report is anonymous. If someone is in immediate danger, call the local emergency services - don't wait.</p>
+                                          
+                                          <label className="block text-sm font-bold text-gray-700 mb-2">Why are you reporting this?</label>
+                                          <div className="relative mb-5">
+                                                <select 
+                                                      value={reportReason}
+                                                      onChange={(e) => setReportReason(e.target.value)}
+                                                      className="w-full p-3.5 pl-4 pr-10 border border-gray-200 rounded-xl bg-gray-50 text-gray-800 appearance-none focus:bg-white focus:ring-4 focus:ring-red-50 focus:border-red-400 outline-none transition-all cursor-pointer font-medium"
+                                                >
+                                                      <option value="spam">Spam or misleading</option>
+                                                      <option value="inappropriate">Inappropriate content</option>
+                                                      <option value="harassment">Harassment or bullying</option>
+                                                      <option value="hate_speech">Hate speech or symbols</option>
+                                                      <option value="violence">Violence or dangerous organizations</option>
+                                                      <option value="copyright">Intellectual property violation</option>
+                                                      <option value="other">Something else</option>
+                                                </select>
+                                                <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-gray-500">
+                                                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                                </div>
+                                          </div>
 
-                                          <label className="block text-sm font-semibold text-gray-700 mb-2">Additional details (optional)</label>
+                                          <label className="block text-sm font-bold text-gray-700 mb-2">Additional details (optional)</label>
                                           <textarea 
                                                 value={reportNote}
                                                 onChange={(e) => setReportNote(e.target.value)}
-                                                placeholder="Please provide more information..."
-                                                className="w-full p-3 border border-gray-200 rounded-xl mb-6 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all resize-none"
+                                                placeholder="Please provide clear details to help us investigate faster..."
+                                                className="w-full p-4 border border-gray-200 rounded-xl mb-6 bg-gray-50 text-gray-800 focus:bg-white focus:ring-4 focus:ring-red-50 focus:border-red-400 outline-none transition-all resize-none font-medium placeholder-gray-400"
                                                 rows="3"
                                           ></textarea>
 
-                                          <div className="flex gap-3">
+                                          <div className="flex gap-3 pt-2">
                                                 <button 
                                                       onClick={() => setShowReportModal(false)}
-                                                      className="flex-1 py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold rounded-xl transition-colors"
+                                                      className="flex-1 py-3.5 px-4 bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-700 font-bold rounded-xl transition-all"
                                                 >
                                                       Cancel
                                                 </button>
                                                 <button 
                                                       onClick={handleReport}
                                                       disabled={isReporting}
-                                                      className="flex-1 py-3 px-4 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl shadow-md shadow-red-200 transition-colors disabled:opacity-70 flex justify-center items-center gap-2"
+                                                      style={{
+                                                            background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                                                            boxShadow: '0 4px 14px rgba(239, 68, 68, 0.3)'
+                                                      }}
+                                                      className="flex-1 py-3.5 px-4 text-white font-bold rounded-xl transition-all transform hover:-translate-y-0.5 disabled:opacity-70 disabled:hover:translate-y-0 flex justify-center items-center gap-2"
                                                 >
                                                       {isReporting ? (
                                                             <>
-                                                                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                                                  <span>Reporting...</span>
+                                                                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                                                  <span>Submitting...</span>
                                                             </>
-                                                      ) : 'Submit Report'}
+                                                      ) : (
+                                                            <>
+                                                                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                                                                  <span>Submit Report</span>
+                                                            </>
+                                                      )}
                                                 </button>
                                           </div>
                                     </div>
