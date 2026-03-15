@@ -442,11 +442,10 @@ const deleteMessage = async (req, res) => {
             const isReceiver = message.receiver && message.receiver.toString() === req.user.id;
             
             if (type === 'everyone') {
-                  const Group = require('../models/Group'); // Make sure Group is imported if needed
                   let isGroupAdmin = false;
                   if (!isSender && message.conversationId) {
-                        const group = await Group.findById(message.conversationId);
-                        if (group && group.groupAdmin.toString() === req.user.id.toString()) {
+                        const group = await Conversation.findById(message.conversationId);
+                        if (group && group.groupAdmin && group.groupAdmin.toString() === req.user.id.toString()) {
                               isGroupAdmin = true;
                         }
                   }
@@ -464,16 +463,21 @@ const deleteMessage = async (req, res) => {
                   message.media = { url: '', type: '' };
                   await message.save();
 
-                  // Emit socket event so receiver's UI updates in real-time
                   const deletedPayload = { messageId: message._id, conversationId: message.conversationId };
                   if (message.conversationId) {
                         // Group chat - emit to all group members via socket room (group room id)
                         io.to(message.conversationId.toString()).emit('messageDeletedForEveryone', deletedPayload);
                   } else if (message.receiver) {
                         // DM - emit to receiver
-                        io.to(message.receiver.toString()).emit('messageDeletedForEveryone', deletedPayload);
+                        const receiverSocketId = getReceiverSocketId(message.receiver.toString());
+                        if (receiverSocketId) {
+                              io.to(receiverSocketId).emit('messageDeletedForEveryone', deletedPayload);
+                        }
                         // Also emit back to sender (they may have multiple tabs)
-                        io.to(message.sender.toString()).emit('messageDeletedForEveryone', deletedPayload);
+                        const senderSocketId = getReceiverSocketId(message.sender.toString());
+                        if (senderSocketId) {
+                              io.to(senderSocketId).emit('messageDeletedForEveryone', deletedPayload);
+                        }
                   }
 
                   return res.json({

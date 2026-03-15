@@ -146,20 +146,7 @@ const Profile = () => {
             Promise.all([fetchProfileData(), fetchUserPosts(targetUsername)]);
       }, [username, user, isOwnProfile]);
 
-      // Auto-play profile song on view, stop on exit
-      useEffect(() => {
-            if (profileUser?.profileSong?.previewUrl && !editing && activeTab === 'profile') {
-                  // Small delay to allow initial render & browser gesture policies
-                  const playTimeout = setTimeout(() => {
-                        try {
-                              playTrack(profileUser.profileSong);
-                        } catch (e) {
-                              console.log("Autoplay blocked by browser");
-                        }
-                  }, 800);
-                  return () => clearTimeout(playTimeout);
-            }
-      }, [profileUser?.profileSong, editing, activeTab, playTrack]);
+      // Auto-play removed per user request
 
       // Global cleanup: Stop the track when completely leaving the profile page
       useEffect(() => {
