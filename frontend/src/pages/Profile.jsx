@@ -146,6 +146,28 @@ const Profile = () => {
             Promise.all([fetchProfileData(), fetchUserPosts(targetUsername)]);
       }, [username, user, isOwnProfile]);
 
+      // Auto-play profile song on view, stop on exit
+      useEffect(() => {
+            if (profileUser?.profileSong?.previewUrl && !editing && activeTab === 'profile') {
+                  // Small delay to allow initial render & browser gesture policies
+                  const playTimeout = setTimeout(() => {
+                        try {
+                              playTrack(profileUser.profileSong);
+                        } catch (e) {
+                              console.log("Autoplay blocked by browser");
+                        }
+                  }, 800);
+                  return () => clearTimeout(playTimeout);
+            }
+      }, [profileUser?.profileSong, editing, activeTab, playTrack]);
+
+      // Global cleanup: Stop the track when completely leaving the profile page
+      useEffect(() => {
+            return () => {
+                  stopTrack();
+            };
+      }, [stopTrack]);
+
       const [postsError, setPostsError] = useState('');
 
       const fetchUserPosts = async (uname) => {
@@ -394,11 +416,32 @@ const Profile = () => {
 
       const handleSaveProfile = async () => {
             setMessage('');
-            const result = await updateProfile(editData);
+            // Ensure profileSong mapping retains necessary fields from editData
+            const dataToSave = { ...editData };
+            const result = await updateProfile(dataToSave);
+            
             if (result.success) {
                   setMessage('✅ Profile updated successfully!');
-                  setProfileUser(prev => ({ ...prev, ...editData }));
+                  
+                  // Clear strict caches immediately to ensure refreshing displays the new song
+                  const targetUsername = user?.username;
+                  if (targetUsername) {
+                        try {
+                              localStorage.removeItem(`zuno_profile_cache_${targetUsername}`);
+                        } catch (e) {}
+                  }
+                  
+                  // Hard update state with latest context data from result
+                  if (result.data?.user) {
+                        setProfileUser(result.data.user);
+                  } else {
+                        setProfileUser(prev => ({ ...prev, ...dataToSave }));
+                  }
+                  
                   setEditing(false);
+                  
+                  // Fetch freshly to be 100% sure the profileSong populates properly in the UI
+                  refreshProfile();
             } else {
                   setMessage('⚠️ ' + result.message);
             }
