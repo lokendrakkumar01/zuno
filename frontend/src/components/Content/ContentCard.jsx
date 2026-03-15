@@ -54,12 +54,18 @@ const ContentCard = ({ content, onDelete, autoOpenFullscreen = false, onCloseFul
             }
       }, [isFullscreen]);
 
-      // Lock body scroll while fullscreen
+      // Lock body scroll and handle music while fullscreen
       useEffect(() => {
             if (isFullscreen) {
                   document.body.style.overflow = 'hidden';
+                  if (content.music?.previewUrl) {
+                        playTrack(content.music);
+                  }
             } else {
                   document.body.style.overflow = '';
+                  if (content.music?.previewUrl) {
+                        stopTrack();
+                  }
             }
             return () => { document.body.style.overflow = ''; };
       }, [isFullscreen]);

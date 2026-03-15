@@ -71,24 +71,22 @@ const getMessages = async (req, res) => {
                   });
             }
 
-            let messages = await Message.find({
+            const messages = await Message.find({
                   $or: [
                         { sender: req.user.id, receiver: userId },
                         { sender: userId, receiver: req.user.id }
-                  ]
+                  ],
+                  deletedBy: { $ne: req.user.id } // Filter out messages deleted by this user
             })
-                  .sort({ createdAt: -1 }) // Get newest first
+                  .sort({ createdAt: 1 }) // Get oldest first for UI display
                   .skip((page - 1) * limit)
                   .limit(parseInt(limit))
-                  .populate('sender', 'username displayName avatar')
-                  .populate('receiver', 'username displayName avatar')
+                  .populate('sender', 'username displayName avatar avatarColor isOnline offlineStatus')
+                  .populate('receiver', 'username displayName avatar avatarColor')
                   .populate({
                         path: 'replyTo',
                         populate: { path: 'sender', select: 'username displayName' }
                   });
-
-            // Reverse to display oldest to newest (top to bottom) in the UI
-            messages = messages.reverse();
 
             // Mark messages as read
             await Message.updateMany(
@@ -429,6 +427,7 @@ const editMessage = async (req, res) => {
 const deleteMessage = async (req, res) => {
       try {
             const { messageId } = req.params;
+            const type = req.query.type || 'me'; // 'me' or 'everyone'
 
             const message = await Message.findById(messageId);
             if (!message) {
@@ -438,53 +437,57 @@ const deleteMessage = async (req, res) => {
                   });
             }
 
-            // Both sender and receiver can delete
+            // Both sender and receiver can delete for "me". Only sender can delete for "everyone"
             const isSender = message.sender.toString() === req.user.id;
-            const isReceiver = message.receiver.toString() === req.user.id;
-            if (!isSender && !isReceiver) {
-                  return res.status(403).json({
-                        success: false,
-                        message: 'You can only delete messages in your conversations'
-                  });
-            }
-
-            const senderId = message.sender;
-            const receiverId = message.receiver;
-
-            await Message.findByIdAndDelete(messageId);
-
-            // Update conversation's lastMessage to the previous message
-            const lastMsg = await Message.findOne({
-                  $or: [
-                        { sender: senderId, receiver: receiverId },
-                        { sender: receiverId, receiver: senderId }
-                  ]
-            }).sort({ createdAt: -1 });
-
-            if (lastMsg) {
-                  await Conversation.findOneAndUpdate(
-                        { participants: { $all: [senderId, receiverId] } },
-                        {
-                              lastMessage: {
-                                    text: lastMsg.text,
-                                    sender: lastMsg.sender,
-                                    createdAt: lastMsg.createdAt
-                              }
+            const isReceiver = message.receiver && message.receiver.toString() === req.user.id;
+            
+            if (type === 'everyone') {
+                  const Group = require('../models/Group'); // Make sure Group is imported if needed
+                  let isGroupAdmin = false;
+                  if (!isSender && message.conversationId) {
+                        const group = await Group.findById(message.conversationId);
+                        if (group && group.groupAdmin.toString() === req.user.id.toString()) {
+                              isGroupAdmin = true;
                         }
-                  );
+                  }
+
+                  if (!isSender && !isGroupAdmin && req.user.role !== 'admin') {
+                        return res.status(403).json({
+                              success: false,
+                              message: 'You can only delete your own messages for everyone'
+                        });
+                  }
+                  
+                  // Mark as deleted for everyone, clear content for privacy
+                  message.deletedForEveryone = true;
+                  message.text = '';
+                  message.media = { url: '', type: '' };
+                  await message.save();
+
+                  return res.json({
+                        success: true,
+                        message: 'Message deleted for everyone',
+                        data: { message }
+                  });
             } else {
-                  // No messages left — delete conversation
-                  await Conversation.findOneAndDelete({
-                        participants: { $all: [senderId, receiverId] }
+                  // Delete for me
+                  if (!isSender && !isReceiver && !message.conversationId) {
+                         // Fallback check: user must be part of the chat. The middleware/other logic ensures this but double check
+                  }
+
+                  if (!message.deletedBy.includes(req.user.id)) {
+                        message.deletedBy.push(req.user.id);
+                        await message.save();
+                  }
+
+                  return res.json({
+                        success: true,
+                        message: 'Message deleted for you',
+                        data: { message }
                   });
             }
-
-            res.json({
-                  success: true,
-                  message: 'Message deleted'
-            });
       } catch (error) {
-            console.error('deleteMessage error:', error);
+            console.error('Delete message error:', error);
             res.status(500).json({
                   success: false,
                   message: 'Failed to delete message',
@@ -683,7 +686,10 @@ const getGroupMessages = async (req, res) => {
                   return res.status(403).json({ success: false, message: 'Not a member of this group' });
             }
 
-            let messages = await Message.find({ conversationId: groupId })
+            let messages = await Message.find({ 
+                  conversationId: groupId,
+                  deletedBy: { $ne: req.user.id }
+            })
                   .sort({ createdAt: -1 })
                   .skip((page - 1) * limit)
                   .limit(parseInt(limit))
@@ -694,7 +700,6 @@ const getGroupMessages = async (req, res) => {
                   });
 
             messages = messages.reverse();
-
             await Conversation.findOneAndUpdate(
                   { _id: groupId },
                   { $set: { [`unreadCount.${req.user.id}`]: 0 } }
@@ -818,6 +823,226 @@ const deleteGroup = async (req, res) => {
       }
 };
 
+// @desc    Add participants to a group
+// @route   PUT /api/messages/group/:groupId/participants/add
+// @access  Private
+const addGroupParticipants = async (req, res) => {
+      try {
+            const { groupId } = req.params;
+            const { participants } = req.body; // Array of user IDs
+
+            const conversation = await Conversation.findById(groupId);
+            
+            if (!conversation || !conversation.isGroup) {
+                  return res.status(404).json({ success: false, message: 'Group not found' });
+            }
+            
+            // Only group admin can add participants
+            if (conversation.groupAdmin.toString() !== req.user.id) {
+                  return res.status(403).json({ success: false, message: 'Only the group admin can add participants' });
+            }
+
+            if (!participants || participants.length === 0) {
+                   return res.status(400).json({ success: false, message: 'No participants provided' });
+            }
+
+            // Filter out existing participants to prevent duplicates
+            const newParticipants = participants.filter(
+                  id => !conversation.participants.some(p => p.toString() === id)
+            );
+
+            if (newParticipants.length === 0) {
+                  return res.status(400).json({ success: false, message: 'All users are already in the group' });
+            }
+
+            conversation.participants.push(...newParticipants);
+
+            // Add to unread counts
+            if (!conversation.unreadCount) conversation.unreadCount = new Map();
+            newParticipants.forEach(id => {
+                  conversation.unreadCount.set(id.toString(), 0);
+            });
+
+            await conversation.save();
+
+            // Notify via socket (optional) - you might want to create a system message
+            const sysMessage = new Message({
+                  sender: req.user.id,
+                  conversationId: groupId,
+                  text: 'Added new participants'
+            });
+            await sysMessage.save();
+            
+            conversation.participants.forEach(pId => {
+                  const socketId = getReceiverSocketId(pId.toString());
+                  if (socketId) {
+                        io.to(socketId).emit("newGroupMessage", { ...sysMessage.toObject(), groupId });
+                  }
+            });
+
+            res.json({ success: true, message: 'Participants added successfully', data: { conversation } });
+      } catch (error) {
+            console.error('addGroupParticipants error:', error);
+            res.status(500).json({ success: false, message: 'Failed to add participants', error: error.message });
+      }
+};
+
+// @desc    Remove a participant from a group
+// @route   PUT /api/messages/group/:groupId/participants/remove
+// @access  Private
+const removeGroupParticipant = async (req, res) => {
+      try {
+            const { groupId } = req.params;
+            const { userId } = req.body;
+
+            const conversation = await Conversation.findById(groupId);
+            
+            if (!conversation || !conversation.isGroup) {
+                  return res.status(404).json({ success: false, message: 'Group not found' });
+            }
+            
+            // Only group admin can remove, and cannot remove themselves this way (use leave group)
+            if (conversation.groupAdmin.toString() !== req.user.id) {
+                  return res.status(403).json({ success: false, message: 'Only the group admin can remove participants' });
+            }
+
+            if (userId === req.user.id) {
+                   return res.status(400).json({ success: false, message: 'You cannot remove yourself. Use leave group instead.' });
+            }
+
+            const index = conversation.participants.findIndex(p => p.toString() === userId);
+            if (index === -1) {
+                  return res.status(404).json({ success: false, message: 'User is not in the group' });
+            }
+
+            conversation.participants.splice(index, 1);
+            if (conversation.unreadCount) {
+                  conversation.unreadCount.delete(userId);
+            }
+
+            await conversation.save();
+
+            const sysMessage = new Message({
+                  sender: req.user.id,
+                  conversationId: groupId,
+                  text: 'Removed a participant'
+            });
+            await sysMessage.save();
+            
+            conversation.participants.forEach(pId => {
+                  const socketId = getReceiverSocketId(pId.toString());
+                  if (socketId) {
+                        io.to(socketId).emit("newGroupMessage", { ...sysMessage.toObject(), groupId });
+                  }
+            });
+
+            res.json({ success: true, message: 'Participant removed successfully', data: { conversation } });
+      } catch (error) {
+            console.error('removeGroupParticipant error:', error);
+            res.status(500).json({ success: false, message: 'Failed to remove participant', error: error.message });
+      }
+};
+
+// @desc    Leave a group
+// @route   PUT /api/messages/group/:groupId/leave
+// @access  Private
+const leaveGroup = async (req, res) => {
+      try {
+            const { groupId } = req.params;
+
+            const conversation = await Conversation.findById(groupId);
+            
+            if (!conversation || !conversation.isGroup) {
+                  return res.status(404).json({ success: false, message: 'Group not found' });
+            }
+            
+            const index = conversation.participants.findIndex(p => p.toString() === req.user.id);
+            if (index === -1) {
+                  return res.status(400).json({ success: false, message: 'You are not in this group' });
+            }
+
+            conversation.participants.splice(index, 1);
+            if (conversation.unreadCount) {
+                  conversation.unreadCount.delete(req.user.id);
+            }
+
+            // If the user leaving is the admin
+            if (conversation.groupAdmin.toString() === req.user.id) {
+                  if (conversation.participants.length > 0) {
+                        // Reassign admin to the next participant
+                        conversation.groupAdmin = conversation.participants[0];
+                  } else {
+                        // Delete group if empty
+                        await Message.deleteMany({ conversationId: groupId });
+                        await Conversation.findByIdAndDelete(groupId);
+                        return res.json({ success: true, message: 'Left group. Group deleted as it was empty.' });
+                  }
+            }
+
+            await conversation.save();
+
+            const sysMessage = new Message({
+                  sender: req.user.id,
+                  conversationId: groupId,
+                  text: 'Left the group'
+            });
+            await sysMessage.save();
+            
+            conversation.participants.forEach(pId => {
+                  const socketId = getReceiverSocketId(pId.toString());
+                  if (socketId) {
+                        io.to(socketId).emit("newGroupMessage", { ...sysMessage.toObject(), groupId });
+                  }
+            });
+
+            res.json({ success: true, message: 'Successfully left the group', data: { conversation } });
+      } catch (error) {
+            console.error('leaveGroup error:', error);
+            res.status(500).json({ success: false, message: 'Failed to leave group', error: error.message });
+      }
+};
+
+// @desc    Update group info
+// @route   PUT /api/messages/group/:groupId/info
+// @access  Private
+const updateGroupInfo = async (req, res) => {
+      try {
+            const { groupId } = req.params;
+            const { groupName, groupDescription } = req.body;
+
+            const conversation = await Conversation.findById(groupId);
+            
+            if (!conversation || !conversation.isGroup) {
+                  return res.status(404).json({ success: false, message: 'Group not found' });
+            }
+            
+            // Only group admin can update info
+            if (conversation.groupAdmin.toString() !== req.user.id) {
+                  return res.status(403).json({ success: false, message: 'Only the group admin can update info' });
+            }
+
+            if (groupName) conversation.groupName = groupName;
+            if (groupDescription !== undefined) conversation.groupDescription = groupDescription;
+
+            // Handle file upload if present
+            if (req.file) {
+                  const isCloudinary = !!(process.env.CLOUDINARY_CLOUD_NAME);
+                  if (isCloudinary) {
+                        conversation.groupAvatar = req.file.path;
+                  } else {
+                        conversation.groupAvatar = `/uploads/${req.file.filename}`;
+                  }
+            }
+
+            await conversation.save();
+
+            res.json({ success: true, message: 'Group info updated successfully', data: { conversation } });
+      } catch (error) {
+            console.error('updateGroupInfo error:', error);
+            res.status(500).json({ success: false, message: 'Failed to update group info', error: error.message });
+      }
+};
+
 module.exports = {
       getConversations,
       getMessages,
@@ -831,5 +1056,9 @@ module.exports = {
       createGroup,
       getGroupMessages,
       sendGroupMessage,
-      deleteGroup
+      deleteGroup,
+      addGroupParticipants,
+      removeGroupParticipant,
+      leaveGroup,
+      updateGroupInfo
 };

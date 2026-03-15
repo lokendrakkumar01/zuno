@@ -407,11 +407,17 @@ const UsersManagement = ({ token }) => {
     try {
       // If password is provided, update it first
       if (userPassword) {
-        await fetch(`${API_URL}/admin/users/${selectedUser._id}`, {
+        const pwRes = await fetch(`${API_URL}/admin/users/${selectedUser._id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ password: userPassword })
         });
+        const pwData = await pwRes.json();
+        if (!pwData.success) {
+          show(pwData.message || 'Failed to update password', '❌');
+          setSendingEmail(false);
+          return;
+        }
       }
 
       const res = await fetch(`${API_URL}/admin/users/${selectedUser._id}/email`, {
@@ -426,12 +432,15 @@ const UsersManagement = ({ token }) => {
       if (data.success) {
         show(userPassword ? 'Password reset & Email sent!' : 'Email sent successfully!', '📧');
         setEmailModalOpen(false);
+        setEmailSubject('');
+        setEmailMessage('');
+        setUserPassword('');
       } else {
-        show(data.message || 'Failed to send email', '❌');
+        show(data.message || data.error || 'Failed to send email', '❌');
       }
     } catch (err) {
       console.error(err);
-      show('Error sending email', '❌');
+      show('Network error. Please check your connection.', '❌');
     } finally {
       setSendingEmail(false);
     }
@@ -773,13 +782,32 @@ const ContentManagement = ({ token }) => {
   }, [token]);
 
   const handleModerate = async (id, body) => {
-    await fetch(`${API_URL}/admin/content/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(body)
-    });
-    show(body.isApproved ? 'Content approved ✓' : 'Content removed 🗑️', body.isApproved ? '✅' : '🗑️');
-    fetchContent();
+    try {
+      const res = await fetch(`${API_URL}/admin/content/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (data.success) {
+        show(body.isApproved ? 'Content approved ✓' : 'Content removed 🗑️', body.isApproved ? '✅' : '🗑️');
+        if (body.status === 'removed') {
+          // Optimistically remove from list
+          setContents(prev => prev.filter(c => c._id !== id));
+          if (adminCache.contents) adminCache.contents = adminCache.contents.filter(c => c._id !== id);
+        } else {
+          // For approve, update the item in list
+          setContents(prev => prev.map(c => c._id === id ? { ...c, ...body } : c));
+          if (adminCache.contents) adminCache.contents = adminCache.contents.map(c => c._id === id ? { ...c, ...body } : c);
+        }
+      } else {
+        show(data.message || 'Operation failed', '❌');
+        fetchContent(true); // Refresh on failure
+      }
+    } catch (err) {
+      show('Network error, please try again', '❌');
+      console.error(err);
+    }
   };
 
   return (

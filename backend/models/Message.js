@@ -42,7 +42,15 @@ const messageSchema = new mongoose.Schema({
       edited: {
             type: Boolean,
             default: false
-      }
+      },
+      deletedForEveryone: {
+            type: Boolean,
+            default: false
+      },
+      deletedBy: [{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User'
+      }]
 }, { timestamps: true });
 
 // Index for efficient queries

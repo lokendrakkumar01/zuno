@@ -13,7 +13,11 @@ const {
       createGroup,
       getGroupMessages,
       sendGroupMessage,
-      deleteGroup
+      deleteGroup,
+      addGroupParticipants,
+      removeGroupParticipant,
+      leaveGroup,
+      updateGroupInfo
 } = require('../controllers/messageController');
 const { protect } = require('../middleware/auth');
 const { uploadMultiple } = require('../middleware/upload');
@@ -29,6 +33,10 @@ router.post('/group/create', uploadMultiple.single('avatar'), createGroup);
 router.get('/group/:groupId', getGroupMessages);
 router.post('/group/:groupId', uploadMultiple.single('media'), sendGroupMessage);
 router.delete('/group/:groupId', deleteGroup);
+router.put('/group/:groupId/participants/add', addGroupParticipants);
+router.put('/group/:groupId/participants/remove', removeGroupParticipant);
+router.put('/group/:groupId/leave', leaveGroup);
+router.put('/group/:groupId/info', uploadMultiple.single('groupAvatar'), updateGroupInfo);
 
 // Unread count (must be before /:userId)
 router.get('/unread/count', getUnreadCount);

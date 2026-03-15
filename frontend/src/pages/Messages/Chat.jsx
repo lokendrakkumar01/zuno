@@ -543,19 +543,33 @@ const Chat = () => {
             }
       };
 
-      const handleDelete = async (messageId) => {
-            if (!window.confirm('Delete this message?')) return;
+      const handleDelete = async (messageId, type = 'me') => {
+            if (!window.confirm(`Delete this message for ${type === 'everyone' ? 'everyone' : 'me'}?`)) return;
+            
+            // Optimistic UI for max speed
+            setMessages(prev => {
+                  if (type === 'everyone') {
+                        return prev.map(m => m._id === messageId ? { ...m, deletedForEveryone: true, text: '', media: null } : m);
+                  } else {
+                        return prev.filter(m => m._id !== messageId);
+                  }
+            });
+            setActiveMenu(null);
+            
             try {
-                  const res = await fetch(`${API_URL}/messages/delete/${messageId}`, {
+                  const res = await fetch(`${API_URL}/messages/delete/${messageId}?type=${type}`, {
                         method: 'DELETE',
                         headers: { 'Authorization': `Bearer ${token}` }
                   });
                   const data = await res.json();
-                  if (data.success) {
-                        setMessages(prev => prev.filter(m => m._id !== messageId));
+                  if (!data.success) {
+                        // Re-fetch if it failed
+                        console.error('Failed to delete:', data.message);
+                        fetchMessages(); 
                   }
             } catch (err) {
                   console.error('Failed to delete message:', err);
+                  fetchMessages();
             }
       };
 
@@ -888,6 +902,10 @@ const Chat = () => {
                                                                               <button onClick={() => { setEditingId(null); setEditText(''); }} className="chat-edit-cancel">✕</button>
                                                                         </div>
                                                                   </div>
+                                                            ) : msg.deletedForEveryone ? (
+                                                                  <p className="chat-bubble-text" style={{ fontStyle: 'italic', opacity: 0.7, color: isMine ? '#e0e7ff' : 'inherit', padding: '4px' }}>
+                                                                        🚫 This message was deleted
+                                                                  </p>
                                                             ) : (
                                                                   <>
                                                                         {/* Replied Message Quote */}
@@ -897,7 +915,7 @@ const Chat = () => {
                                                                                           {msg.replyTo.sender?.displayName || msg.replyTo.sender?.username || 'User'}
                                                                                     </div>
                                                                                     <div className="chat-reply-quote-text" style={{ fontSize: '0.85rem', opacity: 0.9, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                                                          {msg.replyTo.text || 'Embedded Media'}
+                                                                                          {msg.replyTo.deletedForEveryone ? '🚫 Deleted message' : (msg.replyTo.text || 'Embedded Media')}
                                                                                     </div>
                                                                               </div>
                                                                         )}
@@ -913,6 +931,7 @@ const Chat = () => {
                                                                               </div>
                                                                         )}
                                                                         {msg.text && <p className="chat-bubble-text">{msg.text}</p>}
+                                                                        
                                                                         <div className="chat-bubble-meta">
                                                                               {msg.edited && <span className="chat-edited-label" style={{ fontSize: '0.7rem', opacity: 0.6 }}>edited</span>}
                                                                               <span className="chat-bubble-time" style={{ fontSize: '0.7rem', opacity: 0.7 }}>{formatTime(msg.createdAt)}</span>
@@ -948,7 +967,7 @@ const Chat = () => {
                                                             )}
 
                                                             {/* Three-dot menu for ALL messages (own = edit+delete, received = delete only) */}
-                                                            {editingId !== msg._id && (
+                                                            {editingId !== msg._id && !msg.deletedForEveryone && (
                                                                   <button
                                                                         className="chat-msg-menu-btn"
                                                                         onClick={(e) => toggleMenu(e, msg._id)}
@@ -991,12 +1010,21 @@ const Chat = () => {
                                                                                     Edit
                                                                               </button>
                                                                         )}
+                                                                        {isMine && !msg.deletedForEveryone && (
+                                                                              <button
+                                                                                    onClick={(e) => { e.stopPropagation(); handleDelete(msg._id, 'everyone'); }}
+                                                                                    className="chat-msg-menu-item delete"
+                                                                              >
+                                                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" /></svg>
+                                                                                    Delete for everyone
+                                                                              </button>
+                                                                        )}
                                                                         <button
-                                                                              onClick={() => { setActiveMenu(null); handleDelete(msg._id); }}
+                                                                              onClick={(e) => { e.stopPropagation(); handleDelete(msg._id, 'me'); }}
                                                                               className="chat-msg-menu-item delete"
                                                                         >
                                                                               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" /></svg>
-                                                                              Delete
+                                                                              Delete for me
                                                                         </button>
                                                                   </div>
                                                             )}

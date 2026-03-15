@@ -62,6 +62,15 @@ const GroupChat = () => {
       const defaultCustomization = { themeColor: '#6366f1', bgImage: null };
       const [chatCustomization, setChatCustomization] = useState(defaultCustomization);
 
+      // Group Info Modal
+      const [showGroupInfo, setShowGroupInfo] = useState(false);
+      const [showAddParticipants, setShowAddParticipants] = useState(false);
+      const [addSearchQuery, setAddSearchQuery] = useState('');
+      const [addSearchResults, setAddSearchResults] = useState([]);
+      const [selectedUsers, setSelectedUsers] = useState([]);
+      const [editingGroupInfo, setEditingGroupInfo] = useState(false);
+      const [editGroupName, setEditGroupName] = useState('');
+
       const THEMES = [
             { id: 'indigo', color: '#6366f1' },
             { id: 'rose', color: '#f43f5e' },
@@ -249,6 +258,123 @@ const GroupChat = () => {
             }
       };
 
+      const fetchGroupInfo = async () => {
+            try {
+                  const res = await fetch(`${API_URL}/messages/group/${groupId}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                        setGroupInfo(data.data.group);
+                        try {
+                              localStorage.setItem(`zuno_group_info_cache_${groupId}`, JSON.stringify(data.data.group));
+                        } catch (e) { }
+                  }
+            } catch (err) {
+                  console.error('Failed to fetch group info:', err);
+            }
+      };
+
+      const handleAddParticipantSearch = async (query) => {
+            setAddSearchQuery(query);
+            if (query.trim().length < 2) {
+                  setAddSearchResults([]);
+                  return;
+            }
+            try {
+                  const res = await fetch(`${API_URL}/users/search?q=${encodeURIComponent(query)}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                        setAddSearchResults(data.data.users.filter(u => u._id !== user?._id && !groupInfo?.participants?.some(p => (p._id || p) === u._id)));
+                  }
+            } catch (err) {
+                  console.error(err);
+            }
+      };
+
+      const confirmAddParticipants = async () => {
+            if (selectedUsers.length === 0) return;
+            try {
+                  const res = await fetch(`${API_URL}/messages/group/${groupId}/participants/add`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                        body: JSON.stringify({ participants: selectedUsers.map(u => u._id) })
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                        setShowAddParticipants(false);
+                        setSelectedUsers([]);
+                        fetchGroupInfo();
+                  } else {
+                        alert(data.message);
+                  }
+            } catch (err) {
+                  console.error('Failed to add participants:', err);
+            }
+      };
+
+      const handleRemoveParticipant = async (userId) => {
+            if (!window.confirm('Remove this user from the group?')) return;
+            try {
+                  const res = await fetch(`${API_URL}/messages/group/${groupId}/participants/remove`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                        body: JSON.stringify({ userId })
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                        fetchGroupInfo();
+                  } else {
+                        alert(data.message);
+                  }
+            } catch (err) {
+                  console.error('Failed to remove participant:', err);
+            }
+      };
+
+      const handleLeaveGroup = async () => {
+            if (!window.confirm('Are you sure you want to leave this group?')) return;
+            try {
+                  const res = await fetch(`${API_URL}/messages/group/${groupId}/leave`, {
+                        method: 'PUT',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                        navigate('/messages');
+                  } else {
+                        alert(data.message);
+                  }
+            } catch (err) {
+                  console.error('Failed to leave group:', err);
+            }
+      };
+
+      const handleUpdateGroupInfo = async () => {
+            if (!editGroupName.trim() || editGroupName === groupInfo?.groupName) {
+                  setEditingGroupInfo(false);
+                  return;
+            }
+            try {
+                  const res = await fetch(`${API_URL}/messages/group/${groupId}/info`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                        body: JSON.stringify({ groupName: editGroupName })
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                        setEditingGroupInfo(false);
+                        fetchGroupInfo();
+                  } else {
+                        alert(data.message);
+                  }
+            } catch (err) {
+                  console.error('Failed to update group info:', err);
+            }
+      };
+
       const compressImage = (file) => {
             return new Promise((resolve) => {
                   if (!file.type.startsWith('image')) {
@@ -405,19 +531,32 @@ const GroupChat = () => {
             }
       };
 
-      const handleDelete = async (messageId) => {
-            if (!window.confirm('Delete this message?')) return;
+      const handleDelete = async (messageId, type = 'me') => {
+            if (!window.confirm(`Delete this message for ${type === 'everyone' ? 'everyone' : 'me'}?`)) return;
+
+            // Optimistic UI
+            setMessages(prev => {
+                  if (type === 'everyone') {
+                        return prev.map(m => m._id === messageId ? { ...m, deletedForEveryone: true, text: '', media: null } : m);
+                  } else {
+                        return prev.filter(m => m._id !== messageId);
+                  }
+            });
+            setActiveMenu(null);
+
             try {
-                  const res = await fetch(`${API_URL}/messages/delete/${messageId}`, {
+                  const res = await fetch(`${API_URL}/messages/delete/${messageId}?type=${type}`, {
                         method: 'DELETE',
                         headers: { 'Authorization': `Bearer ${token}` }
                   });
                   const data = await res.json();
-                  if (data.success) {
-                        setMessages(prev => prev.filter(m => m._id !== messageId));
+                  if (!data.success) {
+                        console.error('Failed to delete:', data.message);
+                        fetchGroupMessages();
                   }
             } catch (err) {
                   console.error('Failed to delete message:', err);
+                  fetchGroupMessages();
             }
       };
 
@@ -597,7 +736,7 @@ const GroupChat = () => {
                                     <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
                               </svg>
                         </button>
-                        <div className="chat-user-info" style={{ flex: 1 }}>
+                        <div className="chat-user-info" style={{ flex: 1, cursor: 'pointer' }} onClick={() => setShowGroupInfo(true)}>
                               <div className="msg-avatar msg-avatar-sm">
                                     <UserAvatar src={groupInfo?.groupAvatar} name={groupInfo?.groupName} size={38} />
                               </div>
@@ -710,6 +849,17 @@ const GroupChat = () => {
                                                                               <button onClick={() => { setEditingId(null); setEditText(''); }} className="chat-edit-cancel">✕</button>
                                                                         </div>
                                                                   </div>
+                                                            ) : msg.deletedForEveryone ? (
+                                                                  <>
+                                                                        {!isMine && (
+                                                                              <div style={{ fontWeight: '600', fontSize: '0.75rem', marginBottom: '4px', opacity: 0.8 }}>
+                                                                                    {msg.sender?.displayName || msg.sender?.username || 'User'}
+                                                                              </div>
+                                                                        )}
+                                                                        <p className="chat-bubble-text" style={{ fontStyle: 'italic', opacity: 0.7, color: isMine ? '#e0e7ff' : 'inherit', padding: '4px' }}>
+                                                                              🚫 This message was deleted
+                                                                        </p>
+                                                                  </>
                                                             ) : (
                                                                   <>
                                                                         {!isMine && (
@@ -723,7 +873,7 @@ const GroupChat = () => {
                                                                                           {msg.replyTo.sender?.displayName || msg.replyTo.sender?.username || 'User'}
                                                                                     </div>
                                                                                     <div className="chat-reply-quote-text" style={{ fontSize: '0.85rem', opacity: 0.9, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                                                          {msg.replyTo.text || 'Embedded Media'}
+                                                                                          {msg.replyTo.deletedForEveryone ? '🚫 Deleted message' : (msg.replyTo.text || 'Embedded Media')}
                                                                                     </div>
                                                                               </div>
                                                                         )}
@@ -753,7 +903,7 @@ const GroupChat = () => {
                                                                   </>
                                                             )}
 
-                                                            {editingId !== msg._id && (
+                                                            {editingId !== msg._id && !msg.deletedForEveryone && (
                                                                   <button
                                                                         className="chat-msg-menu-btn"
                                                                         onClick={(e) => toggleMenu(e, msg._id)}
@@ -795,15 +945,31 @@ const GroupChat = () => {
                                                                                     Edit
                                                                               </button>
                                                                         )}
-                                                                        {(isMine || isAdmin) && (
+                                                                        {isMine && !msg.deletedForEveryone && (
                                                                               <button
-                                                                                    onClick={() => { setActiveMenu(null); handleDelete(msg._id); }}
+                                                                                    onClick={(e) => { e.stopPropagation(); handleDelete(msg._id, 'everyone'); }}
                                                                                     className="chat-msg-menu-item delete"
                                                                               >
                                                                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" /></svg>
-                                                                                    Delete
+                                                                                    Delete for everyone
                                                                               </button>
                                                                         )}
+                                                                        {isAdmin && !isMine && !msg.deletedForEveryone && (
+                                                                              <button
+                                                                                    onClick={(e) => { e.stopPropagation(); handleDelete(msg._id, 'everyone'); }}
+                                                                                    className="chat-msg-menu-item delete"
+                                                                              >
+                                                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" /></svg>
+                                                                                    Delete for everyone
+                                                                              </button>
+                                                                        )}
+                                                                        <button
+                                                                              onClick={(e) => { e.stopPropagation(); handleDelete(msg._id, 'me'); }}
+                                                                              className="chat-msg-menu-item delete"
+                                                                        >
+                                                                              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" /></svg>
+                                                                              Delete for me
+                                                                        </button>
                                                                   </div>
                                                             )}
                                                       </div>
@@ -935,6 +1101,170 @@ const GroupChat = () => {
                                     )}
                               </button>
                         </form>
+                  )}
+
+                  {/* Group Info Modal */}
+                  {showGroupInfo && (
+                        <div className="modal-overlay" onClick={() => setShowGroupInfo(false)} style={{ zIndex: 1000, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+                              <div className="card modal-content" onClick={(e) => e.stopPropagation()} style={{ width: '90%', maxWidth: '400px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+                                    <div className="flex items-center justify-between mb-lg" style={{ paddingBottom: '16px', borderBottom: '1px solid var(--border-color)' }}>
+                                          <h3 className="text-lg font-bold">{groupInfo?.isChannel ? 'Channel Info' : 'Group Info'}</h3>
+                                          <button onClick={() => setShowGroupInfo(false)} className="btn btn-ghost" style={{ padding: '4px 8px' }}>✕</button>
+                                    </div>
+
+                                    <div style={{ padding: '16px 0', textAlign: 'center', borderBottom: '1px solid var(--border-color)' }}>
+                                          <UserAvatar src={groupInfo?.groupAvatar} name={groupInfo?.groupName} size={80} style={{ margin: '0 auto 12px' }} />
+                                          {editingGroupInfo && isAdmin ? (
+                                                <div className="flex items-center justify-center gap-2 mb-2">
+                                                      <input
+                                                            value={editGroupName}
+                                                            onChange={(e) => setEditGroupName(e.target.value)}
+                                                            className="input"
+                                                            style={{ maxWidth: '200px', textAlign: 'center' }}
+                                                      />
+                                                      <button className="btn btn-primary btn-sm" onClick={handleUpdateGroupInfo}>Save</button>
+                                                </div>
+                                          ) : (
+                                                <div className="flex items-center justify-center gap-2 mb-2">
+                                                      <h2 className="text-xl font-bold">{groupInfo?.groupName}</h2>
+                                                      {isAdmin && (
+                                                            <button className="btn btn-ghost btn-icon" onClick={() => { setEditGroupName(groupInfo?.groupName || ''); setEditingGroupInfo(true); }}>✎</button>
+                                                      )}
+                                                </div>
+                                          )}
+                                          <p className="text-muted text-sm">{groupInfo?.participants?.length || 0} participants</p>
+                                    </div>
+
+                                    <div style={{ flex: 1, overflowY: 'auto', padding: '16px 0' }}>
+                                          <div className="flex items-center justify-between mb-sm">
+                                                <h4 className="font-semibold text-muted">Participants</h4>
+                                                {isAdmin && (
+                                                      <button 
+                                                            className="btn btn-secondary btn-sm" 
+                                                            onClick={() => { setShowGroupInfo(false); setShowAddParticipants(true); }}
+                                                      >
+                                                            + Add
+                                                      </button>
+                                                )}
+                                          </div>
+                                          
+                                          <div className="participants-list">
+                                                {groupInfo?.participants?.map(p => (
+                                                      <div key={p._id || p} className="flex items-center justify-between py-2 border-b" style={{ borderColor: 'var(--border-color)' }}>
+                                                            <div className="flex items-center gap-3">
+                                                                  <UserAvatar user={p} size={36} />
+                                                                  <div>
+                                                                        <div className="font-semibold" style={{ fontSize: '0.95rem' }}>{p.displayName || p.username || 'User'}</div>
+                                                                        <div className="text-xs text-muted">
+                                                                              {p._id === groupInfo.groupAdmin ? 'Admin' : 'Member'}
+                                                                        </div>
+                                                                  </div>
+                                                            </div>
+                                                            {isAdmin && p._id !== user?._id && p._id !== groupInfo.groupAdmin && (
+                                                                  <button 
+                                                                        className="btn btn-ghost text-red-500 text-xs" 
+                                                                        onClick={() => handleRemoveParticipant(p._id)}
+                                                                        style={{ padding: '4px 8px' }}
+                                                                  >
+                                                                        Remove
+                                                                  </button>
+                                                            )}
+                                                      </div>
+                                                ))}
+                                          </div>
+                                    </div>
+
+                                    <div className="pt-3" style={{ borderTop: '1px solid var(--border-color)' }}>
+                                          <button 
+                                                className="btn btn-block" 
+                                                onClick={handleLeaveGroup}
+                                                style={{ color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)' }}
+                                          >
+                                                Leave {groupInfo?.isChannel ? 'Channel' : 'Group'}
+                                          </button>
+                                    </div>
+                              </div>
+                        </div>
+                  )}
+
+                  {/* Add Participants Modal */}
+                  {showAddParticipants && (
+                        <div className="modal-overlay" onClick={() => { setShowAddParticipants(false); setShowGroupInfo(true); }} style={{ zIndex: 1000, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+                              <div className="card modal-content" onClick={(e) => e.stopPropagation()} style={{ width: '90%', maxWidth: '400px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+                                    <div className="flex items-center justify-between mb-lg" style={{ paddingBottom: '16px', borderBottom: '1px solid var(--border-color)' }}>
+                                          <h3 className="text-lg font-bold">Add Participants</h3>
+                                          <button onClick={() => { setShowAddParticipants(false); setShowGroupInfo(true); }} className="btn btn-ghost" style={{ padding: '4px 8px' }}>✕</button>
+                                    </div>
+
+                                    <div className="mb-4">
+                                          <input
+                                                type="text"
+                                                className="input"
+                                                placeholder="Search users..."
+                                                value={addSearchQuery}
+                                                onChange={(e) => handleAddParticipantSearch(e.target.value)}
+                                                style={{ width: '100%' }}
+                                                autoFocus
+                                          />
+                                    </div>
+
+                                    <div style={{ flex: 1, overflowY: 'auto', minHeight: '200px' }}>
+                                          {selectedUsers.length > 0 && (
+                                                <div className="mb-3 flex gap-2 flex-wrap pb-3" style={{ borderBottom: '1px solid var(--border-color)' }}>
+                                                      {selectedUsers.map(u => (
+                                                            <div key={u._id} className="chip bg-primary/10 text-primary flex items-center gap-1" style={{ padding: '4px 8px', borderRadius: '16px', fontSize: '0.8rem' }}>
+                                                                  {u.username}
+                                                                  <button onClick={() => setSelectedUsers(prev => prev.filter(user => user._id !== u._id))} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+                                                            </div>
+                                                      ))}
+                                                </div>
+                                          )}
+
+                                          {addSearchResults.map(u => (
+                                                <div 
+                                                      key={u._id} 
+                                                      className="flex items-center justify-between py-2 border-b cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
+                                                      style={{ borderColor: 'var(--border-color)', padding: '8px' }}
+                                                      onClick={() => {
+                                                            if (selectedUsers.some(su => su._id === u._id)) {
+                                                                  setSelectedUsers(prev => prev.filter(su => su._id !== u._id));
+                                                            } else {
+                                                                  setSelectedUsers(prev => [...prev, u]);
+                                                            }
+                                                      }}
+                                                >
+                                                      <div className="flex items-center gap-3">
+                                                            <UserAvatar user={u} size={36} />
+                                                            <div>
+                                                                  <div className="font-semibold">{u.displayName || u.username}</div>
+                                                                  <div className="text-xs text-muted">@{u.username}</div>
+                                                            </div>
+                                                      </div>
+                                                      <div style={{ 
+                                                            width: '20px', height: '20px', borderRadius: '50%', 
+                                                            border: '2px solid var(--color-primary)',
+                                                            background: selectedUsers.some(su => su._id === u._id) ? 'var(--color-primary)' : 'transparent',
+                                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                            color: 'white'
+                                                      }}>
+                                                            {selectedUsers.some(su => su._id === u._id) && '✓'}
+                                                      </div>
+                                                </div>
+                                          ))}
+                                          
+                                          {addSearchQuery && addSearchResults.length === 0 && (
+                                                <div className="text-center text-muted p-4">No users found</div>
+                                          )}
+                                    </div>
+
+                                    <div className="pt-3 flex gap-2" style={{ borderTop: '1px solid var(--border-color)' }}>
+                                          <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => { setShowAddParticipants(false); setShowGroupInfo(true); }}>Cancel</button>
+                                          <button className="btn btn-primary" style={{ flex: 1 }} onClick={confirmAddParticipants} disabled={selectedUsers.length === 0}>
+                                                Add ({selectedUsers.length})
+                                          </button>
+                                    </div>
+                              </div>
+                        </div>
                   )}
 
                   {/* Customize Chat Modal */}

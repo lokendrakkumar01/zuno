@@ -201,7 +201,8 @@ const sendUserEmail = async (req, res) => {
                   message: `Email sent to ${user.email} successfully`
             });
       } catch (error) {
-            res.status(500).json({ success: false, message: 'Failed to send email', error: error.message });
+            console.error('[Admin] sendUserEmail error:', error.message);
+            res.status(500).json({ success: false, message: `Failed to send email: ${error.message || 'Email service error. Check EMAIL_USER/EMAIL_PASS environment variables.'}` });
       }
 };
 
@@ -312,6 +313,16 @@ const moderateContent = async (req, res) => {
                   return res.status(404).json({
                         success: false,
                         message: 'Content not found'
+                  });
+            }
+
+            // If removing, also delete from DB after marking
+            if (updates.status === 'removed') {
+                  await Content.findByIdAndDelete(req.params.id);
+                  return res.json({
+                        success: true,
+                        message: 'Content removed and deleted successfully',
+                        data: { content }
                   });
             }
 
