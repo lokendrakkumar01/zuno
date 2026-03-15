@@ -14,6 +14,7 @@ const StoryViewer = ({ group, onClose }) => {
       const [editBody, setEditBody] = useState('');
       const [isDeleting, setIsDeleting] = useState(false);
       const [showViewers, setShowViewers] = useState(false);
+      const [isPaused, setIsPaused] = useState(false);
       // Local copy of stories to avoid direct prop mutation
       const [localStories, setLocalStories] = useState(() => [...group.stories]);
       const currentStory = localStories[currentIndex];
@@ -37,17 +38,30 @@ const StoryViewer = ({ group, onClose }) => {
 
       useEffect(() => {
             const timer = setInterval(() => {
-                  setProgress(prev => {
-                        if (prev >= 100) {
-                              handleNext();
-                              return 0;
-                        }
-                        return prev + 1; // Basic tick
-                  });
+                  if (!isPaused) {
+                        setProgress(prev => {
+                              if (prev >= 100) {
+                                    handleNext();
+                                    return 0;
+                              }
+                              return prev + 1; // Basic tick
+                        });
+                  }
             }, 50); // 5 sec duration roughly if step is small
 
             return () => clearInterval(timer);
-      }, [currentIndex, localStories.length]);
+      }, [currentIndex, localStories.length, isPaused]);
+
+      // Pause video when story is paused
+      useEffect(() => {
+            if (videoRef.current) {
+                  if (isPaused) {
+                        videoRef.current.pause();
+                  } else {
+                        videoRef.current.play().catch(e => console.error("Video play error:", e));
+                  }
+            }
+      }, [isPaused]);
 
       // Music Handling
       useEffect(() => {
@@ -346,6 +360,11 @@ const StoryViewer = ({ group, onClose }) => {
                                     backgroundColor: isTextStatus ? (currentStory.backgroundColor || 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)') : 'black',
                                     background: isTextStatus ? (currentStory.backgroundColor || 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)') : undefined
                               }}
+                              onMouseDown={() => setIsPaused(true)}
+                              onMouseUp={() => setIsPaused(false)}
+                              onMouseLeave={() => setIsPaused(false)}
+                              onTouchStart={() => setIsPaused(true)}
+                              onTouchEnd={() => setIsPaused(false)}
                         >
                               {isTextStatus ? (() => {
                                     const FONT_STYLES = {
@@ -387,6 +406,7 @@ const StoryViewer = ({ group, onClose }) => {
 
                                           {isVideo ? (
                                                 <video
+                                                      ref={videoRef}
                                                       src={media ? getMediaUrl(media.url) : ''}
                                                       style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                                                       autoPlay

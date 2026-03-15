@@ -113,7 +113,9 @@ const GroupChat = () => {
       // Replies
       const [replyingTo, setReplyingTo] = useState(null);
 
-      const isAdmin = groupInfo?.groupAdmin === user?._id || groupInfo?.groupAdmin?._id === user?._id;
+      const currentUserIdStr = (user?._id || user?.id || '').toString();
+      const adminIdStr = (groupInfo?.groupAdmin?._id || groupInfo?.groupAdmin || '').toString();
+      const isAdmin = Boolean(currentUserIdStr && adminIdStr && currentUserIdStr === adminIdStr);
       const canPost = !groupInfo?.isChannel || isAdmin;
 
       useEffect(() => {
