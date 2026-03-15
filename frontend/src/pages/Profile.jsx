@@ -6,6 +6,7 @@ import ContentCard from '../components/Content/ContentCard';
 import SpotifySearch from '../components/Music/SpotifySearch';
 import { useMusic } from '../context/MusicContext';
 import UserAvatar from '../components/User/UserAvatar';
+import CricketGame from '../components/Games/CricketGame';
 
 const INTERESTS = [
       'learning', 'technology', 'creativity', 'health',
@@ -921,6 +922,7 @@ const Profile = () => {
                                     <button className={`mode-pill ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => setActiveTab('profile')}>👤 Profile</button>
                                     <button className={`mode-pill ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>⚙️ Settings</button>
                                     <button className={`mode-pill ${activeTab === 'stats' ? 'active' : ''}`} onClick={() => setActiveTab('stats')}>📊 Stats</button>
+                                    <button className={`mode-pill ${activeTab === 'games' ? 'active' : ''}`} onClick={() => setActiveTab('games')}>🏏 Games</button>
                               </div>
                         )}
 
@@ -1113,6 +1115,13 @@ const Profile = () => {
                                           <div className="stat-card"><div className="stat-value">{user.stats.helpfulGiven || 0}</div><div className="stat-label">💚 Helpful Given</div></div>
                                     </div>
                                     <div className="card p-md" style={{ background: 'rgba(34, 197, 94, 0.1)', borderColor: 'rgba(34, 197, 94, 0.3)' }}><p className="text-sm" style={{ color: '#22c55e' }}>🔒 Your stats are private and only visible to you</p></div>
+                              </div>
+                        )}
+
+                        {activeTab === 'games' && isOwnProfile && (
+                              <div className="card animate-fadeInUp mb-xl">
+                                    <h3 className="text-lg font-semibold mb-lg text-center">🏆 Zuno Cricket</h3>
+                                    <CricketGame />
                               </div>
                         )}
 

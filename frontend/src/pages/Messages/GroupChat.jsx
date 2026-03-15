@@ -70,7 +70,9 @@ const GroupChat = () => {
       const [selectedUsers, setSelectedUsers] = useState([]);
       const [editingGroupInfo, setEditingGroupInfo] = useState(false);
       const [editGroupName, setEditGroupName] = useState('');
-
+      const [editGroupFile, setEditGroupFile] = useState(null);
+      const [editGroupPreview, setEditGroupPreview] = useState(null);
+      const groupPhotoInputRef = useRef(null);
       const THEMES = [
             { id: 'indigo', color: '#6366f1' },
             { id: 'rose', color: '#f43f5e' },
@@ -366,19 +368,31 @@ const GroupChat = () => {
       };
 
       const handleUpdateGroupInfo = async () => {
-            if (!editGroupName.trim() || editGroupName === groupInfo?.groupName) {
+            if (!editGroupName.trim() && !editGroupFile) {
                   setEditingGroupInfo(false);
                   return;
             }
             try {
+                  const formData = new FormData();
+                  if (editGroupName.trim()) formData.append('groupName', editGroupName);
+                  if (editGroupFile) formData.append('groupAvatar', editGroupFile);
+                  
+                  // if name didn't change and we only have a photo, we still need to send the request
+                  if (editGroupName.trim() === groupInfo?.groupName && !editGroupFile) {
+                        setEditingGroupInfo(false);
+                        return;
+                  }
+
                   const res = await fetch(`${API_URL}/messages/group/${groupId}/info`, {
                         method: 'PUT',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                        body: JSON.stringify({ groupName: editGroupName })
+                        headers: { 'Authorization': `Bearer ${token}` },
+                        body: formData
                   });
                   const data = await res.json();
                   if (data.success) {
                         setEditingGroupInfo(false);
+                        setEditGroupFile(null);
+                        setEditGroupPreview(null);
                         fetchGroupInfo();
                   } else {
                         alert(data.message);
@@ -1126,22 +1140,47 @@ const GroupChat = () => {
                                     </div>
 
                                     <div style={{ padding: '16px 0', textAlign: 'center', borderBottom: '1px solid var(--border-color)' }}>
-                                          <UserAvatar src={groupInfo?.groupAvatar} name={groupInfo?.groupName} size={80} style={{ margin: '0 auto 12px' }} />
-                                          {editingGroupInfo && isAdmin ? (
-                                                <div className="flex items-center justify-center gap-2 mb-2">
+                                          <div style={{ position: 'relative', display: 'inline-block', margin: '0 auto 12px' }}>
+                                                <div 
+                                                      onClick={() => editingGroupInfo ? groupPhotoInputRef.current?.click() : null}
+                                                      style={{ cursor: editingGroupInfo ? 'pointer' : 'default', opacity: editingGroupInfo ? 0.8 : 1 }}
+                                                >
+                                                      <UserAvatar src={editGroupPreview || groupInfo?.groupAvatar} name={groupInfo?.groupName} size={80} />
+                                                </div>
+                                                {editingGroupInfo && (
+                                                      <div style={{ position: 'absolute', bottom: 0, right: 0, background: 'var(--color-primary)', borderRadius: '50%', padding: '4px', cursor: 'pointer' }} onClick={() => groupPhotoInputRef.current?.click()}>
+                                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M4 4h3l2-2h6l2 2h3c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><circle cx="12" cy="12" r="3.2"/></svg>
+                                                      </div>
+                                                )}
+                                                <input 
+                                                      type="file" 
+                                                      ref={groupPhotoInputRef} 
+                                                      style={{ display: 'none' }} 
+                                                      accept="image/*"
+                                                      onChange={(e) => {
+                                                            const file = e.target.files[0];
+                                                            if (file) {
+                                                                  setEditGroupFile(file);
+                                                                  setEditGroupPreview(URL.createObjectURL(file));
+                                                            }
+                                                      }}
+                                                />
+                                          </div>
+                                          {editingGroupInfo ? (
+                                                <div className="flex flex-col items-center justify-center gap-2 mb-2">
                                                       <input
                                                             value={editGroupName}
                                                             onChange={(e) => setEditGroupName(e.target.value)}
                                                             className="input"
                                                             style={{ maxWidth: '200px', textAlign: 'center' }}
                                                       />
-                                                      <button className="btn btn-primary btn-sm" onClick={handleUpdateGroupInfo}>Save</button>
+                                                      <button className="btn btn-primary btn-sm mt-2" onClick={handleUpdateGroupInfo}>Save Changes</button>
                                                 </div>
                                           ) : (
                                                 <div className="flex items-center justify-center gap-2 mb-2">
                                                       <h2 className="text-xl font-bold">{groupInfo?.groupName}</h2>
                                                       {isAdmin && (
-                                                            <button className="btn btn-ghost btn-icon" onClick={() => { setEditGroupName(groupInfo?.groupName || ''); setEditingGroupInfo(true); }}>✎</button>
+                                                            <button className="btn btn-ghost btn-icon" onClick={() => { setEditGroupName(groupInfo?.groupName || ''); setEditGroupPreview(null); setEditGroupFile(null); setEditingGroupInfo(true); }}>✎</button>
                                                       )}
                                                 </div>
                                           )}
@@ -1151,14 +1190,12 @@ const GroupChat = () => {
                                     <div style={{ flex: 1, overflowY: 'auto', padding: '16px 0' }}>
                                           <div className="flex items-center justify-between mb-sm">
                                                 <h4 className="font-semibold text-muted">Participants</h4>
-                                                {isAdmin && (
-                                                      <button 
-                                                            className="btn btn-secondary btn-sm" 
-                                                            onClick={() => { setShowGroupInfo(false); setShowAddParticipants(true); }}
-                                                      >
-                                                            + Add
-                                                      </button>
-                                                )}
+                                                <button 
+                                                      className="btn btn-secondary btn-sm" 
+                                                      onClick={() => { setShowGroupInfo(false); setShowAddParticipants(true); }}
+                                                >
+                                                      + Add
+                                                </button>
                                           </div>
                                           
                                           <div className="participants-list">
