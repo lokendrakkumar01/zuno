@@ -107,8 +107,8 @@ const CricketGame = () => {
         setActionColor('#fbbf24');
         playSoundEffect('bowl');
         
-        // Randomize speed slightly. Faster speed = harder to hit.
-        speedRef.current = 2.5 + Math.random() * 3.5; 
+        // Randomize speed slightly. Make it playable (around 1 to 2.5 units per frame)
+        speedRef.current = 1.2 + Math.random() * 1.8; 
 
         const animateBall = () => {
             setBallPos(prev => {
@@ -128,22 +128,23 @@ const CricketGame = () => {
         if (!isBowling) return;
         
         setBatSwing(true);
-        setTimeout(() => setBatSwing(false), 200);
+        setTimeout(() => setBatSwing(false), 300);
 
         cancelAnimationFrame(animationRef.current);
         
         // Calculate timing
-        // Ideal hit zone is between 75 and 90
         let outcome;
-        if (ballPos >= 75 && ballPos <= 90) {
-            // Perfect timing (4 or 6)
+        // Perfect timing (4 or 6) - 70 to 90
+        if (ballPos >= 70 && ballPos <= 90) {
             outcome = Math.random() > 0.4 ? OUTCOMES[5] : OUTCOMES[4];
             triggerCameraShake();
-        } else if ((ballPos >= 60 && ballPos < 75) || (ballPos > 90 && ballPos <= 100)) {
-            // Good timing (1, 2)
+        } 
+        // Good timing (1, 2) - 50 to 70 or 90 to 110
+        else if ((ballPos >= 50 && ballPos < 70) || (ballPos > 90 && ballPos <= 110)) {
             outcome = Math.random() > 0.5 ? OUTCOMES[2] : OUTCOMES[3];
-        } else {
-            // Bad timing (Out or 0)
+        } 
+        // Bad timing (Out or 0)
+        else {
             outcome = (Math.random() > 0.4) ? OUTCOMES[0] : OUTCOMES[1]; 
             if (outcome.type === 'OUT') triggerCameraShake();
         }
@@ -331,13 +332,13 @@ const CricketGame = () => {
 
             <div className="cricket-controls">
                 {gameState === 'playing' && !isBowling && (
-                    <button className="cricket-btn bowl-btn w-full" onClick={bowlBall}>
+                    <button className="cricket-btn bowl-btn w-full" onPointerDown={bowlBall}>
                         💨 BOWL NEXT BALL
                     </button>
                 )}
                 
                 {gameState === 'playing' && isBowling && (
-                    <button className="cricket-btn hit-btn w-full" onClick={handleHit}>
+                    <button className="cricket-btn hit-btn w-full" onPointerDown={handleHit}>
                         💥 SMASH IT!
                     </button>
                 )}
