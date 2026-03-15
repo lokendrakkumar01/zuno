@@ -202,12 +202,25 @@ const GroupChat = () => {
                   });
             };
 
+            const handleGroupMessageDeletedForEveryone = (data) => {
+                  if (data.conversationId && data.conversationId.toString() !== groupId) return;
+                  setMessages(prev =>
+                        prev.map(m =>
+                              m._id?.toString() === data.messageId?.toString()
+                                    ? { ...m, deletedForEveryone: true, text: '', media: null }
+                                    : m
+                        )
+                  );
+            };
+
             socket.on("newGroupMessage", handleNewGroupMessage);
             socket.on("messageReaction", handleMessageReaction);
+            socket.on("messageDeletedForEveryone", handleGroupMessageDeletedForEveryone);
 
             return () => {
                   socket.off("newGroupMessage", handleNewGroupMessage);
                   socket.off("messageReaction", handleMessageReaction);
+                  socket.off("messageDeletedForEveryone", handleGroupMessageDeletedForEveryone);
             };
       }, [socket, groupId, token, user]);
 

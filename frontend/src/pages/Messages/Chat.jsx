@@ -52,6 +52,10 @@ const Chat = () => {
       const [editingId, setEditingId] = useState(null);
       const [editText, setEditText] = useState('');
 
+      // Multi-select for bulk delete
+      const [selectMode, setSelectMode] = useState(false);
+      const [selectedMsgs, setSelectedMsgs] = useState(new Set());
+
       // Emoji picker
       const [showEmoji, setShowEmoji] = useState(false);
 
@@ -285,11 +289,25 @@ const Chat = () => {
                   });
             };
 
+            // Real-time delete for everyone (receiver side)
+            const handleMessageDeletedForEveryone = (data) => {
+                  setMessages(prev => {
+                        const updated = prev.map(m =>
+                              m._id?.toString() === data.messageId?.toString()
+                                    ? { ...m, deletedForEveryone: true, text: '', media: null }
+                                    : m
+                        );
+                        try { localStorage.setItem(`zuno_chat_cache_${userId}`, JSON.stringify(updated.slice(-100))); } catch (e) { }
+                        return updated;
+                  });
+            };
+
             socket.on("newMessage", handleNewMessage);
             socket.on("typing", handleTyping);
             socket.on("stopTyping", handleStopTyping);
             socket.on("messageRead", handleMessageRead);
             socket.on("messageReaction", handleMessageReaction);
+            socket.on("messageDeletedForEveryone", handleMessageDeletedForEveryone);
 
             return () => {
                   socket.off("newMessage", handleNewMessage);
@@ -297,6 +315,7 @@ const Chat = () => {
                   socket.off("stopTyping", handleStopTyping);
                   socket.off("messageRead", handleMessageRead);
                   socket.off("messageReaction", handleMessageReaction);
+                  socket.off("messageDeletedForEveryone", handleMessageDeletedForEveryone);
             };
       }, [socket, userId, token, user]);
 
@@ -563,7 +582,6 @@ const Chat = () => {
                   });
                   const data = await res.json();
                   if (!data.success) {
-                        // Re-fetch if it failed
                         console.error('Failed to delete:', data.message);
                         fetchMessages(); 
                   }
@@ -571,6 +589,44 @@ const Chat = () => {
                   console.error('Failed to delete message:', err);
                   fetchMessages();
             }
+      };
+
+      // Multi-select helpers
+      const toggleSelectMsg = (msgId) => {
+            setSelectedMsgs(prev => {
+                  const next = new Set(prev);
+                  if (next.has(msgId)) next.delete(msgId);
+                  else next.add(msgId);
+                  return next;
+            });
+      };
+
+      const handleBulkDelete = async (type = 'me') => {
+            if (selectedMsgs.size === 0) return;
+            if (!window.confirm(`Delete ${selectedMsgs.size} message(s) for ${type === 'everyone' ? 'everyone' : 'me'}?`)) return;
+
+            const ids = Array.from(selectedMsgs);
+
+            // Optimistic UI
+            setMessages(prev => {
+                  if (type === 'everyone') {
+                        return prev.map(m => ids.includes(m._id) ? { ...m, deletedForEveryone: true, text: '', media: null } : m);
+                  } else {
+                        return prev.filter(m => !ids.includes(m._id));
+                  }
+            });
+            setSelectMode(false);
+            setSelectedMsgs(new Set());
+
+            // Fire all deletes in parallel
+            await Promise.allSettled(
+                  ids.map(id =>
+                        fetch(`${API_URL}/messages/delete/${id}?type=${type}`, {
+                              method: 'DELETE',
+                              headers: { 'Authorization': `Bearer ${token}` }
+                        })
+                  )
+            );
       };
 
       const handleReact = async (messageId, emoji) => {
@@ -806,6 +862,12 @@ const Chat = () => {
                                                       🎨 Customize Chat
                                                 </button>
                                                 <button
+                                                      onClick={() => { setActiveMenu(null); setSelectMode(true); setSelectedMsgs(new Set()); }}
+                                                      className="chat-msg-menu-item"
+                                                >
+                                                      ☑️ Select Messages
+                                                </button>
+                                                <button
                                                       onClick={() => { setActiveMenu(null); handleClearChat(); }}
                                                       className="chat-msg-menu-item delete"
                                                 >
@@ -869,7 +931,23 @@ const Chat = () => {
                                                             <span>{formatDateSeparator(msg.createdAt)}</span>
                                                       </div>
                                                 )}
-                                                <div className={`chat-bubble-wrapper ${isMine ? 'sent' : 'received'}`} style={{ marginBottom: (msg.reactions && msg.reactions.length > 0) ? '18px' : '2px' }}>
+                                                 <div
+                                                       className={`chat-bubble-wrapper ${isMine ? 'sent' : 'received'}`}
+                                                       style={{ marginBottom: (msg.reactions && msg.reactions.length > 0) ? '18px' : '2px', position: 'relative' }}
+                                                       onClick={selectMode ? () => toggleSelectMsg(msg._id) : undefined}
+                                                 >
+                                                       {/* Checkbox in select mode */}
+                                                       {selectMode && (
+                                                             <div style={{ position: 'absolute', left: isMine ? 'auto' : '-28px', right: isMine ? '-28px' : 'auto', top: '50%', transform: 'translateY(-50%)', zIndex: 10 }}>
+                                                                   <input
+                                                                         type="checkbox"
+                                                                         checked={selectedMsgs.has(msg._id)}
+                                                                         onChange={() => toggleSelectMsg(msg._id)}
+                                                                         onClick={e => e.stopPropagation()}
+                                                                         style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#6366f1' }}
+                                                                   />
+                                                             </div>
+                                                       )}
                                                       <div
                                                             className={`chat-bubble ${isMine ? 'sent' : 'received'}`}
                                                             style={{
@@ -1044,6 +1122,35 @@ const Chat = () => {
                         )}
                         <div ref={messagesEndRef} />
                   </div>
+
+                  {/* Bulk Delete Toolbar */}
+                  {selectMode && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 16px', background: 'var(--bg-secondary)', borderTop: '1px solid var(--border-color)', zIndex: 20 }}>
+                              <span style={{ flex: 1, fontSize: '0.9rem', fontWeight: 600 }}>
+                                    {selectedMsgs.size} selected
+                              </span>
+                              <button
+                                    onClick={() => handleBulkDelete('me')}
+                                    disabled={selectedMsgs.size === 0}
+                                    style={{ padding: '7px 14px', borderRadius: '10px', border: 'none', background: 'rgba(239,68,68,0.15)', color: '#ef4444', fontWeight: 600, cursor: 'pointer', fontSize: '0.82rem' }}
+                              >
+                                    🗑️ Delete for me
+                              </button>
+                              <button
+                                    onClick={() => handleBulkDelete('everyone')}
+                                    disabled={selectedMsgs.size === 0}
+                                    style={{ padding: '7px 14px', borderRadius: '10px', border: 'none', background: 'rgba(239,68,68,0.25)', color: '#ef4444', fontWeight: 600, cursor: 'pointer', fontSize: '0.82rem' }}
+                              >
+                                    🚫 Delete for everyone
+                              </button>
+                              <button
+                                    onClick={() => { setSelectMode(false); setSelectedMsgs(new Set()); }}
+                                    style={{ padding: '7px 14px', borderRadius: '10px', border: 'none', background: 'rgba(255,255,255,0.07)', color: 'var(--text-secondary)', fontWeight: 600, cursor: 'pointer', fontSize: '0.82rem' }}
+                              >
+                                    Cancel
+                              </button>
+                        </div>
+                  )}
 
                   {/* Media Preview */}
                   {mediaPreview && (
