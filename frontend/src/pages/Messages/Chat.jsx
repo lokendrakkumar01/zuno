@@ -215,20 +215,29 @@ const Chat = () => {
 
                   // For our OWN message echo from server
                   if (isMyEcho) {
-                        if (sentMsgIds.current.has(newMessage._id?.toString())) return;
+                        const clientMsgId = newMessage.clientMsgId;
+                        const realMsgId = newMessage._id?.toString();
 
-                        // Identify the original optimistic message if clientMsgId was sent back
-                        if (newMessage.clientMsgId) {
-                              setMessages(prev => {
-                                    const alreadyHasReal = prev.some(m => m._id?.toString() === newMessage._id?.toString());
-                                    if (alreadyHasReal) return prev;
+                        if (sentMsgIds.current.has(realMsgId)) return;
 
-                                    // Tracking the real message ID so HTTP handler ignores it
-                                    sentMsgIds.current.add(newMessage._id?.toString());
-                                    return prev.map(m => m._id === newMessage.clientMsgId ? newMessage : m);
-                              });
-                              return;
-                        }
+                        setMessages(prev => {
+                              // If we have a temporary message with this clientMsgId, replace it
+                              const tempIdx = prev.findIndex(m => m._id === clientMsgId);
+                              if (tempIdx > -1) {
+                                    const updated = [...prev];
+                                    updated[tempIdx] = newMessage;
+                                    sentMsgIds.current.add(realMsgId);
+                                    return updated;
+                              }
+                              
+                              // If the real message is already there (HTTP won), just return
+                              if (prev.some(m => m._id?.toString() === realMsgId)) return prev;
+
+                              // Otherwise, just append (unlikely if user is sender, but safe)
+                              sentMsgIds.current.add(realMsgId);
+                              return [...prev, newMessage];
+                        });
+                        return;
                   }
 
                   setMessages((prev) => {
@@ -509,20 +518,23 @@ const Chat = () => {
                               let updated;
 
                               if (alreadyHasReal) {
-                                    // Socket came first! The real message is already added. Just remove the temp optimistic one.
                                     updated = prev.filter(m => m._id !== tempId);
                               } else {
-                                    // HTTP came first. Replace temp with real.
                                     updated = prev.map(m => m._id === tempId ? data.data.message : m);
                               }
 
-                              setTimeout(() => {
-                                    try {
-                                          localStorage.setItem(`zuno_chat_cache_${userId}`, JSON.stringify(updated.slice(-100)));
-                                    } catch (e) { }
-                              }, 0);
+                              // Use requestIdleCallback or setTimeout for non-blocking storage
+                              if (window.requestIdleCallback) {
+                                    window.requestIdleCallback(() => {
+                                          try { localStorage.setItem(`zuno_chat_cache_${userId}`, JSON.stringify(updated.slice(-100))); } catch (e) {}
+                                    });
+                              } else {
+                                    setTimeout(() => {
+                                          try { localStorage.setItem(`zuno_chat_cache_${userId}`, JSON.stringify(updated.slice(-100))); } catch (e) {}
+                                    }, 0);
+                              }
 
-                              return updated; // <--- CRITICAL FIX: actually return the new state array!
+                              return updated;
                         });
                   } else {
                         // Remove failed message

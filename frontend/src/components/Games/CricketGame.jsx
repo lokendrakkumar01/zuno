@@ -41,8 +41,10 @@ const CricketGame = () => {
     const outSoundRef = useRef(null);
     const bowlSoundRef = useRef(null);
 
-    useEffect(() => {
-        // Initialize sounds using free mixkit/freesound assets as placeholders
+    const initAudio = () => {
+        if (bgmRef.current) return; // Already initialized
+
+        // Initialize sounds using free mixkit/freesound assets
         bgmRef.current = new Audio('https://assets.mixkit.co/music/preview/mixkit-game-level-music-689.mp3');
         bgmRef.current.loop = true;
         bgmRef.current.volume = 0.2;
@@ -52,7 +54,14 @@ const CricketGame = () => {
         
         outSoundRef.current = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-losing-bleeps-2026.mp3');
         bowlSoundRef.current = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-fast-whoosh-118.mp3');
+        
+        // Unlock audio context for mobile browsers
+        bgmRef.current.play().then(() => {
+            bgmRef.current.pause();
+        }).catch(e => console.log('Audio unlock failed', e));
+    };
 
+    useEffect(() => {
         return () => {
             if (animationRef.current) cancelAnimationFrame(animationRef.current);
             bgmRef.current?.pause();
@@ -195,10 +204,10 @@ const CricketGame = () => {
                     <p>Build your dream team and smash some boundaries!</p>
                 </div>
                 <div className="cricket-game-actions">
-                    <button className="cricket-btn primary btn-pulse" onClick={() => setGameState('team-builder')}>
+                    <button className="cricket-btn primary btn-pulse" onClick={() => { initAudio(); setGameState('team-builder'); }}>
                         Manage Team
                     </button>
-                    <button className="cricket-btn secondary" onClick={startGame}>
+                    <button className="cricket-btn secondary" onClick={() => { initAudio(); startGame(); }}>
                         Quick Play
                     </button>
                 </div>

@@ -36,6 +36,18 @@ const StoryViewer = ({ group, onClose }) => {
             }
       }, [currentIndex, currentStory?._id, isAuthenticated, isOwner, token]);
 
+      // Preload next story
+      useEffect(() => {
+            if (currentIndex < localStories.length - 1) {
+                  const nextStory = localStories[currentIndex + 1];
+                  const nextMedia = nextStory?.media && nextStory.media.length > 0 ? nextStory.media[0] : null;
+                  if (nextMedia && nextMedia.type !== 'video') {
+                        const img = new Image();
+                        img.src = getMediaUrl(nextMedia.url);
+                  }
+            }
+      }, [currentIndex, localStories]);
+
       useEffect(() => {
             const timer = setInterval(() => {
                   if (!isPaused) {

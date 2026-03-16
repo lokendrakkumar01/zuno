@@ -60,17 +60,12 @@ const Home = () => {
       const [stats, setStats] = useState({ users: '1K+', content: '500+', helpful: '10K+' });
 
       const fetchFeed = async (currentMode, currentPage, append = false, currentTopic = topicParam) => {
-            // STALE-WHILE-REVALIDATE:
-            // 1. Immediately show cached data (no loading shown)
-            // 2. Fetch fresh data silently in background
-            // 3. Swap content smoothly when fresh data arrives
-
-            let hasCachedContent = false; // track locally to avoid stale closure
+            let hasCachedContent = false;
 
             if (currentPage === 1 && !append) {
-                  // Load from cache instantly
                   try {
-                        const cached = localStorage.getItem(`zuno_feedCache_${currentMode}`);
+                        const cacheKey = currentTopic ? `zuno_feedCache_${currentMode}_${currentTopic}` : `zuno_feedCache_${currentMode}`;
+                        const cached = localStorage.getItem(cacheKey);
                         if (cached) {
                               const parsedCache = JSON.parse(cached);
                               if (parsedCache.length > 0) {
@@ -79,54 +74,59 @@ const Home = () => {
                               }
                         }
                   } catch { }
-                  setSilentRefreshing(true); // tiny indicator, not a blocker
+                  setSilentRefreshing(true);
             } else {
-                  hasCachedContent = true; // on page > 1 we always have content already
+                  hasCachedContent = contents.length > 0;
             }
 
-            // Timeout: 45 seconds to allow Render's slow cold start
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 45000);
+            const timeoutId = setTimeout(() => controller.abort(), 15000); // Shorter timeout for better UX
 
             try {
                   const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
                   const url = new URL(`${API_URL}/feed`);
                   url.searchParams.append('mode', currentMode);
                   url.searchParams.append('page', currentPage);
-                  url.searchParams.append('limit', 10);
+                  url.searchParams.append('limit', 12); // Slightly more content per page
                   if (currentTopic) url.searchParams.append('topic', currentTopic);
 
                   const res = await fetch(url.toString(), {
                         headers,
                         signal: controller.signal
                   });
-                  clearTimeout(timeoutId);
+                  
+                  if (!res.ok) throw new Error('Refresh failed');
+                  
                   const data = await res.json();
 
                   if (data.success) {
+                        clearTimeout(timeoutId);
+                        const newContents = data.data.contents;
+                        
                         if (append) {
-                              setContents(prev => [...prev, ...data.data.contents]);
+                              setContents(prev => {
+                                    // Prevent duplicates
+                                    const existingIds = new Set(prev.map(c => c._id));
+                                    const uniqueNew = newContents.filter(c => !existingIds.has(c._id));
+                                    return [...prev, ...uniqueNew];
+                              });
                         } else {
-                              setContents(data.data.contents);
+                              setContents(newContents);
                               try {
-                                    localStorage.setItem(`zuno_feedCache_${currentMode}`, JSON.stringify(data.data.contents));
+                                    const cacheKey = currentTopic ? `zuno_feedCache_${currentMode}_${currentTopic}` : `zuno_feedCache_${currentMode}`;
+                                    localStorage.setItem(cacheKey, JSON.stringify(newContents));
                               } catch (e) { }
                         }
                         setHasMore(data.data.pagination.hasMore);
-                        setError(null); // clear any old error
-                  } else if (!hasCachedContent) {
-                        setError('Failed to load feed.');
+                        setError(null);
+                  } else {
+                        throw new Error(data.message || 'Failed to load');
                   }
             } catch (err) {
                   clearTimeout(timeoutId);
-                  console.error('Feed fetch failed (silent):', err);
-                  // Only show error to user if we have NO cached content at all
+                  console.error('Feed fetch failed:', err);
                   if (!hasCachedContent) {
-                        if (err.name === 'AbortError') {
-                              setError('Server is waking up. Please refresh the page.');
-                        } else {
-                              setError('Connection error. Could not load feed.');
-                        }
+                        setError(err.name === 'AbortError' ? 'Server taking too long. Please try again.' : 'Network error. Check your connection.');
                   }
             } finally {
                   setSilentRefreshing(false);

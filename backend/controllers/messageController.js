@@ -12,6 +12,7 @@ const getConversations = async (req, res) => {
             })
                   .populate('participants', 'username displayName avatar')
                   .populate('lastMessage.sender', 'username displayName')
+                  .select('participants lastMessage unreadCount isGroup isChannel groupName groupAvatar groupAdmin updatedAt')
                   .sort({ updatedAt: -1 })
                   .limit(50)
                   .lean();
@@ -83,6 +84,8 @@ const getMessages = async (req, res) => {
                   .limit(parseInt(limit))
                   .populate('sender', 'username displayName avatar avatarColor isOnline offlineStatus')
                   .populate('receiver', 'username displayName avatar avatarColor')
+                  .select('sender receiver text media replyTo reactions read createdAt edited deletedForEveryone deletedBy')
+                  .lean()
                   .populate({
                         path: 'replyTo',
                         populate: { path: 'sender', select: 'username displayName' }

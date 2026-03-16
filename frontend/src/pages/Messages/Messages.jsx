@@ -22,6 +22,7 @@ const Messages = () => {
       const [searchQuery, setSearchQuery] = useState('');
       const [searchResults, setSearchResults] = useState([]);
       const [searching, setSearching] = useState(false);
+      const [silentRefreshing, setSilentRefreshing] = useState(false);
       
       const [showCreateGroup, setShowCreateGroup] = useState(false);
       const [newGroupName, setNewGroupName] = useState('');
@@ -76,7 +77,10 @@ const Messages = () => {
       }, [socket, user?._id]);
 
       const fetchConversations = async () => {
-            if (conversations.length === 0) setLoading(true);
+            let hasCached = conversations.length > 0;
+            if (!hasCached) setLoading(true);
+            else setSilentRefreshing(true);
+
             try {
                   const res = await fetch(`${API_URL}/messages/conversations`, {
                         headers: { 'Authorization': `Bearer ${token}` }
@@ -90,8 +94,10 @@ const Messages = () => {
                   }
             } catch (err) {
                   console.error('Failed to fetch conversations:', err);
+            } finally {
+                  setLoading(false);
+                  setSilentRefreshing(false);
             }
-            setLoading(false);
       };
 
       const fetchNotes = async () => {

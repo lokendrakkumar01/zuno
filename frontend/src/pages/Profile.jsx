@@ -161,7 +161,7 @@ const Profile = () => {
       const fetchUserPosts = async (uname) => {
             setPostsError('');
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 45000);
+            const timeoutId = setTimeout(() => controller.abort(), 15000);
 
             try {
                   const headers = token ? { 'Authorization': `Bearer ${token}` } : {};

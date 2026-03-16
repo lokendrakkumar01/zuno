@@ -56,23 +56,19 @@ const getFeed = async (req, res) => {
 
             // If user is logged in, personalized filtering (including blocks)
             if (req.user) {
-                  const currentUser = await User.findById(req.user.id).select('blockedUsers');
+                  const currentUser = await User.findById(req.user.id).select('blockedUsers').lean();
                   if (currentUser) {
-                        // Exclude users blocked by current user
-                        if (currentUser.blockedUsers && currentUser.blockedUsers.length > 0) {
-                              query.creator = { ...query.creator, $nin: currentUser.blockedUsers };
-                        }
-
-                        // Exclude users who have blocked the current user
-                        // Note: This requires a query for users who have this user in their blockedUsers
-                        const whoBlockedMe = await User.find({ blockedUsers: req.user.id }).select('_id');
+                        const blockedByMe = currentUser.blockedUsers || [];
+                        
+                        // Optimized approach: Combine both directions of blocks into one $nin query
+                        // This prevents showing content from people I blocked AND people who blocked me
+                        const whoBlockedMe = await User.find({ blockedUsers: req.user.id }).select('_id').lean();
                         const blockedMeIds = whoBlockedMe.map(u => u._id);
-                        if (blockedMeIds.length > 0) {
-                              if (query.creator && query.creator.$nin) {
-                                    query.creator.$nin = [...query.creator.$nin, ...blockedMeIds];
-                              } else {
-                                    query.creator = { ...query.creator, $nin: blockedMeIds };
-                              }
+                        
+                        const allBlockedIds = [...new Set([...blockedByMe, ...blockedMeIds])];
+                        
+                        if (allBlockedIds.length > 0) {
+                              query.creator = { $nin: allBlockedIds };
                         }
                   }
             }
@@ -227,6 +223,7 @@ const getCreatorFeed = async (req, res) => {
 
             const contents = await Content.find(query)
                   .populate('creator', 'username displayName avatar role')
+                  .select('creator contentType title body media purpose topics qualityScore createdAt expiresAt silentMode metrics')
                   .sort({ createdAt: -1 })
                   .skip((page - 1) * limit)
                   .limit(parseInt(limit))

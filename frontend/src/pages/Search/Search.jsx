@@ -12,16 +12,28 @@ const Search = () => {
       const [contents, setContents] = useState([]);
       const [loading, setLoading] = useState(false);
       const [hasSearched, setHasSearched] = useState(false);
+      const [cache, setCache] = useState({});
 
       const handleSearch = async (e) => {
             e?.preventDefault();
             if (!searchQuery.trim()) return;
 
+            const cacheKey = `${searchType}:${searchQuery.trim().toLowerCase()}`;
+            if (cache[cacheKey]) {
+                  setUsers(cache[cacheKey].users);
+                  setContents(cache[cacheKey].contents);
+                  setHasSearched(true);
+                  return;
+            }
+
             setLoading(true);
             setHasSearched(true);
+            // ... rest of the logic
 
             try {
                   const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+                  let resultUsers = [];
+                  let resultContents = [];
 
                   // Search for users
                   if (searchType === 'all' || searchType === 'users') {
@@ -32,16 +44,11 @@ const Search = () => {
                               );
                               const userData = await userRes.json();
                               if (userData.success) {
-                                    setUsers(userData.data.users || []);
-                              } else {
-                                    setUsers([]);
+                                    resultUsers = userData.data.users || [];
                               }
                         } catch (error) {
                               console.error('User search failed:', error);
-                              setUsers([]);
                         }
-                  } else {
-                        setUsers([]);
                   }
 
                   // Search for content
@@ -53,17 +60,21 @@ const Search = () => {
                               );
                               const contentData = await contentRes.json();
                               if (contentData.success) {
-                                    setContents(contentData.data.contents || []);
-                              } else {
-                                    setContents([]);
+                                    resultContents = contentData.data.contents || [];
                               }
                         } catch (error) {
                               console.error('Content search failed:', error);
-                              setContents([]);
                         }
-                  } else {
-                        setContents([]);
                   }
+
+                  setUsers(resultUsers);
+                  setContents(resultContents);
+                  
+                  const cacheKey = `${searchType}:${searchQuery.trim().toLowerCase()}`;
+                  setCache(prev => ({
+                        ...prev,
+                        [cacheKey]: { users: resultUsers, contents: resultContents }
+                  }));
 
             } catch (error) {
                   console.error('Search failed:', error);
@@ -81,7 +92,7 @@ const Search = () => {
                         setUsers([]);
                         setHasSearched(false);
                   }
-            }, 500);
+            }, 300); // Faster debounce
             return () => clearTimeout(timer);
       }, [searchQuery, searchType]);
 
