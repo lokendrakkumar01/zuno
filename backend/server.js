@@ -22,6 +22,8 @@ const { app, server } = require('./socket/socket');
 // connectDB();
 
 // Middleware
+const compression = require('compression');
+app.use(compression()); // Gzip compress all responses for faster transfer
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));

@@ -585,21 +585,12 @@ const ContentCard = ({ content, onDelete, autoOpenFullscreen = false, onCloseFul
                                                       alt={content.title || 'Content image'}
                                                       loading="lazy"
                                                       onLoad={() => {
-                                                            console.log('Image loaded successfully:', mediaUrl);
                                                             setImageLoaded(true);
                                                             setImageError(false);
                                                       }}
                                                       onError={(e) => {
-                                                            console.error('Image failed to load:', {
-                                                                  url: mediaUrl,
-                                                                  constructedUrl: getMediaUrl(mediaUrl),
-                                                                  error: e,
-                                                                  retryCount: imageRetryCount
-                                                            });
-
                                                             // Try to retry once
                                                             if (imageRetryCount < 1) {
-                                                                  console.log('Retrying image load...');
                                                                   setImageRetryCount(imageRetryCount + 1);
                                                                   // Force reload by changing src slightly
                                                                   e.target.src = getMediaUrl(mediaUrl) + '?retry=' + Date.now();
@@ -1433,5 +1424,6 @@ const ContentCard = ({ content, onDelete, autoOpenFullscreen = false, onCloseFul
             </article>
       );
 };
+import { memo } from 'react';
 
-export default ContentCard;
+export default memo(ContentCard);

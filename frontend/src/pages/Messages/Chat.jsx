@@ -1192,20 +1192,6 @@ const Chat = () => {
                         </div>
                   )}
 
-                  {/* Reply Preview */}
-                  {replyingTo && (
-                        <div className="chat-reply-preview" style={{ padding: '8px 16px', background: 'var(--bg-secondary)', borderLeft: '4px solid var(--color-primary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <div className="chat-reply-preview-inner" style={{ overflow: 'hidden' }}>
-                                    <div style={{ fontWeight: 'bold', fontSize: '0.85rem', color: 'var(--color-primary)' }}>
-                                          Replying to {replyingTo.sender?.displayName || replyingTo.sender?.username || 'User'}
-                                    </div>
-                                    <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                          {replyingTo.text || 'Media'}
-                                    </div>
-                              </div>
-                              <button onClick={() => setReplyingTo(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
-                        </div>
-                  )}
 
                   {/* Message Input Area */}
                   {blockedInfo.iBlocked ? (

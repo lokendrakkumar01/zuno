@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useSocketContext } from '../../context/SocketContext';
@@ -39,6 +39,24 @@ const Messages = () => {
 
       const { socket } = useSocketContext();
 
+      // Debounced refetch — prevents excessive API calls on rapid socket events
+      const refetchTimerRef = useRef(null);
+      const debouncedRefetch = useCallback(() => {
+            if (refetchTimerRef.current) return; // Already scheduled
+            refetchTimerRef.current = setTimeout(() => {
+                  refetchTimerRef.current = null;
+                  fetchConversations();
+            }, 2000); // Max once every 2 seconds
+      }, [token, user?._id]);
+
+      // Cleanup timer on unmount
+      useEffect(() => {
+            return () => {
+                  if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current);
+            };
+      }, []);
+
+      // Initial data fetch
       useEffect(() => {
             if (isAuthenticated) {
                   fetchConversations();
@@ -55,16 +73,33 @@ const Messages = () => {
       // Socket listener for real-time updates
       useEffect(() => {
             if (socket) {
-                  // On new message: optimistically update conversation list without full API refetch
+                  // On new message: debounced refetch to avoid excessive API calls
                   const handleNewMessage = (newMsg) => {
-                        fetchConversations(); // Just refetch to keep it simple and accurate
+                        // Optimistic: move conversation to top immediately
+                        setConversations(prev => {
+                              const updated = [...prev];
+                              const idx = updated.findIndex(c => {
+                                    const senderId = newMsg.sender?._id || newMsg.sender;
+                                    const receiverId = newMsg.receiver?._id || newMsg.receiver;
+                                    return c.user?._id === senderId || c.user?._id === receiverId;
+                              });
+                              if (idx > 0) {
+                                    const [conv] = updated.splice(idx, 1);
+                                    conv.lastMessage = newMsg;
+                                    if (conv.user?._id !== user?._id) {
+                                          conv.unreadCount = (conv.unreadCount || 0) + 1;
+                                    }
+                                    updated.unshift(conv);
+                              }
+                              return updated;
+                        });
+                        // Still refetch in background to stay accurate (debounced)
+                        debouncedRefetch();
                   };
                   
-                  const handleNewGroupMessage = (msgData) => {
-                        fetchConversations();
-                  };
+                  const handleNewGroupMessage = () => debouncedRefetch();
+                  const handleRead = () => debouncedRefetch();
 
-                  const handleRead = () => fetchConversations();
                   socket.on('newMessage', handleNewMessage);
                   socket.on('newGroupMessage', handleNewGroupMessage);
                   socket.on('messageRead', handleRead);
@@ -74,7 +109,7 @@ const Messages = () => {
                         socket.off('messageRead', handleRead);
                   };
             }
-      }, [socket, user?._id]);
+      }, [socket, user?._id, debouncedRefetch]);
 
       const fetchConversations = async () => {
             let hasCached = conversations.length > 0;

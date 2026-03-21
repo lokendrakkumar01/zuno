@@ -216,7 +216,7 @@ const getCreatorFeed = async (req, res) => {
             };
 
             // Only show public/published content if viewer is NOT the creator
-            if (!req.user || req.user._id.toString() !== creator._id.toString()) {
+            if (!req.user || req.user._id?.toString() !== creator._id.toString()) {
                   query.visibility = 'public';
                   query.status = 'published';
             }
@@ -365,18 +365,21 @@ const getActiveStories = async (req, res) => {
                   groupedStories[creatorId].stories.push(story);
             }
 
-            // After grouping, if req.user exists, populate viewedBy for their own stories
+            // After grouping, if req.user exists, batch-populate viewedBy for their own stories
             if (req.user) {
                   for (const group of Object.values(groupedStories)) {
                         if (group.creator._id.toString() === req.user.id) {
-                              // Populate viewedBy for these stories
-                              for (let i = 0; i < group.stories.length; i++) {
-                                    const storyId = group.stories[i]._id;
-                                    const fullStory = await Content.findById(storyId)
+                              // Batch fetch all own stories with viewedBy populated in ONE query
+                              const ownStoryIds = group.stories.map(s => s._id);
+                              if (ownStoryIds.length > 0) {
+                                    const populatedStories = await Content.find({ _id: { $in: ownStoryIds } })
                                           .populate('metrics.viewedBy', 'username displayName avatar')
                                           .lean();
-                                    if (fullStory) {
-                                          group.stories[i] = fullStory;
+                                    // Replace stories with populated versions
+                                    const populatedMap = new Map(populatedStories.map(s => [s._id.toString(), s]));
+                                    for (let i = 0; i < group.stories.length; i++) {
+                                          const populated = populatedMap.get(group.stories[i]._id.toString());
+                                          if (populated) group.stories[i] = populated;
                                     }
                               }
                         }

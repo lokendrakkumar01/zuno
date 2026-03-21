@@ -35,6 +35,7 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import GlobalNotification from './components/GlobalNotification';
 import CallOverlay from './components/CallOverlay';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Main App Router Component (inside AuthProvider)
 function AppRouter() {
@@ -68,7 +69,7 @@ function AppRouter() {
             setShowSplash(false);
 
             // Navigate if not already on a route
-            if (location.pathname === '/' || location.pathname === '/login') {
+            if (window.location.pathname === '/' || window.location.pathname === '/login') {
                   if (isAuthenticated) navigate('/');
                   else navigate('/login');
             }
@@ -136,9 +137,11 @@ function App() {
                         <LanguageProvider>
                               <MusicProvider>
                                     <Router>
-                                          <CallProvider>
-                                                <AppRouter />
-                                          </CallProvider>
+                                          <ErrorBoundary>
+                                                <CallProvider>
+                                                      <AppRouter />
+                                                </CallProvider>
+                                          </ErrorBoundary>
                                     </Router>
                               </MusicProvider>
                         </LanguageProvider>
