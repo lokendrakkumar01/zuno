@@ -25,22 +25,27 @@ const createContent = async (req, res) => {
             // Build media array from uploaded files 
             // Cloudinary returns URL in file.path, local storage uses /uploads/filename
             let media = [];
-            if (req.files && req.files.length > 0) {
-                  media = req.files.map(file => ({
-                        // Cloudinary puts full URL in file.path, local uses /uploads/filename
-                        url: (file.path && file.path.startsWith('http')) ? file.path : `/uploads/${file.filename}`,
-                        type: file.mimetype.startsWith('image') ? 'image' : 'video',
-                        status: 'ready',
-                        // Store public_id for Cloudinary (useful for deletion)
-                        publicId: file.filename || null
-                  }));
-            } else if (req.file) {
-                  media = [{
-                        url: (req.file.path && req.file.path.startsWith('http')) ? req.file.path : `/uploads/${req.file.filename}`,
-                        type: req.file.mimetype.startsWith('image') ? 'image' : 'video',
-                        status: 'ready',
-                        publicId: req.file.filename || null
-                  }];
+            try {
+                  if (req.files && req.files.length > 0) {
+                        media = req.files.map(file => ({
+                              // Cloudinary puts full URL in file.path, local uses /uploads/filename
+                              url: (file.path && file.path.startsWith('http')) ? file.path : `/uploads/${file.filename}`,
+                              type: file.mimetype?.startsWith('image') ? 'image' : 'video',
+                              status: 'ready',
+                              // Store public_id for Cloudinary (useful for deletion)
+                              publicId: file.filename || file.public_id || null
+                        }));
+                  } else if (req.file) {
+                        media = [{
+                              url: (req.file.path && req.file.path.startsWith('http')) ? req.file.path : `/uploads/${req.file.filename}`,
+                              type: req.file.mimetype?.startsWith('image') ? 'image' : 'video',
+                              status: 'ready',
+                              publicId: req.file.filename || req.file.public_id || null
+                        }];
+                  }
+            } catch (mediaError) {
+                  console.error("Error parsing uploaded media:", mediaError);
+                  return res.status(400).json({ success: false, message: 'Failed to process the uploaded media files. Please try again with valid formats.' });
             }
 
 

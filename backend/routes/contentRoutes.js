@@ -26,6 +26,7 @@ router.get('/:id', getContent);
 const handleUpload = (req, res, next) => {
       uploadMultiple.array('media', 10)(req, res, (err) => {
             if (err) {
+                  console.error('Upload Error Handle:', err);
                   if (err instanceof multer.MulterError) {
                         let message = 'Upload failed.';
                         if (err.code === 'LIMIT_FILE_SIZE') {
@@ -40,7 +41,7 @@ const handleUpload = (req, res, next) => {
                   // Custom file filter error or Cloudinary error
                   return res.status(400).json({
                         success: false,
-                        message: err.message || 'File upload failed. Please try again.'
+                        message: err.message || 'Media upload failed due to network or format issue. Please try again.'
                   });
             }
             next();

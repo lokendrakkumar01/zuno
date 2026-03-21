@@ -22,7 +22,7 @@ export const SocketContextProvider = ({ children }) => {
 
                   const socketInstance = io(socketUrl, {
                         query: { userId },
-                        transports: ['websocket', 'polling'], // Fallback to polling if websocket fails
+                        transports: ['websocket'], // Force WebSocket from the start to skip 100-300ms HTTP polling handshake delay
                         reconnection: true,
                         reconnectionAttempts: 10,  // Try harder to reconnect
                         reconnectionDelay: 500,    // Start faster

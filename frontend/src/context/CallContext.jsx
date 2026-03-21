@@ -269,13 +269,13 @@ export const CallProvider = ({ children }) => {
 
                   connectionRef.current = peer;
 
-                  // Auto-cancel after 45 seconds if unanswered
+                  // Auto-cancel after 30 seconds if unanswered
                   // Use ref to avoid stale closure bug
                   callTimeoutRef.current = setTimeout(() => {
                         if (!callAcceptedRef.current) {
                               leaveCall(true);
                         }
-                  }, 45000);
+                  }, 30000); // Reduced from 45s for faster feedback
 
             } catch (err) {
                   console.error('Failed to get local stream:', err);

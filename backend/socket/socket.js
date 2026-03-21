@@ -11,8 +11,8 @@ const io = new Server(server, {
             credentials: false
       },
       allowEIO3: true,  // backward-compat with older socket.io clients
-      pingTimeout: 30000, // 30s timeout — tolerates short drops but faster than 60s
-      pingInterval: 10000, // Fast ping every 10s to keep connection extremely active
+      pingTimeout: 10000, // 10s timeout — extremely fast detection of broken lines
+      pingInterval: 5000, // Very aggressive 5s ping to keep cellular/flaky links alive
       transports: ['websocket', 'polling'], // Allow polling fallback for networks blocking strict WebSockets
       perMessageDeflate: false // Disable compression for faster small message delivery
 });
@@ -36,13 +36,13 @@ io.on("connection", (socket) => {
       // Real-time Chat Features (WhatsApp-like)
       socket.on("typing", (data) => {
             if (data.receiverId) {
-                  io.to(data.receiverId).emit("typing", { senderId: userId });
+                  io.to(data.receiverId).volatile.emit("typing", { senderId: userId });
             }
       });
 
       socket.on("stopTyping", (data) => {
             if (data.receiverId) {
-                  io.to(data.receiverId).emit("stopTyping", { senderId: userId });
+                  io.to(data.receiverId).volatile.emit("stopTyping", { senderId: userId });
             }
       });
 
@@ -52,7 +52,7 @@ io.on("connection", (socket) => {
             }
       });
 
-      // WebRTC Call Signaling
+      // WebRTC Call Signaling (Using volatile to avoid queue blocking for realtime state)
       socket.on("callUser", (data) => {
             if (data.userToCall) {
                   activeCalls.set(socket.id, data.userToCall);
@@ -60,14 +60,14 @@ io.on("connection", (socket) => {
                         signal: data.signalData,
                         from: data.from,
                         callType: data.callType // 'voice' or 'video'
-                  });
+                  }); // Normal emit for initial call so it doesn't get dropped
             }
       });
 
       // Trickle ICE candidates (asynchronous WebRTC signals)
       socket.on("webrtcSignal", (data) => {
             if (data.to) {
-                  io.to(data.to).emit("webrtcSignal", data.signal);
+                  io.to(data.to).volatile.emit("webrtcSignal", data.signal);
             }
       });
 
