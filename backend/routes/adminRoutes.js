@@ -5,6 +5,7 @@ const {
       getAllUsers,
       updateUser,
       toggleUserBan,
+      deleteUser,
       sendUserEmail,
       getPendingVerifications,
       handleVerification,
@@ -26,6 +27,7 @@ router.get('/stats', adminOnly, getDashboardStats);
 router.get('/users', adminOnly, getAllUsers);
 router.put('/users/:id', adminOnly, updateUser);
 router.put('/users/:id/ban', adminOnly, toggleUserBan);
+router.delete('/users/:id', adminOnly, deleteUser);
 router.post('/users/:id/email', adminOnly, sendUserEmail);
 router.get('/verifications', adminOnly, getPendingVerifications);
 router.put('/verifications/:id', adminOnly, handleVerification);

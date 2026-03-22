@@ -300,12 +300,30 @@ const AdminDashboard = ({ token, user, onLogout }) => {
 const DashboardHome = ({ token }) => {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const { show, Toast } = useToast();
 
-  useEffect(() => {
-    fetch(`${API_URL}/admin/stats`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json()).then(d => { if (d.success) setStats(d.data); })
-      .catch(() => {}).finally(() => setLoading(false));
-  }, [token]);
+  const fetchStats = async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/admin/stats`, { headers: { Authorization: `Bearer ${token}` } });
+      const d = await res.json();
+      if (d.success) {
+        setStats(d.data);
+        if (isRefresh) show('Stats refreshed!', '🔄');
+      } else {
+        show('Failed to load stats', '❌');
+      }
+    } catch {
+      show('Network error. Could not load stats.', '⚠️');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => { fetchStats(); }, [token]);
 
   const cards = [
     { label:'Total Users', value:stats?.totalUsers, icon:'👥', color:'#6366f1' },
@@ -316,9 +334,21 @@ const DashboardHome = ({ token }) => {
 
   return (
     <div>
-      <div className="admin-page-header">
-        <h1 className="admin-page-title">Dashboard</h1>
-        <p className="admin-page-sub">Welcome back, Admin! Here's what's happening.</p>
+      {Toast}
+      <div className="admin-page-header" style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'12px', marginBottom:'32px' }}>
+        <div>
+          <h1 className="admin-page-title">Dashboard</h1>
+          <p className="admin-page-sub">Welcome back, Admin! Here's what's happening.</p>
+        </div>
+        <button
+          className="admin-btn admin-btn-ghost"
+          onClick={() => fetchStats(true)}
+          disabled={refreshing}
+          title="Refresh stats"
+          style={{ display:'flex', alignItems:'center', gap:'6px' }}
+        >
+          {refreshing ? '⏳' : '🔄'} Refresh
+        </button>
       </div>
 
       {loading ? <div className="admin-spinner" /> : (
@@ -393,22 +423,59 @@ const UsersManagement = ({ token }) => {
   };
 
   const handleBan = async (userId, isActive) => {
-    await fetch(`${API_URL}/admin/users/${userId}/ban`, {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    show(isActive ? 'User banned successfully' : 'User unbanned successfully', isActive ? '🔒' : '🔓');
-    fetchUsers();
+    try {
+      const res = await fetch(`${API_URL}/admin/users/${userId}/ban`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        show(isActive ? 'User banned successfully' : 'User unbanned successfully', isActive ? '🔒' : '🔓');
+        fetchUsers();
+      } else {
+        show(data.message || 'Failed to update user status', '❌');
+      }
+    } catch {
+      show('Network error. Could not update user.', '⚠️');
+    }
   };
 
   const handleVerifyToggle = async (userId, current) => {
-    await fetch(`${API_URL}/admin/users/${userId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ isVerified: !current })
-    });
-    show(!current ? 'User verified ✓' : 'Verification removed', '🏷️');
-    fetchUsers();
+    try {
+      const res = await fetch(`${API_URL}/admin/users/${userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ isVerified: !current })
+      });
+      const data = await res.json();
+      if (data.success) {
+        show(!current ? 'User verified ✓' : 'Verification removed', '🏷️');
+        fetchUsers();
+      } else {
+        show(data.message || 'Failed to update verification', '❌');
+      }
+    } catch {
+      show('Network error. Could not verify user.', '⚠️');
+    }
+  };
+
+  const handleDeleteUser = async (userId, username) => {
+    if (!window.confirm(`⚠️ Permanently delete user "${username}"? This action cannot be undone.`)) return;
+    try {
+      const res = await fetch(`${API_URL}/admin/users/${userId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        show(`User "${username}" deleted.`, '🗑️');
+        fetchUsers();
+      } else {
+        show(data.message || 'Failed to delete user', '❌');
+      }
+    } catch {
+      show('Network error. Could not delete user.', '⚠️');
+    }
   };
 
   return (
@@ -496,6 +563,14 @@ const UsersManagement = ({ token }) => {
                         onClick={() => handleBan(u._id, u.isActive)}
                       >
                         {u.isActive ? '🔒 Ban' : '🔓 Unban'}
+                      </button>
+                      <button
+                        className="admin-btn admin-btn-sm admin-btn-danger"
+                        onClick={() => handleDeleteUser(u._id, u.username)}
+                        title="Permanently delete user"
+                        style={{ background:'rgba(239,68,68,0.3)', border:'1px solid rgba(239,68,68,0.4)' }}
+                      >
+                        🗑️
                       </button>
                     </div>
                   </td>
@@ -704,12 +779,22 @@ const ConfigManagement = ({ token }) => {
   };
 
   const toggleConfig = async (key, current) => {
-    await fetch(`${API_URL}/admin/config/${key}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ value: !current })
-    });
-    fetchConfigs();
+    try {
+      const res = await fetch(`${API_URL}/admin/config/${key}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ value: !current })
+      });
+      const data = await res.json();
+      if (data.success) {
+        show(`${key.replace(/_/g, ' ')} ${!current ? 'enabled' : 'disabled'}`, !current ? '✅' : '⭕');
+        fetchConfigs();
+      } else {
+        show(data.message || 'Failed to update config', '❌');
+      }
+    } catch {
+      show('Network error. Could not update config.', '⚠️');
+    }
   };
 
   const grouped = configs.reduce((acc, c) => {

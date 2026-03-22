@@ -12,41 +12,64 @@ export const useSocketContext = () => {
 export const SocketContextProvider = ({ children }) => {
       const [socket, setSocket] = useState(null);
       const [onlineUsers, setOnlineUsers] = useState([]);
+      const [isConnected, setIsConnected] = useState(false);
       const { user } = useAuth();
 
       useEffect(() => {
             if (user) {
                   const userId = (user._id || user.id || user).toString();
-                  // Simplified URL logic - let socket.io handle protocol switching
+                  // Remove /api suffix to get base URL for socket connection
                   const socketUrl = API_URL.replace(/\/api$/, '');
 
                   const socketInstance = io(socketUrl, {
                         query: { userId },
-                        transports: ['websocket'], // Force WebSocket from the start to skip 100-300ms HTTP polling handshake delay
+                        // Allow both WebSocket and polling so it works on ALL networks
+                        transports: ['websocket', 'polling'],
                         reconnection: true,
-                        reconnectionAttempts: 10,  // Try harder to reconnect
-                        reconnectionDelay: 500,    // Start faster
-                        reconnectionDelayMax: 3000,
-                        timeout: 5000              // 5s connection timeout for faster feedback
+                        reconnectionAttempts: 15,
+                        reconnectionDelay: 500,
+                        reconnectionDelayMax: 5000,
+                        timeout: 10000,
+                        // Upgrade to websocket as soon as possible
+                        upgrade: true,
+                        forceNew: false
                   });
 
                   setSocket(socketInstance);
+
+                  socketInstance.on("connect", () => {
+                        setIsConnected(true);
+                  });
+
+                  socketInstance.on("disconnect", () => {
+                        setIsConnected(false);
+                  });
+
+                  socketInstance.on("connect_error", (err) => {
+                        console.warn('[Socket] Connection error:', err.message);
+                        setIsConnected(false);
+                  });
 
                   socketInstance.on("getOnlineUsers", (users) => {
                         setOnlineUsers(users);
                   });
 
-                  return () => socketInstance.close();
+                  return () => {
+                        socketInstance.close();
+                        setSocket(null);
+                        setIsConnected(false);
+                  };
             } else {
                   if (socket) {
                         socket.close();
                         setSocket(null);
+                        setIsConnected(false);
                   }
             }
       }, [user]);
 
       return (
-            <SocketContext.Provider value={{ socket, onlineUsers }}>
+            <SocketContext.Provider value={{ socket, onlineUsers, isConnected }}>
                   {children}
             </SocketContext.Provider>
       );

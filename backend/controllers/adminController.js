@@ -515,11 +515,50 @@ const initializeConfigs = async (req, res) => {
       }
 };
 
+// @desc    Delete a user permanently
+// @route   DELETE /api/admin/users/:id
+// @access  Admin
+const deleteUser = async (req, res) => {
+      try {
+            const targetId = req.params.id;
+
+            // Prevent admin from deleting themselves
+            if (targetId === req.user.id.toString()) {
+                  return res.status(400).json({
+                        success: false,
+                        message: 'You cannot delete your own account.'
+                  });
+            }
+
+            const user = await User.findById(targetId);
+            if (!user) {
+                  return res.status(404).json({
+                        success: false,
+                        message: 'User not found'
+                  });
+            }
+
+            await User.findByIdAndDelete(targetId);
+
+            res.json({
+                  success: true,
+                  message: `User "${user.username}" deleted permanently.`
+            });
+      } catch (error) {
+            res.status(500).json({
+                  success: false,
+                  message: 'Failed to delete user',
+                  error: error.message
+            });
+      }
+};
+
 module.exports = {
       getDashboardStats,
       getAllUsers,
       updateUser,
       toggleUserBan,
+      deleteUser,
       sendUserEmail,
       getPendingVerifications,
       handleVerification,

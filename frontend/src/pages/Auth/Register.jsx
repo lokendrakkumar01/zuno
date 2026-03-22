@@ -4,15 +4,21 @@ import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import zunoLogo from '../../assets/zuno-logo.png';
 
+// Username rule: 3–20 chars, letters/numbers/underscores only
+const isValidUsername = (u) => /^[a-zA-Z0-9_]{3,20}$/.test(u);
+
 const Register = () => {
       const [step, setStep] = useState(1);
       const [formData, setFormData] = useState({
             username: '',
             email: '',
             password: '',
+            confirmPassword: '',
             displayName: '',
             language: 'both'
       });
+      const [showPassword, setShowPassword] = useState(false);
+      const [showConfirm, setShowConfirm] = useState(false);
       const [error, setError] = useState('');
       const [loading, setLoading] = useState(false);
       const { register } = useAuth();
@@ -20,63 +26,74 @@ const Register = () => {
       const navigate = useNavigate();
 
       const handleChange = (e) => {
-            setFormData(prev => ({
-                  ...prev,
-                  [e.target.name]: e.target.value
-            }));
+            setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+            if (error) setError('');
       };
+
+      // Password strength
+      const getPasswordStrength = (pwd) => {
+            if (!pwd) return null;
+            let score = 0;
+            if (pwd.length >= 8) score++;
+            if (/[A-Z]/.test(pwd)) score++;
+            if (/[0-9]/.test(pwd)) score++;
+            if (/[^a-zA-Z0-9]/.test(pwd)) score++;
+            if (score <= 1) return { label: 'Weak', color: '#ef4444', width: '25%' };
+            if (score === 2) return { label: 'Fair', color: '#f59e0b', width: '50%' };
+            if (score === 3) return { label: 'Good', color: '#3b82f6', width: '75%' };
+            return { label: 'Strong', color: '#10b981', width: '100%' };
+      };
+      const pwdStrength = getPasswordStrength(formData.password);
 
       const handleSubmit = async (e) => {
             e.preventDefault();
             setError('');
-            setLoading(true);
 
-            const result = await register(formData);
+            if (formData.password !== formData.confirmPassword) {
+                  setError('Passwords do not match.');
+                  return;
+            }
+
+            setLoading(true);
+            const { confirmPassword, ...submitData } = formData;
+            const result = await register(submitData);
 
             if (result.success) {
                   navigate('/');
             } else {
-                  setError(result.message);
+                  setError(result.message || 'Registration failed. Please try again.');
             }
             setLoading(false);
       };
 
       const nextStep = () => {
-            if (step === 1 && (!formData.username || !formData.email)) {
-                  setError('Please fill all fields');
-                  return;
-            }
-            if (step === 2 && !formData.password) {
-                  setError('Please enter a password');
-                  return;
-            }
             setError('');
+            if (step === 1) {
+                  if (!formData.username || !formData.email) {
+                        setError('Please fill in all required fields.');
+                        return;
+                  }
+                  if (!isValidUsername(formData.username)) {
+                        setError('Username must be 3–20 characters and can only contain letters, numbers, and underscores (no spaces).');
+                        return;
+                  }
+                  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+                        setError('Please enter a valid email address.');
+                        return;
+                  }
+            }
+            if (step === 2) {
+                  if (!formData.password) { setError('Please enter a password.'); return; }
+                  if (formData.password.length < 6) { setError('Password must be at least 6 characters.'); return; }
+                  if (formData.password !== formData.confirmPassword) { setError('Passwords do not match.'); return; }
+            }
             setStep(step + 1);
       };
 
       return (
             <div className="auth-page">
-                  {/* Background Elements */}
-                  <div style={{
-                        position: 'fixed',
-                        top: '15%',
-                        right: '15%',
-                        width: '350px',
-                        height: '350px',
-                        background: 'radial-gradient(circle, rgba(139, 92, 246, 0.1) 0%, transparent 70%)',
-                        animation: 'float 7s ease-in-out infinite',
-                        zIndex: 0
-                  }}></div>
-                  <div style={{
-                        position: 'fixed',
-                        bottom: '15%',
-                        left: '10%',
-                        width: '280px',
-                        height: '280px',
-                        background: 'radial-gradient(circle, rgba(6, 182, 212, 0.08) 0%, transparent 70%)',
-                        animation: 'float 9s ease-in-out infinite reverse',
-                        zIndex: 0
-                  }}></div>
+                  <div style={{ position: 'fixed', top: '15%', right: '15%', width: '350px', height: '350px', background: 'radial-gradient(circle, rgba(139, 92, 246, 0.1) 0%, transparent 70%)', animation: 'float 7s ease-in-out infinite', zIndex: 0 }} />
+                  <div style={{ position: 'fixed', bottom: '15%', left: '10%', width: '280px', height: '280px', background: 'radial-gradient(circle, rgba(6, 182, 212, 0.08) 0%, transparent 70%)', animation: 'float 9s ease-in-out infinite reverse', zIndex: 0 }} />
 
                   <div className="auth-card" style={{ position: 'relative', zIndex: 1, maxWidth: '480px' }}>
                         <Link to="/" className="logo" style={{ justifyContent: 'center', marginBottom: 'var(--space-xl)' }}>
@@ -90,52 +107,25 @@ const Register = () => {
                         {/* Progress Steps */}
                         <div className="flex gap-sm mb-xl animate-fadeIn" style={{ justifyContent: 'center' }}>
                               {[1, 2, 3].map(s => (
-                                    <div
-                                          key={s}
-                                          style={{
-                                                width: '60px',
-                                                height: '4px',
-                                                borderRadius: 'var(--radius-full)',
-                                                background: step >= s ? 'var(--gradient-primary)' : 'var(--color-border)',
-                                                transition: 'all 0.3s ease'
-                                          }}
-                                    />
+                                    <div key={s} style={{
+                                          width: '60px', height: '4px', borderRadius: 'var(--radius-full)',
+                                          background: step >= s ? 'var(--gradient-primary)' : 'var(--color-border)',
+                                          transition: 'all 0.3s ease'
+                                    }} />
                               ))}
                         </div>
 
                         {error && (
-                              <div
-                                    className="animate-fadeIn"
-                                    style={{
-                                          background: 'rgba(239, 68, 68, 0.1)',
-                                          border: '1px solid rgba(239, 68, 68, 0.35)',
-                                          borderRadius: '12px',
-                                          padding: '12px 16px',
-                                          marginBottom: 'var(--space-md)',
-                                          display: 'flex',
-                                          alignItems: 'flex-start',
-                                          gap: '10px'
-                                    }}
-                              >
+                              <div className="animate-fadeIn" style={{
+                                    background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.35)',
+                                    borderRadius: '12px', padding: '12px 16px', marginBottom: 'var(--space-md)',
+                                    display: 'flex', alignItems: 'flex-start', gap: '10px'
+                              }}>
                                     <span style={{ fontSize: '18px', flexShrink: 0 }}>⚠️</span>
-                                    <div style={{ flex: 1 }}>
-                                          <p style={{ color: '#ef4444', fontSize: '14px', fontWeight: 600, margin: 0 }}>
-                                                {error.includes('already exists') || error.includes('already taken')
-                                                      ? '🚫 Username or email already taken'
-                                                      : error.includes('timed out') || error.includes('waking')
-                                                      ? '⏳ Server is starting up, please wait a moment and try again'
-                                                      : error.includes('network') || error.includes('fetch')
-                                                      ? '📡 No internet connection. Please check and retry.'
-                                                      : error}
-                                          </p>
-                                    </div>
-                                    <button
-                                          onClick={() => setError('')}
-                                          style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: 0, flexShrink: 0 }}
-                                    >✕</button>
+                                    <p style={{ color: '#ef4444', fontSize: '14px', fontWeight: 600, margin: 0, flex: 1 }}>{error}</p>
+                                    <button onClick={() => setError('')} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: 0, flexShrink: 0 }}>✕</button>
                               </div>
                         )}
-
 
                         <form onSubmit={handleSubmit} className="auth-form">
                               {/* Step 1: Basic Info */}
@@ -149,12 +139,17 @@ const Register = () => {
                                                       type="text"
                                                       name="username"
                                                       className="input"
-                                                      placeholder="Choose a unique username"
+                                                      placeholder="E.g.: john_doe (letters, numbers, _)"
                                                       value={formData.username}
                                                       onChange={handleChange}
                                                       required
                                                       minLength={3}
+                                                      maxLength={20}
+                                                      autoComplete="username"
                                                 />
+                                                <span style={{ fontSize: '12px', color: '#64748b', marginTop: '4px', display: 'block' }}>
+                                                      3–20 chars, letters/numbers/underscores only
+                                                </span>
                                           </div>
 
                                           <div className="input-group mb-md">
@@ -167,6 +162,7 @@ const Register = () => {
                                                       value={formData.email}
                                                       onChange={handleChange}
                                                       required
+                                                      autoComplete="email"
                                                 />
                                           </div>
 
@@ -183,31 +179,71 @@ const Register = () => {
 
                                           <div className="input-group mb-md">
                                                 <label className="input-label">{t('password')} *</label>
-                                                <input
-                                                      type="password"
-                                                      name="password"
-                                                      className="input"
-                                                      placeholder="Create a strong password (min 6 chars)"
-                                                      value={formData.password}
-                                                      onChange={handleChange}
-                                                      required
-                                                      minLength={6}
-                                                />
+                                                <div style={{ position: 'relative' }}>
+                                                      <input
+                                                            type={showPassword ? 'text' : 'password'}
+                                                            name="password"
+                                                            className="input"
+                                                            placeholder="Create a strong password (min 6 chars)"
+                                                            value={formData.password}
+                                                            onChange={handleChange}
+                                                            required
+                                                            minLength={6}
+                                                            autoComplete="new-password"
+                                                            style={{ paddingRight: '48px' }}
+                                                      />
+                                                      <button type="button" onClick={() => setShowPassword(p => !p)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '16px' }}>
+                                                            {showPassword ? '🙈' : '👁️'}
+                                                      </button>
+                                                </div>
+                                                {/* Password strength bar */}
+                                                {formData.password && pwdStrength && (
+                                                      <div style={{ marginTop: '8px' }}>
+                                                            <div style={{ height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '99px', overflow: 'hidden' }}>
+                                                                  <div style={{ height: '100%', width: pwdStrength.width, background: pwdStrength.color, borderRadius: '99px', transition: 'width 0.3s, background 0.3s' }} />
+                                                            </div>
+                                                            <span style={{ fontSize: '11px', color: pwdStrength.color, fontWeight: 600 }}>{pwdStrength.label} password</span>
+                                                      </div>
+                                                )}
+                                          </div>
+
+                                          <div className="input-group mb-md">
+                                                <label className="input-label">Confirm Password *</label>
+                                                <div style={{ position: 'relative' }}>
+                                                      <input
+                                                            type={showConfirm ? 'text' : 'password'}
+                                                            name="confirmPassword"
+                                                            className="input"
+                                                            placeholder="Re-enter your password"
+                                                            value={formData.confirmPassword}
+                                                            onChange={handleChange}
+                                                            required
+                                                            autoComplete="new-password"
+                                                            style={{
+                                                                  paddingRight: '48px',
+                                                                  borderColor: formData.confirmPassword
+                                                                        ? formData.password === formData.confirmPassword ? 'rgba(16, 185, 129, 0.5)' : 'rgba(239, 68, 68, 0.5)'
+                                                                        : undefined
+                                                            }}
+                                                      />
+                                                      <button type="button" onClick={() => setShowConfirm(p => !p)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '16px' }}>
+                                                            {showConfirm ? '🙈' : '👁️'}
+                                                      </button>
+                                                </div>
+                                                {formData.confirmPassword && (
+                                                      <span style={{ fontSize: '11px', fontWeight: 600, marginTop: '4px', display: 'block', color: formData.password === formData.confirmPassword ? '#10b981' : '#ef4444' }}>
+                                                            {formData.password === formData.confirmPassword ? '✓ Passwords match' : '✗ Passwords do not match'}
+                                                      </span>
+                                                )}
                                           </div>
 
                                           <div className="card p-md mb-lg" style={{ background: 'rgba(34, 197, 94, 0.1)', borderColor: 'rgba(34, 197, 94, 0.3)' }}>
-                                                <p className="text-sm" style={{ color: '#22c55e' }}>
-                                                      ✅ Your data is encrypted and never shared
-                                                </p>
+                                                <p className="text-sm" style={{ color: '#22c55e' }}>✅ Your data is encrypted and never shared</p>
                                           </div>
 
                                           <div className="flex gap-md">
-                                                <button type="button" onClick={() => setStep(1)} className="btn btn-secondary flex-1">
-                                                      ← Back
-                                                </button>
-                                                <button type="button" onClick={nextStep} className="btn btn-primary flex-1">
-                                                      Next →
-                                                </button>
+                                                <button type="button" onClick={() => setStep(1)} className="btn btn-secondary flex-1">← Back</button>
+                                                <button type="button" onClick={nextStep} className="btn btn-primary flex-1">Next →</button>
                                           </div>
                                     </div>
                               )}
@@ -244,11 +280,12 @@ const Register = () => {
                                           </div>
 
                                           <div className="flex gap-md">
-                                                <button type="button" onClick={() => setStep(2)} className="btn btn-secondary flex-1">
-                                                      ← Back
-                                                </button>
+                                                <button type="button" onClick={() => setStep(2)} className="btn btn-secondary flex-1">← Back</button>
                                                 <button type="submit" className="btn btn-primary flex-1" disabled={loading}>
-                                                      {loading ? <span style={{ fontSize: '18px' }}>⏳</span> : `🚀 ${t('createAccount')}`}
+                                                      {loading
+                                                            ? <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}><span style={{ fontSize: '18px' }}>⏳</span> Creating…</span>
+                                                            : `🚀 ${t('createAccount')}`
+                                                      }
                                                 </button>
                                           </div>
                                     </div>

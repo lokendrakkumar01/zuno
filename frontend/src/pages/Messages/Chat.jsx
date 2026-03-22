@@ -40,12 +40,20 @@ const Chat = () => {
       const [loading, setLoading] = useState(!localStorage.getItem(`zuno_chat_cache_${userId}`));
       const [sending, setSending] = useState(false);
       const messagesEndRef = useRef(null);
+      const chatAreaRef = useRef(null);
       const pollRef = useRef(null);
       const fileInputRef = useRef(null);
       const sentMsgIds = useRef(new Set()); // Track confirmed sent message IDs to avoid duplicates
       const sendSoundRef = useRef(null);
       const receiveSoundRef = useRef(null);
       const lastMsgSenderId = useRef(null);
+
+      // Scroll-to-bottom button
+      const [showScrollBtn, setShowScrollBtn] = useState(false);
+
+      // Forward message
+      const [forwardingMsg, setForwardingMsg] = useState(null);
+      const [showForwardModal, setShowForwardModal] = useState(false);
 
       // Edit & Delete states
       const [activeMenu, setActiveMenu] = useState(null);
@@ -334,15 +342,26 @@ const Chat = () => {
             scrollToBottom(isMySent); // Use instant scroll for my own messages
       }, [messages]);
 
-      // Close menu/emoji on click outside
+      // Close menu/emoji on click outside — emoji picker check is careful to not close when clicking emojis
       useEffect(() => {
             const handleClickOutside = (e) => {
-                  if (!e.target.closest('.emoji-picker-container')) setShowEmoji(false);
-                  setActiveMenu(null);
+                  // Don't close emoji picker if clicking inside the picker or on the toggle button
+                  const isInsideEmoji = e.target.closest('.emoji-picker') || e.target.closest('.emoji-btn') || e.target.closest('.chat-emoji-toggle');
+                  if (!isInsideEmoji) setShowEmoji(false);
+                  // Don't close message menu if clicking inside it
+                  if (!e.target.closest('.chat-msg-menu') && !e.target.closest('.chat-msg-menu-btn')) setActiveMenu(null);
             };
             document.addEventListener('click', handleClickOutside);
             return () => document.removeEventListener('click', handleClickOutside);
       }, []);
+
+      // Scroll button visibility
+      const handleChatScroll = () => {
+            const area = chatAreaRef.current;
+            if (!area) return;
+            const distanceFromBottom = area.scrollHeight - area.scrollTop - area.clientHeight;
+            setShowScrollBtn(distanceFromBottom > 300);
+      };
 
       const scrollToBottom = (instant = false) => {
             if (instant) {
@@ -693,10 +712,21 @@ const Chat = () => {
                   if (data.success) {
                         setMessages([]);
                         setActiveMenu(null);
+                        // FIX: Also clear the localStorage cache so old messages don't reappear on refresh
+                        try {
+                              localStorage.removeItem(`zuno_chat_cache_${userId}`);
+                        } catch (e) { }
                   }
             } catch (err) {
                   console.error('Failed to clear chat:', err);
             }
+      };
+
+      // Forward message — copies message text and opens new chat
+      const handleForwardMessage = (msg) => {
+            setForwardingMsg(msg);
+            setShowForwardModal(true);
+            setActiveMenu(null);
       };
 
       const handleDownloadMedia = async (url, type) => {
@@ -893,14 +923,35 @@ const Chat = () => {
                   </div>
 
                   {/* Messages Area */}
-                  <div className="chat-messages" style={
-                        chatCustomization.bgImage ? {
+                  <div
+                        className="chat-messages"
+                        ref={chatAreaRef}
+                        onScroll={handleChatScroll}
+                        style={chatCustomization.bgImage ? {
                               backgroundImage: `url(${chatCustomization.bgImage})`,
                               backgroundSize: 'cover',
                               backgroundPosition: 'center',
                               backgroundAttachment: 'fixed'
-                        } : {}
-                  }>
+                        } : {}}
+                  >
+                        {/* Scroll to bottom floating button */}
+                        {showScrollBtn && (
+                              <button
+                                    onClick={() => { scrollToBottom(false); setShowScrollBtn(false); }}
+                                    style={{
+                                          position: 'sticky', bottom: '16px', float: 'right', right: '16px',
+                                          zIndex: 50, width: '40px', height: '40px', borderRadius: '50%',
+                                          background: 'var(--color-primary)', color: '#fff',
+                                          border: 'none', cursor: 'pointer', fontSize: '18px',
+                                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                          boxShadow: '0 4px 16px rgba(99,102,241,0.6)',
+                                          animation: 'fadeIn 0.2s ease'
+                                    }}
+                                    title="Scroll to latest messages"
+                              >
+                                    ↓
+                              </button>
+                        )}
                         {loading ? (
                               <div className="empty-state">
                                     {/* Silent loading */}
@@ -1079,6 +1130,12 @@ const Chat = () => {
                                                                               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z" /></svg>
                                                                               Reply
                                                                         </button>
+                                                                        {(msg.text || msg.media?.url) && (
+                                                                              <button onClick={() => { handleForwardMessage(msg); setActiveMenu(null); }} className="chat-msg-menu-item">
+                                                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M14 8l-4-4-4 4h3v4h2V8h3zM10 18v-4H8v4H5l4 4 4-4h-3z" /></svg>
+                                                                                    Forward
+                                                                              </button>
+                                                                        )}
                                                                         {msg.text && (
                                                                               <button onClick={() => { navigator.clipboard?.writeText(msg.text).catch(() => { }); setActiveMenu(null); }} className="chat-msg-menu-item">
                                                                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" /></svg>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useCallContext } from '../context/CallContext';
 
 /* ── Inject CSS once ── */
@@ -39,11 +39,15 @@ const CallStyles = () => {
         0%,100% { box-shadow: 0 0 12px rgba(99,102,241,.5), 0 0 30px rgba(99,102,241,.2); }
         50%     { box-shadow: 0 0 20px rgba(99,102,241,.9), 0 0 50px rgba(99,102,241,.4); }
       }
+      @keyframes callToastIn {
+        from { opacity:0; transform:translateY(-20px) scale(.95); }
+        to   { opacity:1; transform:translateY(0) scale(1); }
+      }
 
       .call-overlay-modal {
         position:fixed; inset:0; z-index:999999;
         display:flex; align-items:center; justify-content:center;
-        background:rgba(0,0,0,.8); backdrop-filter:blur(12px);
+        background:rgba(0,0,0,.85); backdrop-filter:blur(16px);
         animation: callFadeIn .3s ease;
       }
       .call-modal-card {
@@ -111,7 +115,6 @@ const CallStyles = () => {
       .call-active-overlay {
         position:fixed; inset:0; z-index:999999;
         background:#0a0a14; display:flex; flex-direction:column;
-        /* iPhone safe area */
         padding-top: env(safe-area-inset-top, 0px);
         padding-bottom: env(safe-area-inset-bottom, 0px);
       }
@@ -134,7 +137,6 @@ const CallStyles = () => {
         width:110px; height:150px; border-radius:14px; overflow:hidden;
         border:2.5px solid rgba(255,255,255,.25); box-shadow:0 8px 24px rgba(0,0,0,.6);
         z-index:10; transition:transform .2s;
-        /* Draggable feel */
         cursor:grab;
       }
       .call-local-pip:active { cursor:grabbing; transform:scale(.97); }
@@ -163,7 +165,7 @@ const CallStyles = () => {
       .call-controls {
         padding:24px 20px;
         padding-bottom: max(24px, env(safe-area-inset-bottom, 24px));
-        display:flex; justify-content:center; gap:20px; align-items:center;
+        display:flex; justify-content:center; gap:16px; align-items:center;
         background:rgba(255,255,255,.04); border-top:1px solid rgba(255,255,255,.06);
         backdrop-filter:blur(20px); flex-wrap:wrap;
       }
@@ -178,16 +180,33 @@ const CallStyles = () => {
       .call-ctrl-muted  { background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; }
       .call-ctrl-video  { background:rgba(255,255,255,.1); color:#e2e8f0; }
       .call-ctrl-vidoff { background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; }
+      .call-ctrl-screen { background:rgba(255,255,255,.1); color:#e2e8f0; }
+      .call-ctrl-screen-on { background:linear-gradient(135deg,#10b981,#34d399); color:#fff; }
+      .call-ctrl-speaker { background:rgba(255,255,255,.1); color:#e2e8f0; }
+      .call-ctrl-speaker-off { background:linear-gradient(135deg,#f59e0b,#fbbf24); color:#fff; }
       .call-ctrl-end    { background:linear-gradient(135deg,#ef4444,#dc2626); color:#fff; width:68px; height:68px; box-shadow:0 6px 20px rgba(239,68,68,.5); }
       .call-ctrl-end:hover { transform:translateY(-3px) scale(1.05); box-shadow:0 12px 35px rgba(239,68,68,.6); }
-      .call-ctrl-label  { font-size:.58rem; color:rgba(255,255,255,.5); text-align:center; line-height:1; }
+      .call-ctrl-label  { font-size:.55rem; color:rgba(255,255,255,.5); text-align:center; line-height:1; }
+
+      /* Call Toast */
+      .call-toast-wrap {
+        position:fixed; top:20px; left:50%; transform:translateX(-50%);
+        z-index:9999999; animation: callToastIn .3s ease;
+        background:#1e1e32; border:1px solid rgba(99,102,241,.3);
+        border-radius:12px; padding:12px 20px;
+        display:flex; align-items:center; gap:10px;
+        box-shadow:0 8px 32px rgba(0,0,0,.6); max-width:340px; width:max-content;
+        font-size:.88rem; font-weight:500; color:#e2e8f0;
+      }
+      .call-toast-error { border-color:rgba(239,68,68,.4); background:#1e1020; }
+      .call-toast-info  { border-color:rgba(99,102,241,.4); }
 
       @media(max-width:480px) {
         .call-modal-card { padding:32px 20px; border-radius:20px; }
-        .call-ctrl-btn { width:52px; height:52px; font-size:1.1rem; }
-        .call-ctrl-end { width:60px; height:60px; }
-        .call-local-pip { width:90px; height:120px; bottom:10px; right:10px; }
-        .call-controls { gap:14px; padding:18px 12px; }
+        .call-ctrl-btn { width:50px; height:50px; font-size:1.1rem; }
+        .call-ctrl-end { width:58px; height:58px; }
+        .call-local-pip { width:88px; height:118px; bottom:10px; right:10px; }
+        .call-controls { gap:12px; padding:18px 12px; }
       }
     `;
     document.head.appendChild(style);
@@ -221,6 +240,44 @@ const CallAvatar = ({ user, size = 100, className = '', style = {} }) => {
   );
 };
 
+/* ── Draggable PiP ── */
+const DraggablePiP = ({ pipRef }) => {
+  const containerRef = useRef(null);
+  const isDragging = useRef(false);
+  const startPos = useRef({ x: 0, y: 0 });
+  const startElPos = useRef({ x: 0, y: 0 });
+
+  const onMouseDown = (e) => {
+    isDragging.current = true;
+    startPos.current = { x: e.clientX, y: e.clientY };
+    const rect = containerRef.current.getBoundingClientRect();
+    startElPos.current = { x: rect.left, y: rect.top };
+    e.preventDefault();
+  };
+
+  useEffect(() => {
+    const onMouseMove = (e) => {
+      if (!isDragging.current || !containerRef.current) return;
+      const dx = e.clientX - startPos.current.x;
+      const dy = e.clientY - startPos.current.y;
+      containerRef.current.style.left = `${startElPos.current.x + dx}px`;
+      containerRef.current.style.top = `${startElPos.current.y + dy}px`;
+      containerRef.current.style.right = 'auto';
+      containerRef.current.style.bottom = 'auto';
+    };
+    const onMouseUp = () => { isDragging.current = false; };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    return () => { window.removeEventListener('mousemove', onMouseMove); window.removeEventListener('mouseup', onMouseUp); };
+  }, []);
+
+  return (
+    <div ref={containerRef} className="call-local-pip" onMouseDown={onMouseDown}>
+      <video playsInline muted ref={pipRef} autoPlay style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+    </div>
+  );
+};
+
 /* ══════════════════════════════════════════════════
    MAIN COMPONENT
 ══════════════════════════════════════════════════ */
@@ -229,7 +286,10 @@ const CallOverlay = () => {
     stream, myVideo, userVideo,
     receivingCall, caller, callAccepted, callEnded, callType,
     isCalling, showCallModal, answerCall, leaveCall, rejectCall,
-    isMuted, isVideoOff, toggleMute, toggleVideo
+    isMuted, isVideoOff, toggleMute, toggleVideo,
+    isScreenSharing, isSpeakerOn, toggleSpeaker,
+    startScreenShare, stopScreenShare,
+    callToast
   } = useCallContext();
 
   const timer = useCallTimer(callAccepted && !callEnded);
@@ -238,6 +298,16 @@ const CallOverlay = () => {
   return (
     <>
       <CallStyles />
+
+      {/* ── Global Call Toast ── */}
+      {callToast && (
+        <div className={`call-toast-wrap ${callToast.type === 'error' ? 'call-toast-error' : 'call-toast-info'}`}>
+          <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>
+            {callToast.type === 'error' ? '❌' : 'ℹ️'}
+          </span>
+          {callToast.msg}
+        </div>
+      )}
 
       {/* ── Outgoing Call (Dialing) ── */}
       {showCallModal === 'calling' && !callAccepted && (
@@ -265,9 +335,7 @@ const CallOverlay = () => {
                 onClick={() => leaveCall(true)}
                 title="Cancel call"
               >
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>
-                </svg>
+                📵
               </button>
             </div>
           </div>
@@ -295,14 +363,8 @@ const CallOverlay = () => {
               Incoming<span className="call-status-dot" /><span className="call-status-dot" /><span className="call-status-dot" />
             </div>
             <div className="call-btn-row">
-              <button className="call-btn call-btn-end" onClick={rejectCall} title="Decline">
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>
-                </svg>
-              </button>
-              <button className="call-btn call-btn-answer" onClick={answerCall} title="Answer">
-                📱
-              </button>
+              <button className="call-btn call-btn-end" onClick={rejectCall} title="Decline">📵</button>
+              <button className="call-btn call-btn-answer" onClick={answerCall} title="Answer">📱</button>
             </div>
           </div>
         </div>
@@ -314,15 +376,22 @@ const CallOverlay = () => {
           {/* Header */}
           <div className="call-active-header">
             <div className="call-header-info">
-              <CallAvatar user={otherUser} size={36} style={{ borderRadius:'50%', border:'2px solid #6366f1', flexShrink:0 }} />
+              <CallAvatar user={otherUser} size={36} style={{ borderRadius: '50%', border: '2px solid #6366f1', flexShrink: 0 }} />
               <div>
                 <div className="call-header-name">{otherUser?.displayName || otherUser?.username || 'User'}</div>
-                <div className="call-header-timer">{callAccepted ? timer : 'Connecting...'}</div>
+                <div className="call-header-timer">{callAccepted ? timer : 'Connecting…'}</div>
               </div>
             </div>
-            <span className="call-header-badge">
-              {callType === 'video' ? '📹 Video' : '📞 Voice'}
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {isScreenSharing && (
+                <span style={{ background: 'rgba(16,185,129,.2)', color: '#10b981', fontSize: '.72rem', fontWeight: 700, padding: '3px 10px', borderRadius: '99px', border: '1px solid rgba(16,185,129,.3)' }}>
+                  📺 Sharing
+                </span>
+              )}
+              <span className="call-header-badge">
+                {callType === 'video' ? '📹 Video' : '📞 Voice'}
+              </span>
+            </div>
           </div>
 
           {/* Video / Avatar Area */}
@@ -337,18 +406,18 @@ const CallOverlay = () => {
             {/* Avatar shown when voice call or video off or not yet connected */}
             {(!callAccepted || callType === 'voice' || isVideoOff) && (
               <div className="call-avatar-center">
-                <div style={{ position:'relative', width:120, height:120, margin:'0 auto 20px' }}>
-                  <div style={{ position:'absolute', inset:0, border:'2px solid rgba(99,102,241,.5)', borderRadius:'50%', animation:'callRingWave 2s ease-out infinite' }} />
-                  <div style={{ position:'absolute', inset:0, border:'2px solid rgba(99,102,241,.4)', borderRadius:'50%', animation:'callRingWave 2s ease-out infinite', animationDelay:'.7s' }} />
+                <div style={{ position: 'relative', width: 120, height: 120, margin: '0 auto 20px' }}>
+                  <div style={{ position: 'absolute', inset: 0, border: '2px solid rgba(99,102,241,.5)', borderRadius: '50%', animation: 'callRingWave 2s ease-out infinite' }} />
+                  <div style={{ position: 'absolute', inset: 0, border: '2px solid rgba(99,102,241,.4)', borderRadius: '50%', animation: 'callRingWave 2s ease-out infinite', animationDelay: '.7s' }} />
                   {otherUser?.avatar
-                    ? <img src={otherUser.avatar} alt="" className="call-avatar-center-img" style={{ width:120, height:120 }} />
-                    : <div className="call-avatar-center-init" style={{ width:120, height:120, fontSize:'3rem' }}>{(otherUser?.displayName?.[0] || otherUser?.username?.[0] || 'U').toUpperCase()}</div>
+                    ? <img src={otherUser.avatar} alt="" className="call-avatar-center-img" style={{ width: 120, height: 120 }} />
+                    : <div className="call-avatar-center-init" style={{ width: 120, height: 120, fontSize: '3rem' }}>{(otherUser?.displayName?.[0] || otherUser?.username?.[0] || 'U').toUpperCase()}</div>
                   }
                 </div>
                 <div className="call-center-name">{otherUser?.displayName || otherUser?.username}</div>
                 {isCalling && !callAccepted && (
                   <div className="call-center-status">
-                    Ringing<span className="call-status-dot" style={{ background:'#6366f1' }} /><span className="call-status-dot" style={{ background:'#6366f1', animationDelay:'.16s' }} /><span className="call-status-dot" style={{ background:'#6366f1', animationDelay:'.32s' }} />
+                    Ringing<span className="call-status-dot" style={{ background: '#6366f1' }} /><span className="call-status-dot" style={{ background: '#6366f1', animationDelay: '.16s' }} /><span className="call-status-dot" style={{ background: '#6366f1', animationDelay: '.32s' }} />
                   </div>
                 )}
                 {callAccepted && isVideoOff && (
@@ -357,11 +426,9 @@ const CallOverlay = () => {
               </div>
             )}
 
-            {/* Local PiP */}
+            {/* Local PiP — draggable */}
             {stream && callType === 'video' && (
-              <div className="call-local-pip">
-                <video playsInline muted ref={myVideo} autoPlay style={{ width:'100%', height:'100%', objectFit:'cover' }} />
-              </div>
+              <DraggablePiP pipRef={myVideo} />
             )}
           </div>
 
@@ -373,15 +440,7 @@ const CallOverlay = () => {
               className={`call-ctrl-btn ${isMuted ? 'call-ctrl-muted' : 'call-ctrl-mute'}`}
               title={isMuted ? 'Unmute' : 'Mute'}
             >
-              {isMuted ? (
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02 3.28l-1.63-1.63c.09-.54.15-1.09.15-1.65V5c0-1.66-1.34-3-3-3S7.5 3.34 7.5 5v3.13l-1.63-1.63V5c0-2.76 2.24-5 5-5s5 2.24 5 5v6c0 .59-.1 1.15-.27 1.65zM3.41 2.86L2 4.27l5.95 5.95c-.29.43-.53.9-.7 1.4-.17.5-.25 1.03-.25 1.38H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c.87-.13 1.69-.44 2.43-.86l1.9 1.9L18.73 17.6 3.41 2.86z"/>
-                </svg>
-              ) : (
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
-                </svg>
-              )}
+              <span style={{ fontSize: '1.2rem' }}>{isMuted ? '🔇' : '🎙️'}</span>
               <span className="call-ctrl-label">{isMuted ? 'Unmute' : 'Mute'}</span>
             </button>
 
@@ -392,18 +451,32 @@ const CallOverlay = () => {
                 className={`call-ctrl-btn ${isVideoOff ? 'call-ctrl-vidoff' : 'call-ctrl-video'}`}
                 title={isVideoOff ? 'Turn camera on' : 'Turn camera off'}
               >
-                {isVideoOff ? (
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M21 6.5l-4 4V7c0-.55-.45-1-1-1H9.82L21 17.18V6.5zM3.27 2L2 3.27 4.73 6H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.21 0 .39-.08.54-.18L19.73 21 21 19.73 3.27 2z"/>
-                  </svg>
-                ) : (
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
-                  </svg>
-                )}
+                <span style={{ fontSize: '1.2rem' }}>{isVideoOff ? '📵' : '📹'}</span>
                 <span className="call-ctrl-label">{isVideoOff ? 'Cam On' : 'Cam Off'}</span>
               </button>
             )}
+
+            {/* Screen Share — only for video calls */}
+            {callType === 'video' && (
+              <button
+                onClick={isScreenSharing ? stopScreenShare : startScreenShare}
+                className={`call-ctrl-btn ${isScreenSharing ? 'call-ctrl-screen-on' : 'call-ctrl-screen'}`}
+                title={isScreenSharing ? 'Stop screen share' : 'Share screen'}
+              >
+                <span style={{ fontSize: '1.2rem' }}>🖥️</span>
+                <span className="call-ctrl-label">{isScreenSharing ? 'Stop' : 'Screen'}</span>
+              </button>
+            )}
+
+            {/* Speaker toggle */}
+            <button
+              onClick={toggleSpeaker}
+              className={`call-ctrl-btn ${!isSpeakerOn ? 'call-ctrl-speaker-off' : 'call-ctrl-speaker'}`}
+              title={isSpeakerOn ? 'Switch to earpiece' : 'Switch to speaker'}
+            >
+              <span style={{ fontSize: '1.2rem' }}>{isSpeakerOn ? '🔊' : '🔈'}</span>
+              <span className="call-ctrl-label">{isSpeakerOn ? 'Speaker' : 'Earpiece'}</span>
+            </button>
 
             {/* End call */}
             <button
@@ -411,9 +484,7 @@ const CallOverlay = () => {
               className="call-ctrl-btn call-ctrl-end"
               title="End call"
             >
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>
-              </svg>
+              <span style={{ fontSize: '1.3rem' }}>📵</span>
               <span className="call-ctrl-label">End</span>
             </button>
           </div>

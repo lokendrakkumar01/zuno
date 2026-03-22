@@ -1,4 +1,4 @@
-import { createContext, useState, useEffect, useRef, useContext } from "react";
+import { createContext, useState, useEffect, useRef, useContext, useCallback } from "react";
 import Peer from "simple-peer";
 import { useSocketContext } from "./SocketContext";
 import { useAuth } from "./AuthContext";
@@ -45,19 +45,32 @@ export const CallProvider = ({ children }) => {
       const [isMuted, setIsMuted] = useState(false);
       const [isVideoOff, setIsVideoOff] = useState(false);
 
+      // ── NEW: Screen Share ──
+      const [isScreenSharing, setIsScreenSharing] = useState(false);
+      const screenTrackRef = useRef(null);
+
+      // ── NEW: Speaker/output toggle (mobile) ──
+      const [isSpeakerOn, setIsSpeakerOn] = useState(true);
+
+      // ── NEW: Call Toast notifications (replaces alert) ──
+      const [callToast, setCallToast] = useState(null);
+      const showCallToast = useCallback((msg, type = 'info') => {
+            setCallToast({ msg, type });
+            setTimeout(() => setCallToast(null), 4000);
+      }, []);
+
       const myVideo = useRef();
       const userVideo = useRef();
       const connectionRef = useRef();
       const callStartTime = useRef(null);
-      const targetUserIdRef = useRef(null);  // Target user ID for the call
-      const callTimeoutRef = useRef(null);   // Call auto-cancel after 45s
-      const pendingSignals = useRef([]);     // Buffer for early ICE candidates
+      const targetUserIdRef = useRef(null);
+      const callTimeoutRef = useRef(null);
+      const pendingSignals = useRef([]);
 
-      // Use refs to avoid stale closure bugs in timeout callbacks
+      // Refs to avoid stale closures
       const callAcceptedRef = useRef(false);
       const isCallingRef = useRef(false);
 
-      // Keep refs in sync with state
       useEffect(() => { callAcceptedRef.current = callAccepted; }, [callAccepted]);
       useEffect(() => { isCallingRef.current = isCalling; }, [isCalling]);
 
@@ -70,29 +83,22 @@ export const CallProvider = ({ children }) => {
                   setCallerSignal(data.signal);
                   setCallType(data.callType);
                   setShowCallModal('incoming');
-                  pendingSignals.current = []; // Clear any old signals
-                  // Always overwrite so rejectCall always has the correct caller ID
+                  pendingSignals.current = [];
                   const callerId = data.from?._id || data.from?.id || data.from;
-                  if (callerId) {
-                        targetUserIdRef.current = callerId.toString();
-                  }
+                  if (callerId) targetUserIdRef.current = callerId.toString();
             };
 
             const handleCallAccepted = (signal) => {
                   setCallAccepted(true);
                   callAcceptedRef.current = true;
                   callStartTime.current = Date.now();
-                  // Clear the ring timeout - call was answered
                   if (callTimeoutRef.current) {
                         clearTimeout(callTimeoutRef.current);
                         callTimeoutRef.current = null;
                   }
-                  if (connectionRef.current) {
-                        connectionRef.current.signal(signal);
-                  }
+                  if (connectionRef.current) connectionRef.current.signal(signal);
             };
 
-            // Caller cancelled before callee answered
             const handleCallCancelled = () => {
                   setShowCallModal(null);
                   setReceivingCall(false);
@@ -100,17 +106,15 @@ export const CallProvider = ({ children }) => {
                   setCaller(null);
                   setCallType(null);
                   targetUserIdRef.current = null;
+                  showCallToast('📵 Call was cancelled by the caller', 'info');
             };
 
-            const handleCallEndedEvent = () => {
-                  leaveCall(false);
-            };
+            const handleCallEndedEvent = () => leaveCall(false);
 
             const handleWebrtcSignal = (signal) => {
                   if (connectionRef.current) {
                         connectionRef.current.signal(signal);
                   } else {
-                        // Buffer ICE candidates that arrive before we have answered
                         pendingSignals.current.push(signal);
                   }
             };
@@ -121,7 +125,6 @@ export const CallProvider = ({ children }) => {
             socket.on("callEnded", handleCallEndedEvent);
             socket.on("webrtcSignal", handleWebrtcSignal);
 
-            // Protection against accidental page refresh dropping the call
             const handleBeforeUnload = (e) => {
                   if (isCallingRef.current || callAcceptedRef.current) {
                         e.preventDefault();
@@ -132,15 +135,10 @@ export const CallProvider = ({ children }) => {
 
             const handleUnload = () => {
                   if (isCallingRef.current || callAcceptedRef.current) {
-                        // Attempt to notify the other person before the browser kills the connection
                         const otherPartyId = targetUserIdRef.current
                               || caller?._id?.toString() || caller?.id?.toString()
                               || (typeof caller === 'string' ? caller : null);
-
-                        // Using beacon or standard socket emit before page completely dies
-                        if (socket && otherPartyId) {
-                              socket.emit("leaveCall", { to: otherPartyId });
-                        }
+                        if (socket && otherPartyId) socket.emit("leaveCall", { to: otherPartyId });
                   }
             };
 
@@ -164,22 +162,17 @@ export const CallProvider = ({ children }) => {
                   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                   const oscillator = audioCtx.createOscillator();
                   const gainNode = audioCtx.createGain();
-
                   oscillator.type = 'sine';
                   oscillator.frequency.setValueAtTime(440, audioCtx.currentTime);
                   oscillator.frequency.setValueAtTime(480, audioCtx.currentTime + 0.15);
-
                   gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
                   gainNode.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.1);
                   gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1.5);
-
                   oscillator.connect(gainNode);
                   gainNode.connect(audioCtx.destination);
                   oscillator.start();
                   oscillator.stop(audioCtx.currentTime + 1.5);
-            } catch (e) {
-                  console.log('Audio play blocked:', e);
-            }
+            } catch (e) { /* blocked */ }
       };
 
       useEffect(() => {
@@ -188,9 +181,7 @@ export const CallProvider = ({ children }) => {
                   playRingtone();
                   interval = setInterval(playRingtone, 2500);
             }
-            return () => {
-                  if (interval) clearInterval(interval);
-            };
+            return () => { if (interval) clearInterval(interval); };
       }, [showCallModal]);
 
       const startCall = async (targetUserId, type, otherUserData) => {
@@ -198,9 +189,9 @@ export const CallProvider = ({ children }) => {
             setIsCalling(true);
             isCallingRef.current = true;
             setCaller(otherUserData);
-            targetUserIdRef.current = targetUserId?.toString(); // ✅ Save for cleanup
-            setShowCallModal('calling'); // ✅ Show outgoing call screen
-            pendingSignals.current = []; // Reset signals
+            targetUserIdRef.current = targetUserId?.toString();
+            setShowCallModal('calling');
+            pendingSignals.current = [];
 
             try {
                   const mediaConstraints = {
@@ -210,29 +201,21 @@ export const CallProvider = ({ children }) => {
                               height: { ideal: 720, max: 1080 },
                               frameRate: { ideal: 30, max: 60 }
                         } : false,
-                        audio: {
-                              echoCancellation: true,
-                              noiseSuppression: true,
-                              autoGainControl: true
-                        }
+                        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
                   };
-                  
+
                   const mediaStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
                   setStream(mediaStream);
-                  if (myVideo.current) {
-                        myVideo.current.srcObject = mediaStream;
-                  }
+                  if (myVideo.current) myVideo.current.srcObject = mediaStream;
 
                   const peer = new Peer({
                         initiator: true,
-                        trickle: true,   // Stream ICE candidates instantly for extremely fast 1-2s connection
+                        trickle: true,
                         stream: mediaStream,
                         config: ICE_SERVERS
                   });
 
-                  // Fires multiple times: first with the offer, then with ICE candidates
                   let isFirstSignal = true;
-
                   peer.on("signal", (data) => {
                         if (isFirstSignal) {
                               socket.emit("callUser", {
@@ -243,39 +226,31 @@ export const CallProvider = ({ children }) => {
                               });
                               isFirstSignal = false;
                         } else {
-                              socket.emit("webrtcSignal", {
-                                    to: targetUserId,
-                                    signal: data
-                              });
+                              socket.emit("webrtcSignal", { to: targetUserId, signal: data });
                         }
                   });
 
                   peer.on("stream", (remoteStream) => {
-                        if (userVideo.current) {
-                              userVideo.current.srcObject = remoteStream;
-                        }
+                        if (userVideo.current) userVideo.current.srcObject = remoteStream;
                   });
 
                   peer.on("error", (err) => {
                         console.error("Peer error:", err);
-                        // Clean up on peer error
+                        showCallToast('⚠️ Call connection failed. Please try again.', 'error');
                         leaveCall(true);
                   });
 
-                  peer.on("close", () => {
-                        console.log("Peer connection closed");
-                        leaveCall(false);
-                  });
+                  peer.on("close", () => { leaveCall(false); });
 
                   connectionRef.current = peer;
 
-                  // Auto-cancel after 30 seconds if unanswered
-                  // Use ref to avoid stale closure bug
+                  // Auto-cancel after 30s if unanswered
                   callTimeoutRef.current = setTimeout(() => {
                         if (!callAcceptedRef.current) {
+                              showCallToast('📵 No answer — call timed out', 'info');
                               leaveCall(true);
                         }
-                  }, 30000); // Reduced from 45s for faster feedback
+                  }, 30000);
 
             } catch (err) {
                   console.error('Failed to get local stream:', err);
@@ -283,7 +258,14 @@ export const CallProvider = ({ children }) => {
                   isCallingRef.current = false;
                   setShowCallModal(null);
                   targetUserIdRef.current = null;
-                  alert('Could not access microphone/camera. Please check permissions.');
+                  // Friendly toast instead of alert
+                  if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                        showCallToast('🎙️ No microphone/camera found. Please connect a device.', 'error');
+                  } else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                        showCallToast('🔒 Camera/microphone access denied. Please allow permissions in your browser.', 'error');
+                  } else {
+                        showCallToast('⚠️ Could not start call. Check your camera/mic permissions.', 'error');
+                  }
             }
       };
 
@@ -301,22 +283,16 @@ export const CallProvider = ({ children }) => {
                               height: { ideal: 720, max: 1080 },
                               frameRate: { ideal: 30, max: 60 }
                         } : false,
-                        audio: {
-                              echoCancellation: true,
-                              noiseSuppression: true,
-                              autoGainControl: true
-                        }
+                        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
                   };
 
                   const mediaStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
                   setStream(mediaStream);
-                  if (myVideo.current) {
-                        myVideo.current.srcObject = mediaStream;
-                  }
+                  if (myVideo.current) myVideo.current.srcObject = mediaStream;
 
                   const peer = new Peer({
                         initiator: false,
-                        trickle: true,  // Stream ICE candidates instantly for fast connection
+                        trickle: true,
                         stream: mediaStream,
                         config: ICE_SERVERS
                   });
@@ -326,8 +302,6 @@ export const CallProvider = ({ children }) => {
                         || (typeof caller === 'string' ? caller : null);
 
                   let isFirstSignal = true;
-
-                  // Fires multiple times: first with the answer, then with ICE candidates
                   peer.on("signal", (data) => {
                         if (isFirstSignal) {
                               socket.emit("answerCall", { signal: data, to: callerId });
@@ -338,29 +312,22 @@ export const CallProvider = ({ children }) => {
                   });
 
                   peer.on("stream", (remoteStream) => {
-                        if (userVideo.current) {
-                              userVideo.current.srcObject = remoteStream;
-                        }
+                        if (userVideo.current) userVideo.current.srcObject = remoteStream;
                   });
 
                   peer.on("error", (err) => {
                         console.error("Peer error:", err);
+                        showCallToast('⚠️ Call connection lost. Please try again.', 'error');
                         leaveCall(false);
                   });
 
-                  peer.on("close", () => {
-                        console.log("Peer connection closed");
-                        leaveCall(false);
-                  });
+                  peer.on("close", () => { leaveCall(false); });
 
-                  // Signal the peer with the stored offer
                   peer.signal(callerSignal);
-
-                  // Drain any buffered ICE candidates that arrived early
                   pendingSignals.current.forEach(sig => peer.signal(sig));
                   pendingSignals.current = [];
-
                   connectionRef.current = peer;
+
             } catch (err) {
                   console.error('Failed to answer call:', err);
                   setCallAccepted(false);
@@ -368,15 +335,16 @@ export const CallProvider = ({ children }) => {
                   setReceivingCall(false);
                   setShowCallModal(null);
 
-                  // Reject the call so the caller doesn't ring indefinitely
                   const callerId = targetUserIdRef.current
                         || caller?._id || caller?.id
                         || (typeof caller === 'string' ? caller : null);
-                  if (socket && callerId) {
-                        socket.emit("cancelCall", { to: callerId });
-                  }
+                  if (socket && callerId) socket.emit("cancelCall", { to: callerId });
 
-                  alert('Could not access microphone/camera. Please check permissions.');
+                  if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                        showCallToast('🔒 Camera/microphone access denied. Cannot answer call.', 'error');
+                  } else {
+                        showCallToast('⚠️ Could not answer call. Check your camera/mic permissions.', 'error');
+                  }
             }
       };
 
@@ -400,22 +368,89 @@ export const CallProvider = ({ children }) => {
             }
       };
 
+      // ── NEW: Screen Share ──
+      const startScreenShare = async () => {
+            try {
+                  const screenStream = await navigator.mediaDevices.getDisplayMedia({
+                        video: { cursor: 'always' },
+                        audio: false
+                  });
+                  const screenTrack = screenStream.getVideoTracks()[0];
+                  screenTrackRef.current = screenTrack;
+
+                  // Replace video track in peer connection
+                  if (connectionRef.current) {
+                        const sender = connectionRef.current._pc?.getSenders?.().find(s => s.track?.kind === 'video');
+                        if (sender) await sender.replaceTrack(screenTrack);
+                  }
+
+                  // Replace local video preview
+                  if (myVideo.current) {
+                        const newStream = new MediaStream([screenTrack, ...stream.getAudioTracks()]);
+                        myVideo.current.srcObject = newStream;
+                  }
+
+                  setIsScreenSharing(true);
+
+                  // Auto-stop when user clicks "Stop sharing" in browser UI
+                  screenTrack.onended = () => stopScreenShare();
+            } catch (err) {
+                  if (err.name !== 'AbortError' && err.name !== 'NotAllowedError') {
+                        showCallToast('⚠️ Screen share failed. Please try again.', 'error');
+                  }
+            }
+      };
+
+      const stopScreenShare = async () => {
+            if (screenTrackRef.current) screenTrackRef.current.stop();
+
+            // Restore camera track
+            if (stream && connectionRef.current) {
+                  const cameraTrack = stream.getVideoTracks()[0];
+                  if (cameraTrack) {
+                        const sender = connectionRef.current._pc?.getSenders?.().find(s => s.track?.kind === 'video');
+                        if (sender) await sender.replaceTrack(cameraTrack);
+                  }
+                  if (myVideo.current) myVideo.current.srcObject = stream;
+            }
+
+            setIsScreenSharing(false);
+            screenTrackRef.current = null;
+      };
+
+      // ── NEW: Speaker toggle (mobile) ──
+      const toggleSpeaker = async () => {
+            const newSpeaker = !isSpeakerOn;
+            setIsSpeakerOn(newSpeaker);
+            // For mobile browsers that support setSinkId on audio elements
+            if (userVideo.current && userVideo.current.setSinkId) {
+                  try {
+                        const devices = await navigator.mediaDevices.enumerateDevices();
+                        const speaker = devices.find(d => d.kind === 'audiooutput' && (newSpeaker ? d.label.toLowerCase().includes('speaker') : d.label.toLowerCase().includes('ear')));
+                        if (speaker) await userVideo.current.setSinkId(speaker.deviceId);
+                  } catch (e) { /* not supported on this device */ }
+            }
+      };
+
       const leaveCall = async (emitEvent = true) => {
-            // Clear the ring timeout
             if (callTimeoutRef.current) {
                   clearTimeout(callTimeoutRef.current);
                   callTimeoutRef.current = null;
             }
 
-            // Determine the other party's ID (use ref — always fresh)
+            // Stop screen share cleanly
+            if (screenTrackRef.current) {
+                  screenTrackRef.current.stop();
+                  screenTrackRef.current = null;
+            }
+            setIsScreenSharing(false);
+
             const otherPartyId = targetUserIdRef.current
                   || caller?._id?.toString() || caller?.id?.toString()
                   || (typeof caller === 'string' ? caller : null);
 
-            // Emit cancel (if caller hung up before answer) or end (if call was active)
             if (emitEvent && socket && otherPartyId) {
                   if (isCallingRef.current && !callAcceptedRef.current) {
-                        // Caller is cancelling before the callee answered
                         socket.emit("cancelCall", { to: otherPartyId });
                   } else {
                         socket.emit("leaveCall", { to: otherPartyId });
@@ -450,7 +485,7 @@ export const CallProvider = ({ children }) => {
                   }
             }
 
-            // Clean up state
+            // Cleanup state
             setCallEnded(true);
             setIsCalling(false);
             isCallingRef.current = false;
@@ -464,12 +499,13 @@ export const CallProvider = ({ children }) => {
                   connectionRef.current.destroy();
                   connectionRef.current = null;
             }
+
+            // Always stop ALL tracks cleanly
             if (stream) {
                   stream.getTracks().forEach(track => track.stop());
                   setStream(null);
             }
 
-            // Delayed cleanup so the UI can show "call ended" briefly
             setTimeout(() => {
                   setCallEnded(false);
                   setCallType(null);
@@ -477,22 +513,19 @@ export const CallProvider = ({ children }) => {
                   setCallerSignal(null);
                   setIsMuted(false);
                   setIsVideoOff(false);
+                  setIsSpeakerOn(true);
                   callStartTime.current = null;
                   targetUserIdRef.current = null;
             }, 800);
       };
 
       const rejectCall = () => {
-            // Receiver explicitly declines the call — emit cancelCall so caller sees it was rejected
             const callerId = targetUserIdRef.current
                   || caller?._id?.toString() || caller?.id?.toString()
                   || (typeof caller === 'string' ? caller : null);
 
-            if (socket && callerId) {
-                  socket.emit('cancelCall', { to: callerId });
-            }
+            if (socket && callerId) socket.emit('cancelCall', { to: callerId });
 
-            // Local cleanup
             setShowCallModal(null);
             setReceivingCall(false);
             setCallerSignal(null);
@@ -508,8 +541,12 @@ export const CallProvider = ({ children }) => {
                   callAccepted, callEnded, callType,
                   isCalling, showCallModal, setShowCallModal,
                   isMuted, isVideoOff,
+                  isScreenSharing, isSpeakerOn,
+                  callToast,
                   startCall, answerCall, leaveCall, rejectCall,
-                  toggleMute, toggleVideo
+                  toggleMute, toggleVideo,
+                  startScreenShare, stopScreenShare,
+                  toggleSpeaker
             }}>
                   {children}
             </CallContext.Provider>
