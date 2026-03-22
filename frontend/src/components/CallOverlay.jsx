@@ -241,38 +241,62 @@ const CallAvatar = ({ user, size = 100, className = '', style = {} }) => {
 };
 
 /* ── Draggable PiP ── */
-const DraggablePiP = ({ pipRef }) => {
+const DraggablePiP = ({ pipRef, stream }) => {
   const containerRef = useRef(null);
   const isDragging = useRef(false);
   const startPos = useRef({ x: 0, y: 0 });
   const startElPos = useRef({ x: 0, y: 0 });
 
+  useEffect(() => {
+    if (pipRef.current && stream) {
+      if (pipRef.current.srcObject !== stream) {
+        pipRef.current.srcObject = stream;
+      }
+      pipRef.current.play().catch(err => console.error("PiP play error:", err));
+    }
+  }, [stream, pipRef]);
+
   const onMouseDown = (e) => {
-    isDragging.current = true;
-    startPos.current = { x: e.clientX, y: e.clientY };
+    if (e.type === 'touchstart') {
+      isDragging.current = true;
+      startPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    } else {
+      isDragging.current = true;
+      startPos.current = { x: e.clientX, y: e.clientY };
+      e.preventDefault();
+    }
     const rect = containerRef.current.getBoundingClientRect();
     startElPos.current = { x: rect.left, y: rect.top };
-    e.preventDefault();
   };
 
   useEffect(() => {
-    const onMouseMove = (e) => {
+    const onMove = (e) => {
       if (!isDragging.current || !containerRef.current) return;
-      const dx = e.clientX - startPos.current.x;
-      const dy = e.clientY - startPos.current.y;
+      const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
+      const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
+      const dx = clientX - startPos.current.x;
+      const dy = clientY - startPos.current.y;
       containerRef.current.style.left = `${startElPos.current.x + dx}px`;
       containerRef.current.style.top = `${startElPos.current.y + dy}px`;
       containerRef.current.style.right = 'auto';
       containerRef.current.style.bottom = 'auto';
     };
-    const onMouseUp = () => { isDragging.current = false; };
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-    return () => { window.removeEventListener('mousemove', onMouseMove); window.removeEventListener('mouseup', onMouseUp); };
+    const onEnd = () => { isDragging.current = false; };
+    
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onEnd);
+    window.addEventListener('touchmove', onMove, { passive: false });
+    window.addEventListener('touchend', onEnd);
+    return () => { 
+      window.removeEventListener('mousemove', onMove); 
+      window.removeEventListener('mouseup', onEnd); 
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onEnd);
+    };
   }, []);
 
   return (
-    <div ref={containerRef} className="call-local-pip" onMouseDown={onMouseDown}>
+    <div ref={containerRef} className="call-local-pip" onMouseDown={onMouseDown} onTouchStart={onMouseDown}>
       <video playsInline muted ref={pipRef} autoPlay style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
     </div>
   );
@@ -283,7 +307,7 @@ const DraggablePiP = ({ pipRef }) => {
 ══════════════════════════════════════════════════ */
 const CallOverlay = () => {
   const {
-    stream, myVideo, userVideo,
+    stream, remoteStream, myVideo, userVideo,
     receivingCall, caller, callAccepted, callEnded, callType,
     isCalling, showCallModal, answerCall, leaveCall, rejectCall,
     isMuted, isVideoOff, toggleMute, toggleVideo,
@@ -294,6 +318,16 @@ const CallOverlay = () => {
 
   const timer = useCallTimer(callAccepted && !callEnded);
   const otherUser = caller;
+
+  // Ensure remote video binds safely against React remounts
+  useEffect(() => {
+    if (userVideo.current && remoteStream) {
+      if (userVideo.current.srcObject !== remoteStream) {
+        userVideo.current.srcObject = remoteStream;
+      }
+      userVideo.current.play().catch(e => console.warn("Remote video play error:", e));
+    }
+  }, [remoteStream, callAccepted, isVideoOff]); // Dependencies ensure it runs when video shows
 
   return (
     <>
@@ -428,7 +462,7 @@ const CallOverlay = () => {
 
             {/* Local PiP — draggable */}
             {stream && callType === 'video' && (
-              <DraggablePiP pipRef={myVideo} />
+              <DraggablePiP pipRef={myVideo} stream={stream} />
             )}
           </div>
 

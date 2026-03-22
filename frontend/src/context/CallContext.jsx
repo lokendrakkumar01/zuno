@@ -37,6 +37,7 @@ export const CallProvider = ({ children }) => {
       const { user, token } = useAuth();
 
       const [stream, setStream] = useState(null);
+      const [remoteStream, setRemoteStream] = useState(null);
       const [receivingCall, setReceivingCall] = useState(false);
       const [caller, setCaller] = useState(null);
       const [callerSignal, setCallerSignal] = useState(null);
@@ -196,10 +197,9 @@ export const CallProvider = ({ children }) => {
       const getMediaStream = async (type) => {
             const constraints = {
                   video: type === 'video' ? {
-                        facingMode: 'user',
+                        facingMode: { ideal: 'user' },
                         width: { ideal: 1280, max: 1920 },
-                        height: { ideal: 720, max: 1080 },
-                        frameRate: { ideal: 24, max: 30 }
+                        height: { ideal: 720, max: 1080 }
                   } : false,
                   audio: {
                         echoCancellation: true,
@@ -251,9 +251,10 @@ export const CallProvider = ({ children }) => {
                         });
                   });
 
-                  peer.on("stream", (remoteStream) => {
+                  peer.on("stream", (remoteStreamMedia) => {
+                        setRemoteStream(remoteStreamMedia);
                         if (userVideo.current) {
-                              userVideo.current.srcObject = remoteStream;
+                              userVideo.current.srcObject = remoteStreamMedia;
                               userVideo.current.play().catch(() => { });
                         }
                   });
@@ -329,9 +330,10 @@ export const CallProvider = ({ children }) => {
                         socket.emit("answerCall", { signal: data, to: callerId });
                   });
 
-                  peer.on("stream", (remoteStream) => {
+                  peer.on("stream", (remoteStreamMedia) => {
+                        setRemoteStream(remoteStreamMedia);
                         if (userVideo.current) {
-                              userVideo.current.srcObject = remoteStream;
+                              userVideo.current.srcObject = remoteStreamMedia;
                               userVideo.current.play().catch(() => { });
                         }
                   });
@@ -528,6 +530,9 @@ export const CallProvider = ({ children }) => {
                   stream.getTracks().forEach(track => track.stop());
                   setStream(null);
             }
+            if (remoteStream) {
+                  setRemoteStream(null);
+            }
 
             setTimeout(() => {
                   setCallEnded(false);
@@ -561,7 +566,7 @@ export const CallProvider = ({ children }) => {
 
       return (
             <CallContext.Provider value={{
-                  stream, setStream, myVideo, userVideo,
+                  stream, remoteStream, setStream, myVideo, userVideo,
                   receivingCall, caller, callerSignal,
                   callAccepted, callEnded, callType,
                   isCalling, showCallModal, setShowCallModal,

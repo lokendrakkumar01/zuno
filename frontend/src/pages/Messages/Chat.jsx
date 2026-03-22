@@ -243,7 +243,9 @@ const Chat = () => {
 
                               // Otherwise, just append (unlikely if user is sender, but safe)
                               sentMsgIds.current.add(realMsgId);
-                              return [...prev, newMessage];
+                              const updated = [...prev, newMessage];
+                              updated.sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+                              return updated;
                         });
                         return;
                   }
@@ -258,7 +260,9 @@ const Chat = () => {
                               playSound('receive');
                         }
 
-                        return [...prev, newMessage];
+                        const updated = [...prev, newMessage];
+                        updated.sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+                        return updated;
                   });
 
                   // Auto mark as read when the other user sends to us and we're viewing
@@ -541,6 +545,9 @@ const Chat = () => {
                               } else {
                                     updated = prev.map(m => m._id === tempId ? data.data.message : m);
                               }
+                              
+                              // Fix order: Long uploads might place new messages behind older ones
+                              updated.sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
 
                               // Use requestIdleCallback or setTimeout for non-blocking storage
                               if (window.requestIdleCallback) {
@@ -797,10 +804,9 @@ const Chat = () => {
                   return;
             }
 
-            // Show preview immediately (before compression)
-            const reader = new FileReader();
-            reader.onloadend = () => setMediaPreview({ url: reader.result, type: file.type.startsWith('video') ? 'video' : 'image' });
-            reader.readAsDataURL(file);
+            // Show preview Instantly without blocking Main Thread
+            const previewUrl = URL.createObjectURL(file);
+            setMediaPreview({ url: previewUrl, type: file.type.startsWith('video') ? 'video' : 'image' });
             setMediaFile(file);
       };
 
