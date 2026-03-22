@@ -166,8 +166,8 @@ const Profile = () => {
             try {
                   const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
                   const encodedUname = encodeURIComponent(uname);
-                  // Added ?t= parameter to permanently break any browser caching for profile feeds
-                  const res = await fetch(`${API_URL}/feed/creator/${encodedUname}?t=${Date.now()}`, {
+                  // Removed ?t= parameter to allow browser caching for faster loads
+                  const res = await fetch(`${API_URL}/feed/creator/${encodedUname}`, {
                         headers,
                         signal: controller.signal
                   });
