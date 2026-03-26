@@ -1161,6 +1161,11 @@ const ContentCard = ({ content, onDelete, autoOpenFullscreen = false, onCloseFul
                   {isFullscreen && (
                         <div
                               className="fullscreen-media-modal"
+                              style={{ 
+                                    padding: isVideo ? '0' : '20px', 
+                                    alignItems: isVideo ? 'stretch' : 'center',
+                                    backgroundColor: isVideo ? 'rgba(0,0,0,0.97)' : 'rgba(0,0,0,0.85)'
+                              }}
                               onClick={(e) => { if (e.target === e.currentTarget) setIsFullscreen(false); }}
                         >
                               {/* Close Button */}
@@ -1174,11 +1179,28 @@ const ContentCard = ({ content, onDelete, autoOpenFullscreen = false, onCloseFul
                                     </svg>
                               </button>
 
-                              <div className="fullscreen-media-content">
+                              <div className="fullscreen-media-content" style={{
+                                    background: isVideo ? '#000' : 'var(--color-bg-card)',
+                                    minHeight: isVideo ? '100dvh' : 'auto',
+                                    height: isVideo ? '100dvh' : 'auto',
+                                    maxHeight: isVideo ? '100dvh' : '90vh',
+                                    borderRadius: isVideo ? '0' : '16px',
+                                    overflow: 'hidden',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    maxWidth: isVideo ? '520px' : '600px'
+                              }}>
 
                                     {/* ── MEDIA SECTION ── */}
                                     <div
-                                          style={{ position: 'relative', width: '100%', minHeight: isVideo ? '100dvh' : 'auto', flex: isVideo ? '1' : '0 0 auto', cursor: 'pointer' }}
+                                          style={{ 
+                                                position: 'relative', 
+                                                width: '100%', 
+                                                minHeight: isVideo ? '100dvh' : 'auto', 
+                                                flex: isVideo ? '1' : '0 0 auto', 
+                                                cursor: 'pointer',
+                                                background: isVideo ? '#000' : '#f8f9fa'
+                                          }}
                                           onDoubleClick={(e) => { e.preventDefault(); handleDoubleTap(); }}
                                           onClick={(e) => {
                                                 if (isVideo) {
@@ -1200,7 +1222,7 @@ const ContentCard = ({ content, onDelete, autoOpenFullscreen = false, onCloseFul
                                                 <img
                                                       src={getMediaUrl(mediaUrl)}
                                                       alt={content.title || 'Full image'}
-                                                      style={{ width: '100%', maxHeight: '70vh', objectFit: 'contain', background: '#000', display: 'block' }}
+                                                      style={{ width: '100%', maxHeight: '60vh', objectFit: 'contain', background: 'transparent', display: 'block' }}
                                                 />
                                           ) : (
                                                 <video
@@ -1272,47 +1294,47 @@ const ContentCard = ({ content, onDelete, autoOpenFullscreen = false, onCloseFul
 
                                     {/* ── INFO SECTION (images/posts) ── */}
                                     {!isVideo && (
-                                          <div style={{ background: '#fff', padding: '16px', borderTop: '1px solid #efefef' }}>
+                                          <div style={{ background: 'var(--color-bg-card)', padding: '16px', flex: 1, overflowY: 'auto' }}>
                                                 {/* Creator row */}
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-                                                      <img src={content.creator?.avatar || 'https://via.placeholder.com/40'} alt="" style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #eee' }} />
+                                                      <img src={content.creator?.avatar || 'https://via.placeholder.com/40'} alt="" style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--color-border)' }} />
                                                       <div style={{ flex: 1 }}>
-                                                            <div style={{ fontWeight: '700', fontSize: '14px' }}>{content.creator?.displayName || content.creator?.username}</div>
-                                                            <div style={{ fontSize: '12px', color: '#8e8e8e' }}>@{content.creator?.username}</div>
+                                                            <div style={{ fontWeight: '700', fontSize: '14px', color: 'var(--color-text-primary)' }}>{content.creator?.displayName || content.creator?.username}</div>
+                                                            <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>@{content.creator?.username}</div>
                                                       </div>
                                                       {currentUser?._id !== content.creator?._id && (
-                                                            <button onClick={handleFollow} style={{ background: isFollowing ? '#efefef' : 'var(--color-accent-primary)', color: isFollowing ? '#262626' : 'white', border: 'none', borderRadius: '8px', padding: '6px 16px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>
+                                                            <button onClick={handleFollow} style={{ background: isFollowing ? 'var(--color-bg-secondary)' : 'var(--color-accent-primary)', color: isFollowing ? 'var(--color-text-primary)' : 'white', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '6px 16px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>
                                                                   {isFollowing ? 'Following' : 'Follow'}
                                                             </button>
                                                       )}
                                                 </div>
 
                                                 {/* Title + body */}
-                                                {content.title && <h3 style={{ fontWeight: '700', fontSize: '15px', marginBottom: '6px' }}>{content.title}</h3>}
-                                                {content.body && <p style={{ fontSize: '14px', color: '#262626', lineHeight: 1.5, marginBottom: '10px' }}>{content.body}</p>}
+                                                {content.title && <h3 style={{ fontWeight: '700', fontSize: '15px', marginBottom: '6px', color: 'var(--color-text-primary)' }}>{content.title}</h3>}
+                                                {content.body && <p style={{ fontSize: '14px', color: 'var(--color-text-primary)', lineHeight: 1.5, marginBottom: '10px' }}>{content.body}</p>}
 
                                                 {/* Actions row */}
-                                                <div style={{ display: 'flex', gap: '16px', borderTop: '1px solid #efefef', paddingTop: '10px', marginTop: '6px', alignItems: 'center' }}>
-                                                      <button onClick={handleHelpful} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', transform: animateHelpful ? 'scale(1.25)' : 'scale(1)', transition: 'transform 0.2s' }}>
-                                                            <svg width="24" height="24" viewBox="0 0 24 24" fill={isHelpful ? '#ef4444' : 'none'} stroke={isHelpful ? '#ef4444' : '#262626'} strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>
+                                                <div style={{ display: 'flex', gap: '16px', borderTop: '1px solid var(--color-border)', paddingTop: '10px', marginTop: '6px', alignItems: 'center' }}>
+                                                      <button onClick={handleHelpful} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', transform: animateHelpful ? 'scale(1.25)' : 'scale(1)', transition: 'transform 0.2s', color: 'var(--color-text-primary)' }}>
+                                                            <svg width="24" height="24" viewBox="0 0 24 24" fill={isHelpful ? '#ef4444' : 'none'} stroke={isHelpful ? '#ef4444' : 'currentColor'} strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>
                                                             {likeCount > 0 && <span style={{ fontWeight: '700', fontSize: '13px' }}>{likeCount}</span>}
                                                       </button>
-                                                      <button onClick={() => setShowComments(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#262626" strokeWidth="2" style={{ transform: 'scaleX(-1)' }}><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
+                                                      <button onClick={() => setShowComments(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', color: 'var(--color-text-primary)' }}>
+                                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ transform: 'scaleX(-1)' }}><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
                                                             {commentCount > 0 && <span style={{ fontWeight: '700', fontSize: '13px' }}>{commentCount}</span>}
                                                       </button>
-                                                      <button onClick={handleShare} style={{ background: 'none', border: 'none', cursor: 'pointer', transform: animateShare ? 'scale(1.25)' : 'scale(1)', transition: 'transform 0.2s' }}>
-                                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#262626" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
+                                                      <button onClick={handleShare} style={{ background: 'none', border: 'none', cursor: 'pointer', transform: animateShare ? 'scale(1.25)' : 'scale(1)', transition: 'transform 0.2s', color: 'var(--color-text-primary)' }}>
+                                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
                                                       </button>
                                                       <div style={{ flex: 1 }} />
-                                                      <button onClick={handleSave} style={{ background: 'none', border: 'none', cursor: 'pointer', transform: animateSave ? 'scale(1.25)' : 'scale(1)', transition: 'transform 0.2s' }}>
-                                                            <svg width="24" height="24" viewBox="0 0 24 24" fill={isSaved ? '#262626' : 'none'} stroke="#262626" strokeWidth="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
+                                                      <button onClick={handleSave} style={{ background: 'none', border: 'none', cursor: 'pointer', transform: animateSave ? 'scale(1.25)' : 'scale(1)', transition: 'transform 0.2s', color: 'var(--color-text-primary)' }}>
+                                                            <svg width="24" height="24" viewBox="0 0 24 24" fill={isSaved ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
                                                       </button>
                                                 </div>
 
                                                 {/* Comments section */}
                                                 {showComments && (
-                                                      <div style={{ marginTop: '12px', borderTop: '1px solid #efefef', paddingTop: '12px' }}>
+                                                      <div style={{ marginTop: '12px', borderTop: '1px solid var(--color-border)', paddingTop: '12px' }}>
                                                             <CommentSection contentId={content._id} />
                                                       </div>
                                                 )}
