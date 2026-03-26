@@ -343,7 +343,10 @@ const Chat = () => {
       useEffect(() => {
             const lastMsg = messages[messages.length - 1];
             const isMySent = lastMsg?.sender?._id === user?._id || lastMsg?.sender === user?._id;
-            scrollToBottom(isMySent); // Use instant scroll for my own messages
+            // Always scroll to bottom when messages change, use instant if it's my own message or initial load
+            setTimeout(() => {
+                  scrollToBottom(isMySent);
+            }, 50);
       }, [messages]);
 
       // Close menu/emoji on click outside — emoji picker check is careful to not close when clicking emojis
@@ -376,31 +379,37 @@ const Chat = () => {
       };
 
       const fetchMessages = async () => {
-            setLoading(prev => messages.length === 0 ? true : prev);
+            // Fix: Check localStorage directly to avoid stale state
+            const hasCached = !!localStorage.getItem(`zuno_chat_cache_${userId}`);
+            if (!hasCached) setLoading(true);
+
             try {
                   const res = await fetch(`${API_URL}/messages/${userId}`, {
                         headers: { 'Authorization': `Bearer ${token}` }
                   });
                   const data = await res.json();
                   if (data.success) {
+                        // ALWAYS update state with fresh server data to ensure past/new messages sync perfectly
                         setMessages(data.data.messages);
                         setOtherUser(data.data.otherUser);
                         setBlockedInfo(data.data.blockedInfo || { iBlocked: false, theyBlocked: false });
-                        // Cache for instant loading next time (localStorage persists on refresh)
+                        
                         try {
-                              localStorage.setItem(`zuno_chat_cache_${userId}`, JSON.stringify(data.data.messages.slice(-100))); // Store up to 100 messages
+                              localStorage.setItem(`zuno_chat_cache_${userId}`, JSON.stringify(data.data.messages.slice(-100)));
                               localStorage.setItem(`zuno_user_cache_${userId}`, JSON.stringify(data.data.otherUser));
                         } catch (e) {
                               console.warn('Cache quota exceeded');
                         }
-                        // Once loaded, tell the other user we've read their stuff
+                        
                         socket?.emit("messageRead", { receiverId: userId });
+
+                        // Better initial scroll guarantee after DOM renders new messages
+                        setTimeout(() => scrollToBottom(true), 100);
                   } else {
                         throw new Error(data.message || 'Failed to load messages');
                   }
             } catch (err) {
                   console.error('Failed to fetch messages:', err);
-                  // Load from cache if API fails
                   const cachedMsgs = localStorage.getItem(`zuno_chat_cache_${userId}`);
                   if (cachedMsgs) setMessages(JSON.parse(cachedMsgs));
                   const cachedUser = localStorage.getItem(`zuno_user_cache_${userId}`);
@@ -959,8 +968,15 @@ const Chat = () => {
                               </button>
                         )}
                         {loading ? (
-                              <div className="empty-state">
-                                    {/* Silent loading */}
+                              <div className="chat-loading-skeleton" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                    {[1, 2, 3].map(i => (
+                                          <div key={i} style={{ 
+                                                alignSelf: i % 2 === 0 ? 'flex-end' : 'flex-start',
+                                                width: '60%', height: '60px', borderRadius: '16px',
+                                                background: 'var(--bg-secondary)', opacity: 0.5,
+                                                animation: 'pulse 1.5s infinite ease-in-out'
+                                          }} />
+                                    ))}
                               </div>
                         ) : messages.length > 0 ? (
                               messages.map((msg, index) => {

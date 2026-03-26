@@ -723,71 +723,120 @@ const Profile = () => {
                                                 </div>
 
 
-                                                {/* Profile Song Display (Instagram Style) */}
+                                                {/* Profile Song Display (Magic Bar Style) */}
+                                                <style>{`
+                                                      @keyframes magicRecordSpin { 100% { transform: rotate(360deg); } }
+                                                      @keyframes magicMusicBar { 0% { height: 30%; } 50% { height: 100%; } 100% { height: 30%; } }
+                                                `}</style>
                                                 {profileUser.profileSong && profileUser.profileSong.name ? (
                                                       <div
-                                                            className="mt-lg animate-fadeInUp"
+                                                            className="mt-lg animate-fadeInUp magic-music-bar"
                                                             style={{
-                                                                  background: 'rgba(255, 255, 255, 0.4)',
-                                                                  backdropFilter: 'blur(10px)',
-                                                                  border: '1px solid rgba(255, 255, 255, 0.3)',
-                                                                  borderRadius: '16px',
-                                                                  padding: '10px 16px',
+                                                                  position: 'relative',
+                                                                  background: (isMusicPlayingGlobal && currentTrack?.trackId === profileUser.profileSong.trackId) 
+                                                                        ? 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(168,85,247,0.15))' 
+                                                                        : 'rgba(255, 255, 255, 0.4)',
+                                                                  backdropFilter: 'blur(12px)',
+                                                                  border: (isMusicPlayingGlobal && currentTrack?.trackId === profileUser.profileSong.trackId)
+                                                                        ? '1px solid rgba(168,85,247,0.4)'
+                                                                        : '1px solid rgba(255, 255, 255, 0.3)',
+                                                                  borderRadius: '99px',
+                                                                  padding: '8px 16px 8px 8px',
                                                                   display: 'inline-flex',
                                                                   alignItems: 'center',
                                                                   gap: '12px',
-                                                                  boxShadow: '0 4px 15px rgba(0, 0, 0, 0.05)',
+                                                                  boxShadow: (isMusicPlayingGlobal && currentTrack?.trackId === profileUser.profileSong.trackId)
+                                                                        ? '0 0 20px rgba(168,85,247,0.2), 0 4px 15px rgba(0,0,0,0.05)'
+                                                                        : '0 4px 15px rgba(0, 0, 0, 0.05)',
                                                                   maxWidth: '100%',
-                                                                  cursor: isOwnProfile ? 'pointer' : 'default'
+                                                                  cursor: 'pointer',
+                                                                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                                                  transform: (isMusicPlayingGlobal && currentTrack?.trackId === profileUser.profileSong.trackId) ? 'scale(1.02)' : 'scale(1)'
                                                             }}
-                                                            onClick={() => {
+                                                            onClick={(e) => {
                                                                   if (isOwnProfile) {
                                                                         setEditing(true);
-                                                                        // Small scroll delay to let the edit section render
                                                                         setTimeout(() => {
                                                                               const searchSection = document.getElementById('spotify-search-input');
                                                                               if (searchSection) searchSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
                                                                         }, 100);
+                                                                  } else if (profileUser.profileSong.previewUrl) {
+                                                                        e.stopPropagation();
+                                                                        if (isMusicPlayingGlobal && currentTrack?.trackId === profileUser.profileSong.trackId) {
+                                                                              stopTrack();
+                                                                        } else {
+                                                                              playTrack(profileUser.profileSong);
+                                                                        }
                                                                   }
                                                             }}
+                                                            onMouseOver={(e) => { if (!isMusicPlayingGlobal) e.currentTarget.style.transform = 'scale(1.02)' }}
+                                                            onMouseOut={(e) => { if (!(isMusicPlayingGlobal && currentTrack?.trackId === profileUser.profileSong.trackId)) e.currentTarget.style.transform = 'scale(1)' }}
                                                       >
-                                                            <div style={{ position: 'relative', width: '40px', height: '40px', flexShrink: 0 }}>
-                                                                  <img
-                                                                        src={profileUser.profileSong.albumArt || 'https://images.unsplash.com/photo-1514525253361-bee21394f6c1?w=100&h=100&fit=crop&q=80'}
-                                                                        alt=""
-                                                                        style={{ width: '100%', height: '100%', borderRadius: '8px', objectFit: 'cover' }}
-                                                                  />
-                                                                  {(isMusicPlayingGlobal && currentTrack?.trackId === profileUser.profileSong.trackId) ? (
-                                                                        <button
-                                                                              onClick={(e) => { e.stopPropagation(); stopTrack(); }}
-                                                                              style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', border: 'none', color: 'white', cursor: 'pointer' }}
-                                                                        >
-                                                                              <div className="flex gap-[2px] items-center h-4">
-                                                                                    <div className="w-[3px] bg-white h-full animate-pulse" style={{ animationDelay: '0ms' }}></div>
-                                                                                    <div className="w-[3px] bg-white h-2/3 animate-pulse" style={{ animationDelay: '150ms' }}></div>
-                                                                                    <div className="w-[3px] bg-white h-full animate-pulse" style={{ animationDelay: '300ms' }}></div>
-                                                                              </div>
-                                                                        </button>
-                                                                  ) : profileUser.profileSong.previewUrl && (
-                                                                        <button
-                                                                              onClick={(e) => { e.stopPropagation(); playTrack(profileUser.profileSong); }}
-                                                                              style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', border: 'none', color: 'white', cursor: 'pointer' }}
-                                                                        >
-                                                                              ▶️
-                                                                        </button>
-                                                                  )}
-                                                            </div>
-                                                            <div className="flex-1 min-w-0" style={{ cursor: 'pointer' }} onClick={(e) => {
-                                                                  if (!isOwnProfile && profileUser.profileSong.previewUrl) {
+                                                            {/* Spinning Vinyl Record Effect */}
+                                                            <div 
+                                                                  style={{ 
+                                                                        position: 'relative', 
+                                                                        width: '44px', 
+                                                                        height: '44px', 
+                                                                        flexShrink: 0,
+                                                                        borderRadius: '50%',
+                                                                        overflow: 'hidden',
+                                                                        background: '#000',
+                                                                        boxShadow: '0 4px 10px rgba(0,0,0,0.2)',
+                                                                        cursor: 'pointer'
+                                                                  }}
+                                                                  onClick={(e) => {
                                                                         e.stopPropagation();
-                                                                        playTrack(profileUser.profileSong);
-                                                                  }
-                                                            }}>
-                                                                  <div className="font-bold text-sm truncate">{profileUser.profileSong.name}</div>
+                                                                        if (isMusicPlayingGlobal && currentTrack?.trackId === profileUser.profileSong.trackId) stopTrack();
+                                                                        else if (profileUser.profileSong.previewUrl) playTrack(profileUser.profileSong);
+                                                                  }}
+                                                            >
+                                                                  <div style={{
+                                                                        position: 'absolute', inset: 0,
+                                                                        animation: (isMusicPlayingGlobal && currentTrack?.trackId === profileUser.profileSong.trackId)
+                                                                              ? 'magicRecordSpin 3s linear infinite' : 'none',
+                                                                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                                                  }}>
+                                                                        <img
+                                                                              src={profileUser.profileSong.albumArt || 'https://images.unsplash.com/photo-1514525253361-bee21394f6c1?w=100&h=100&fit=crop&q=80'}
+                                                                              alt=""
+                                                                              style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.85 }}
+                                                                        />
+                                                                        <div style={{ position: 'absolute', width: '12px', height: '12px', background: '#fff', borderRadius: '50%', border: '2px solid #111' }} />
+                                                                  </div>
+                                                                  
+                                                                  {/* Play / Pause Overlay Icon */}
+                                                                  <div style={{ 
+                                                                        position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                        background: 'rgba(0,0,0,0.3)', opacity: 0, transition: 'opacity 0.2s'
+                                                                  }}
+                                                                  onMouseOver={(e) => e.currentTarget.style.opacity = 1}
+                                                                  onMouseOut={(e) => e.currentTarget.style.opacity = 0}
+                                                                  >
+                                                                        {(isMusicPlayingGlobal && currentTrack?.trackId === profileUser.profileSong.trackId) ? '⏸️' : '▶️'}
+                                                                  </div>
+                                                            </div>
+
+                                                            <div className="flex-1 min-w-0" style={{ textAlign: 'left' }}>
+                                                                  <div className="font-bold text-sm truncate" style={{
+                                                                        background: (isMusicPlayingGlobal && currentTrack?.trackId === profileUser.profileSong.trackId)
+                                                                              ? 'linear-gradient(to right, #6366f1, #a855f7)'
+                                                                              : 'var(--text-primary)',
+                                                                        WebkitBackgroundClip: (isMusicPlayingGlobal && currentTrack?.trackId === profileUser.profileSong.trackId) ? 'text' : 'inherit',
+                                                                        WebkitTextFillColor: (isMusicPlayingGlobal && currentTrack?.trackId === profileUser.profileSong.trackId) ? 'transparent' : 'inherit',
+                                                                  }}>{profileUser.profileSong.name}</div>
                                                                   <div className="text-xs text-muted truncate">{profileUser.profileSong.artist}</div>
                                                             </div>
-                                                            {isOwnProfile && (
-                                                                  <div className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded ml-2 shadow-sm border border-indigo-100">MY TRACK</div>
+                                                            
+                                                            {/* Animated Music Bars */}
+                                                            {(isMusicPlayingGlobal && currentTrack?.trackId === profileUser.profileSong.trackId) ? (
+                                                                  <div className="flex gap-[3px] items-center h-4 ml-2 mr-1">
+                                                                        <div className="w-[3px] rounded-full bg-indigo-500" style={{ animation: 'magicMusicBar 0.8s ease-in-out infinite alternate', animationDelay: '0ms' }}></div>
+                                                                        <div className="w-[3px] rounded-full bg-purple-500" style={{ animation: 'magicMusicBar 0.8s ease-in-out infinite alternate', animationDelay: '200ms' }}></div>
+                                                                        <div className="w-[3px] rounded-full bg-pink-500" style={{ animation: 'magicMusicBar 0.8s ease-in-out infinite alternate', animationDelay: '400ms' }}></div>
+                                                                  </div>
+                                                            ) : isOwnProfile && (
+                                                                  <div className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-2 py-1 rounded-full ml-2 shadow-sm border border-indigo-100">EDIT</div>
                                                             )}
                                                       </div>
                                                 ) : isOwnProfile && (

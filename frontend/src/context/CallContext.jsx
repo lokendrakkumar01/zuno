@@ -228,11 +228,10 @@ export const CallProvider = ({ children }) => {
                         myVideo.current.muted = true; // Always mute self-view
                   }
 
-                  // Use trickle: false for a single, complete signal exchange
-                  // This avoids missed ICE candidates and is more reliable over the public internet
+                  // Use trickle: true for much faster connection times (no waiting for ICE gathering)
                   const peer = new Peer({
                         initiator: true,
-                        trickle: false,   // ← KEY FIX: wait for complete ICE gathering before signaling
+                        trickle: true,
                         stream: mediaStream,
                         config: ICE_SERVERS,
                         sdpTransform: (sdp) => {
@@ -241,14 +240,22 @@ export const CallProvider = ({ children }) => {
                         }
                   });
 
+                  let isFirstSignal = true;
                   peer.on("signal", (data) => {
-                        // With trickle:false this fires exactly ONCE with a complete offer
-                        socket.emit("callUser", {
-                              userToCall: targetUserId,
-                              signalData: data,
-                              from: user,
-                              callType: type
-                        });
+                        if (isFirstSignal) {
+                              socket.emit("callUser", {
+                                    userToCall: targetUserId,
+                                    signalData: data,
+                                    from: user,
+                                    callType: type
+                              });
+                              isFirstSignal = false;
+                        } else {
+                              socket.emit("webrtcSignal", {
+                                    signal: data,
+                                    to: targetUserId
+                              });
+                        }
                   });
 
                   peer.on("stream", (remoteStreamMedia) => {
@@ -317,17 +324,22 @@ export const CallProvider = ({ children }) => {
                         || callerRef.current?._id || callerRef.current?.id
                         || (typeof callerRef.current === 'string' ? callerRef.current : null);
 
-                  // Use trickle: false for a single, complete answer signal
+                  // Use trickle: true for faster answer
                   const peer = new Peer({
                         initiator: false,
-                        trickle: false,   // ← KEY FIX
+                        trickle: true,
                         stream: mediaStream,
                         config: ICE_SERVERS
                   });
 
+                  let isFirstAnswer = true;
                   peer.on("signal", (data) => {
-                        // With trickle:false this fires exactly ONCE with a complete answer
-                        socket.emit("answerCall", { signal: data, to: callerId });
+                        if (isFirstAnswer) {
+                              socket.emit("answerCall", { signal: data, to: callerId });
+                              isFirstAnswer = false;
+                        } else {
+                              socket.emit("webrtcSignal", { signal: data, to: callerId });
+                        }
                   });
 
                   peer.on("stream", (remoteStreamMedia) => {

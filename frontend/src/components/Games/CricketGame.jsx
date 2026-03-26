@@ -24,7 +24,6 @@ const CricketGame = () => {
     const [ballsLeft, setBallsLeft] = useState(12); // 2 overs
     
     // Animation & UI state
-    const [ballPos, setBallPos] = useState(-20); // -20 to 120
     const [isBowling, setIsBowling] = useState(false);
     const [actionMessage, setActionMessage] = useState('Welcome to Zuno Cricket!');
     const [actionColor, setActionColor] = useState('#fff');
@@ -33,6 +32,17 @@ const CricketGame = () => {
     
     const animationRef = useRef(null);
     const speedRef = useRef(1);
+    const ballRef = useRef(null);
+    const ballPosRef = useRef(-20);
+    
+    // Direct DOM manipulation for butter-smooth 60fps
+    const updateBallDOM = (pos) => {
+        if (ballRef.current) {
+            ballRef.current.style.top = `${pos}%`;
+            ballRef.current.style.transform = `translate(-50%, -50%) scale(${1 + (pos/100)})`;
+            ballRef.current.style.opacity = pos < 0 || pos > 100 ? 0 : 1;
+        }
+    };
     
     // Audio Refs
     const bgmRef = useRef(null);
@@ -68,12 +78,64 @@ const CricketGame = () => {
         };
     }, []);
 
+    const playFallbackTone = (type) => {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gainNode = ctx.createGain();
+            osc.connect(gainNode);
+            gainNode.connect(ctx.destination);
+            
+            if (type === 'hit') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(800, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.1);
+                gainNode.gain.setValueAtTime(0.5, ctx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.1);
+            } else if (type === 'boundary') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(1000, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(2000, ctx.currentTime + 0.3);
+                gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.5);
+            } else if (type === 'out') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(300, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 0.5);
+                gainNode.gain.setValueAtTime(0.5, ctx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.5);
+            }
+        } catch (e) {
+            console.log('Web Audio fallback failed', e);
+        }
+    };
+
     const playSoundEffect = (type) => {
         try {
-            if (type === 'hit') { hitSoundRef.current.currentTime = 0; hitSoundRef.current.play().catch(e=>console.log(e)); }
-            if (type === 'boundary') { crowdSoundRef.current.currentTime = 0; crowdSoundRef.current.play().catch(e=>console.log(e)); hitSoundRef.current.play().catch(e=>console.log(e)); }
-            if (type === 'out') { outSoundRef.current.currentTime = 0; outSoundRef.current.play().catch(e=>console.log(e)); }
-            if (type === 'bowl') { bowlSoundRef.current.currentTime = 0; bowlSoundRef.current.play().catch(e=>console.log(e)); }
+            let sound = null;
+            if (type === 'hit') sound = hitSoundRef.current;
+            if (type === 'boundary') sound = hitSoundRef.current;
+            if (type === 'out') sound = outSoundRef.current;
+            if (type === 'bowl') sound = bowlSoundRef.current;
+
+            if (sound) {
+                sound.currentTime = 0;
+                sound.play().catch(e => {
+                    playFallbackTone(type);
+                });
+                if (type === 'boundary' && crowdSoundRef.current) {
+                    crowdSoundRef.current.currentTime = 0; 
+                    crowdSoundRef.current.play().catch(() => {});
+                }
+            } else {
+                playFallbackTone(type);
+            }
         } catch(e) {}
     };
 
@@ -96,7 +158,8 @@ const CricketGame = () => {
         setBallsLeft(12); // 2 overs
         setActionMessage(`Let's go ${teamName}!`);
         setActionColor('#e0e7ff');
-        setBallPos(-20);
+        ballPosRef.current = -20;
+        updateBallDOM(-20);
         setIsBowling(false);
         try { bgmRef.current?.play(); } catch(e) {}
     };
@@ -111,24 +174,27 @@ const CricketGame = () => {
         if (isBowling || ballsLeft <= 0 || wickets >= players.length - 1) return;
         
         setIsBowling(true);
-        setBallPos(-20);
+        ballPosRef.current = -20;
+        updateBallDOM(-20);
         setActionMessage('Bowler running in... 💨');
         setActionColor('#fbbf24');
         playSoundEffect('bowl');
         
-        // Randomize speed slightly. Make it playable (around 1 to 2.5 units per frame)
-        speedRef.current = 1.2 + Math.random() * 1.8; 
+        // Randomize speed slightly. Make it playable (around 1.2 to 2.5 units per frame)
+        speedRef.current = 1.2 + Math.random() * 1.5; 
 
         const animateBall = () => {
-            setBallPos(prev => {
-                if (prev > 120) {
-                    // Ball passed without hit -> Dot ball
-                    handleResult(0, 'Missed it! Dot ball. 😅', '0', '#6b7280', 'miss');
-                    return -20;
-                }
-                return prev + speedRef.current;
-            });
-            animationRef.current = requestAnimationFrame(animateBall);
+             ballPosRef.current += speedRef.current;
+             
+             if (ballPosRef.current > 120) {
+                  // Ball passed without hit -> Dot ball
+                  updateBallDOM(-20);
+                  ballPosRef.current = -20;
+                  handleResult(0, 'Missed it! Dot ball. 😅', '0', '#6b7280', 'miss');
+             } else {
+                  updateBallDOM(ballPosRef.current);
+                  animationRef.current = requestAnimationFrame(animateBall);
+             }
         };
         animationRef.current = requestAnimationFrame(animateBall);
     };
@@ -140,16 +206,17 @@ const CricketGame = () => {
         setTimeout(() => setBatSwing(false), 300);
 
         cancelAnimationFrame(animationRef.current);
+        const currentPos = ballPosRef.current;
         
         // Calculate timing
         let outcome;
         // Perfect timing (4 or 6) - 70 to 90
-        if (ballPos >= 70 && ballPos <= 90) {
+        if (currentPos >= 70 && currentPos <= 90) {
             outcome = Math.random() > 0.4 ? OUTCOMES[5] : OUTCOMES[4];
             triggerCameraShake();
         } 
         // Good timing (1, 2) - 50 to 70 or 90 to 110
-        else if ((ballPos >= 50 && ballPos < 70) || (ballPos > 90 && ballPos <= 110)) {
+        else if ((currentPos >= 50 && currentPos < 70) || (currentPos > 90 && currentPos <= 110)) {
             outcome = Math.random() > 0.5 ? OUTCOMES[2] : OUTCOMES[3];
         } 
         // Bad timing (Out or 0)
@@ -161,7 +228,8 @@ const CricketGame = () => {
         handleResult(outcome.runs, outcome.message, outcome.type, outcome.color, outcome.sound);
         
         // Move ball away quickly
-        setBallPos(150); 
+        ballPosRef.current = 150;
+        updateBallDOM(150);
     };
 
     const handleResult = (runs, message, type = '0', color = '#fff', sound = null) => {
@@ -317,11 +385,11 @@ const CricketGame = () => {
                     {/* The Ball */}
                     <div 
                         className="cricket-ball" 
+                        ref={ballRef}
                         style={{ 
-                            top: `${ballPos}%`, 
-                            transform: `translate(-50%, -50%) scale(${1 + (ballPos/100)})`,
-                            opacity: ballPos < 0 || ballPos > 100 ? 0 : 1
-                            /* Box shadow creates a 'spin'/'motion blur' effect based on speed */
+                            top: `-20%`, 
+                            transform: `translate(-50%, -50%) scale(0.8)`,
+                            opacity: 0
                         }}
                     ></div>
 
@@ -360,6 +428,10 @@ const CricketGame = () => {
                             <strong>{score}/{wickets}</strong>
                         </div>
                         <p className="mt-sm">You scored <strong>{score}</strong> runs in {12 - ballsLeft} balls.</p>
+                        
+                        <div className="cricket-performance-rating" style={{ margin: '16px 0', fontSize: '1.2rem', fontWeight: 800 }}>
+                            {score >= 36 ? '🏆 MASTER BLASTER!' : score >= 20 ? '🔥 GREAT KNOCK!' : '😅 NEEDS PRACTICE'}
+                        </div>
                         
                         <div className="cricket-game-actions mt-lg">
                             <button className="cricket-btn secondary" onClick={() => setGameState('menu')}>Menu</button>

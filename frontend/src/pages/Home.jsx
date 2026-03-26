@@ -79,33 +79,46 @@ const Home = () => {
                   hasCachedContent = contents.length > 0;
             }
 
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 15000); // Shorter timeout for better UX
+            // Retry logic with longer timeout for Render.com cold starts
+            const attemptFetch = async (timeoutMs) => {
+                  const controller = new AbortController();
+                  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+                  try {
+                        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+                        const url = new URL(`${API_URL}/feed`);
+                        url.searchParams.append('mode', currentMode);
+                        url.searchParams.append('page', currentPage);
+                        url.searchParams.append('limit', 12);
+                        if (currentTopic) url.searchParams.append('topic', currentTopic);
+                        const res = await fetch(url.toString(), { headers, signal: controller.signal });
+                        clearTimeout(timeoutId);
+                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                        return await res.json();
+                  } catch (err) {
+                        clearTimeout(timeoutId);
+                        throw err;
+                  }
+            };
 
             try {
-                  const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-                  const url = new URL(`${API_URL}/feed`);
-                  url.searchParams.append('mode', currentMode);
-                  url.searchParams.append('page', currentPage);
-                  url.searchParams.append('limit', 12); // Slightly more content per page
-                  if (currentTopic) url.searchParams.append('topic', currentTopic);
+                  let data;
+                  try {
+                        // First attempt: 12s (fast network or warm server)
+                        data = await attemptFetch(12000);
+                  } catch (firstErr) {
+                        if (firstErr.name === 'AbortError' && !hasCachedContent) {
+                              // Server is cold-starting (Render free tier). Show waking up state, retry with 30s.
+                              setError('__waking_up__');
+                              data = await attemptFetch(35000);
+                        } else {
+                              throw firstErr;
+                        }
+                  }
 
-                  const res = await fetch(url.toString(), {
-                        headers,
-                        signal: controller.signal
-                  });
-                  
-                  if (!res.ok) throw new Error('Refresh failed');
-                  
-                  const data = await res.json();
-
-                  if (data.success) {
-                        clearTimeout(timeoutId);
+                  if (data && data.success) {
                         const newContents = data.data.contents;
-                        
                         if (append) {
                               setContents(prev => {
-                                    // Prevent duplicates
                                     const existingIds = new Set(prev.map(c => c._id));
                                     const uniqueNew = newContents.filter(c => !existingIds.has(c._id));
                                     return [...prev, ...uniqueNew];
@@ -120,13 +133,14 @@ const Home = () => {
                         setHasMore(data.data.pagination.hasMore);
                         setError(null);
                   } else {
-                        throw new Error(data.message || 'Failed to load');
+                        throw new Error(data?.message || 'Failed to load');
                   }
             } catch (err) {
-                  clearTimeout(timeoutId);
                   console.error('Feed fetch failed:', err);
                   if (!hasCachedContent) {
-                        setError(err.name === 'AbortError' ? 'Server taking too long. Please try again.' : 'Network error. Check your connection.');
+                        setError(err.name === 'AbortError' ? 'timeout' : 'network');
+                  } else {
+                        setError(null); // Have cached content — hide error silently
                   }
             } finally {
                   setSilentRefreshing(false);
@@ -333,16 +347,32 @@ const Home = () => {
                                     </p>
                               </div>
 
-                              {/* Error State - Server Timeout */}
+                              {/* Error State - Server Waking Up or Network Error */}
                               {contents.length === 0 && error ? (
+                                    error === '__waking_up__' ? (
+                                    <div className="card p-xl text-center" style={{ maxWidth: '600px', margin: '40px auto', background: 'linear-gradient(135deg, rgba(99,102,241,0.1), rgba(139,92,246,0.08))', borderColor: 'rgba(99,102,241,0.3)' }}>
+                                          <div style={{ fontSize: '3rem', marginBottom: '16px', animation: 'spin 2s linear infinite', display: 'inline-block' }}>☀️</div>
+                                          <h3 className="text-xl font-bold mb-sm" style={{ color: '#818cf8' }}>Server Waking Up...</h3>
+                                          <p className="text-muted mb-sm">Our free server takes ~30s to start. Please wait!</p>
+                                          <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', margin: '12px 0 20px' }}>
+                                                {[0,1,2,3,4].map(i => (
+                                                      <div key={i} style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#6366f1', animation: `callDot 1.4s ease-in-out ${i * 0.28}s infinite` }} />
+                                                ))}
+                                          </div>
+                                          <button onClick={() => fetchFeed(mode, 1, false)} className="btn btn-secondary mx-auto flex" style={{ fontSize: '0.9rem' }}>
+                                                🔄 Retry Now
+                                          </button>
+                                    </div>
+                                    ) : (
                                     <div className="card p-xl text-center" style={{ maxWidth: '600px', margin: '40px auto', background: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
                                           <div className="empty-state-icon mb-md">⚠️</div>
                                           <h3 className="text-xl font-bold text-red-500 mb-sm">Connection Issue</h3>
-                                          <p className="text-muted mb-lg">{error}</p>
+                                          <p className="text-muted mb-lg">Network error. Check your connection and try again.</p>
                                           <button onClick={() => fetchFeed(mode, 1, false)} className="btn btn-primary mx-auto flex">
                                                 🔄 Retry Connection
                                           </button>
                                     </div>
+                                    )
                               ) : contents.length === 0 && silentRefreshing ? (
                                     <div className="animate-fadeIn" style={{ padding: 'var(--space-xl) 0' }}>
                                           {/* Loading skeleton cards */}

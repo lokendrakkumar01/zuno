@@ -343,8 +343,8 @@ const CallOverlay = () => {
         </div>
       )}
 
-      {/* ── Outgoing Call (Dialing) ── */}
-      {showCallModal === 'calling' && !callAccepted && (
+      {/* ── Outgoing Call (Initializing Media) ── */}
+      {showCallModal === 'calling' && !isCalling && !callAccepted && (
         <div className="call-overlay-modal">
           <div className="call-modal-card">
             <div className="call-avatar-wrap">
@@ -361,7 +361,7 @@ const CallOverlay = () => {
               {callType === 'video' ? '📹 Video Call' : '📞 Voice Call'}
             </div>
             <div className="call-status">
-              Calling<span className="call-status-dot" /><span className="call-status-dot" /><span className="call-status-dot" />
+              Starting<span className="call-status-dot" /><span className="call-status-dot" /><span className="call-status-dot" />
             </div>
             <div className="call-btn-row">
               <button
