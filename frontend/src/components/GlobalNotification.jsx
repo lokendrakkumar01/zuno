@@ -220,6 +220,29 @@ const GlobalNotification = () => {
                   );
             };
 
+            const handleGlobalBroadcast = (data) => {
+                  playNotificationSound();
+                  
+                  let icon = "📢";
+                  if (data.type === 'success') icon = "✅";
+                  if (data.type === 'warning') icon = "⚠️";
+                  if (data.type === 'error') icon = "🚨";
+
+                  toast(
+                        <div style={{ padding: '4px' }}>
+                              <strong style={{ display: 'block', fontSize: '1.1em', marginBottom: '4px' }}>System Broadcast</strong>
+                              <p style={{ fontSize: '0.95em', margin: 0 }}>{data.message}</p>
+                        </div>,
+                        { 
+                              position: "top-center", 
+                              autoClose: 10000, 
+                              icon,
+                              type: data.type === 'error' ? 'error' : data.type === 'warning' ? 'warning' : data.type === 'success' ? 'success' : 'info',
+                              style: { border: data.type === 'error' ? '1px solid #ef4444' : '1px solid #6366f1' }
+                        }
+                  );
+            };
+
             socket.on("newMessage", handleNewMessage);
             socket.on("callUser", handleIncomingCall);
             socket.on("callCancelled", handleCallCancelled);
@@ -229,6 +252,7 @@ const GlobalNotification = () => {
             socket.on("followAccepted", handleFollowAccepted);
             socket.on("newInteraction", handleNewInteraction);
             socket.on("newComment", handleNewComment);
+            socket.on("globalBroadcast", handleGlobalBroadcast);
 
             return () => {
                   socket.off("newMessage", handleNewMessage);
@@ -240,6 +264,7 @@ const GlobalNotification = () => {
                   socket.off("followAccepted", handleFollowAccepted);
                   socket.off("newInteraction", handleNewInteraction);
                   socket.off("newComment", handleNewComment);
+                  socket.off("globalBroadcast", handleGlobalBroadcast);
             };
       }, [socket, location.pathname, navigate, answerCall, leaveCall, user?._id]);
 

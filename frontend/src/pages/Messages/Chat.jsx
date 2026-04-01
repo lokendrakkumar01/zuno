@@ -22,7 +22,7 @@ const Chat = () => {
       const navigate = useNavigate();
       const [messages, setMessages] = useState(() => {
             try {
-                  const cached = localStorage.getItem(`zuno_chat_cache_${userId}`); // localStorage persists on refresh
+                  const cached = localStorage.getItem(`zuno_chat_cache_${userId}`); 
                   return cached ? JSON.parse(cached) : [];
             } catch {
                   return [];
@@ -36,8 +36,26 @@ const Chat = () => {
                   return null;
             }
       });
+      const [currentUserId, setCurrentUserId] = useState(userId);
       const [newMessage, setNewMessage] = useState('');
       const [loading, setLoading] = useState(!localStorage.getItem(`zuno_chat_cache_${userId}`));
+      
+      // Synchronous layout update when navigating between users
+      if (userId !== currentUserId) {
+            setCurrentUserId(userId);
+            try {
+                  const cachedMsgs = localStorage.getItem(`zuno_chat_cache_${userId}`);
+                  setMessages(cachedMsgs ? JSON.parse(cachedMsgs) : []);
+                  setLoading(!cachedMsgs);
+                  const cachedUser = localStorage.getItem(`zuno_user_cache_${userId}`);
+                  setOtherUser(cachedUser ? JSON.parse(cachedUser) : null);
+            } catch {
+                  setMessages([]);
+                  setOtherUser(null);
+                  setLoading(true);
+            }
+      }
+
       const [sending, setSending] = useState(false);
       const messagesEndRef = useRef(null);
       const chatAreaRef = useRef(null);
@@ -138,28 +156,7 @@ const Chat = () => {
       const isOnline = onlineUsers.some(id => id.toString() === userId?.toString());
 
       useEffect(() => {
-            // Load messages from cache for instant display when switching or mounting
-            try {
-                  const cachedMsgs = localStorage.getItem(`zuno_chat_cache_${userId}`);
-                  if (cachedMsgs) {
-                        setMessages(JSON.parse(cachedMsgs));
-                        setLoading(false);
-                  } else {
-                        setMessages([]);
-                        setLoading(true);
-                  }
-
-                  const cachedUser = localStorage.getItem(`zuno_user_cache_${userId}`);
-                  if (cachedUser) {
-                        setOtherUser(JSON.parse(cachedUser));
-                  } else {
-                        setOtherUser(null);
-                  }
-            } catch {
-                  setMessages([]);
-                  setOtherUser(null);
-                  setLoading(true);
-            }
+            // Data fetch begins immediately, no need to overwrite cache state as it was handled synchronously
 
             // Fetch user info immediately (for fast name display)
             const fetchUser = async () => {

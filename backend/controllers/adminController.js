@@ -3,6 +3,7 @@ const Content = require('../models/Content');
 const AdminConfig = require('../models/AdminConfig');
 const Interaction = require('../models/Interaction');
 const { sendCustomAdminEmail } = require('../config/emailService');
+const { io } = require('../socket/socket');
 
 // @desc    Get admin dashboard stats
 // @route   GET /api/admin/stats
@@ -553,6 +554,38 @@ const deleteUser = async (req, res) => {
       }
 };
 
+// @desc    Send a global broadcast message
+// @route   POST /api/admin/broadcast
+// @access  Admin
+const sendBroadcast = async (req, res) => {
+      try {
+            const { message, type } = req.body;
+            if (!message) {
+                  return res.status(400).json({ success: false, message: 'Broadcast message is required' });
+            }
+
+            // Emit to all connected clients
+            if (io) {
+                  io.emit('globalBroadcast', {
+                        message,
+                        type: type || 'info',
+                        timestamp: new Date()
+                  });
+            }
+
+            res.json({
+                  success: true,
+                  message: 'Broadcast sent to all active users successfully'
+            });
+      } catch (error) {
+            res.status(500).json({
+                  success: false,
+                  message: 'Failed to send broadcast',
+                  error: error.message
+            });
+      }
+};
+
 module.exports = {
       getDashboardStats,
       getAllUsers,
@@ -568,6 +601,7 @@ module.exports = {
       handleReportAction,
       getConfigs,
       updateConfig,
-      initializeConfigs
+      initializeConfigs,
+      sendBroadcast
 };
 

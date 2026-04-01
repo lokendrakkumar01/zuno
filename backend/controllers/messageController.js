@@ -64,7 +64,7 @@ const getMessages = async (req, res) => {
             const { page = 1, limit = 50 } = req.query;
 
             // Verify other user exists
-            const otherUser = await User.findById(userId).select('username displayName avatar blockedUsers');
+            const otherUser = await User.findById(userId).select('username displayName avatar blockedUsers').lean();
             if (!otherUser) {
                   return res.status(404).json({
                         success: false,

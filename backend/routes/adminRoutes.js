@@ -15,7 +15,8 @@ const {
       handleReportAction,
       getConfigs,
       updateConfig,
-      initializeConfigs
+      initializeConfigs,
+      sendBroadcast
 } = require('../controllers/adminController');
 const { protect, adminOnly, moderatorAccess } = require('../middleware/auth');
 
@@ -34,6 +35,7 @@ router.put('/verifications/:id', adminOnly, handleVerification);
 router.get('/config', adminOnly, getConfigs);
 router.put('/config/:key', adminOnly, updateConfig);
 router.post('/config/init', adminOnly, initializeConfigs);
+router.post('/broadcast', adminOnly, sendBroadcast);
 
 // Moderator+ routes
 router.get('/content', moderatorAccess, getAllContent);

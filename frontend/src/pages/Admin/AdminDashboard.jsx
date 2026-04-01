@@ -220,6 +220,7 @@ const AdminDashboard = () => {
     { path:'/admin/content', label:'Content', icon:'🖼️' },
     { path:'/admin/reports', label:'Reports', icon:'🚨' },
     { path:'/admin/config', label:'Config', icon:'⚙️' },
+    { path:'/admin/broadcast', label:'Broadcast', icon:'📢' },
   ];
 
   const isActive = (path, exact) => exact ? location.pathname === path : location.pathname.startsWith(path);
@@ -290,6 +291,7 @@ const AdminDashboard = () => {
             <Route path="content" element={<ContentManagement token={token} />} />
             <Route path="reports" element={<ReportsManagement token={token} />} />
             <Route path="config" element={<ConfigManagement token={token} />} />
+            <Route path="broadcast" element={<BroadcastManagement token={token} />} />
           </Routes>
         </main>
       </div>
@@ -1065,6 +1067,85 @@ const ConfigManagement = ({ token }) => {
           ))}
         </div>
       )}
+    </div>
+  );
+};
+
+/* ══════════════════════════════════════════════════
+   BROADCAST NOTIFICATIONS MNGT
+══════════════════════════════════════════════════ */
+const BroadcastManagement = ({ token }) => {
+  const { Toast, show } = useToast();
+  const [message, setMessage] = useState('');
+  const [type, setType] = useState('info'); // info, success, warning, error
+  const [loading, setLoading] = useState(false);
+
+  const handleBroadcast = async (e) => {
+    e.preventDefault();
+    if (!message.trim()) return show('Broadcast message cannot be empty', '❌');
+    
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/admin/broadcast`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ message, type })
+      });
+      const data = await res.json();
+      if (data.success) {
+        show('Broadcast fired successfully!', '📢');
+        setMessage('');
+      } else {
+        show('Failed to send broadcast.', '❌');
+      }
+    } catch (err) {
+      show('Server error.', '❌');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="admin-page-header">
+      {Toast}
+      <h2 className="admin-page-title">Broadcast Notification</h2>
+      <p className="admin-page-sub">Send a real-time notification to all currently online users.</p>
+      
+      <div className="admin-card" style={{ marginTop: '24px', maxWidth: '600px' }}>
+        <form onSubmit={handleBroadcast} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div>
+            <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '0.9rem' }}>Notification Message</label>
+            <textarea
+              className="admin-search"
+              style={{ width: '100%', height: '100px', resize: 'vertical' }}
+              placeholder="E.g., Server maintenance in 10 minutes..."
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              required
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '0.9rem' }}>Notification Type</label>
+            <select
+              className="admin-search"
+              style={{ width: '100%', padding: '12px' }}
+              value={type}
+              onChange={(e) => setType(e.target.value)}
+            >
+              <option value="info">Info (Blue)</option>
+              <option value="success">Success (Green)</option>
+              <option value="warning">Warning (Yellow)</option>
+              <option value="error">Critical (Red)</option>
+            </select>
+          </div>
+          <button type="submit" className="admin-btn admin-btn-primary" disabled={loading} style={{ justifyContent: 'center', padding: '12px', marginTop: '16px' }}>
+            {loading ? 'Broadcasting...' : '📢 Send Global Broadcast'}
+          </button>
+        </form>
+      </div>
     </div>
   );
 };
