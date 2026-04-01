@@ -75,6 +75,7 @@ const Home = () => {
                         }
                   } catch { }
                   setSilentRefreshing(true);
+                  setError(null); // Clear any old errors when starting a fresh fetch
             } else {
                   hasCachedContent = contents.length > 0;
             }
@@ -103,13 +104,16 @@ const Home = () => {
             try {
                   let data;
                   try {
-                        // First attempt: 12s (fast network or warm server)
-                        data = await attemptFetch(12000);
+                        // First attempt: 20s (fast network or warm server)
+                        data = await attemptFetch(20000);
                   } catch (firstErr) {
                         if (firstErr.name === 'AbortError' && !hasCachedContent) {
-                              // Server is cold-starting (Render free tier). Show waking up state, retry with 30s.
+                              // Server is cold-starting (Render free tier). Show waking up state, retry with 45s.
                               setError('__waking_up__');
-                              data = await attemptFetch(35000);
+                              data = await attemptFetch(45000);
+                        } else if (firstErr.name === 'AbortError' && hasCachedContent) {
+                              // Have cached content — retry silently without changing UI
+                              data = await attemptFetch(45000);
                         } else {
                               throw firstErr;
                         }
@@ -137,11 +141,11 @@ const Home = () => {
                   }
             } catch (err) {
                   console.error('Feed fetch failed:', err);
+                  // Only show error if no cached content is available
                   if (!hasCachedContent) {
                         setError(err.name === 'AbortError' ? 'timeout' : 'network');
-                  } else {
-                        setError(null); // Have cached content — hide error silently
                   }
+                  // If cached content is available — keep it and silently ignore error
             } finally {
                   setSilentRefreshing(false);
             }

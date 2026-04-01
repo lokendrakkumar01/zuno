@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
@@ -21,9 +21,21 @@ const Register = () => {
       const [showConfirm, setShowConfirm] = useState(false);
       const [error, setError] = useState('');
       const [loading, setLoading] = useState(false);
+      const [wakingUp, setWakingUp] = useState(false);
+      const [retryInfo, setRetryInfo] = useState(null);
+      const [countdown, setCountdown] = useState(0);
+      const countdownRef = useRef(null);
       const { register } = useAuth();
       const { t } = useLanguage();
       const navigate = useNavigate();
+
+      // Countdown timer for retry
+      useEffect(() => {
+            if (countdown > 0) {
+                  countdownRef.current = setTimeout(() => setCountdown(c => c - 1), 1000);
+            }
+            return () => clearTimeout(countdownRef.current);
+      }, [countdown]);
 
       const handleChange = (e) => {
             setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -48,6 +60,9 @@ const Register = () => {
       const handleSubmit = async (e) => {
             e.preventDefault();
             setError('');
+            setWakingUp(false);
+            setRetryInfo(null);
+            setCountdown(0);
 
             if (formData.password !== formData.confirmPassword) {
                   setError('Passwords do not match.');
@@ -56,14 +71,26 @@ const Register = () => {
 
             setLoading(true);
             const { confirmPassword, ...submitData } = formData;
-            const result = await register(submitData);
+            const result = await register(submitData, (info) => {
+                  setWakingUp(true);
+                  setRetryInfo(info);
+                  setCountdown(info.retryIn);
+                  setError(`⏳ Server is waking up... Auto-retrying (${info.attempt}/${info.maxRetries})`);
+            });
 
             if (result.success) {
                   navigate('/');
             } else {
-                  setError(result.message || 'Registration failed. Please try again.');
+                  if (result.status === 'waking_up') {
+                        setWakingUp(true);
+                        setError('Server is still waking up. Please click Create Account again in 30 seconds.');
+                  } else {
+                        setWakingUp(false);
+                        setError(result.message || 'Registration failed. Please try again.');
+                  }
             }
             setLoading(false);
+            setRetryInfo(null);
       };
 
       const nextStep = () => {
@@ -116,14 +143,35 @@ const Register = () => {
                         </div>
 
                         {error && (
-                              <div className="animate-fadeIn" style={{
-                                    background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.35)',
-                                    borderRadius: '12px', padding: '12px 16px', marginBottom: 'var(--space-md)',
-                                    display: 'flex', alignItems: 'flex-start', gap: '10px'
-                              }}>
-                                    <span style={{ fontSize: '18px', flexShrink: 0 }}>⚠️</span>
-                                    <p style={{ color: '#ef4444', fontSize: '14px', fontWeight: 600, margin: 0, flex: 1 }}>{error}</p>
-                                    <button onClick={() => setError('')} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: 0, flexShrink: 0 }}>✕</button>
+                              <div
+                                    className="card p-md mb-lg animate-fadeIn"
+                                    style={{
+                                          background: wakingUp ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                                          borderColor: wakingUp ? 'rgba(245, 158, 11, 0.3)' : 'rgba(239, 68, 68, 0.3)',
+                                          display: 'flex', alignItems: 'flex-start', gap: '10px'
+                                    }}
+                              >
+                                    <span style={{ fontSize: '18px', flexShrink: 0 }}>{wakingUp ? '⏳' : '⚠️'}</span>
+                                    <div style={{ flex: 1 }}>
+                                          <p style={{
+                                                color: wakingUp ? '#f59e0b' : '#ef4444',
+                                                fontSize: 'var(--font-size-sm)', margin: 0, fontWeight: 500
+                                          }}>{error}</p>
+                                          {wakingUp && retryInfo && (
+                                                <div style={{ marginTop: '8px' }}>
+                                                      <div style={{ height: '3px', background: 'rgba(245,158,11,0.2)', borderRadius: '99px', overflow: 'hidden' }}>
+                                                            <div style={{ height: '100%', width: `${((retryInfo.attempt - 1) / retryInfo.maxRetries) * 100}%`, background: '#f59e0b', borderRadius: '99px', transition: 'width 0.5s ease' }} />
+                                                      </div>
+                                                      {countdown > 0 && <p style={{ fontSize: '11px', color: '#f59e0b', margin: '4px 0 0' }}>Retrying in {countdown}s...</p>}
+                                                </div>
+                                          )}
+                                    </div>
+                                    {!loading && (
+                                          <button
+                                                onClick={() => { setError(''); setWakingUp(false); setRetryInfo(null); setCountdown(0); }}
+                                                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: 0, flexShrink: 0 }}
+                                          >✕</button>
+                                    )}
                               </div>
                         )}
 

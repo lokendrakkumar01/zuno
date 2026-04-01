@@ -36,6 +36,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import GlobalNotification from './components/GlobalNotification';
 import CallOverlay from './components/CallOverlay';
 import ErrorBoundary from './components/ErrorBoundary';
+import { API_BASE_URL } from './config';
 
 // Main App Router Component (inside AuthProvider)
 function AppRouter() {
@@ -129,6 +130,20 @@ function App() {
       useEffect(() => {
             const savedTheme = localStorage.getItem('theme') || 'light';
             document.documentElement.setAttribute('data-theme', savedTheme);
+      }, []);
+
+      // Keep-alive ping to prevent Render free tier server from sleeping
+      // This helps avoid login failures and content loading delays
+      useEffect(() => {
+            const ping = () => {
+                  fetch(`${API_BASE_URL}/api/ping`, { method: 'GET' })
+                        .catch(() => {}); // Silent - don't show any error
+            };
+            // Ping immediately on load
+            ping();
+            // Then ping every 13 minutes (Render sleeps after 15 mins of inactivity)
+            const interval = setInterval(ping, 13 * 60 * 1000);
+            return () => clearInterval(interval);
       }, []);
 
       return (

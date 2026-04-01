@@ -75,15 +75,18 @@ export const AuthProvider = ({ children }) => {
       };
 
       const login = async (email, password, onRetry = null) => {
-            const MAX_RETRIES = 3;
-            const RETRY_DELAY = 5000; // 5 seconds between retries
+            const MAX_RETRIES = 4;
+            const RETRY_DELAYS = [8000, 15000, 25000]; // Progressive backoff
 
-            const attemptLogin = async (timeoutMs = 30000) => {
+            const attemptLogin = async (timeoutMs = 35000) => {
                   const res = await fetchWithTimeout(`${API_URL}/auth/login`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ email, password })
                   }, timeoutMs);
+                  if (!res.ok && res.status !== 401 && res.status !== 400) {
+                        throw new Error(`HTTP ${res.status}`);
+                  }
                   return await res.json();
             };
 
@@ -91,7 +94,7 @@ export const AuthProvider = ({ children }) => {
 
             for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
                   try {
-                        const data = await attemptLogin(30000);
+                        const data = await attemptLogin(35000);
                         if (data.success) {
                               setUser(data.data.user);
                               setToken(data.data.token);
@@ -99,20 +102,22 @@ export const AuthProvider = ({ children }) => {
                               localStorage.setItem('zuno_user', JSON.stringify(data.data.user));
                               return { success: true, message: data.message };
                         }
-                        // Server responded but credentials are wrong — don't retry
-                        return { success: false, message: data.message };
+                        // Server responded with auth error — wrong credentials, don't retry
+                        return { success: false, message: data.message || 'Invalid email or password.' };
                   } catch (error) {
                         const isNetworkError = error.name === 'AbortError' ||
                               error.message === 'Failed to fetch' ||
                               error.message?.includes('network') ||
-                              error.message?.includes('timeout');
+                              error.message?.includes('timeout') ||
+                              error.message?.includes('HTTP 5');
 
                         if (isNetworkError && attempt < MAX_RETRIES) {
+                              const retryDelay = RETRY_DELAYS[attempt - 1] || 15000;
                               // Notify UI about waking up and retry countdown
                               if (onRetry) {
-                                    onRetry({ attempt, maxRetries: MAX_RETRIES, retryIn: RETRY_DELAY / 1000 });
+                                    onRetry({ attempt, maxRetries: MAX_RETRIES, retryIn: Math.round(retryDelay / 1000) });
                               }
-                              await sleep(RETRY_DELAY);
+                              await sleep(retryDelay);
                               continue;
                         }
 
@@ -127,37 +132,62 @@ export const AuthProvider = ({ children }) => {
 
                         return {
                               success: false,
-                              message: 'Login failed. Please check your credentials and try again.'
+                              message: 'Login failed. Please check your connection and try again.'
                         };
                   }
             }
+            return { success: false, message: 'Login failed after multiple attempts. Please try again.' };
       };
 
-      const register = async (userData) => {
-            try {
-                  const res = await fetchWithTimeout(`${API_URL}/auth/register`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(userData)
-                  });
-                  const data = await res.json();
+      const register = async (userData, onRetry = null) => {
+            const MAX_RETRIES = 4;
+            const RETRY_DELAYS = [8000, 15000, 25000];
+            const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-                  if (data.success) {
-                        setUser(data.data.user);
-                        setToken(data.data.token);
-                        localStorage.setItem('zuno_token', data.data.token);
-                        localStorage.setItem('zuno_user', JSON.stringify(data.data.user));
-                        return { success: true, message: data.message };
+            for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+                  try {
+                        const res = await fetchWithTimeout(`${API_URL}/auth/register`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify(userData)
+                        }, 35000);
+
+                        // If server responded (even 400/409), don't retry — it's a user error
+                        const data = await res.json();
+                        if (data.success) {
+                              setUser(data.data.user);
+                              setToken(data.data.token);
+                              localStorage.setItem('zuno_token', data.data.token);
+                              localStorage.setItem('zuno_user', JSON.stringify(data.data.user));
+                              return { success: true, message: data.message };
+                        }
+                        // e.g. duplicate email/username — don't retry
+                        return { success: false, message: data.message || 'Registration failed.' };
+                  } catch (error) {
+                        const isNetworkError = error.name === 'AbortError' ||
+                              error.message === 'Failed to fetch' ||
+                              error.message?.includes('network') ||
+                              error.message?.includes('timeout');
+
+                        if (isNetworkError && attempt < MAX_RETRIES) {
+                              const retryDelay = RETRY_DELAYS[attempt - 1] || 15000;
+                              if (onRetry) {
+                                    onRetry({ attempt, maxRetries: MAX_RETRIES, retryIn: Math.round(retryDelay / 1000) });
+                              }
+                              await sleep(retryDelay);
+                              continue;
+                        }
+
+                        return {
+                              success: false,
+                              status: isNetworkError ? 'waking_up' : 'error',
+                              message: isNetworkError
+                                    ? 'Server is starting up. Please wait a moment and try again.'
+                                    : 'Registration failed. Please try again.'
+                        };
                   }
-                  return { success: false, message: data.message };
-            } catch (error) {
-                  return {
-                        success: false,
-                        message: error.name === 'AbortError'
-                              ? 'Request timed out. Please check your connection.'
-                              : 'Registration failed. Please try again.'
-                  };
             }
+            return { success: false, message: 'Registration failed after multiple attempts. Please try again.' };
       };
 
       const logout = () => {
