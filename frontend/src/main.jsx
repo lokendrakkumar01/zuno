@@ -4,6 +4,10 @@ import App from './App.jsx'
 import './styles/index.css'
 
 import ErrorBoundary from './components/ErrorBoundary.jsx'
+import { startKeepAlive } from './utils/keepAlive.js'
+
+// Start keep-alive pings to prevent Render free-tier backend from sleeping
+startKeepAlive();
 
 ReactDOM.createRoot(document.getElementById('root')).render(
       <React.StrictMode>

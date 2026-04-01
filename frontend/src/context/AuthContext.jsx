@@ -74,39 +74,62 @@ export const AuthProvider = ({ children }) => {
             }
       };
 
-      const login = async (email, password) => {
-            const attemptLogin = async (currentTimeout = 60000) => {
+      const login = async (email, password, onRetry = null) => {
+            const MAX_RETRIES = 3;
+            const RETRY_DELAY = 5000; // 5 seconds between retries
+
+            const attemptLogin = async (timeoutMs = 30000) => {
                   const res = await fetchWithTimeout(`${API_URL}/auth/login`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ email, password })
-                  }, currentTimeout);
+                  }, timeoutMs);
                   return await res.json();
             };
 
-            try {
-                  const data = await attemptLogin(60000); // 1 minute for waking up
-                  if (data.success) {
-                        setUser(data.data.user);
-                        setToken(data.data.token);
-                        localStorage.setItem('zuno_token', data.data.token);
-                        localStorage.setItem('zuno_user', JSON.stringify(data.data.user));
-                        return { success: true, message: data.message };
-                  }
-                  return { success: false, message: data.message };
-            } catch (error) {
-                  // If it's a timeout or network error, it's likely the server cold start
-                  if (error.name === 'AbortError' || error.message === 'Failed to fetch') {
+            const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+            for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+                  try {
+                        const data = await attemptLogin(30000);
+                        if (data.success) {
+                              setUser(data.data.user);
+                              setToken(data.data.token);
+                              localStorage.setItem('zuno_token', data.data.token);
+                              localStorage.setItem('zuno_user', JSON.stringify(data.data.user));
+                              return { success: true, message: data.message };
+                        }
+                        // Server responded but credentials are wrong — don't retry
+                        return { success: false, message: data.message };
+                  } catch (error) {
+                        const isNetworkError = error.name === 'AbortError' ||
+                              error.message === 'Failed to fetch' ||
+                              error.message?.includes('network') ||
+                              error.message?.includes('timeout');
+
+                        if (isNetworkError && attempt < MAX_RETRIES) {
+                              // Notify UI about waking up and retry countdown
+                              if (onRetry) {
+                                    onRetry({ attempt, maxRetries: MAX_RETRIES, retryIn: RETRY_DELAY / 1000 });
+                              }
+                              await sleep(RETRY_DELAY);
+                              continue;
+                        }
+
+                        // Final attempt failed or non-network error
+                        if (isNetworkError) {
+                              return {
+                                    success: false,
+                                    status: 'waking_up',
+                                    message: 'Server is waking up. Please wait 30 seconds and try again.'
+                              };
+                        }
+
                         return {
                               success: false,
-                              status: 'waking_up',
-                              message: 'Server is taking longer than usual to respond. It is likely waking up — please wait a moment and try again.'
+                              message: 'Login failed. Please check your credentials and try again.'
                         };
                   }
-                  return {
-                        success: false,
-                        message: 'Login failed. Please check your credentials and try again.'
-                  };
             }
       };
 

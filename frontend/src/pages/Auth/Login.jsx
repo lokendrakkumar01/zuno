@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
@@ -11,29 +11,69 @@ const Login = () => {
       const [error, setError] = useState('');
       const [loading, setLoading] = useState(false);
       const [wakingUp, setWakingUp] = useState(false);
+      const [retryInfo, setRetryInfo] = useState(null); // { attempt, maxRetries, retryIn }
+      const [countdown, setCountdown] = useState(0);
+      const countdownRef = useRef(null);
       const { login } = useAuth();
       const { t } = useLanguage();
       const navigate = useNavigate();
+
+      // Countdown timer for retry
+      useEffect(() => {
+            if (countdown > 0) {
+                  countdownRef.current = setTimeout(() => setCountdown(c => c - 1), 1000);
+            }
+            return () => clearTimeout(countdownRef.current);
+      }, [countdown]);
 
       const handleSubmit = async (e) => {
             e.preventDefault();
             setError('');
             setWakingUp(false);
+            setRetryInfo(null);
+            setCountdown(0);
             setLoading(true);
 
-            const result = await login(email, password);
+            const result = await login(email, password, (info) => {
+                  // Called when auto-retry is happening
+                  setWakingUp(true);
+                  setRetryInfo(info);
+                  setCountdown(info.retryIn);
+                  setError(`⏳ Server is waking up... Auto-retrying (${info.attempt}/${info.maxRetries})`);
+            });
 
             if (result.success) {
                   navigate('/');
             } else {
                   if (result.status === 'waking_up') {
                         setWakingUp(true);
-                        setError('Server is waking up… Please wait a moment and try again.');
+                        setError('Server is still waking up. Please click Login again in 30 seconds.');
                   } else {
+                        setWakingUp(false);
                         setError(result.message || 'Login failed. Please check your credentials.');
                   }
             }
             setLoading(false);
+            setRetryInfo(null);
+      };
+
+      const getButtonLabel = () => {
+            if (!loading) return `✨ ${t('login')}`;
+            if (wakingUp && retryInfo) {
+                  return (
+                        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                              <span style={{ fontSize: '18px' }}>⏳</span>
+                              Retrying ({retryInfo.attempt}/{retryInfo.maxRetries})
+                              {countdown > 0 && <span style={{ fontSize: '13px', opacity: 0.75 }}>in {countdown}s</span>}
+                        </span>
+                  );
+            }
+            return (
+                  <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '18px' }}>⏳</span>
+                        Signing in…
+                  </span>
+            );
       };
 
       return (
@@ -61,6 +101,7 @@ const Login = () => {
                         <h1 className="auth-title animate-fadeInUp">{t('welcomeBack')}</h1>
                         <p className="auth-subtitle animate-fadeInUp stagger-1">Continue your learning journey</p>
 
+                        {/* Error / Waking Up Banner */}
                         {error && (
                               <div
                                     className="card p-md mb-lg animate-fadeIn"
@@ -73,14 +114,38 @@ const Login = () => {
                                     <span style={{ fontSize: '18px', flexShrink: 0 }}>
                                           {wakingUp ? '⏳' : '⚠️'}
                                     </span>
-                                    <p style={{
-                                          color: wakingUp ? '#f59e0b' : '#ef4444',
-                                          fontSize: 'var(--font-size-sm)', margin: 0, flex: 1
-                                    }}>{error}</p>
-                                    <button
-                                          onClick={() => { setError(''); setWakingUp(false); }}
-                                          style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: 0, flexShrink: 0 }}
-                                    >✕</button>
+                                    <div style={{ flex: 1 }}>
+                                          <p style={{
+                                                color: wakingUp ? '#f59e0b' : '#ef4444',
+                                                fontSize: 'var(--font-size-sm)', margin: 0, fontWeight: 500
+                                          }}>{error}</p>
+
+                                          {/* Waking up progress bar */}
+                                          {wakingUp && retryInfo && (
+                                                <div style={{ marginTop: '8px' }}>
+                                                      <div style={{
+                                                            height: '3px',
+                                                            background: 'rgba(245,158,11,0.2)',
+                                                            borderRadius: '99px',
+                                                            overflow: 'hidden'
+                                                      }}>
+                                                            <div style={{
+                                                                  height: '100%',
+                                                                  width: `${((retryInfo.attempt - 1) / retryInfo.maxRetries) * 100}%`,
+                                                                  background: '#f59e0b',
+                                                                  borderRadius: '99px',
+                                                                  transition: 'width 0.5s ease'
+                                                            }} />
+                                                      </div>
+                                                </div>
+                                          )}
+                                    </div>
+                                    {!loading && (
+                                          <button
+                                                onClick={() => { setError(''); setWakingUp(false); setRetryInfo(null); setCountdown(0); }}
+                                                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: 0, flexShrink: 0 }}
+                                          >✕</button>
+                                    )}
                               </div>
                         )}
 
@@ -92,9 +157,10 @@ const Login = () => {
                                           className="input"
                                           placeholder="Enter your email"
                                           value={email}
-                                          onChange={(e) => setEmail(e.target.value)}
+                                          onChange={(e) => { setEmail(e.target.value); if (error && !wakingUp) setError(''); }}
                                           required
                                           autoComplete="email"
+                                          disabled={loading}
                                     />
                               </div>
 
@@ -106,14 +172,16 @@ const Login = () => {
                                                 className="input"
                                                 placeholder="Enter your password"
                                                 value={password}
-                                                onChange={(e) => setPassword(e.target.value)}
+                                                onChange={(e) => { setPassword(e.target.value); if (error && !wakingUp) setError(''); }}
                                                 required
                                                 autoComplete="current-password"
+                                                disabled={loading}
                                                 style={{ paddingRight: '48px' }}
                                           />
                                           <button
                                                 type="button"
                                                 onClick={() => setShowPassword(p => !p)}
+                                                disabled={loading}
                                                 style={{
                                                       position: 'absolute', right: '12px', top: '50%',
                                                       transform: 'translateY(-50%)',
@@ -134,13 +202,7 @@ const Login = () => {
                                     disabled={loading}
                                     style={{ width: '100%', marginTop: 'var(--space-md)' }}
                               >
-                                    {loading
-                                          ? <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                                                <span style={{ fontSize: '18px' }}>⏳</span>
-                                                {wakingUp ? 'Server waking up…' : 'Signing in…'}
-                                            </span>
-                                          : `✨ ${t('login')}`
-                                    }
+                                    {getButtonLabel()}
                               </button>
                         </form>
 

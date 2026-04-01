@@ -24,7 +24,29 @@ const { app, server } = require('./socket/socket');
 // Middleware
 const compression = require('compression');
 app.use(compression()); // Gzip compress all responses for faster transfer
-app.use(cors());
+
+// CORS - allow all origins including custom domain
+const allowedOrigins = [
+  'https://zunoworld.tech',
+  'https://www.zunoworld.tech',
+  'https://zuno-frontend.onrender.com',
+  'http://localhost:3000',
+  'http://localhost:5173',
+];
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.some(o => origin.startsWith(o)) || origin.includes('onrender.com')) {
+      return callback(null, true);
+    }
+    return callback(null, true); // Allow all for now in production
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
@@ -83,13 +105,18 @@ app.get('/', (req, res) => {
   `);
 });
 
-// Health check
+// Health check + keep-alive ping
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     message: 'ZUNO Backend is running',
     timestamp: new Date().toISOString()
   });
+});
+
+// Ping endpoint to wake server (used by frontend keep-alive)
+app.get('/api/ping', (req, res) => {
+  res.json({ pong: true, ts: Date.now() });
 });
 
 // Error handling middleware
