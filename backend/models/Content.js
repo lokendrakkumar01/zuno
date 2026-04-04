@@ -147,6 +147,17 @@ const contentSchema = new mongoose.Schema({
       backgroundColor: {
             type: String,
             default: null
+      },
+      // Text status styling fields
+      fontStyle: {
+            type: String,
+            enum: ['bold', 'italic', 'mono', 'thin'],
+            default: 'bold'
+      },
+      textAlign: {
+            type: String,
+            enum: ['left', 'center', 'right'],
+            default: 'center'
       }
 
 }, { timestamps: true });

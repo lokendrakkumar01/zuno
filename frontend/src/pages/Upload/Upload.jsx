@@ -159,7 +159,7 @@ const Upload = () => {
 
             try {
                   const data = new FormData();
-                  data.append('contentType', formData.contentType === 'text-status' ? 'story' : formData.contentType);
+                  data.append('contentType', formData.contentType);
                   data.append('title', formData.title);
                   data.append('body', formData.body);
                   data.append('purpose', formData.purpose);

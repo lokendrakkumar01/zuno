@@ -9,7 +9,8 @@ const createContent = async (req, res) => {
       try {
             const {
                   contentType, title, body, purpose, topics, tags,
-                  visibility, chapters, notes, silentMode, language, music
+                  visibility, chapters, notes, silentMode, language, music,
+                  fontStyle, textAlign
             } = req.body;
 
             // Handle music data if sent as JSON string
@@ -65,7 +66,10 @@ const createContent = async (req, res) => {
                   notes,
                   silentMode: silentMode || false,
                   language: language || 'en',
-                  music: musicData
+                  music: musicData,
+                  backgroundColor: req.body.backgroundColor || null,
+                  fontStyle: fontStyle || 'bold',
+                  textAlign: textAlign || 'center'
             });
 
             // Update user stats
@@ -188,7 +192,8 @@ const updateContent = async (req, res) => {
             }
 
             const allowedUpdates = ['title', 'body', 'purpose', 'topics', 'tags',
-                  'visibility', 'chapters', 'notes', 'silentMode', 'status', 'music'];
+                  'visibility', 'chapters', 'notes', 'silentMode', 'status', 'music',
+                  'backgroundColor', 'fontStyle', 'textAlign'];
 
             const updates = {};
             for (const key of allowedUpdates) {

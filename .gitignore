@@ -1,15 +1,14 @@
 # Dependencies
 node_modules/
-package-lock.json
 
 # Environment files
 .env
 .env.local
 .env.production
 
-# Build outputs
-dist/
-build/
+# Build outputs (only ignore the hidden .dist, not frontend/dist which is deployed)
+.dist/
+admin-panel/.dist/
 
 # Logs
 logs/
@@ -27,3 +26,20 @@ Thumbs.db
 # Uploads (if stored locally during dev)
 backend/uploads/*
 !backend/uploads/.gitkeep
+
+# Vite temporary config timestamp files
+frontend/vite.config.js.timestamp-*
+
+# Capacitor Android build (generated - do not commit)
+frontend/android/
+
+# APK binaries and keystore
+*.apk
+*.apk.idsig
+*.jks
+
+# Test and debug scripts (not needed in production)
+backend/api_test*.js
+backend/test_*.js
+backend/db_debug.js
+backend/generate_token.js

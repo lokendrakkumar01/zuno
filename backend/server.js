@@ -121,10 +121,24 @@ app.get('/api/ping', (req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({
+  // Handle Multer errors (file upload issues)
+  if (err && err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json({ success: false, message: 'File is too large. Maximum size is 100MB.' });
+  }
+  if (err && err.code === 'LIMIT_FILE_COUNT') {
+    return res.status(400).json({ success: false, message: 'Too many files. Maximum is 10 files per upload.' });
+  }
+  if (err && err.code === 'LIMIT_UNEXPECTED_FILE') {
+    return res.status(400).json({ success: false, message: 'Unexpected file field. Please use the correct upload form.' });
+  }
+  if (err && err.message && err.message.includes('Only image and video')) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+
+  console.error(`[${req.method} ${req.path}]`, err.stack || err.message);
+  res.status(err.status || 500).json({
     success: false,
-    message: 'Something went wrong!',
+    message: err.status ? err.message : 'Something went wrong!',
     error: process.env.NODE_ENV === 'development' ? err.message : undefined
   });
 });

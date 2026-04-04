@@ -86,23 +86,25 @@ const Profile = () => {
       useEffect(() => {
             const handleVisibilityChange = () => {
                   if (document.visibilityState === 'visible') {
-                        refreshProfile();
+                        const tUsername = username || user?.username;
+                        if (tUsername) refreshProfile(tUsername);
                   }
             };
             document.addEventListener('visibilitychange', handleVisibilityChange);
             return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-      }, [username, user]);
+            // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [username, user?.username]);
 
-      const refreshProfile = async () => {
-            const targetUsername = username || user?.username;
-            if (!targetUsername) return;
+      const refreshProfile = async (targetUsername) => {
+            const tUser = targetUsername || username || user?.username;
+            if (!tUser) return;
             // Run both in parallel for speed
             Promise.all([
-                  fetch(`${API_URL}/users/${encodeURIComponent(targetUsername)}`)
+                  fetch(`${API_URL}/users/${encodeURIComponent(tUser)}`)
                         .then(r => r.json())
                         .then(data => { if (data.success) setProfileUser(data.data.user); })
                         .catch(e => console.error('Failed to refresh profile:', e)),
-                  fetchUserPosts(targetUsername)
+                  fetchUserPosts(tUser)
             ]);
       };
 
@@ -145,7 +147,8 @@ const Profile = () => {
 
             // Both run at the same time - no need to wait for profile before loading posts
             Promise.all([fetchProfileData(), fetchUserPosts(targetUsername)]);
-      }, [username, user, isOwnProfile]);
+            // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [username, user]);
 
       // Auto-play removed per user request
 
@@ -429,7 +432,7 @@ const Profile = () => {
                   setEditing(false);
                   
                   // Fetch freshly to be 100% sure the profileSong populates properly in the UI
-                  refreshProfile();
+                  refreshProfile(user?.username);
             } else {
                   setMessage('⚠️ ' + result.message);
             }

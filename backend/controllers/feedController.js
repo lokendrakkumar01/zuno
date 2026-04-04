@@ -19,7 +19,6 @@ const getFeed = async (req, res) => {
                   status: 'published',
                   visibility: 'public',
                   isApproved: true,
-                  contentType: { $nin: ['story', 'status', 'text-status'] }, // Stories/Statuses go to Status page, not feed
                   // Exclude expired content only if expiresAt is set AND in the past
                   $or: [
                         { expiresAt: null },
@@ -31,23 +30,30 @@ const getFeed = async (req, res) => {
             // Mode-specific filtering
             switch (mode) {
                   case 'all':
-                        // Show ALL published public content - no purpose/type filter
+                        // Show ALL published public content - exclude stories/statuses (they go to Status page)
+                        query.contentType = { $nin: ['story', 'status', 'text-status'] };
                         break;
                   case 'learning':
+                        query.contentType = { $nin: ['story', 'status', 'text-status'] };
                         query.purpose = { $in: ['skill', 'explain', 'learning', 'solution'] };
                         break;
                   case 'calm':
+                        query.contentType = { $nin: ['story', 'status', 'text-status'] };
                         query.purpose = { $in: ['inspiration', 'story', 'idea'] };
                         break;
                   case 'video':
+                        // Only show video types (already excludes story/status by being explicit)
                         query.contentType = { $in: ['short-video', 'long-video'] };
                         break;
                   case 'reading':
                         query.contentType = 'post';
                         break;
                   case 'problem-solving':
+                        query.contentType = { $nin: ['story', 'status', 'text-status'] };
                         query.purpose = { $in: ['question', 'discussion', 'solution'] };
                         break;
+                  default:
+                        query.contentType = { $nin: ['story', 'status', 'text-status'] };
             }
 
             // Additional filters
@@ -205,14 +211,16 @@ const getCreatorFeed = async (req, res) => {
             // Check if blocked (either direction)
             if (req.user) {
                   const currentUser = await User.findById(req.user.id).select('blockedUsers');
-                  const isBlockedByMe = currentUser.blockedUsers.includes(creator._id);
-                  const hasBlockedMe = creator.blockedUsers && creator.blockedUsers.includes(req.user.id);
+                  if (currentUser) {
+                        const isBlockedByMe = currentUser.blockedUsers.includes(creator._id);
+                        const hasBlockedMe = creator.blockedUsers && creator.blockedUsers.includes(req.user.id);
 
-                  if (isBlockedByMe || hasBlockedMe) {
-                        return res.status(404).json({
-                              success: false,
-                              message: 'User not found'
-                        });
+                        if (isBlockedByMe || hasBlockedMe) {
+                              return res.status(404).json({
+                                    success: false,
+                                    message: 'User not found'
+                              });
+                        }
                   }
             }
 

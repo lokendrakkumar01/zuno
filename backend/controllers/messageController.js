@@ -532,8 +532,10 @@ const reactToMessage = async (req, res) => {
                   return res.status(404).json({ success: false, message: 'Message not found' });
             }
 
-            // Must be sender or receiver
-            if (message.sender.toString() !== req.user.id && message.receiver.toString() !== req.user.id) {
+            // Must be sender or receiver (or a group message participant)
+            if (message.sender.toString() !== req.user.id && 
+                  message.receiver && message.receiver.toString() !== req.user.id &&
+                  !message.conversationId) {
                   return res.status(403).json({ success: false, message: 'Not authorized' });
             }
 
