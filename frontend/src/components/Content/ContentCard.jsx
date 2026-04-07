@@ -79,6 +79,27 @@ const ContentCard = ({ content, onDelete, autoOpenFullscreen = false, onCloseFul
       const [pollCount, setPollCount] = useState(0);
       const [mediaUrl, setMediaUrl] = useState(content.media?.[0]?.url || '');
 
+      // Video player enhanced states
+      const videoRef = useRef(null);
+      const videoContainerRef = useRef(null);
+      const [isPlaying, setIsPlaying] = useState(false);
+      const [isMuted, setIsMuted] = useState(true); // Start muted for autoplay policies
+      const [videoProgress, setVideoProgress] = useState(0);
+      const [videoDuration, setVideoDuration] = useState(0);
+      const [videoLoaded, setVideoLoaded] = useState(false);
+      const [isInView, setIsInView] = useState(false);
+
+      const [imageError, setImageError] = useState(false);
+      const [imageRetryCount, setImageRetryCount] = useState(0);
+
+      // Determine if content is video - MUST be before any useEffect that relies on it!
+      const isVideo = (content.media && content.media.length > 0 &&
+            (content.media[0].type === 'video' ||
+                  /\.(mp4|mov|wmv|avi|flv|mkv|webm)$/i.test(content.media[0].url))) ||
+            (content.type && (content.type === 'short-video' || content.type === 'long-video')) ||
+            (content.contentType && (content.contentType === 'short-video' || content.contentType === 'long-video'));
+      const videoAspect = '56.25%';
+
       // Update media status and URL when content prop changes (for fresh content)
       useEffect(() => {
             if (content.media?.[0]) {
@@ -386,26 +407,7 @@ const ContentCard = ({ content, onDelete, autoOpenFullscreen = false, onCloseFul
             return `${mins}:${secs.toString().padStart(2, '0')}`;
       };
 
-      // Video player enhanced states
-      const videoRef = useRef(null);
-      const videoContainerRef = useRef(null);
-      const [isPlaying, setIsPlaying] = useState(false);
-      const [isMuted, setIsMuted] = useState(true); // Start muted for autoplay policies
-      const [videoProgress, setVideoProgress] = useState(0);
-      const [videoDuration, setVideoDuration] = useState(0);
-      const [videoLoaded, setVideoLoaded] = useState(false);
-      const [isInView, setIsInView] = useState(false);
 
-      const [imageError, setImageError] = useState(false);
-      const [imageRetryCount, setImageRetryCount] = useState(0);
-
-      // Determine if content is video - MUST be before any useEffect that relies on it!
-      const isVideo = (content.media && content.media.length > 0 &&
-            (content.media[0].type === 'video' ||
-                  /\.(mp4|mov|wmv|avi|flv|mkv|webm)$/i.test(content.media[0].url))) ||
-            (content.type && (content.type === 'short-video' || content.type === 'long-video')) ||
-            (content.contentType && (content.contentType === 'short-video' || content.contentType === 'long-video'));
-      const videoAspect = '56.25%';
 
       // IntersectionObserver: auto-play video when in view, pause when out
       useEffect(() => {
