@@ -137,7 +137,13 @@ io.on("connection", (socket) => {
             // data: { hostId, title, roomId }
             const roomId = data.roomId || `stream_${data.hostId}`;
             socket.join(roomId);
-            activeStreams.set(data.hostId, { roomId, viewers: new Set(), hostSocketId: socket.id });
+            const existingStream = activeStreams.get(data.hostId) || {};
+            activeStreams.set(data.hostId, { 
+                  ...existingStream, 
+                  roomId, 
+                  viewers: new Set(), 
+                  hostSocketId: socket.id 
+            });
             io.emit("streamStarted", { hostId: data.hostId, title: data.title, roomId });
       });
 
