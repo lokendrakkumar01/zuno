@@ -602,11 +602,15 @@ const ContentCard = ({ content, onDelete, autoOpenFullscreen = false, onCloseFul
                               {mediaStatus === 'ready' && (
                                     !isVideo ? (
                                           <>
-                                                {/* Loading Spinner for Image */}
+                                                {/* Shimmer Loader for Image */}
                                                 {!imageLoaded && !imageError && (
-                                                      <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-                                                            <div className="w-8 h-8 border-4 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
-                                                      </div>
+                                                      <div className="absolute inset-0" style={{
+                                                            background: 'linear-gradient(90deg, var(--color-border) 25%, rgba(255,255,255,0.05) 50%, var(--color-border) 75%)',
+                                                            backgroundSize: '200% 100%',
+                                                            animation: 'shimmer 1.5s infinite',
+                                                            borderTopLeftRadius: isVideo ? '0' : '12px',
+                                                            borderTopRightRadius: isVideo ? '0' : '12px'
+                                                      }}></div>
                                                 )}
 
                                                 <img

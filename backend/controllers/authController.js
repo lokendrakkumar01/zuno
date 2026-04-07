@@ -206,10 +206,48 @@ const changePassword = async (req, res) => {
       }
 };
 
+// @desc    Reset password via admin-issued token link
+// @route   POST /api/auth/reset-password
+// @access  Public (token-gated)
+const resetPassword = async (req, res) => {
+      try {
+            const { token, userId, newPassword } = req.body;
+            if (!token || !userId || !newPassword) {
+                  return res.status(400).json({ success: false, message: 'Token, userId and newPassword are required' });
+            }
+            if (newPassword.length < 6) {
+                  return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+            }
+
+            const crypto = require('crypto');
+            const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+            const user = await User.findOne({
+                  _id: userId,
+                  passwordResetToken: hashedToken,
+                  passwordResetExpires: { $gt: Date.now() }
+            }).select('+password +passwordResetToken +passwordResetExpires');
+
+            if (!user) {
+                  return res.status(400).json({ success: false, message: 'Invalid or expired reset link' });
+            }
+
+            user.password = newPassword;
+            user.passwordResetToken = undefined;
+            user.passwordResetExpires = undefined;
+            await user.save();
+
+            res.json({ success: true, message: 'Password reset successfully. You can now log in.' });
+      } catch (error) {
+            res.status(500).json({ success: false, message: 'Reset failed', error: error.message });
+      }
+};
+
 module.exports = {
       register,
       login,
       getMe,
       logout,
-      changePassword
+      changePassword,
+      resetPassword
 };

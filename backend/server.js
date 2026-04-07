@@ -1,9 +1,11 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const path = require('path');
 require('dotenv').config();
 
 const connectDB = require('./config/db');
+const { uploadLimiter, messageLimiter } = require('./middleware/rateLimit');
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
@@ -18,35 +20,42 @@ const noteRoutes = require('./routes/noteRoutes');
 const liveStreamRoutes = require('./routes/liveStreamRoutes');
 const { app, server } = require('./socket/socket');
 
-// Connect to MongoDB
-// Database connection is handled in startServer
-// connectDB();
-
 // Middleware
 const compression = require('compression');
-app.use(compression()); // Gzip compress all responses for faster transfer
+app.use(compression());
 
-// CORS - allow all origins including custom domain
+// Security headers via helmet (must be before CORS and routes)
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' }, // allow images/videos from CDN
+  contentSecurityPolicy: false // we manage CSP separately if needed
+}));
+
+// Strict CORS — only allow known origins
 const allowedOrigins = [
   'https://zunoworld.tech',
   'https://www.zunoworld.tech',
   'https://zuno-frontend.onrender.com',
+  'https://zuno-admin.onrender.com',
   'http://localhost:3000',
   'http://localhost:5173',
 ];
-app.use(cors({
+
+const corsOptions = {
   origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, etc.)
+    // Allow no-origin requests (mobile apps, Capacitor, curl, health checks)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.some(o => origin.startsWith(o)) || origin.includes('onrender.com')) {
+    if (allowedOrigins.includes(origin) || /\.onrender\.com$/.test(origin)) {
       return callback(null, true);
     }
-    return callback(null, true); // Allow all for now in production
+    console.warn(`[CORS] Blocked request from origin: ${origin}`);
+    return callback(new Error(`CORS: origin ${origin} not allowed`), false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-}));
+};
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // Handle preflight for all routes
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
@@ -73,14 +82,14 @@ app.use('/uploads', (req, res, next) => {
   }
 }));
 
-// API Routes
+// API Routes (rate limiters applied at route level for targeted control)
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/content', contentRoutes);
+app.use('/api/content', uploadLimiter, contentRoutes);   // 20 uploads/hr per IP
 app.use('/api/comments', commentRoutes);
 app.use('/api/feed', feedRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/messages', messageRoutes);
+app.use('/api/messages', messageLimiter, messageRoutes); // 60 messages/min per IP
 app.use('/api/notes', noteRoutes);
 app.use('/api/livestream', liveStreamRoutes);
 app.use('/api/spotify', spotifyRoutes);
@@ -153,6 +162,8 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
+const keepAlive = require('./utils/keepAlive');
+
 const startServer = async () => {
   try {
     // Connect to Database first
@@ -161,6 +172,8 @@ const startServer = async () => {
     server.listen(PORT, () => {
       console.log(`🚀 ZUNO Server running on port ${PORT}`);
       console.log(`📍 Environment: ${process.env.NODE_ENV}`);
+      // Start the Render Keep-Alive job
+      keepAlive();
     });
   } catch (err) {
     console.error('Failed to start server:', err);

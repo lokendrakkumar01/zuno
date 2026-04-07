@@ -189,7 +189,7 @@ const Chat = () => {
             };
 
             // Run user fetch and message fetch in parallel for max speed
-            Promise.all([fetchUser(), fetchMessages(1)]);
+            Promise.all([fetchUser(), fetchMessages()]);
 
             // Clear sent IDs set when switching chats
             sentMsgIds.current = new Set();
@@ -198,7 +198,7 @@ const Chat = () => {
       const handleScroll = (e) => {
             const el = e.target;
             if (el.scrollTop === 0 && hasMore && !loadingMore && !loading) {
-                  fetchMessages(page + 1);
+                  fetchMessages(true); // fetchOlder = true
             }
             handleChatScroll();
       };
@@ -395,17 +395,29 @@ const Chat = () => {
             }
       };
 
-      const fetchMessages = async (pageNum = 1) => {
+      const fetchMessages = async (fetchOlder = false) => {
             // Only show loading if no cache at all and it's the first page
             const hasCached = !!localStorage.getItem(`zuno_chat_cache_${userId}`);
-            if (!hasCached && pageNum === 1) setLoading(true);
-            if (pageNum > 1) setLoadingMore(true);
+            if (!hasCached && !fetchOlder) setLoading(true);
+            if (fetchOlder) setLoadingMore(true);
 
             try {
                   const controller = new AbortController();
                   const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
 
-                  const res = await fetch(`${API_URL}/messages/${userId}?page=${pageNum}&limit=50`, {
+                  // Use cursor-based pagination
+                  let url = `${API_URL}/messages/${userId}?limit=50`;
+                  if (fetchOlder && messages.length > 0) {
+                        // Get the oldest message ID currently loaded (which is at index 0 because DOM order is oldest->newest, but array order depends on fetch)
+                        // Actually, backend returns newest-first, and frontend reverses it.
+                        // So the first element in `messages` array is the OLDEST message.
+                        const oldestMsgId = messages[0]?._id;
+                        if (oldestMsgId) {
+                              url += `&beforeId=${oldestMsgId}`;
+                        }
+                  }
+
+                  const res = await fetch(url, {
                         headers: { 'Authorization': `Bearer ${token}` },
                         signal: controller.signal
                   });
@@ -413,13 +425,13 @@ const Chat = () => {
 
                   const data = await res.json();
                   if (data.success) {
-                        const fetchedMessages = data.data.messages;
-                        if (fetchedMessages.length < 50) setHasMore(false);
-                        else setHasMore(true);
+                        // Backend now returns latest 50, newest-first. We must reverse for chat history display.
+                        const fetchedMessages = data.data.messages.reverse();
+                        
+                        setHasMore(data.data.hasMore);
 
-                        if (pageNum === 1) {
+                        if (!fetchOlder) {
                               setMessages(fetchedMessages);
-                              setPage(1);
                               setOtherUser(data.data.otherUser);
                               setBlockedInfo(data.data.blockedInfo || { iBlocked: false, theyBlocked: false });
 
@@ -445,7 +457,6 @@ const Chat = () => {
                                     merged.forEach(m => map.set(m._id?.toString(), m));
                                     return Array.from(map.values()).sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
                               });
-                              setPage(pageNum);
                               // keep scroll position
                               requestAnimationFrame(() => {
                                     if (chatAreaRef.current) chatAreaRef.current.scrollTop = 50; 
@@ -456,8 +467,8 @@ const Chat = () => {
                   }
             } catch (err) {
                   if (err.name !== 'AbortError') console.error('Failed to fetch messages:', err);
-                  // Use cache as fallback on error (only for page 1)
-                  if (pageNum === 1) {
+                  // Use cache as fallback on error (only for initial load)
+                  if (!fetchOlder) {
                         const cachedMsgs = localStorage.getItem(`zuno_chat_cache_${userId}`);
                         if (cachedMsgs) setMessages(JSON.parse(cachedMsgs));
                         const cachedUser = localStorage.getItem(`zuno_user_cache_${userId}`);

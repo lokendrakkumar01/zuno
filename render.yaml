@@ -18,12 +18,28 @@ services:
         value: 30d
       - key: NODE_ENV
         value: production
+      # ⚠️ DO NOT add Cloudinary secrets here. Set them in Render dashboard → Environment.
+      # Required: CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET
       - key: CLOUDINARY_CLOUD_NAME
-        value: dm8qqwtwg
+        sync: false
       - key: CLOUDINARY_API_KEY
-        value: "287655535612498"
+        sync: false
       - key: CLOUDINARY_API_SECRET
-        value: 1vCr7gDB2bUU0I5qhdhEM6eqFis
+        sync: false
+      # LiveKit SFU for scalable live streaming
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: LIVEKIT_URL
+        sync: false
+      # Email service
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+      - key: CLIENT_URL
+        value: https://zunoworld.tech
 
   # Frontend Static Site
   - type: web

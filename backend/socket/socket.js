@@ -1,247 +1,294 @@
 const { Server } = require("socket.io");
 const http = require("http");
 const express = require("express");
+const jwt = require("jsonwebtoken");
 
 const app = express();
 const server = http.createServer(app);
+
+const allowedOrigins = [
+  'https://zunoworld.tech',
+  'https://www.zunoworld.tech',
+  'https://zuno-frontend.onrender.com',
+  'https://zuno-admin.onrender.com',
+  'http://localhost:3000',
+  'http://localhost:5173',
+];
+
 const io = new Server(server, {
-      cors: {
-            origin: "*",
-            methods: ["GET", "POST", "PUT", "DELETE"],
-            credentials: false
-      },
-      allowEIO3: true,  // backward-compat with older socket.io clients
-      pingTimeout: 10000, // 10s timeout — extremely fast detection of broken lines
-      pingInterval: 5000, // Very aggressive 5s ping to keep cellular/flaky links alive
-      transports: ['websocket', 'polling'], // Allow polling fallback for networks blocking strict WebSockets
-      perMessageDeflate: false // Disable compression for faster small message delivery
+  cors: {
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin) || /\.onrender\.com$/.test(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error(`Socket CORS: origin ${origin} not allowed`), false);
+    },
+    methods: ["GET", "POST"],
+    credentials: true
+  },
+  allowEIO3: true,
+  pingTimeout: 10000,
+  pingInterval: 5000,
+  transports: ['websocket', 'polling'],
+  perMessageDeflate: false
 });
 
-const userSocketMap = {}; // {userId: count} - track online status simply
-const activeCalls = new Map(); // {socketId: otherPartyId} - track active calls for sudden disconnects
-const activeStreams = new Map(); // {hostUserId: {viewers: Set, ...}} for live streams
+// ============================================================
+// JWT AUTH MIDDLEWARE — verify token before ANY socket event
+// ============================================================
+io.use((socket, next) => {
+  // Token can come from handshake.auth.token (preferred) or header
+  const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.split(' ')[1];
+  if (!token) {
+    console.warn(`[Socket] Rejected unauthenticated connection: ${socket.id}`);
+    return next(new Error('Authentication required'));
+  }
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    socket.userId = decoded.id; // set from verified JWT, NOT from query string
+    next();
+  } catch (err) {
+    console.warn(`[Socket] Rejected invalid token: ${socket.id}`);
+    return next(new Error('Invalid or expired token'));
+  }
+});
+
+const userSocketMap = {};  // {userId: count}
+const activeCalls = new Map(); // {socketId: otherPartyId}
+const activeStreams = new Map(); // {hostUserId: {viewers: Set, ...}}
 
 io.on("connection", (socket) => {
-      console.log("A user connected", socket.id);
+  const userId = socket.userId; // from JWT, safe
+  console.log(`[Socket] Connected: ${socket.id} (user: ${userId})`);
 
-      const userId = socket.handshake.query.userId;
-      if (userId && userId !== "undefined") {
-            // Join a personal room to receive events across all their devices/tabs
-            socket.join(userId);
-            userSocketMap[userId] = (userSocketMap[userId] || 0) + 1;
+  if (userId) {
+    socket.join(userId);
+    userSocketMap[userId] = (userSocketMap[userId] || 0) + 1;
+  }
+
+  io.emit("getOnlineUsers", Object.keys(userSocketMap));
+
+  // ── Chat ──────────────────────────────────────────────────
+  socket.on("typing", (data) => {
+    if (data.receiverId) {
+      io.to(data.receiverId).volatile.emit("typing", { senderId: userId });
+    }
+  });
+
+  socket.on("stopTyping", (data) => {
+    if (data.receiverId) {
+      io.to(data.receiverId).volatile.emit("stopTyping", { senderId: userId });
+    }
+  });
+
+  socket.on("messageRead", (data) => {
+    if (data.receiverId) {
+      io.to(data.receiverId).emit("messageRead", { messageId: data.messageId, readerId: userId });
+    }
+  });
+
+  // ── 1:1 WebRTC Calls ─────────────────────────────────────
+  socket.on("callUser", (data) => {
+    if (data.userToCall) {
+      activeCalls.set(socket.id, data.userToCall);
+      io.to(data.userToCall).emit("callUser", {
+        signal: data.signalData,
+        from: data.from,
+        callType: data.callType
+      });
+    }
+  });
+
+  socket.on("webrtcSignal", (data) => {
+    if (data.to) {
+      io.to(data.to).volatile.emit("webrtcSignal", data.signal);
+    }
+  });
+
+  socket.on("answerCall", (data) => {
+    if (data.to) {
+      activeCalls.set(socket.id, data.to);
+      io.to(data.to).emit("callAccepted", data.signal);
+    }
+  });
+
+  socket.on("cancelCall", (data) => {
+    activeCalls.delete(socket.id);
+    if (data.to) io.to(data.to).emit("callCancelled");
+  });
+
+  socket.on("leaveCall", (data) => {
+    activeCalls.delete(socket.id);
+    if (data.to) io.to(data.to).emit("callEnded");
+  });
+
+  // ── Group Calls ───────────────────────────────────────────
+  socket.on("groupCallUser", (data) => {
+    if (data.targetUserId) {
+      activeCalls.set(socket.id, data.groupId);
+      io.to(data.targetUserId).emit("groupCallIncoming", {
+        signal: data.signalData,
+        from: data.from,
+        groupId: data.groupId,
+        callType: data.callType
+      });
+    }
+  });
+
+  socket.on("groupCallAnswer", (data) => {
+    if (data.to) {
+      io.to(data.to).emit("groupCallAccepted", {
+        signal: data.signal,
+        from: data.from,
+        groupId: data.groupId
+      });
+    }
+  });
+
+  socket.on("groupCallLeft", (data) => {
+    activeCalls.delete(socket.id);
+    if (data.participants) {
+      data.participants.forEach(uid => {
+        io.to(uid).emit("groupCallParticipantLeft", { userId, groupId: data.groupId });
+      });
+    }
+  });
+
+  // ── Live Streaming (Socket signaling + chat; video via LiveKit SFU) ──
+  socket.on("startStream", (data) => {
+    const roomId = data.roomId || `stream_${userId}`;
+    socket.join(roomId);
+    activeStreams.set(userId, {
+      roomId,
+      title: data.title || '',
+      viewers: new Set(),
+      hostSocketId: socket.id,
+      bannedViewers: new Set(),
+      slowMode: false,
+      pinnedComment: null
+    });
+    io.emit("streamStarted", { hostId: userId, title: data.title, roomId });
+    console.log(`[Stream] Started by ${userId} — room: ${roomId}`);
+  });
+
+  socket.on("joinStream", (data) => {
+    const stream = activeStreams.get(data.hostId);
+    if (!stream) return socket.emit("streamNotFound");
+    if (stream.bannedViewers?.has(userId)) {
+      return socket.emit("streamBanned", { reason: 'You have been removed from this stream.' });
+    }
+    socket.join(stream.roomId);
+    stream.viewers.add(userId);
+    const viewerCount = stream.viewers.size;
+    io.to(stream.hostSocketId).emit("viewerJoined", { viewerId: userId, viewerCount });
+    socket.emit("streamJoined", {
+      hostId: data.hostId, roomId: stream.roomId, viewerCount,
+      hostSocketId: stream.hostSocketId,
+      slowMode: stream.slowMode,
+      pinnedComment: stream.pinnedComment
+    });
+    io.to(stream.hostSocketId).emit("initPeerWithViewer", { viewerId: userId, viewerSocketId: socket.id });
+  });
+
+  socket.on("streamSignal", (data) => {
+    if (data.to) io.to(data.to).emit("streamSignal", { signal: data.signal, from: socket.id });
+  });
+
+  socket.on("streamComment", (data) => {
+    const stream = activeStreams.get(data.hostId);
+    if (!stream) return;
+    if (stream.bannedViewers?.has(userId)) return;
+    // Slow mode: only host and moderators bypass
+    if (stream.slowMode && userId !== data.hostId) {
+      // enforce 3s cooldown tracked client-side; server just re-emits
+    }
+    io.to(stream.roomId).emit("newStreamComment", {
+      comment: data.comment, username: data.username,
+      avatar: data.avatar, userId, timestamp: new Date().toISOString()
+    });
+  });
+
+  socket.on("streamReaction", (data) => {
+    const stream = activeStreams.get(data.hostId);
+    if (stream) {
+      io.to(stream.roomId).volatile.emit("streamReaction", { emoji: data.emoji, userId });
+    }
+  });
+
+  socket.on("pinStreamComment", (data) => {
+    // Only host can pin
+    const stream = activeStreams.get(userId);
+    if (!stream) return;
+    stream.pinnedComment = data.comment;
+    io.to(stream.roomId).emit("streamCommentPinned", { comment: data.comment });
+  });
+
+  socket.on("kickStreamViewer", (data) => {
+    // Only host can kick
+    const stream = activeStreams.get(userId);
+    if (!stream) return;
+    stream.bannedViewers.add(data.viewerId);
+    stream.viewers.delete(data.viewerId);
+    io.to(data.viewerId).emit("streamKicked", { reason: data.reason || 'Removed by host' });
+    io.to(stream.roomId).emit("viewerLeft", { viewerId: data.viewerId, viewerCount: stream.viewers.size });
+    console.log(`[Stream] Viewer ${data.viewerId} kicked from stream of ${userId}`);
+  });
+
+  socket.on("setSlowMode", (data) => {
+    const stream = activeStreams.get(userId);
+    if (!stream) return;
+    stream.slowMode = !!data.enabled;
+    io.to(stream.roomId).emit("slowModeUpdated", { enabled: stream.slowMode });
+  });
+
+  socket.on("endStream", (data) => {
+    const stream = activeStreams.get(userId);
+    if (stream) {
+      io.to(stream.roomId).emit("streamEnded", { hostId: userId });
+      activeStreams.delete(userId);
+      console.log(`[Stream] Ended by host ${userId}`);
+    }
+  });
+
+  socket.on("leaveStreamView", (data) => {
+    const stream = activeStreams.get(data.hostId);
+    if (stream) {
+      stream.viewers.delete(userId);
+      socket.leave(stream.roomId);
+      io.to(stream.hostSocketId).emit("viewerLeft", { viewerId: userId, viewerCount: stream.viewers.size });
+    }
+  });
+
+  // ── Disconnect ────────────────────────────────────────────
+  socket.on("disconnect", () => {
+    console.log(`[Socket] Disconnected: ${socket.id} (user: ${userId})`);
+
+    const otherPartyId = activeCalls.get(socket.id);
+    if (otherPartyId) {
+      io.to(otherPartyId).emit("callEnded");
+      activeCalls.delete(socket.id);
+    }
+
+    for (const [hostUserId, stream] of activeStreams.entries()) {
+      if (stream.hostSocketId === socket.id) {
+        io.to(stream.roomId).emit("streamEnded", { hostId: hostUserId });
+        activeStreams.delete(hostUserId);
+        console.log(`[Stream] Host ${hostUserId} disconnected — stream ended`);
+        break;
       }
+    }
 
-      // Emit event to all connected clients
-      io.emit("getOnlineUsers", Object.keys(userSocketMap));
-
-      // Real-time Chat Features (WhatsApp-like)
-      socket.on("typing", (data) => {
-            if (data.receiverId) {
-                  io.to(data.receiverId).volatile.emit("typing", { senderId: userId });
-            }
-      });
-
-      socket.on("stopTyping", (data) => {
-            if (data.receiverId) {
-                  io.to(data.receiverId).volatile.emit("stopTyping", { senderId: userId });
-            }
-      });
-
-      socket.on("messageRead", (data) => {
-            if (data.receiverId) {
-                  io.to(data.receiverId).emit("messageRead", { messageId: data.messageId, readerId: userId });
-            }
-      });
-
-      // WebRTC Call Signaling (Using volatile to avoid queue blocking for realtime state)
-      socket.on("callUser", (data) => {
-            if (data.userToCall) {
-                  activeCalls.set(socket.id, data.userToCall);
-                  io.to(data.userToCall).emit("callUser", {
-                        signal: data.signalData,
-                        from: data.from,
-                        callType: data.callType // 'voice' or 'video'
-                  }); // Normal emit for initial call so it doesn't get dropped
-            }
-      });
-
-      // Trickle ICE candidates (asynchronous WebRTC signals)
-      socket.on("webrtcSignal", (data) => {
-            if (data.to) {
-                  io.to(data.to).volatile.emit("webrtcSignal", data.signal);
-            }
-      });
-
-      socket.on("answerCall", (data) => {
-            if (data.to) {
-                  activeCalls.set(socket.id, data.to);
-                  io.to(data.to).emit("callAccepted", data.signal);
-            }
-      });
-
-      socket.on("cancelCall", (data) => {
-            activeCalls.delete(socket.id);
-            if (data.to) {
-                  io.to(data.to).emit("callCancelled");
-            }
-      });
-
-      socket.on("leaveCall", (data) => {
-            activeCalls.delete(socket.id);
-            if (data.to) {
-                  io.to(data.to).emit("callEnded");
-            }
-      });
-
-      // ==========================================
-      // GROUP CALL SIGNALING (Mesh WebRTC - up to 4)
-      // ==========================================
-      socket.on("groupCallUser", (data) => {
-            // data: { targetUserId, groupId, from, callType, signalData }
-            if (data.targetUserId) {
-                  activeCalls.set(socket.id, data.groupId);
-                  io.to(data.targetUserId).emit("groupCallIncoming", {
-                        signal: data.signalData,
-                        from: data.from,
-                        groupId: data.groupId,
-                        callType: data.callType
-                  });
-            }
-      });
-
-      socket.on("groupCallAnswer", (data) => {
-            // data: { to, signal, from, groupId }
-            if (data.to) {
-                  io.to(data.to).emit("groupCallAccepted", {
-                        signal: data.signal,
-                        from: data.from,
-                        groupId: data.groupId
-                  });
-            }
-      });
-
-      socket.on("groupCallLeft", (data) => {
-            // data: { groupId, participants[] }
-            activeCalls.delete(socket.id);
-            if (data.participants) {
-                  data.participants.forEach(uid => {
-                        io.to(uid).emit("groupCallParticipantLeft", { userId: userId, groupId: data.groupId });
-                  });
-            }
-      });
-
-      // ==========================================
-      // LIVE STREAMING SOCKET EVENTS
-      // ==========================================
-      socket.on("startStream", (data) => {
-            // data: { hostId, title, roomId }
-            const roomId = data.roomId || `stream_${data.hostId}`;
-            socket.join(roomId);
-            const existingStream = activeStreams.get(data.hostId) || {};
-            activeStreams.set(data.hostId, { 
-                  ...existingStream, 
-                  roomId, 
-                  viewers: new Set(), 
-                  hostSocketId: socket.id 
-            });
-            io.emit("streamStarted", { hostId: data.hostId, title: data.title, roomId });
-      });
-
-      socket.on("joinStream", (data) => {
-            // data: { hostId, viewerId }
-            const stream = activeStreams.get(data.hostId);
-            if (!stream) {
-                  socket.emit("streamNotFound");
-                  return;
-            }
-            socket.join(stream.roomId);
-            stream.viewers.add(data.viewerId);
-            const viewerCount = stream.viewers.size;
-            // Notify host about new viewer
-            io.to(stream.hostSocketId).emit("viewerJoined", { viewerId: data.viewerId, viewerCount });
-            // Send stream info to viewer including host's socket ID for direct signaling
-            socket.emit("streamJoined", { 
-                  hostId: data.hostId, 
-                  roomId: stream.roomId, 
-                  viewerCount,
-                  hostSocketId: stream.hostSocketId
-            });
-            // Tell host to initiate WebRTC stream to this viewer
-            io.to(stream.hostSocketId).emit("initPeerWithViewer", { viewerId: data.viewerId, viewerSocketId: socket.id });
-      });
-
-      socket.on("streamSignal", (data) => {
-            // data: { to (socketId), signal }
-            if (data.to) io.to(data.to).emit("streamSignal", { signal: data.signal, from: socket.id });
-      });
-
-      socket.on("streamComment", (data) => {
-            // data: { hostId, comment, username, avatar }
-            const stream = activeStreams.get(data.hostId);
-            if (stream) {
-                  io.to(stream.roomId).emit("newStreamComment", {
-                        comment: data.comment,
-                        username: data.username,
-                        avatar: data.avatar,
-                        timestamp: new Date().toISOString()
-                  });
-            }
-      });
-
-      socket.on("endStream", (data) => {
-            // data: { hostId }
-            const stream = activeStreams.get(data.hostId);
-            if (stream) {
-                  io.to(stream.roomId).emit("streamEnded", { hostId: data.hostId });
-                  activeStreams.delete(data.hostId);
-            }
-      });
-
-      socket.on("leaveStreamView", (data) => {
-            // data: { hostId, viewerId }
-            const stream = activeStreams.get(data.hostId);
-            if (stream) {
-                  stream.viewers.delete(data.viewerId);
-                  socket.leave(stream.roomId);
-                  io.to(stream.hostSocketId).emit("viewerLeft", { viewerId: data.viewerId, viewerCount: stream.viewers.size });
-            }
-      });
-
-      socket.on("disconnect", () => {
-            console.log("User disconnected", socket.id);
-
-            // If the user was in an active call and abruptly disconnected (e.g., refresh), notify the other party
-            const otherPartyId = activeCalls.get(socket.id);
-            if (otherPartyId) {
-                  io.to(otherPartyId).emit("callEnded");
-                  activeCalls.delete(socket.id);
-            }
-
-            // If the disconnecting socket was a live stream HOST, clean up and notify viewers
-            for (const [hostUserId, stream] of activeStreams.entries()) {
-                  if (stream.hostSocketId === socket.id) {
-                        io.to(stream.roomId).emit("streamEnded", { hostId: hostUserId });
-                        activeStreams.delete(hostUserId);
-                        console.log(`[Stream] Host ${hostUserId} disconnected — stream ended`);
-                        break;
-                  }
-            }
-
-            if (userId && userSocketMap[userId]) {
-                  userSocketMap[userId]--;
-                  if (userSocketMap[userId] === 0) {
-                        delete userSocketMap[userId];
-                  }
-            }
-            io.emit("getOnlineUsers", Object.keys(userSocketMap));
-      });
+    if (userId && userSocketMap[userId]) {
+      userSocketMap[userId]--;
+      if (userSocketMap[userId] === 0) delete userSocketMap[userId];
+    }
+    io.emit("getOnlineUsers", Object.keys(userSocketMap));
+  });
 });
 
-// Helper for when external code (like HTTP controllers) needs to emit to a user
 const getReceiverSocketId = (receiverId) => {
-      // Return the room name (which is just the user's ID)
-      if (!receiverId) return undefined;
-      return receiverId.toString();
+  if (!receiverId) return undefined;
+  return receiverId.toString();
 };
 
 module.exports = { app, io, server, getReceiverSocketId, activeStreams };

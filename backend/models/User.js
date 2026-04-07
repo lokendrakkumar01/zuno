@@ -177,7 +177,15 @@ const userSchema = new mongoose.Schema({
       blockedUsers: [{
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User'
-      }]
+      }],
+
+      // Password Reset (token-based, never store plain passwords)
+      passwordResetToken: { type: String, select: false },
+      passwordResetExpires: { type: Date, select: false },
+
+      // Online status
+      isOnline: { type: Boolean, default: false },
+      offlineStatus: { type: Date }
 
 }, { timestamps: true });
 

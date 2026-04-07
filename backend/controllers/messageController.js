@@ -58,64 +58,104 @@ const getConversations = async (req, res) => {
 // @desc    Get messages with a specific user
 // @route   GET /api/messages/:userId
 // @access  Private
+// Supports cursor pagination: ?beforeId=<msgId> or ?before=<ISO timestamp>
+// Returns latest 50 messages newest-first, frontend reverses for display
 const getMessages = async (req, res) => {
       try {
             const { userId } = req.params;
-            const { page = 1, limit = 50 } = req.query;
+            const { beforeId, before, limit = 50 } = req.query;
 
             // Verify other user exists
-            const otherUser = await User.findById(userId).select('username displayName avatar blockedUsers').lean();
+            const otherUser = await User.findById(userId)
+                  .select('username displayName avatar blockedUsers isOnline offlineStatus')
+                  .lean();
             if (!otherUser) {
-                  return res.status(404).json({
-                        success: false,
-                        message: 'User not found'
-                  });
+                  return res.status(404).json({ success: false, message: 'User not found' });
             }
 
-            const messages = await Message.find({
-                  $or: [
-                        { sender: req.user.id, receiver: userId },
-                        { sender: userId, receiver: req.user.id }
-                  ],
-                  deletedBy: { $ne: req.user.id } // Filter out messages deleted by this user
-            })
-                  .sort({ createdAt: 1 }) // Get oldest first for UI display
-                  .skip((page - 1) * limit)
+            // Check blocked status (non-blocking parallel fetch)
+            const [currentUser] = await Promise.all([
+                  User.findById(req.user.id).select('blockedUsers').lean()
+            ]);
+            const blockedInfo = {
+                  iBlocked: currentUser?.blockedUsers?.some(b => b.toString() === userId) || false,
+                  theyBlocked: otherUser.blockedUsers?.some(b => b.toString() === req.user.id) || false
+            };
+
+            // Build cursor filter for pagination (fast — no skip on large collections)
+            const cursorFilter = {};
+            if (beforeId) {
+                  cursorFilter._id = { $lt: beforeId }; // MongoDB ObjectIds are time-ordered
+            } else if (before) {
+                  cursorFilter.createdAt = { $lt: new Date(before) };
+            }
+
+            // Try conversationId-based query first (single indexed field, fastest)
+            const conversation = await Conversation.findOne({
+                  participants: { $all: [req.user.id, userId] },
+                  isGroup: false
+            }).lean();
+
+            let messageQuery;
+            if (conversation) {
+                  // Fast path: single field index on conversationId
+                  messageQuery = {
+                        conversationId: conversation._id,
+                        deletedBy: { $ne: req.user.id },
+                        ...cursorFilter
+                  };
+            } else {
+                  // Legacy fallback: $or sender/receiver query
+                  messageQuery = {
+                        $or: [
+                              { sender: req.user.id, receiver: userId },
+                              { sender: userId, receiver: req.user.id }
+                        ],
+                        deletedBy: { $ne: req.user.id },
+                        ...cursorFilter
+                  };
+            }
+
+            const messages = await Message.find(messageQuery)
+                  .sort({ createdAt: -1 }) // newest first — frontend reverses for display
                   .limit(parseInt(limit))
-                  .populate('sender', 'username displayName avatar avatarColor isOnline offlineStatus')
-                  .populate('receiver', 'username displayName avatar avatarColor')
-                  .select('sender receiver text media replyTo reactions read createdAt edited deletedForEveryone deletedBy')
-                  .lean()
+                  .populate('sender', 'username displayName avatar isOnline offlineStatus')
+                  .populate('receiver', 'username displayName avatar')
                   .populate({
                         path: 'replyTo',
                         populate: { path: 'sender', select: 'username displayName' }
-                  });
+                  })
+                  .select('sender receiver text media replyTo reactions read createdAt edited deletedForEveryone deletedBy conversationId')
+                  .lean();
 
-            // Mark messages as read
-            await Message.updateMany(
-                  { sender: userId, receiver: req.user.id, read: false },
-                  { $set: { read: true } }
-            );
+            // hasMore flag for cursor pagination UI
+            const hasMore = messages.length === parseInt(limit);
 
-            // Reset unread count for this conversation
-            await Conversation.findOneAndUpdate(
-                  {
-                        participants: { $all: [req.user.id, userId] }
-                  },
-                  { $set: { [`unreadCount.${req.user.id}`]: 0 } }
-            );
+            // Fire-and-forget read receipt + unread reset (never block the response)
+            setImmediate(() => {
+                  Message.updateMany(
+                        { sender: userId, receiver: req.user.id, read: false },
+                        { $set: { read: true } }
+                  ).catch(err => console.error('[Read receipt]', err));
 
-            // Check blocked status
-            const currentUser = await User.findById(req.user.id);
-            const blockedInfo = {
-                  iBlocked: currentUser.blockedUsers.includes(userId),
-                  theyBlocked: otherUser.blockedUsers ? otherUser.blockedUsers.includes(req.user.id) : false
-            };
+                  if (conversation) {
+                        Conversation.findByIdAndUpdate(conversation._id,
+                              { $set: { [`unreadCount.${req.user.id}`]: 0 } }
+                        ).catch(err => console.error('[Unread reset]', err));
+                  } else {
+                        Conversation.findOneAndUpdate(
+                              { participants: { $all: [req.user.id, userId] } },
+                              { $set: { [`unreadCount.${req.user.id}`]: 0 } }
+                        ).catch(err => console.error('[Unread reset legacy]', err));
+                  }
+            });
 
             res.json({
                   success: true,
                   data: {
-                        messages,
+                        messages, // newest-first; frontend: messages.reverse()
+                        hasMore,
+                        oldestMessageId: messages.length > 0 ? messages[messages.length - 1]._id : null,
                         otherUser,
                         blockedInfo
                   }

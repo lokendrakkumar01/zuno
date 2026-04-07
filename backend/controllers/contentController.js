@@ -139,15 +139,23 @@ const getContent = async (req, res) => {
                   }
             }
 
-            // Increment view count (not shown publicly if silentMode)
-            content.metrics.viewCount += 1;
+            // Only increment view count if viewer is new (deduplication)
+            let isNewView = false;
             
-            // Record who viewed it if logged in
+            // If logged in and hasn't viewed
             if (req.user && !content.metrics.viewedBy.includes(req.user.id)) {
                   content.metrics.viewedBy.push(req.user.id);
+                  isNewView = true;
+            } 
+            // If not logged in, we increment anonymously (or could track via IP/session in the future)
+            else if (!req.user) {
+                  isNewView = true;
             }
-            
-            await content.save();
+
+            if (isNewView) {
+                 content.metrics.viewCount += 1;
+                 await content.save();
+            }
 
             // Prepare response (hide metrics if silentMode)
             const responseContent = content.toObject();
@@ -611,15 +619,19 @@ const markAsViewed = async (req, res) => {
                   return res.status(404).json({ success: false, message: 'Content not found' });
             }
 
-            // Increment count
-            content.metrics.viewCount += 1;
-
-            // Record who viewed it
+            let isNewView = false;
+            
             if (req.user && !content.metrics.viewedBy.includes(req.user.id)) {
                   content.metrics.viewedBy.push(req.user.id);
+                  isNewView = true;
+            } else if (!req.user) {
+                  isNewView = true;
             }
 
-            await content.save();
+            if (isNewView) {
+                  content.metrics.viewCount += 1;
+                  await content.save();
+            }
 
             res.json({ success: true, message: 'View recorded' });
       } catch (error) {

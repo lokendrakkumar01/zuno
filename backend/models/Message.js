@@ -53,10 +53,11 @@ const messageSchema = new mongoose.Schema({
       }]
 }, { timestamps: true });
 
-// Index for efficient queries
+// Indexes for efficient queries
 messageSchema.index({ sender: 1, receiver: 1, createdAt: -1 });
-messageSchema.index({ receiver: 1, sender: 1, createdAt: -1 }); // Added for $or query performance
+messageSchema.index({ receiver: 1, sender: 1, createdAt: -1 });
 messageSchema.index({ receiver: 1, read: 1 });
+messageSchema.index({ conversationId: 1, createdAt: -1 }); // Fast cursor pagination for group + DM chats
 messageSchema.index({ createdAt: -1 });
 
 const conversationSchema = new mongoose.Schema({

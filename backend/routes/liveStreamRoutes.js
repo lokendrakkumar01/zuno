@@ -5,7 +5,7 @@ const { protect } = require('../middleware/auth');
 // This prevents duplicate state and stale streams after socket disconnect cleanup
 const { activeStreams } = require('../socket/socket');
 
-// Start a new live stream — registers stream metadata in the shared activeStreams map
+// Start a new live stream (Legacy route - can be removed eventually, but left for backwards compat during rolling deploy)
 router.post('/start', protect, (req, res) => {
   const { title, description } = req.body;
   const userId = req.user._id.toString();
@@ -13,15 +13,9 @@ router.post('/start', protect, (req, res) => {
   const avatar = req.user.avatar;
   const displayName = req.user.displayName || username;
 
-  // End any existing stream for this user (cleanup previous session)
   const existing = activeStreams.get(userId);
-  if (existing) {
-    activeStreams.delete(userId);
-  }
+  if (existing) activeStreams.delete(userId);
 
-  // Store metadata in the same Map that socket.js uses
-  // Note: socket.js will overwrite this with roomId/viewers/hostSocketId when startStream is emitted
-  // This HTTP call just registers the human-readable metadata
   const existing2 = activeStreams.get(userId) || {};
   activeStreams.set(userId, {
     ...existing2,
@@ -38,6 +32,11 @@ router.post('/start', protect, (req, res) => {
 
   res.json({ success: true, data: { stream: activeStreams.get(userId) } });
 });
+
+const { getLiveKitToken } = require('../controllers/liveKitController');
+
+// Generate LiveKit token for SFU streaming (replaces /start)
+router.post('/token', protect, getLiveKitToken);
 
 // Get all active streams — filter out zombie entries with no hostSocketId (socket never connected)
 router.get('/active', (req, res) => {

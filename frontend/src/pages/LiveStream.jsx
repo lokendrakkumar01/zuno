@@ -3,10 +3,11 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSocketContext } from '../context/SocketContext';
 import { API_URL } from '../config';
-import Peer from 'simple-peer';
+import { LiveKitRoom, RoomAudioRenderer, VideoConference, ControlBar, useRoomContext, VideoTrack } from '@livekit/components-react';
+import '@livekit/components-styles';
 
 /* ─────────────────────────────────────────────
-   LIVE STREAM PAGE — works as HOST or VIEWER
+   LIVE STREAM PAGE (LiveKit SFU Powered)
    Route /live          → list active streams
    Route /live/:hostId  → watch a stream
    Route /live/host     → start your own stream
@@ -28,25 +29,17 @@ const LiveStream = () => {
   const [commentText, setCommentText] = useState('');
   const [viewerCount, setViewerCount] = useState(0);
   const [isLive, setIsLive] = useState(false);
-  const isLiveRef = useRef(false); // ref for use inside peer event closures
-  const [hostSocketReady, setHostSocketReady] = useState(null); // hostSocketId once streamJoined fires
   const [activeStreams, setActiveStreams] = useState([]);
   const [loadingStreams, setLoadingStreams] = useState(true);
   const [streamError, setStreamError] = useState('');
 
-  /* ── Host AV Controls & Reactions ── */
-  const [isMuted, setIsMuted] = useState(false);
-  const [isVideoOff, setIsVideoOff] = useState(false);
-  const [isScreenSharing, setIsScreenSharing] = useState(false);
-  const [reactions, setReactions] = useState([]);
+  /* ── LiveKit State ── */
+  const [lkToken, setLkToken] = useState(null);
+  const [lkUrl, setLkUrl] = useState(null);
+  const [lkRoomName, setLkRoomName] = useState(null);
 
-  /* ── Video refs ── */
-  const localVideoRef = useRef(null);
-  const remoteVideoRef = useRef(null);
-  const localStreamRef = useRef(null);
-  const peersRef = useRef({}); // { viewerSocketId: Peer }
-  const hostPeerRef = useRef(null); // viewer's connection to host
-  const hostSocketIdRef = useRef(null);
+  /* ── Host AV Controls & Reactions ── */
+  const [reactions, setReactions] = useState([]);
 
   /* ── Chat scroll ── */
   const commentsEndRef = useRef(null);
@@ -69,209 +62,105 @@ const LiveStream = () => {
     return () => clearInterval(interval);
   }, [isHostMode, isViewMode]);
 
-  /* ── Socket listeners ── */
+  /* ── Socket listeners (For Chat & Reactions) ── */
   useEffect(() => {
     if (!socket) return;
-
-    /* HOST receives new viewer → initiate peer connection */
-    socket.on('initPeerWithViewer', ({ viewerSocketId }) => {
-      if (!localStreamRef.current) return;
-      const peer = new Peer({ initiator: true, trickle: true, stream: localStreamRef.current });
-      peer.on('signal', signal => socket.emit('streamSignal', { to: viewerSocketId, signal }));
-      peer.on('error', () => {});
-      peersRef.current[viewerSocketId] = peer;
-    });
-
-    /* VIEWER receives stream signal from host */
-    socket.on('streamSignal', ({ signal, from }) => {
-      if (isHostMode) {
-        // Host receives viewer's answer signal
-        if (peersRef.current[from]) peersRef.current[from].signal(signal);
-      } else {
-        // Viewer receives host's offer signal
-        if (hostPeerRef.current) {
-          hostPeerRef.current.signal(signal);
-        }
-      }
-    });
-
     socket.on('viewerJoined', ({ viewerCount: vc }) => setViewerCount(vc));
     socket.on('viewerLeft', ({ viewerCount: vc }) => setViewerCount(vc));
     socket.on('newStreamComment', (data) => {
-      // Intercept Reactions
       if (data.comment?.startsWith('REACTION:')) {
         const emoji = data.comment.split(':')[1];
         const reactionId = Date.now() + Math.random();
         const newReaction = { id: reactionId, emoji, left: Math.random() * 80 + 10 };
         setReactions(prev => [...prev.slice(-30), newReaction]);
-        // Auto-remove after animation (2.5s) to prevent memory leak
         setTimeout(() => setReactions(prev => prev.filter(r => r.id !== reactionId)), 2500);
         return;
       }
       setComments(prev => [...prev.slice(-200), data]);
     });
     socket.on('streamEnded', () => {
-      isLiveRef.current = false;
       setIsLive(false);
       setStreamError('Stream has ended.');
-      if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+      setLkToken(null);
     });
     socket.on('streamNotFound', () => setStreamError('Stream not found or has already ended.'));
-    socket.on('streamJoined', ({ viewerCount: vc, hostSocketId: hsid }) => {
-      setViewerCount(vc);
-      hostSocketIdRef.current = hsid;
-      setHostSocketReady(hsid); // trigger viewer peer creation now that we have the host socket ID
-    });
 
     return () => {
-      socket.off('initPeerWithViewer');
-      socket.off('streamSignal');
       socket.off('viewerJoined');
       socket.off('viewerLeft');
       socket.off('newStreamComment');
       socket.off('streamEnded');
       socket.off('streamNotFound');
-      socket.off('streamJoined');
     };
-  }, [socket, isHostMode]);
+  }, [socket]);
 
   /* ── START STREAM (host) ── */
   const startStream = useCallback(async () => {
     if (!user || !socket) return;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      localStreamRef.current = stream;
-      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
-
-      // Register stream on backend
-      await fetch(`${API_URL}/livestream/start`, {
+      setStreamError('');
+      const res = await fetch(`${API_URL}/livestream/token`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ title: streamTitle || `${user.displayName || user.username}'s Live`, description: streamDesc })
+        body: JSON.stringify({ isHost: true, title: streamTitle || `${user.displayName || user.username}'s Live` })
       });
+      const data = await res.json();
+      
+      if (!data.success) throw new Error(data.message || 'Failed to get stream token');
 
-      const roomId = `stream_${user._id}`;
-      socket.emit('startStream', { hostId: user._id, title: streamTitle, roomId });
+      setLkToken(data.data.token);
+      setLkUrl(data.data.wsUrl);
+      setLkRoomName(data.data.roomName);
+      
+      // Tell socket to start tracking Chat room
+      socket.emit('startStream', { hostId: user._id, title: streamTitle, roomId: data.data.roomName });
       setIsLive(true);
     } catch (err) {
-      setStreamError('Could not access camera/microphone. Please check permissions.');
+      setStreamError(err.message || 'Could not start stream. Please check configuration.');
     }
-  }, [user, socket, token, streamTitle, streamDesc]);
+  }, [user, socket, token, streamTitle]);
 
   /* ── END STREAM (host) ── */
   const endStream = useCallback(async () => {
     if (!user || !socket) return;
     socket.emit('endStream', { hostId: user._id });
     await fetch(`${API_URL}/livestream/end`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
-    localStreamRef.current?.getTracks().forEach(t => t.stop());
-    Object.values(peersRef.current).forEach(p => p.destroy());
-    peersRef.current = {};
     setIsLive(false);
+    setLkToken(null);
     navigate('/live');
   }, [user, socket, token, navigate]);
 
-  /* ── HOST AV CONTROLS ── */
-  const toggleMute = () => {
-    if (!localStreamRef.current) return;
-    const audioTrack = localStreamRef.current.getAudioTracks()[0];
-    if (audioTrack) {
-      audioTrack.enabled = !audioTrack.enabled;
-      setIsMuted(!audioTrack.enabled);
-    }
-  };
-
-  const toggleVideo = () => {
-    if (!localStreamRef.current) return;
-    const videoTrack = localStreamRef.current.getVideoTracks()[0];
-    if (videoTrack) {
-      videoTrack.enabled = !videoTrack.enabled;
-      setIsVideoOff(!videoTrack.enabled);
-    }
-  };
-
-  const toggleScreenShare = async () => {
-    if (!localStreamRef.current) return;
-    try {
-      if (!isScreenSharing) {
-        const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-        const screenTrack = displayStream.getVideoTracks()[0];
-        
-        screenTrack.onended = () => {
-          // Revert back to webcam
-          const webcamTrack = localStreamRef.current.getVideoTracks()[0];
-          Object.values(peersRef.current).forEach(peer => peer.replaceTrack(screenTrack, webcamTrack, localStreamRef.current));
-          setIsScreenSharing(false);
-        };
-
-        const webcamTrack = localStreamRef.current.getVideoTracks()[0];
-        Object.values(peersRef.current).forEach(peer => peer.replaceTrack(webcamTrack, screenTrack, localStreamRef.current));
-        
-        if (localVideoRef.current) localVideoRef.current.srcObject = displayStream;
-        setIsScreenSharing(true);
-      } else {
-        // Stop screen share manually
-        const webcamTrack = localStreamRef.current.getVideoTracks()[0];
-        if (localVideoRef.current && localVideoRef.current.srcObject) {
-          const activeScreenTracks = localVideoRef.current.srcObject.getVideoTracks();
-          activeScreenTracks.forEach(t => t.stop());
-        }
-        Object.values(peersRef.current).forEach(peer => {
-          // Find currently active track in peer to replace
-          const activeTrackInPeer = peer.streams[0]?.getVideoTracks()[0];
-          if(activeTrackInPeer) peer.replaceTrack(activeTrackInPeer, webcamTrack, localStreamRef.current);
-        });
-        if (localVideoRef.current) localVideoRef.current.srcObject = localStreamRef.current;
-        setIsScreenSharing(false);
-      }
-    } catch (err) {
-      console.warn("Screen sharing failed/cancelled:", err);
-    }
-  };
-
-  /* ── JOIN STREAM (viewer) — emit joinStream on mount, wait for hostSocketReady ── */
+  /* ── JOIN STREAM (viewer) ── */
   useEffect(() => {
-    if (!isViewMode || !socket || !user) return;
-    // Tell server we want to join; server will send back streamJoined with hostSocketId
-    socket.emit('joinStream', { hostId, viewerId: user._id });
+    if (!isViewMode || !socket || !user || !hostId) return;
+
+    const joinStream = async () => {
+      try {
+        const res = await fetch(`${API_URL}/livestream/token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ isHost: false, roomName: `stream_${hostId}` })
+        });
+        const data = await res.json();
+        
+        if (!data.success) throw new Error(data.message || 'Failed to connect');
+
+        setLkToken(data.data.token);
+        setLkUrl(data.data.wsUrl);
+        setLkRoomName(data.data.roomName);
+        
+        socket.emit('joinStream', { hostId, viewerId: user._id });
+        setIsLive(true);
+      } catch (err) {
+        setStreamError(err.message || 'Connection error');
+      }
+    };
+    joinStream();
+
     return () => {
       socket.emit('leaveStreamView', { hostId, viewerId: user._id });
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isViewMode, socket, hostId]);
-
-  /* ── Create WebRTC peer ONLY after hostSocketId is known from streamJoined ── */
-  useEffect(() => {
-    if (!isViewMode || !socket || !hostSocketReady) return;
-
-    const peer = new Peer({ initiator: false, trickle: true });
-    hostPeerRef.current = peer;
-
-    peer.on('signal', signal => {
-      // Send answer signal directly to host's socket ID (guaranteed now)
-      socket.emit('streamSignal', { to: hostSocketReady, signal });
-    });
-    peer.on('stream', remoteStream => {
-      if (remoteVideoRef.current) remoteVideoRef.current.srcObject = remoteStream;
-      isLiveRef.current = true;
-      setIsLive(true);
-    });
-    peer.on('error', (err) => {
-      console.error('WebRTC viewer error:', err);
-      // Only show error if stream has NOT started yet
-      if (!isLiveRef.current) {
-        setStreamError('Connection error. Try refreshing.');
-      }
-    });
-    peer.on('close', () => {
-      if (!isLiveRef.current) setStreamError('Stream connection closed.');
-    });
-
-    return () => {
-      peer.destroy();
-      hostPeerRef.current = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isViewMode, socket, hostSocketReady]);
+  }, [isViewMode, socket, hostId, user, token]);
 
   /* ── SEND COMMENT ── */
   const sendComment = (e) => {
@@ -289,10 +178,8 @@ const LiveStream = () => {
   /* ── SEND REACTION ── */
   const sendReaction = (emoji) => {
     if (!socket) return;
-    // Visually show locally immediately for low latency feel
     const newReaction = { id: Date.now() + Math.random(), emoji, left: Math.random() * 80 + 10 };
     setReactions(prev => [...prev.slice(-30), newReaction]);
-
     socket.emit('streamComment', {
       hostId: isHostMode ? user._id : hostId,
       comment: `REACTION:${emoji}`,
@@ -387,30 +274,52 @@ const LiveStream = () => {
   return (
     <div className="livestream-layout">
       {/* Video Area */}
-      <div className="livestream-video-area">
-        {/* Stream video */}
-        {isHostMode
-          ? <video ref={localVideoRef} autoPlay muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          : <video ref={remoteVideoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-        }
+      <div className="livestream-video-area" style={{ position: 'relative', background: '#000' }}>
+        
+        {lkToken && lkUrl ? (
+          <LiveKitRoom
+            video={isHostMode} // Only host publishes video immediately
+            audio={isHostMode} // Only host publishes audio immediately
+            token={lkToken}
+            serverUrl={lkUrl}
+            data-lk-theme="default"
+            style={{ width: '100%', height: '100%' }}
+            onDisconnected={() => {
+                if(isViewMode) { setStreamError('Disconnected from Host.'); setIsLive(false); }
+            }}
+          >
+            <VideoConference />
+            <RoomAudioRenderer />
+            {isHostMode && (
+                 <div style={{ position: 'absolute', bottom: '10px', left: '10px', right: '10px', zIndex: 100 }}>
+                     <ControlBar controls={{ leave: false }} style={{ background: 'rgba(0,0,0,0.6)' }} />
+                 </div>
+            )}
+          </LiveKitRoom>
+        ) : null}
 
         {/* Overlay: Title + Viewer count */}
-        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: '16px', background: 'linear-gradient(to bottom,rgba(0,0,0,0.7),transparent)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            {isLive && (
-              <span style={{ background: '#ef4444', color: 'white', borderRadius: '6px', padding: '4px 12px', fontSize: '13px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ width: '8px', height: '8px', background: 'white', borderRadius: '50%', display: 'inline-block', animation: 'pulse 1.2s infinite' }} />
-                LIVE
-              </span>
-            )}
-            <span style={{ fontWeight: 700, fontSize: '16px' }}>{streamTitle || (isViewMode ? 'Live Stream' : 'My Stream')}</span>
-          </div>
-          <span style={{ background: 'rgba(0,0,0,0.5)', borderRadius: '20px', padding: '4px 12px', fontSize: '13px' }}>👁 {viewerCount}</span>
-        </div>
+        {isLive && (
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: '16px', background: 'linear-gradient(to bottom,rgba(0,0,0,0.7),transparent)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ background: '#ef4444', color: 'white', borderRadius: '6px', padding: '4px 12px', fontSize: '13px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ width: '8px', height: '8px', background: 'white', borderRadius: '50%', display: 'inline-block', animation: 'pulse 1.2s infinite' }} />
+                    LIVE
+                </span>
+                <span style={{ fontWeight: 700, fontSize: '16px' }}>{streamTitle || (isViewMode ? 'Live Stream' : 'My Stream')}</span>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                {isHostMode && (
+                    <button onClick={endStream} style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', fontWeight: 'bold' }}>End Stream</button>
+                )}
+                <span style={{ background: 'rgba(0,0,0,0.5)', borderRadius: '20px', padding: '4px 12px', fontSize: '13px' }}>👁 {viewerCount}</span>
+            </div>
+            </div>
+        )}
 
         {/* Host Setup Form (before going live) */}
         {isHostMode && !isLive && (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.85)', padding: '32px', gap: '16px' }}>
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.85)', padding: '32px', gap: '16px', zIndex: 20 }}>
             <div style={{ fontSize: '3rem' }}>🎥</div>
             <h2 style={{ margin: 0, fontWeight: 800, fontSize: '1.5rem' }}>Start Your Live Stream</h2>
             <input
@@ -419,13 +328,6 @@ const LiveStream = () => {
               value={streamTitle}
               onChange={e => setStreamTitle(e.target.value)}
               style={{ width: '100%', maxWidth: '400px', padding: '12px 16px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.1)', color: 'white', fontSize: '15px' }}
-            />
-            <textarea
-              placeholder="Description (optional)"
-              value={streamDesc}
-              onChange={e => setStreamDesc(e.target.value)}
-              rows={2}
-              style={{ width: '100%', maxWidth: '400px', padding: '12px 16px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.1)', color: 'white', fontSize: '14px', resize: 'none' }}
             />
             {streamError && <p style={{ color: '#f87171', fontSize: '14px', margin: 0 }}>{streamError}</p>}
             <button
@@ -439,15 +341,15 @@ const LiveStream = () => {
 
         {/* Viewer: Not connected yet */}
         {isViewMode && !isLive && !streamError && (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.8)' }}>
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.8)', zIndex: 20 }}>
             <div style={{ width: '50px', height: '50px', border: '4px solid rgba(255,255,255,0.2)', borderTopColor: '#ef4444', borderRadius: '50%', animation: 'spin 1s linear infinite', marginBottom: '16px' }} />
-            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '16px' }}>Connecting to stream...</p>
+            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '16px' }}>Connecting to stream via SFU...</p>
           </div>
         )}
 
         {/* Stream error state */}
         {streamError && (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.8)' }}>
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.8)', zIndex: 30 }}>
             <div style={{ fontSize: '3rem', marginBottom: '16px' }}>📡</div>
             <p style={{ color: '#f87171', fontWeight: 700, fontSize: '18px' }}>{streamError}</p>
             <button onClick={() => navigate('/live')} style={{ marginTop: '16px', background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '10px', padding: '10px 24px', cursor: 'pointer' }}>
@@ -458,43 +360,10 @@ const LiveStream = () => {
 
         {/* Floating Reactions */}
         {reactions.map(r => (
-          <div key={r.id} className="floating-reaction" style={{ left: `${r.left}%` }}>
+          <div key={r.id} className="floating-reaction" style={{ left: `${r.left}%`, zIndex: 40 }}>
             {r.emoji}
           </div>
         ))}
-
-        {/* Host Controls */}
-        {isHostMode && isLive && (
-          <div style={{ position: 'absolute', bottom: '24px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '16px', background: 'rgba(0,0,0,0.6)', padding: '12px 24px', borderRadius: '16px', backdropFilter: 'blur(10px)', zIndex: 10 }}>
-            <button
-              onClick={toggleMute}
-              style={{ background: isMuted ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.1)', color: isMuted ? '#ef4444' : 'white', border: `1px solid ${isMuted ? '#ef4444' : 'rgba(255,255,255,0.2)'}`, borderRadius: '10px', height: '44px', width: '44px', display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center', fontSize: '18px', cursor: 'pointer', transition: 'all 0.2s' }}
-              title={isMuted ? "Unmute" : "Mute"}
-            >
-              {isMuted ? '🔇' : '🎤'}
-            </button>
-            <button
-              onClick={toggleVideo}
-              style={{ background: isVideoOff ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.1)', color: isVideoOff ? '#ef4444' : 'white', border: `1px solid ${isVideoOff ? '#ef4444' : 'rgba(255,255,255,0.2)'}`, borderRadius: '10px', height: '44px', width: '44px', display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center', fontSize: '18px', cursor: 'pointer', transition: 'all 0.2s' }}
-              title={isVideoOff ? "Turn on camera" : "Turn off camera"}
-            >
-              {isVideoOff ? '🚫' : '📷'}
-            </button>
-            <button
-              onClick={toggleScreenShare}
-              style={{ background: isScreenSharing ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.1)', color: isScreenSharing ? '#818cf8' : 'white', border: `1px solid ${isScreenSharing ? '#6366f1' : 'rgba(255,255,255,0.2)'}`, borderRadius: '10px', height: '44px', width: '44px', display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center', fontSize: '18px', cursor: 'pointer', transition: 'all 0.2s' }}
-              title={isScreenSharing ? "Stop sharing screen" : "Share screen"}
-            >
-              {isScreenSharing ? '💻' : '📺'}
-            </button>
-            <button
-              onClick={endStream}
-              style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '10px', padding: '0 24px', fontWeight: 700, fontSize: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 15px rgba(239,68,68,0.4)' }}
-            >
-              ⏹ End Stream
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Chat Panel */}

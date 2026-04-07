@@ -1,14 +1,18 @@
 # Dependencies
 node_modules/
+frontend/node_modules/
+backend/node_modules/
+admin-panel/node_modules/
 
 # Environment files
 .env
 .env.local
 .env.production
 
-# Build outputs (only ignore the hidden .dist, not frontend/dist which is deployed)
+# Build outputs — never commit built artifacts
 .dist/
 admin-panel/.dist/
+frontend/dist/
 
 # Logs
 logs/
@@ -23,7 +27,7 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Uploads (if stored locally during dev)
+# Uploads (stored locally during dev, served by Cloudinary in prod)
 backend/uploads/*
 !backend/uploads/.gitkeep
 
@@ -33,7 +37,7 @@ frontend/vite.config.js.timestamp-*
 # Capacitor Android build (generated - do not commit)
 frontend/android/
 
-# APK binaries and keystore
+# APK binaries and keystore — NEVER commit these
 *.apk
 *.apk.idsig
 *.jks

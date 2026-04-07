@@ -132,16 +132,28 @@ const updateUser = async (req, res) => {
                   });
             }
 
-            // If password was changed, send notification email automatically
+            // If password was changed, send a secure reset link instead of plain password
             if (passwordChanged) {
                   try {
+                        const crypto = require('crypto');
+                        const rawToken = crypto.randomBytes(32).toString('hex');
+                        const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+                        // Save hashed token + expiry in user record
+                        await User.findByIdAndUpdate(req.params.id, {
+                              passwordResetToken: hashedToken,
+                              passwordResetExpires: Date.now() + 60 * 60 * 1000 // 1 hour
+                        });
+
+                        const clientUrl = process.env.CLIENT_URL || 'https://zunoworld.tech';
+                        const resetLink = `${clientUrl}/reset-password?token=${rawToken}&userId=${req.params.id}`;
+
                         const subject = '🔐 Security Alert: Your ZUNO Password has been Reset';
-                        const message = `Hello ${user.displayName || user.username},\n\nYour ZUNO account password has been reset by an administrator.\n\nYour new temporary password is: ${password}\n\nPlease log in and change your password immediately for security.\n\nBest regards,\nZUNO Administration`;
+                        const message = `Hello ${user.displayName || user.username},\n\nYour ZUNO account password was reset by an administrator.\n\nClick the link below to set your own new password (link expires in 1 hour):\n\n${resetLink}\n\nIf you did not request this, please contact support immediately.\n\nBest regards,\nZUNO Administration`;
                         await sendCustomAdminEmail(user.email, user.displayName || user.username, subject, message);
-                        console.log(`[Admin] Password reset email sent to ${user.email}`);
+                        console.log(`[Admin] Secure password reset link sent to ${user.email}`);
                   } catch (mailError) {
                         console.error('[Admin] Failed to send password reset email:', mailError.message);
-                        // We still return success since the DB update worked
                   }
             }
 
