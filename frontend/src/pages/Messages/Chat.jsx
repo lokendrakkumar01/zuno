@@ -57,6 +57,10 @@ const Chat = () => {
       }
 
       const [sending, setSending] = useState(false);
+      const [loadingMore, setLoadingMore] = useState(false);
+      const [page, setPage] = useState(1);
+      const [hasMore, setHasMore] = useState(true);
+
       const messagesEndRef = useRef(null);
       const chatAreaRef = useRef(null);
       const pollRef = useRef(null);
@@ -183,11 +187,19 @@ const Chat = () => {
             };
 
             // Run user fetch and message fetch in parallel for max speed
-            Promise.all([fetchUser(), fetchMessages()]);
+            Promise.all([fetchUser(), fetchMessages(1)]);
 
             // Clear sent IDs set when switching chats
             sentMsgIds.current = new Set();
       }, [userId]);
+
+      const handleScroll = (e) => {
+            const el = e.target;
+            if (el.scrollTop === 0 && hasMore && !loadingMore && !loading) {
+                  fetchMessages(page + 1);
+            }
+            handleChatScroll();
+      };
 
       // Initialize sounds
       useEffect(() => {
@@ -381,16 +393,17 @@ const Chat = () => {
             }
       };
 
-      const fetchMessages = async () => {
-            // Only show loading if no cache at all
+      const fetchMessages = async (pageNum = 1) => {
+            // Only show loading if no cache at all and it's the first page
             const hasCached = !!localStorage.getItem(`zuno_chat_cache_${userId}`);
-            if (!hasCached) setLoading(true);
+            if (!hasCached && pageNum === 1) setLoading(true);
+            if (pageNum > 1) setLoadingMore(true);
 
             try {
                   const controller = new AbortController();
                   const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
 
-                  const res = await fetch(`${API_URL}/messages/${userId}`, {
+                  const res = await fetch(`${API_URL}/messages/${userId}?page=${pageNum}&limit=50`, {
                         headers: { 'Authorization': `Bearer ${token}` },
                         signal: controller.signal
                   });
@@ -398,35 +411,59 @@ const Chat = () => {
 
                   const data = await res.json();
                   if (data.success) {
-                        setMessages(data.data.messages);
-                        setOtherUser(data.data.otherUser);
-                        setBlockedInfo(data.data.blockedInfo || { iBlocked: false, theyBlocked: false });
+                        const fetchedMessages = data.data.messages;
+                        if (fetchedMessages.length < 50) setHasMore(false);
+                        else setHasMore(true);
 
-                        try {
-                              localStorage.setItem(`zuno_chat_cache_${userId}`, JSON.stringify(data.data.messages.slice(-100)));
-                              localStorage.setItem(`zuno_user_cache_${userId}`, JSON.stringify(data.data.otherUser));
-                        } catch (e) {
-                              console.warn('Cache quota exceeded');
+                        if (pageNum === 1) {
+                              setMessages(fetchedMessages);
+                              setPage(1);
+                              setOtherUser(data.data.otherUser);
+                              setBlockedInfo(data.data.blockedInfo || { iBlocked: false, theyBlocked: false });
+
+                              try {
+                                    localStorage.setItem(`zuno_chat_cache_${userId}`, JSON.stringify(fetchedMessages.slice(-100)));
+                                    localStorage.setItem(`zuno_user_cache_${userId}`, JSON.stringify(data.data.otherUser));
+                              } catch (e) {
+                                    console.warn('Cache quota exceeded');
+                              }
+
+                              socket?.emit('messageRead', { receiverId: userId });
+
+                              // Scroll to bottom after fresh data renders
+                              requestAnimationFrame(() => {
+                                    setTimeout(() => scrollToBottom(true), 80);
+                              });
+                        } else {
+                              // We fetched older messages, prepend them
+                              setMessages(prev => {
+                                    const merged = [...fetchedMessages, ...prev];
+                                    // ensure uniqueness
+                                    const map = new Map();
+                                    merged.forEach(m => map.set(m._id?.toString(), m));
+                                    return Array.from(map.values()).sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+                              });
+                              setPage(pageNum);
+                              // keep scroll position
+                              requestAnimationFrame(() => {
+                                    if (chatAreaRef.current) chatAreaRef.current.scrollTop = 50; 
+                              });
                         }
-
-                        socket?.emit('messageRead', { receiverId: userId });
-
-                        // Scroll to bottom after fresh data renders
-                        requestAnimationFrame(() => {
-                              setTimeout(() => scrollToBottom(true), 80);
-                        });
                   } else {
                         throw new Error(data.message || 'Failed to load messages');
                   }
             } catch (err) {
                   if (err.name !== 'AbortError') console.error('Failed to fetch messages:', err);
-                  // Use cache as fallback on error
-                  const cachedMsgs = localStorage.getItem(`zuno_chat_cache_${userId}`);
-                  if (cachedMsgs) setMessages(JSON.parse(cachedMsgs));
-                  const cachedUser = localStorage.getItem(`zuno_user_cache_${userId}`);
-                  if (cachedUser) setOtherUser(JSON.parse(cachedUser));
+                  // Use cache as fallback on error (only for page 1)
+                  if (pageNum === 1) {
+                        const cachedMsgs = localStorage.getItem(`zuno_chat_cache_${userId}`);
+                        if (cachedMsgs) setMessages(JSON.parse(cachedMsgs));
+                        const cachedUser = localStorage.getItem(`zuno_user_cache_${userId}`);
+                        if (cachedUser) setOtherUser(JSON.parse(cachedUser));
+                  }
             } finally {
                   setLoading(false);
+                  setLoadingMore(false);
             }
       };
 
@@ -952,7 +989,7 @@ const Chat = () => {
                   <div
                         className="chat-messages"
                         ref={chatAreaRef}
-                        onScroll={handleChatScroll}
+                        onScroll={handleScroll}
                         style={chatCustomization.bgImage ? {
                               backgroundImage: `url(${chatCustomization.bgImage})`,
                               backgroundSize: 'cover',
@@ -960,6 +997,7 @@ const Chat = () => {
                               backgroundAttachment: 'fixed'
                         } : {}}
                   >
+                        {loadingMore && <div style={{ textAlign: 'center', padding: '10px', fontSize: '12px', color: 'var(--text-muted)' }}>Loading past messages...</div>}
                         {/* Scroll to bottom floating button */}
                         {showScrollBtn && (
                               <button

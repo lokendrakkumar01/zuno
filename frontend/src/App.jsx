@@ -30,11 +30,13 @@ import SavedContent from './pages/SavedContent';
 import Messages from './pages/Messages/Messages';
 import Chat from './pages/Messages/Chat';
 import GroupChat from './pages/Messages/GroupChat';
+import LiveStream from './pages/LiveStream';
 import Status from './pages/Status';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import GlobalNotification from './components/GlobalNotification';
 import CallOverlay from './components/CallOverlay';
+import GroupCallOverlay from './components/GroupCallOverlay';
 import ErrorBoundary from './components/ErrorBoundary';
 import { API_BASE_URL } from './config';
 
@@ -85,6 +87,7 @@ function AppRouter() {
             <>
                   <GlobalNotification />
                   <CallOverlay />
+                  {/* Group Call Overlay handled via CallContext later, or we can render it conditionally here using CallContext state. For now, we will add the state to CallContext and let CallProvider render it, or we render it here consuming the context. Actually, let's keep GroupCallOverlay rendering inside App conditionally based on useCallContext state.*/}
                   <ToastContainer theme="colored" autoClose={4000} />
                   <Routes>
                         {/* Auth routes - no layout */}
@@ -112,6 +115,8 @@ function AppRouter() {
                               <Route path="messages" element={<Messages />} />
                               <Route path="messages/group/:groupId" element={<GroupChat />} />
                               <Route path="messages/:userId" element={<Chat />} />
+                              <Route path="live/:hostId?" element={<LiveStream />} />
+                              <Route path="live" element={<LiveStream />} />
                               <Route path="saved" element={<SavedContent />} />
                               <Route path="content/saved" element={<SavedContent />} />
                               <Route path="content/:id" element={<ContentView />} />

@@ -38,8 +38,12 @@ const GroupChat = () => {
       });
       const [newMessage, setNewMessage] = useState('');
       const [loading, setLoading] = useState(!localStorage.getItem(`zuno_group_chat_cache_${groupId}`));
+      const [loadingMore, setLoadingMore] = useState(false);
+      const [page, setPage] = useState(1);
+      const [hasMore, setHasMore] = useState(true);
       const [sending, setSending] = useState(false);
       const messagesEndRef = useRef(null);
+      const chatAreaRef = useRef(null);
       const fileInputRef = useRef(null);
       const sentMsgIds = useRef(new Set()); 
       const sendSoundRef = useRef(null);
@@ -61,6 +65,10 @@ const GroupChat = () => {
       const [showCustomizeModal, setShowCustomizeModal] = useState(false);
       const defaultCustomization = { themeColor: '#6366f1', bgImage: null };
       const [chatCustomization, setChatCustomization] = useState(defaultCustomization);
+
+      // Group / Call features
+      const { startGroupCall } = useCallContext();
+      const [pinnedMessage, setPinnedMessage] = useState(null);
 
       // Group Info Modal
       const [showGroupInfo, setShowGroupInfo] = useState(false);
@@ -152,9 +160,16 @@ const GroupChat = () => {
                   setLoading(true);
             }
 
-            fetchMessages();
+            fetchMessages(1);
             sentMsgIds.current = new Set();
       }, [groupId]);
+
+      const handleScroll = (e) => {
+            const el = e.target;
+            if (el.scrollTop === 0 && hasMore && !loadingMore && !loading) {
+                  fetchMessages(page + 1);
+            }
+      };
 
       // Initialize sounds
       useEffect(() => {
@@ -249,27 +264,57 @@ const GroupChat = () => {
             }
       };
 
-      const fetchMessages = async () => {
-            setLoading(prev => messages.length === 0 ? true : prev);
+      const fetchMessages = async (pageNum = 1) => {
+            const hasCached = !!localStorage.getItem(`zuno_group_chat_cache_${groupId}`);
+            if (!hasCached && pageNum === 1) setLoading(true);
+            if (pageNum > 1) setLoadingMore(true);
+
             try {
-                  const res = await fetch(`${API_URL}/messages/group/${groupId}`, {
+                  const res = await fetch(`${API_URL}/messages/group/${groupId}?page=${pageNum}&limit=50`, {
                         headers: { 'Authorization': `Bearer ${token}` }
                   });
                   const data = await res.json();
                   if (data.success) {
-                        setMessages(data.data.messages);
-                        setGroupInfo(data.data.group);
-                        try {
-                              localStorage.setItem(`zuno_group_chat_cache_${groupId}`, JSON.stringify(data.data.messages.slice(-100)));
-                              localStorage.setItem(`zuno_group_info_cache_${groupId}`, JSON.stringify(data.data.group));
-                        } catch (e) { }
+                        const newMsgs = data.data.messages;
+                        if (newMsgs.length < 50) setHasMore(false);
+                        else setHasMore(true);
+
+                        if (pageNum === 1) {
+                              setMessages(newMsgs);
+                              setPage(1);
+                              setGroupInfo(data.data.group);
+                              try {
+                                    localStorage.setItem(`zuno_group_chat_cache_${groupId}`, JSON.stringify(newMsgs.slice(-100)));
+                                    localStorage.setItem(`zuno_group_info_cache_${groupId}`, JSON.stringify(data.data.group));
+                              } catch (e) { }
+
+                              requestAnimationFrame(() => {
+                                    setTimeout(() => scrollToBottom(true), 80);
+                              });
+                        } else {
+                              setMessages(prev => {
+                                    const merged = [...newMsgs, ...prev];
+                                    const map = new Map();
+                                    merged.forEach(m => map.set(m._id?.toString(), m));
+                                    return Array.from(map.values()).sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+                              });
+                              setPage(pageNum);
+                              requestAnimationFrame(() => {
+                                    if (chatAreaRef.current) chatAreaRef.current.scrollTop = 50; 
+                              });
+                        }
                   } else {
                         throw new Error(data.message || 'Failed to load messages');
                   }
             } catch (err) {
                   console.error('Failed to fetch messages:', err);
+                  if (pageNum === 1) {
+                        const cachedMsgs = localStorage.getItem(`zuno_group_chat_cache_${groupId}`);
+                        if (cachedMsgs) setMessages(JSON.parse(cachedMsgs));
+                  }
             } finally {
                   setLoading(false);
+                  setLoadingMore(false);
             }
       };
 
@@ -365,6 +410,18 @@ const GroupChat = () => {
             } catch (err) {
                   console.error('Failed to leave group:', err);
             }
+      };
+
+      const initiateGroupCall = (type = 'video') => {
+            if (!groupInfo || !groupInfo.participants) return;
+            // Filter participants to ping (max 4 incl me in Mesh WebRTC)
+            startGroupCall(groupId, groupInfo.groupName, groupInfo.participants, type);
+      };
+
+      const handlePinMessage = (msg) => {
+            setPinnedMessage(msg);
+            setActiveMenu(null);
+            // Ideally save to backend, but local state works for current session UX demonstration 
       };
 
       const handleUpdateGroupInfo = async () => {
@@ -774,7 +831,21 @@ const GroupChat = () => {
                                     </div>
                               </div>
                         </div>
-                        <div className="chat-call-buttons">
+                        <div className="chat-call-buttons" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                              {!groupInfo?.isChannel && (
+                                    <>
+                                          <button onClick={() => initiateGroupCall('voice')} className="chat-action-btn" title="Voice Call">
+                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                                      <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
+                                                </svg>
+                                          </button>
+                                          <button onClick={() => initiateGroupCall('video')} className="chat-action-btn" title="Video Call">
+                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                                      <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
+                                                </svg>
+                                          </button>
+                                    </>
+                              )}
                               <div style={{ position: 'relative' }}>
                                     <button
                                           className="chat-call-btn"
@@ -818,15 +889,37 @@ const GroupChat = () => {
                         </div>
                   </div>
 
+                  {/* Pinned Message Bar */}
+                  {pinnedMessage && (
+                        <div style={{ padding: '8px 16px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
+                              <div style={{ flex: 1, overflow: 'hidden', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                                    <div style={{ color: 'var(--color-primary)' }}>📌</div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                          <div style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--color-primary)' }}>Pinned Message</div>
+                                          <div style={{ fontSize: '13px', color: 'var(--text-color)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                {pinnedMessage.text || (pinnedMessage.media ? 'Media attached' : '')}
+                                          </div>
+                                    </div>
+                              </div>
+                              <button onClick={(e) => { e.stopPropagation(); setPinnedMessage(null); }} className="btn btn-ghost" style={{ padding: '4px' }}>✕</button>
+                        </div>
+                  )}
+
                   {/* Messages Area */}
-                  <div className="chat-messages" style={
-                        chatCustomization.bgImage ? {
-                              backgroundImage: `url(${chatCustomization.bgImage})`,
-                              backgroundSize: 'cover',
-                              backgroundPosition: 'center',
-                              backgroundAttachment: 'fixed'
-                        } : {}
-                  }>
+                  <div 
+                        className="chat-messages" 
+                        ref={chatAreaRef}
+                        onScroll={handleScroll}
+                        style={
+                              chatCustomization.bgImage ? {
+                                    backgroundImage: `url(${chatCustomization.bgImage})`,
+                                    backgroundSize: 'cover',
+                                    backgroundPosition: 'center',
+                                    backgroundAttachment: 'fixed'
+                              } : {}
+                        }
+                  >
+                        {loadingMore && <div style={{ textAlign: 'center', padding: '10px', fontSize: '12px', color: 'var(--text-muted)' }}>Loading past messages...</div>}
                         {loading ? (
                               <div className="empty-state"></div>
                         ) : messages.length > 0 ? (
@@ -950,6 +1043,13 @@ const GroupChat = () => {
                                                                         <button onClick={() => { setReplyingTo(msg); setActiveMenu(null); }} className="chat-msg-menu-item">
                                                                               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z" /></svg>
                                                                               Reply
+                                                                        </button>
+                                                                        <button onClick={() => { setReplyingTo(msg); setActiveMenu(null); }} className="chat-msg-menu-item">
+                                                                              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z" /></svg>
+                                                                              Reply
+                                                                        </button>
+                                                                        <button onClick={() => { handlePinMessage(msg); }} className="chat-msg-menu-item">
+                                                                              📌 Pin
                                                                         </button>
                                                                         {msg.text && (
                                                                               <button onClick={() => { navigator.clipboard?.writeText(msg.text).catch(() => { }); setActiveMenu(null); }} className="chat-msg-menu-item">

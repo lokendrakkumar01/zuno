@@ -3,6 +3,7 @@ import Peer from "simple-peer";
 import { useSocketContext } from "./SocketContext";
 import { useAuth } from "./AuthContext";
 import { API_URL } from "../config";
+import GroupCallOverlay from "../components/GroupCallOverlay";
 
 // Detect if running on Android (Capacitor app or Android browser)
 const isAndroid = () => {
@@ -63,6 +64,9 @@ export const CallProvider = ({ children }) => {
       const [callType, setCallType] = useState(null); // 'voice' or 'video'
       const [isCalling, setIsCalling] = useState(false);
       const [showCallModal, setShowCallModal] = useState(null);
+
+      // Group Call State
+      const [activeGroupCall, setActiveGroupCall] = useState(null); // { groupId, groupName, participants, callType }
 
       // Hardware Controls
       const [isMuted, setIsMuted] = useState(false);
@@ -137,6 +141,17 @@ export const CallProvider = ({ children }) => {
                   setCallType(null);
                   targetUserIdRef.current = null;
                   showCallToast('📵 Call was cancelled', 'info');
+            };
+
+            const handleGroupCallIncoming = (data) => {
+                  // data: { signal, from, groupId, callType }
+                  // Only accept if not already in a call, otherwise automatically ignore (busy)
+                  if (activeGroupCall || isCallingRef.current || callAcceptedRef.current) return;
+                  // Auto-join or prompt could be done here. Since it's WhatsApp style, group calls might ring everyone.
+                  // For simplicity avoiding annoying ringtone per participant, we will auto-show a global incoming group call toaster,
+                  // or just let GroupCallOverlay handle receiving the signals.
+                  // Wait, GroupCallOverlay handles 'groupCallIncoming' entirely on its own! 
+                  // So we only need CallContext to listen for new group rings to mount the Overlay if not already mounted.
             };
 
             const handleCallEndedEvent = () => leaveCall(false);
@@ -649,6 +664,10 @@ export const CallProvider = ({ children }) => {
             targetUserIdRef.current = null;
       };
 
+      const startGroupCall = (groupId, groupName, participants, callType = 'video') => {
+            setActiveGroupCall({ groupId, groupName, participants, callType });
+      };
+
       return (
             <CallContext.Provider value={{
                   stream, remoteStream, setStream, myVideo, userVideo,
@@ -664,9 +683,20 @@ export const CallProvider = ({ children }) => {
                   startScreenShare, stopScreenShare,
                   toggleSpeaker, flipCamera,
                   isAndroid: isAndroid(),
-                  supportsScreenShare: supportsScreenShare()
+                  supportsScreenShare: supportsScreenShare(),
+                  activeGroupCall, startGroupCall
             }}>
                   {children}
+                  {/* Group Call Overlay rendered globally when active */}
+                  {activeGroupCall && (
+                        <GroupCallOverlay
+                              groupId={activeGroupCall.groupId}
+                              groupName={activeGroupCall.groupName}
+                              participants={activeGroupCall.participants}
+                              callType={activeGroupCall.callType}
+                              onEnd={() => setActiveGroupCall(null)}
+                        />
+                  )}
             </CallContext.Provider>
       );
 };

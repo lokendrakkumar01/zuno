@@ -140,6 +140,9 @@ const Layout = () => {
                                                 <Link to="/upload" className={`nav-link ${isActive('/upload') ? 'active' : ''}`}>
                                                       ➕ {t('upload')}
                                                 </Link>
+                                                <Link to="/live" className={`nav-link ${isActive('/live') ? 'active' : ''}`}>
+                                                      🔴 Live
+                                                </Link>
                                                 <Link to="/profile" className={`nav-link ${isActive('/profile') ? 'active' : ''}`}>
                                                       👤 {t('profile')}
                                                 </Link>
@@ -195,6 +198,10 @@ const Layout = () => {
                         <Link to="/search" className={`bottom-nav-item ${isActive('/search') ? 'active' : ''}`}>
                               <SearchIcon />
                               <span style={{ fontSize: '10px' }}>{t('search')}</span>
+                        </Link>
+                        <Link to="/live" className={`bottom-nav-item ${isActive('/live') ? 'active' : ''}`}>
+                              <div style={{ fontSize: '16px', lineHeight: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🔴</div>
+                              <span style={{ fontSize: '10px' }}>Live</span>
                         </Link>
 
                         {isAuthenticated ? (

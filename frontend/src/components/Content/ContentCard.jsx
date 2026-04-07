@@ -388,14 +388,37 @@ const ContentCard = ({ content, onDelete, autoOpenFullscreen = false, onCloseFul
 
       // Video player enhanced states
       const videoRef = useRef(null);
+      const videoContainerRef = useRef(null);
       const [isPlaying, setIsPlaying] = useState(false);
-      const [isMuted, setIsMuted] = useState(false);
-      const [showVideoControls, setShowVideoControls] = useState(true);
+      const [isMuted, setIsMuted] = useState(true); // Start muted for autoplay policies
       const [videoProgress, setVideoProgress] = useState(0);
       const [videoDuration, setVideoDuration] = useState(0);
+      const [videoLoaded, setVideoLoaded] = useState(false);
+      const [isInView, setIsInView] = useState(false);
 
       const [imageError, setImageError] = useState(false);
       const [imageRetryCount, setImageRetryCount] = useState(0);
+
+      // IntersectionObserver: auto-play video when in view, pause when out
+      useEffect(() => {
+            if (!isVideo || !videoContainerRef.current) return;
+            const observer = new IntersectionObserver(
+                  (entries) => {
+                        entries.forEach(entry => {
+                              setIsInView(entry.isIntersecting);
+                              if (entry.isIntersecting) {
+                                    videoRef.current?.play().catch(() => {});
+                              } else {
+                                    videoRef.current?.pause();
+                              }
+                        });
+                  },
+                  { threshold: 0.5 }
+            );
+            observer.observe(videoContainerRef.current);
+            return () => observer.disconnect();
+            // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [isVideo]);
 
       const getMediaUrl = (url) => {
             if (!url) {
@@ -470,6 +493,9 @@ const ContentCard = ({ content, onDelete, autoOpenFullscreen = false, onCloseFul
             (content.type && (content.type === 'short-video' || content.type === 'long-video')) ||
             (content.contentType && (content.contentType === 'short-video' || content.contentType === 'long-video'));
 
+      // Dynamic aspect ratio: videos use 9:16 (portrait reels) or 16:9 (landscape)
+      const videoAspect = '56.25%'; // 16:9 default — consistent grid layout
+
       return (
             <article className={`content-card ${isVideo ? 'reel-card' : 'standard-card'}`} style={{ position: 'relative' }}>
                   {/* Header - Only hide on videos (Reels style) */}
@@ -522,15 +548,19 @@ const ContentCard = ({ content, onDelete, autoOpenFullscreen = false, onCloseFul
                   {/* Media */}
                   {content.media && content.media.length > 0 && (
                         <div
+                              ref={videoContainerRef}
                               className={`content-card-media ${isVideo ? 'reel-video-container' : ''}`}
                               style={{
                                     position: 'relative',
                                     background: isVideo ? '#000' : 'var(--color-bg-tertiary)',
-                                    minHeight: isVideo ? '300px' : '180px',
+                                    // Fixed aspect ratio for consistent card heights
+                                    paddingTop: isVideo ? videoAspect : '0',
+                                    minHeight: isVideo ? '0' : '180px',
                                     width: '100%',
                                     overflow: 'hidden',
                                     zIndex: 1,
-                                    cursor: 'pointer'
+                                    cursor: 'pointer',
+                                    borderRadius: isVideo ? '0' : '12px 12px 0 0'
                               }}
                               onClick={() => {
                                     if (content.music && content.music.previewUrl && !isThisPlaying) {
@@ -618,9 +648,13 @@ const ContentCard = ({ content, onDelete, autoOpenFullscreen = false, onCloseFul
                                                 )}
                                           </>
                                     ) : (
-                                          /* Enhanced Video Player - Reel Style */
-                                          <div style={{ width: '100%', height: '100%', minHeight: '400px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                                                {/* Video Element fills parent which has position:relative + dark bg */}
+                                          /* Enhanced Video Player - Fixed Layout */
+                                          <div style={{
+                                                position: 'absolute', top: 0, left: 0,
+                                                width: '100%', height: '100%',
+                                                display: 'flex', justifyContent: 'center', alignItems: 'center',
+                                                background: '#000'
+                                          }}>
                                                 <video
                                                       ref={videoRef}
                                                       key={mediaUrl}
@@ -630,8 +664,7 @@ const ContentCard = ({ content, onDelete, autoOpenFullscreen = false, onCloseFul
                                                       poster={content.media?.[0]?.thumbnail ? getMediaUrl(content.media[0].thumbnail) : undefined}
                                                       style={{
                                                             position: 'absolute',
-                                                            top: 0,
-                                                            left: 0,
+                                                            top: 0, left: 0,
                                                             width: '100%',
                                                             height: '100%',
                                                             objectFit: 'cover',
@@ -641,19 +674,18 @@ const ContentCard = ({ content, onDelete, autoOpenFullscreen = false, onCloseFul
                                                       loop
                                                       onClick={(e) => {
                                                             e.stopPropagation();
-                                                            videoRef.current?.pause(); // ensure underlying video is paused
-                                                            setIsFullscreen(true); // Open reel viewer
+                                                            videoRef.current?.pause();
+                                                            setIsFullscreen(true);
                                                       }}
                                                       onDoubleClick={(e) => {
-                                                            e.preventDefault();
-                                                            e.stopPropagation();
-                                                            handleDoubleTap(); // Heart animation on video double tap
+                                                            e.preventDefault(); e.stopPropagation();
+                                                            handleDoubleTap();
                                                       }}
                                                       onPlay={() => setIsPlaying(true)}
                                                       onPause={() => setIsPlaying(false)}
-                                                      onLoadedMetadata={(e) => setVideoDuration(e.target.duration)}
+                                                      onLoadedMetadata={(e) => { setVideoDuration(e.target.duration); setVideoLoaded(true); }}
                                                       onTimeUpdate={(e) => setVideoProgress((e.target.currentTime / e.target.duration) * 100)}
-                                                      onError={(e) => console.error('Video failed to load:', e)}
+                                                      onError={() => {}}
                                                 />
 
                                                 {/* Play Overlay Icon (indicates it's a video/reel) */}
