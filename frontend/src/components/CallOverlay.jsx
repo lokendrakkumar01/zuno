@@ -313,7 +313,10 @@ const CallOverlay = () => {
     isMuted, isVideoOff, toggleMute, toggleVideo,
     isScreenSharing, isSpeakerOn, toggleSpeaker,
     startScreenShare, stopScreenShare,
-    callToast
+    flipCamera, facingMode,
+    callToast,
+    isAndroid: onAndroid,
+    supportsScreenShare
   } = useCallContext();
 
   const timer = useCallTimer(callAccepted && !callEnded);
@@ -490,15 +493,28 @@ const CallOverlay = () => {
               </button>
             )}
 
-            {/* Screen Share — only for video calls */}
+            {/* Screen Share — show on desktop always, on mobile show but with info toast */}
             {callType === 'video' && (
               <button
                 onClick={isScreenSharing ? stopScreenShare : startScreenShare}
                 className={`call-ctrl-btn ${isScreenSharing ? 'call-ctrl-screen-on' : 'call-ctrl-screen'}`}
-                title={isScreenSharing ? 'Stop screen share' : 'Share screen'}
+                title={isScreenSharing ? 'Stop screen share' : (supportsScreenShare ? 'Share screen' : 'Not available on mobile')}
+                style={{ opacity: supportsScreenShare ? 1 : 0.6 }}
               >
                 <span style={{ fontSize: '1.2rem' }}>🖥️</span>
                 <span className="call-ctrl-label">{isScreenSharing ? 'Stop' : 'Screen'}</span>
+              </button>
+            )}
+
+            {/* Flip Camera — only show on mobile Android for video calls */}
+            {callType === 'video' && onAndroid && (
+              <button
+                onClick={flipCamera}
+                className="call-ctrl-btn call-ctrl-video"
+                title={facingMode === 'user' ? 'Switch to back camera' : 'Switch to front camera'}
+              >
+                <span style={{ fontSize: '1.2rem' }}>🔄</span>
+                <span className="call-ctrl-label">Flip</span>
               </button>
             )}
 

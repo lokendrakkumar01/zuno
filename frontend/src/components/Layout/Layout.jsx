@@ -2,13 +2,12 @@ import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useSocketContext } from '../../context/SocketContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import zunoLogo from '../../assets/zuno-logo.png';
 import { API_URL } from '../../config';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const Layout = () => {
-      // 1. All hooks at the very top
       const { user, isAuthenticated, logout, token } = useAuth();
       const { socket } = useSocketContext();
       const { t } = useLanguage();
@@ -17,19 +16,14 @@ const Layout = () => {
       const [scrolled, setScrolled] = useState(false);
       const [unreadCount, setUnreadCount] = useState(0);
 
-      // Console log for debugging production builds
-      console.log('🏗️ Layout Render:', { isAuthenticated, hasSocket: !!socket, scrolled, unreadCount });
-
       useEffect(() => {
-            const handleScroll = () => {
-                  setScrolled(window.scrollY > 20);
-            };
-            window.addEventListener('scroll', handleScroll);
+            const handleScroll = () => setScrolled(window.scrollY > 20);
+            window.addEventListener('scroll', handleScroll, { passive: true });
             return () => window.removeEventListener('scroll', handleScroll);
       }, []);
 
       // Fetch unread message count
-      const fetchUnread = async () => {
+      const fetchUnread = useCallback(async () => {
             if (!isAuthenticated || !token) return;
             try {
                   const res = await fetch(`${API_URL}/messages/unread/count`, {
@@ -38,40 +32,38 @@ const Layout = () => {
                   const data = await res.json();
                   if (data.success) setUnreadCount(data.data.unreadCount);
             } catch (err) { /* silently fail */ }
-      };
+      }, [isAuthenticated, token]);
 
       useEffect(() => {
             fetchUnread();
-            // Polling as fallback
             const interval = setInterval(fetchUnread, 30000);
             return () => clearInterval(interval);
-      }, [isAuthenticated, token]);
+      }, [fetchUnread]);
 
-      // Socket listener for real-time updates
+      // Socket listener for real-time unread updates
       useEffect(() => {
-            if (socket) {
-                  const handleNewMessage = () => {
-                        // Small delay to let backend update DB if needed, 
-                        // though count is a direct DB query usually.
-                        setTimeout(fetchUnread, 500);
-                  };
-                  socket.on('newMessage', handleNewMessage);
-                  socket.on('messageRead', fetchUnread);
-                  return () => {
-                        socket.off('newMessage', handleNewMessage);
-                        socket.off('messageRead', fetchUnread);
-                  };
-            }
-      }, [socket, isAuthenticated]);
+            if (!socket) return;
+            const handleNewMessage = () => setTimeout(fetchUnread, 300);
+            socket.on('newMessage', handleNewMessage);
+            socket.on('messageRead', fetchUnread);
+            return () => {
+                  socket.off('newMessage', handleNewMessage);
+                  socket.off('messageRead', fetchUnread);
+            };
+      }, [socket, fetchUnread]);
 
       const handleLogout = () => {
             logout();
             navigate('/login');
       };
 
-      const isActive = (path) => location.pathname === path;
+      // Check if path is active (supports nested routes like /messages/:id)
+      const isActive = (path) => {
+            if (path === '/') return location.pathname === '/';
+            return location.pathname.startsWith(path);
+      };
 
-      // SVG Icons for cleaner look
+      // SVG Icons
       const HomeIcon = () => (
             <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
@@ -98,9 +90,9 @@ const Layout = () => {
             </svg>
       );
 
-      const SettingsIcon = () => (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
+      const MessagesIcon = () => (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
             </svg>
       );
 
@@ -116,7 +108,7 @@ const Layout = () => {
 
                               {/* Desktop Navigation */}
                               <nav className="nav">
-                                    <Link to="/" className={`nav-link ${isActive('/') ? 'active' : ''}`}>
+                                    <Link to="/" className={`nav-link ${isActive('/') && location.pathname === '/' ? 'active' : ''}`}>
                                           🏠 {t('home')}
                                     </Link>
                                     {isAuthenticated ? (
@@ -124,12 +116,32 @@ const Layout = () => {
                                                 <Link to="/status" className={`nav-link ${isActive('/status') ? 'active' : ''}`}>
                                                       ⭕ Status
                                                 </Link>
+                                                <Link to="/messages" className={`nav-link ${isActive('/messages') ? 'active' : ''}`} style={{ position: 'relative' }}>
+                                                      💬 Messages
+                                                      {unreadCount > 0 && (
+                                                            <span className="nav-unread-badge" style={{
+                                                                  position: 'absolute',
+                                                                  top: '-6px',
+                                                                  right: '-10px',
+                                                                  background: 'linear-gradient(135deg,#ef4444,#dc2626)',
+                                                                  color: '#fff',
+                                                                  borderRadius: '99px',
+                                                                  fontSize: '10px',
+                                                                  fontWeight: 700,
+                                                                  padding: '1px 5px',
+                                                                  minWidth: '16px',
+                                                                  textAlign: 'center',
+                                                                  lineHeight: '14px'
+                                                            }}>
+                                                                  {unreadCount > 99 ? '99+' : unreadCount}
+                                                            </span>
+                                                      )}
+                                                </Link>
                                                 <Link to="/upload" className={`nav-link ${isActive('/upload') ? 'active' : ''}`}>
                                                       ➕ {t('upload')}
                                                 </Link>
-                                                <Link to="/profile" className={`nav-link ${isActive('/profile') ? 'active' : ''}`} style={{ position: 'relative' }}>
+                                                <Link to="/profile" className={`nav-link ${isActive('/profile') ? 'active' : ''}`}>
                                                       👤 {t('profile')}
-                                                      {unreadCount > 0 && <span className="nav-unread-badge">{unreadCount}</span>}
                                                 </Link>
                                                 {user?.role === 'admin' && (
                                                       <Link to="/admin" className="nav-link" style={{ color: 'var(--color-accent-pink)' }}>
@@ -163,10 +175,10 @@ const Layout = () => {
                         <AnimatePresence mode="wait">
                               <motion.div
                                     key={location.pathname}
-                                    initial={{ opacity: 0, y: 10 }}
+                                    initial={{ opacity: 0, y: 8 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -10 }}
-                                    transition={{ duration: 0.2 }}
+                                    exit={{ opacity: 0, y: -8 }}
+                                    transition={{ duration: 0.15 }}
                                     style={{ width: '100%', height: '100%' }}
                               >
                                     <Outlet />
@@ -176,7 +188,7 @@ const Layout = () => {
 
                   {/* Mobile Bottom Navigation */}
                   <nav className="bottom-nav">
-                        <Link to="/" className={`bottom-nav-item ${isActive('/') ? 'active' : ''}`}>
+                        <Link to="/" className={`bottom-nav-item ${location.pathname === '/' ? 'active' : ''}`}>
                               <HomeIcon />
                               <span style={{ fontSize: '10px' }}>{t('home')}</span>
                         </Link>
@@ -184,12 +196,7 @@ const Layout = () => {
                               <SearchIcon />
                               <span style={{ fontSize: '10px' }}>{t('search')}</span>
                         </Link>
-                        {isAuthenticated && (
-                              <Link to="/status" className={`bottom-nav-item ${isActive('/status') ? 'active' : ''}`}>
-                                    <StatusIcon />
-                                    <span style={{ fontSize: '10px' }}>Status</span>
-                              </Link>
-                        )}
+
                         {isAuthenticated ? (
                               <Link to="/upload" className={`bottom-nav-item ${isActive('/upload') ? 'active' : ''}`}>
                                     <div style={{
@@ -223,6 +230,33 @@ const Layout = () => {
                               </Link>
                         )}
 
+                        {/* Messages with unread badge */}
+                        <Link to="/messages" className={`bottom-nav-item ${isActive('/messages') ? 'active' : ''}`} style={{ position: 'relative' }}>
+                              <div style={{ position: 'relative' }}>
+                                    <MessagesIcon />
+                                    {unreadCount > 0 && (
+                                          <span style={{
+                                                position: 'absolute',
+                                                top: '-6px',
+                                                right: '-8px',
+                                                background: 'linear-gradient(135deg,#ef4444,#dc2626)',
+                                                color: '#fff',
+                                                borderRadius: '99px',
+                                                fontSize: '9px',
+                                                fontWeight: 700,
+                                                padding: '1px 4px',
+                                                minWidth: '14px',
+                                                textAlign: 'center',
+                                                lineHeight: '12px'
+                                          }}>
+                                                {unreadCount > 99 ? '99+' : unreadCount}
+                                          </span>
+                                    )}
+                              </div>
+                              <span style={{ fontSize: '10px' }}>Messages</span>
+                        </Link>
+
+                        {/* Profile */}
                         <Link to="/profile" className={`bottom-nav-item ${isActive('/profile') ? 'active' : ''}`}>
                               <div style={{
                                     width: '32px',

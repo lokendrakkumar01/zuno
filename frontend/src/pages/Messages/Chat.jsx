@@ -156,9 +156,15 @@ const Chat = () => {
       const isOnline = onlineUsers.some(id => id.toString() === userId?.toString());
 
       useEffect(() => {
-            // Data fetch begins immediately, no need to overwrite cache state as it was handled synchronously
+            // If cache exists, scroll to bottom immediately (before network fetch)
+            const hasCached = !!localStorage.getItem(`zuno_chat_cache_${userId}`);
+            if (hasCached) {
+                  requestAnimationFrame(() => {
+                        setTimeout(() => scrollToBottom(true), 50);
+                  });
+            }
 
-            // Fetch user info immediately (for fast name display)
+            // Fetch user info in parallel (for fast name display)
             const fetchUser = async () => {
                   try {
                         const res = await fetch(`${API_URL}/users/id/${userId}`, {
@@ -172,12 +178,12 @@ const Chat = () => {
                               } catch (e) { }
                         }
                   } catch (err) {
-                        console.log('User prefetch failed, will use messages API', err);
+                        // Silently ignore - cache used as fallback
                   }
             };
 
-            fetchUser(); // fast lookup
-            fetchMessages(); // full messages + user (sets otherUser again via API)
+            // Run user fetch and message fetch in parallel for max speed
+            Promise.all([fetchUser(), fetchMessages()]);
 
             // Clear sent IDs set when switching chats
             sentMsgIds.current = new Set();
@@ -376,37 +382,45 @@ const Chat = () => {
       };
 
       const fetchMessages = async () => {
-            // Fix: Check localStorage directly to avoid stale state
+            // Only show loading if no cache at all
             const hasCached = !!localStorage.getItem(`zuno_chat_cache_${userId}`);
             if (!hasCached) setLoading(true);
 
             try {
+                  const controller = new AbortController();
+                  const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+
                   const res = await fetch(`${API_URL}/messages/${userId}`, {
-                        headers: { 'Authorization': `Bearer ${token}` }
+                        headers: { 'Authorization': `Bearer ${token}` },
+                        signal: controller.signal
                   });
+                  clearTimeout(timeoutId);
+
                   const data = await res.json();
                   if (data.success) {
-                        // ALWAYS update state with fresh server data to ensure past/new messages sync perfectly
                         setMessages(data.data.messages);
                         setOtherUser(data.data.otherUser);
                         setBlockedInfo(data.data.blockedInfo || { iBlocked: false, theyBlocked: false });
-                        
+
                         try {
                               localStorage.setItem(`zuno_chat_cache_${userId}`, JSON.stringify(data.data.messages.slice(-100)));
                               localStorage.setItem(`zuno_user_cache_${userId}`, JSON.stringify(data.data.otherUser));
                         } catch (e) {
                               console.warn('Cache quota exceeded');
                         }
-                        
-                        socket?.emit("messageRead", { receiverId: userId });
 
-                        // Better initial scroll guarantee after DOM renders new messages
-                        setTimeout(() => scrollToBottom(true), 100);
+                        socket?.emit('messageRead', { receiverId: userId });
+
+                        // Scroll to bottom after fresh data renders
+                        requestAnimationFrame(() => {
+                              setTimeout(() => scrollToBottom(true), 80);
+                        });
                   } else {
                         throw new Error(data.message || 'Failed to load messages');
                   }
             } catch (err) {
-                  console.error('Failed to fetch messages:', err);
+                  if (err.name !== 'AbortError') console.error('Failed to fetch messages:', err);
+                  // Use cache as fallback on error
                   const cachedMsgs = localStorage.getItem(`zuno_chat_cache_${userId}`);
                   if (cachedMsgs) setMessages(JSON.parse(cachedMsgs));
                   const cachedUser = localStorage.getItem(`zuno_user_cache_${userId}`);

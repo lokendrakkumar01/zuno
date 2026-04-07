@@ -58,7 +58,7 @@ export const AuthProvider = ({ children }) => {
             }
       }, [token]);
 
-      const fetchWithTimeout = async (url, options = {}, timeout = 45000) => {
+      const fetchWithTimeout = async (url, options = {}, timeout = 30000) => {
             const controller = new AbortController();
             const id = setTimeout(() => controller.abort(), timeout);
             try {
@@ -75,10 +75,10 @@ export const AuthProvider = ({ children }) => {
       };
 
       const login = async (email, password, onRetry = null) => {
-            const MAX_RETRIES = 4;
-            const RETRY_DELAYS = [8000, 15000, 25000]; // Progressive backoff
+            const MAX_RETRIES = 3;
+            const RETRY_DELAYS = [5000, 10000, 20000]; // Faster recovery
 
-            const attemptLogin = async (timeoutMs = 35000) => {
+            const attemptLogin = async (timeoutMs = 25000) => {
                   const res = await fetchWithTimeout(`${API_URL}/auth/login`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -94,7 +94,7 @@ export const AuthProvider = ({ children }) => {
 
             for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
                   try {
-                        const data = await attemptLogin(35000);
+                        const data = await attemptLogin(25000);
                         if (data.success) {
                               setUser(data.data.user);
                               setToken(data.data.token);
@@ -140,8 +140,8 @@ export const AuthProvider = ({ children }) => {
       };
 
       const register = async (userData, onRetry = null) => {
-            const MAX_RETRIES = 4;
-            const RETRY_DELAYS = [8000, 15000, 25000];
+            const MAX_RETRIES = 3;
+            const RETRY_DELAYS = [5000, 10000, 20000];
             const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
             for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {

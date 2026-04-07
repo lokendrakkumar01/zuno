@@ -1,5 +1,23 @@
 {
   "appId": "com.zuno.app",
   "appName": "Zuno",
-  "webDir": "dist"
+  "webDir": "dist",
+  "server": {
+    "allowNavigation": [
+      "zuno-backend-bevi.onrender.com",
+      "*.onrender.com"
+    ],
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "CapacitorCookies": {
+      "enabled": true
+    }
+  },
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  }
 }
+

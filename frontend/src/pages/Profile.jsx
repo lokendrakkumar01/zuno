@@ -49,11 +49,12 @@ const Profile = () => {
       });
       const [loading, setLoading] = useState(() => {
             const targetUsername = username || user?.username;
+            // Never show loading if we have cached data OR if it's own profile (already in context)
             if (user && targetUsername === user.username) return false;
             try {
                   if (localStorage.getItem(`zuno_profile_cache_${targetUsername}`)) return false;
             } catch (e) { }
-            return true;
+            return true; // Only show loading if NO cache at all
       });
       const [editing, setEditing] = useState(false);
       const [editData, setEditData] = useState({});
@@ -112,7 +113,8 @@ const Profile = () => {
             const targetUsername = username || user?.username;
             if (!targetUsername) return;
 
-            setLoading(prev => profileUser ? false : true);
+            // If we already have cached data, DON'T show loading at all
+            setLoading(!profileUser);
 
             // Run profile fetch and posts fetch IN PARALLEL for speed
             const fetchProfileData = async () => {
@@ -164,12 +166,11 @@ const Profile = () => {
       const fetchUserPosts = async (uname) => {
             setPostsError('');
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 15000);
+            const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout for mobile
 
             try {
                   const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
                   const encodedUname = encodeURIComponent(uname);
-                  // Removed ?t= parameter to allow browser caching for faster loads
                   const res = await fetch(`${API_URL}/feed/creator/${encodedUname}`, {
                         headers,
                         signal: controller.signal
@@ -178,7 +179,6 @@ const Profile = () => {
                   const data = await res.json();
 
                   if (data.success) {
-                        // Very defensively parse the contents array
                         let posts = [];
                         if (data.data?.contents) {
                               posts = data.data.contents;
@@ -192,7 +192,6 @@ const Profile = () => {
 
                         setUserPosts(posts);
 
-                        // Cache posts so next visit is instant
                         try {
                               localStorage.setItem(`zuno_posts_cache_${uname}`, JSON.stringify(posts));
                         } catch (e) { }
@@ -204,12 +203,15 @@ const Profile = () => {
                   }
             } catch (error) {
                   clearTimeout(timeoutId);
-                  console.error('Failed to fetch user posts:', error);
+                  if (error.name !== 'AbortError') console.error('Failed to fetch user posts:', error);
                   if (error.name === 'AbortError') {
-                        setPostsError('Server is slow to respond. Please refresh the page.');
-                  } else {
-                        setPostsError('Connection error. Could not load posts.');
+                        setPostsError('Server slow. Showing cached content.');
                   }
+                  // Restore from cache silently
+                  try {
+                        const cached = localStorage.getItem(`zuno_posts_cache_${uname}`);
+                        if (cached) setUserPosts(JSON.parse(cached));
+                  } catch (e) { }
             }
       };
 

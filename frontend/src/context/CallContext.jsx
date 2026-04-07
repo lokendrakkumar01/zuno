@@ -4,6 +4,23 @@ import { useSocketContext } from "./SocketContext";
 import { useAuth } from "./AuthContext";
 import { API_URL } from "../config";
 
+// Detect if running on Android (Capacitor app or Android browser)
+const isAndroid = () => {
+      try {
+            if (window.Capacitor || window.cordova) return true;
+            const ua = navigator.userAgent || '';
+            return /android/i.test(ua);
+      } catch {
+            return false;
+      }
+};
+
+// Detect if screen share is supported
+const supportsScreenShare = () => {
+      if (isAndroid()) return false;
+      return !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
+};
+
 const CallContext = createContext();
 
 // Public STUN + reliable TURN servers for NAT traversal
@@ -57,6 +74,9 @@ export const CallProvider = ({ children }) => {
 
       // Speaker/output toggle
       const [isSpeakerOn, setIsSpeakerOn] = useState(true);
+
+      // Camera facing mode (for mobile flip)
+      const [facingMode, setFacingMode] = useState('user'); // 'user' = front, 'environment' = back
 
       // Toast notifications (replaces alert)
       const [callToast, setCallToast] = useState(null);
@@ -410,6 +430,11 @@ export const CallProvider = ({ children }) => {
 
       // Screen Share
       const startScreenShare = async () => {
+            // Screen share NOT supported on Android
+            if (!supportsScreenShare()) {
+                  showCallToast('📱 Screen sharing is not available on mobile devices.', 'info');
+                  return;
+            }
             try {
                   const screenStream = await navigator.mediaDevices.getDisplayMedia({
                         video: { cursor: 'always', displaySurface: 'monitor' },
@@ -435,9 +460,43 @@ export const CallProvider = ({ children }) => {
                   // Auto-stop when user clicks "Stop sharing" in browser chrome UI
                   screenTrack.onended = () => stopScreenShare();
             } catch (err) {
-                  if (err.name !== 'AbortError' && err.name !== 'NotAllowedError') {
-                        showCallToast('⚠️ Screen share failed. Please try again.', 'error');
+                  if (err.name === 'NotAllowedError' || err.name === 'AbortError') {
+                        // User cancelled — no toast needed
+                  } else {
+                        showCallToast('⚠️ Screen share failed. Try again or use desktop.', 'error');
                   }
+            }
+      };
+
+      // Flip Camera (mobile only: switch front/back)
+      const flipCamera = async () => {
+            if (!stream) return;
+            const newFacing = facingMode === 'user' ? 'environment' : 'user';
+            try {
+                  const newStream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: { exact: newFacing } },
+                        audio: false
+                  });
+                  const newVideoTrack = newStream.getVideoTracks()[0];
+
+                  // Replace in peer connection
+                  if (connectionRef.current) {
+                        const sender = connectionRef.current._pc?.getSenders?.().find(s => s.track?.kind === 'video');
+                        if (sender) await sender.replaceTrack(newVideoTrack);
+                  }
+
+                  // Stop old video track
+                  stream.getVideoTracks().forEach(t => t.stop());
+
+                  // Build new combined stream
+                  const combinedStream = new MediaStream([newVideoTrack, ...stream.getAudioTracks()]);
+                  setStream(combinedStream);
+                  if (myVideo.current) myVideo.current.srcObject = combinedStream;
+
+                  setFacingMode(newFacing);
+                  showCallToast(newFacing === 'user' ? '📷 Switched to front camera' : '📷 Switched to back camera', 'info');
+            } catch (err) {
+                  showCallToast('⚠️ Could not flip camera.', 'error');
             }
       };
 
@@ -462,13 +521,27 @@ export const CallProvider = ({ children }) => {
       const toggleSpeaker = async () => {
             const newSpeaker = !isSpeakerOn;
             setIsSpeakerOn(newSpeaker);
+            // Try setSinkId (desktop/supported browsers)
             if (userVideo.current && userVideo.current.setSinkId) {
                   try {
                         const devices = await navigator.mediaDevices.enumerateDevices();
-                        const speaker = devices.find(d => d.kind === 'audiooutput' && (newSpeaker ? d.label.toLowerCase().includes('speaker') : d.label.toLowerCase().includes('ear')));
-                        if (speaker) await userVideo.current.setSinkId(speaker.deviceId);
-                  } catch (e) { /* not supported on this device */ }
+                        const audioOutputs = devices.filter(d => d.kind === 'audiooutput');
+                        // Try to find earpiece or speaker by label
+                        let target = audioOutputs.find(d => {
+                              const label = d.label.toLowerCase();
+                              return newSpeaker
+                                    ? label.includes('speaker') || label.includes('loudspeaker')
+                                    : label.includes('earpiece') || label.includes('ear');
+                        });
+                        // Fallback: toggle between default outputs
+                        if (!target && audioOutputs.length > 1) {
+                              target = audioOutputs[newSpeaker ? 0 : 1];
+                        }
+                        if (target) await userVideo.current.setSinkId(target.deviceId);
+                  } catch (e) { /* setSinkId not supported - gracefully ignore */ }
             }
+            // Android: toggle muted state as a visual indicator (audio routing handled by OS)
+            showCallToast(newSpeaker ? '🔊 Speaker on' : '🔈 Earpiece mode', 'info');
       };
 
       const leaveCall = async (emitEvent = true) => {
@@ -584,11 +657,14 @@ export const CallProvider = ({ children }) => {
                   isCalling, showCallModal, setShowCallModal,
                   isMuted, isVideoOff,
                   isScreenSharing, isSpeakerOn,
+                  facingMode,
                   callToast,
                   startCall, answerCall, leaveCall, rejectCall,
                   toggleMute, toggleVideo,
                   startScreenShare, stopScreenShare,
-                  toggleSpeaker
+                  toggleSpeaker, flipCamera,
+                  isAndroid: isAndroid(),
+                  supportsScreenShare: supportsScreenShare()
             }}>
                   {children}
             </CallContext.Provider>
