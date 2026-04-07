@@ -243,6 +243,20 @@ const GlobalNotification = () => {
                   );
             };
 
+            const handleStreamStarted = (data) => {
+                  // Don't notify if I am the host
+                  if (data.hostId === user?._id || data.hostId === user?.id) return;
+                  
+                  playNotificationSound();
+                  toast.info(
+                        <div onClick={() => navigate(`/live/${data.hostId}`)} style={{ cursor: 'pointer' }}>
+                              <strong style={{ color: '#ef4444' }}>🔴 Live Stream Started!</strong>
+                              <p style={{ fontSize: '0.85em', marginTop: '4px' }}>{data.title || 'Tap to join the stream'}</p>
+                        </div>,
+                        { position: "top-center", autoClose: 8000, icon: "📡" }
+                  );
+            };
+
             socket.on("newMessage", handleNewMessage);
             socket.on("callUser", handleIncomingCall);
             socket.on("callCancelled", handleCallCancelled);
@@ -253,6 +267,7 @@ const GlobalNotification = () => {
             socket.on("newInteraction", handleNewInteraction);
             socket.on("newComment", handleNewComment);
             socket.on("globalBroadcast", handleGlobalBroadcast);
+            socket.on("streamStarted", handleStreamStarted);
 
             return () => {
                   socket.off("newMessage", handleNewMessage);
@@ -265,6 +280,7 @@ const GlobalNotification = () => {
                   socket.off("newInteraction", handleNewInteraction);
                   socket.off("newComment", handleNewComment);
                   socket.off("globalBroadcast", handleGlobalBroadcast);
+                  socket.off("streamStarted", handleStreamStarted);
             };
       }, [socket, location.pathname, navigate, answerCall, leaveCall, user?._id]);
 
