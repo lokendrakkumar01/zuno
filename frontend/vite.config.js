@@ -14,16 +14,6 @@ export default defineConfig({
             outDir: 'dist',
             sourcemap: false,
             rollupOptions: {
-                  output: {
-                        manualChunks(id) {
-                              if (id.includes('node_modules')) {
-                                    if (id.includes('react') || id.includes('react-dom')) return 'react-vendor';
-                                    if (id.includes('@livekit')) return 'livekit-vendor';
-                                    if (id.includes('socket.io-client')) return 'socket-vendor';
-                                    return 'vendor'; // all other node_modules
-                              }
-                        }
-                  }
             }
       },
       server: {
