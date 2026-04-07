@@ -498,6 +498,25 @@ const UsersManagement = ({ token }) => {
     fetchUsers();
   };
 
+  const handleDeleteUser = async (user) => {
+    if (!window.confirm(`Are you sure you want to permanently delete user "${user.username}"? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`${API_URL}/admin/users/${user._id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        show(`User ${user.username} deleted permanently`, '🗑️');
+        fetchUsers();
+      } else {
+        show(data.message || 'Failed to delete user', '❌');
+      }
+    } catch {
+      show('Server error.', '❌');
+    }
+  };
+
   return (
     <div>
       {Toast}
@@ -591,6 +610,14 @@ const UsersManagement = ({ token }) => {
                         title="Send Email"
                       >
                         📧 Email
+                      </button>
+                      <button
+                        className="admin-btn admin-btn-sm"
+                        style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444' }}
+                        onClick={() => handleDeleteUser(u)}
+                        title="Delete Permanently"
+                      >
+                        🗑️
                       </button>
                     </div>
                   </td>

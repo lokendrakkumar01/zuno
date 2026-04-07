@@ -32,6 +32,11 @@ const LiveStream = () => {
   const [loadingStreams, setLoadingStreams] = useState(true);
   const [streamError, setStreamError] = useState('');
 
+  /* ── Host AV Controls ── */
+  const [isMuted, setIsMuted] = useState(false);
+  const [isVideoOff, setIsVideoOff] = useState(false);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+
   /* ── Video refs ── */
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
@@ -143,6 +148,64 @@ const LiveStream = () => {
     setIsLive(false);
     navigate('/live');
   }, [user, socket, token, navigate]);
+
+  /* ── HOST AV CONTROLS ── */
+  const toggleMute = () => {
+    if (!localStreamRef.current) return;
+    const audioTrack = localStreamRef.current.getAudioTracks()[0];
+    if (audioTrack) {
+      audioTrack.enabled = !audioTrack.enabled;
+      setIsMuted(!audioTrack.enabled);
+    }
+  };
+
+  const toggleVideo = () => {
+    if (!localStreamRef.current) return;
+    const videoTrack = localStreamRef.current.getVideoTracks()[0];
+    if (videoTrack) {
+      videoTrack.enabled = !videoTrack.enabled;
+      setIsVideoOff(!videoTrack.enabled);
+    }
+  };
+
+  const toggleScreenShare = async () => {
+    if (!localStreamRef.current) return;
+    try {
+      if (!isScreenSharing) {
+        const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        const screenTrack = displayStream.getVideoTracks()[0];
+        
+        screenTrack.onended = () => {
+          // Revert back to webcam
+          const webcamTrack = localStreamRef.current.getVideoTracks()[0];
+          Object.values(peersRef.current).forEach(peer => peer.replaceTrack(screenTrack, webcamTrack, localStreamRef.current));
+          setIsScreenSharing(false);
+        };
+
+        const webcamTrack = localStreamRef.current.getVideoTracks()[0];
+        Object.values(peersRef.current).forEach(peer => peer.replaceTrack(webcamTrack, screenTrack, localStreamRef.current));
+        
+        if (localVideoRef.current) localVideoRef.current.srcObject = displayStream;
+        setIsScreenSharing(true);
+      } else {
+        // Stop screen share manually
+        const webcamTrack = localStreamRef.current.getVideoTracks()[0];
+        if (localVideoRef.current && localVideoRef.current.srcObject) {
+          const activeScreenTracks = localVideoRef.current.srcObject.getVideoTracks();
+          activeScreenTracks.forEach(t => t.stop());
+        }
+        Object.values(peersRef.current).forEach(peer => {
+          // Find currently active track in peer to replace
+          const activeTrackInPeer = peer.streams[0]?.getVideoTracks()[0];
+          if(activeTrackInPeer) peer.replaceTrack(activeTrackInPeer, webcamTrack, localStreamRef.current);
+        });
+        if (localVideoRef.current) localVideoRef.current.srcObject = localStreamRef.current;
+        setIsScreenSharing(false);
+      }
+    } catch (err) {
+      console.warn("Screen sharing failed/cancelled:", err);
+    }
+  };
 
   /* ── JOIN STREAM (viewer) ── */
   useEffect(() => {
@@ -338,10 +401,31 @@ const LiveStream = () => {
 
         {/* Host Controls */}
         {isHostMode && isLive && (
-          <div style={{ position: 'absolute', bottom: '24px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '16px' }}>
+          <div style={{ position: 'absolute', bottom: '24px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '16px', background: 'rgba(0,0,0,0.6)', padding: '12px 24px', borderRadius: '16px', backdropFilter: 'blur(10px)' }}>
+            <button
+              onClick={toggleMute}
+              style={{ background: isMuted ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.1)', color: isMuted ? '#ef4444' : 'white', border: `1px solid ${isMuted ? '#ef4444' : 'rgba(255,255,255,0.2)'}`, borderRadius: '10px', height: '44px', width: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', cursor: 'pointer', transition: 'all 0.2s' }}
+              title={isMuted ? "Unmute" : "Mute"}
+            >
+              {isMuted ? '🔇' : '🎤'}
+            </button>
+            <button
+              onClick={toggleVideo}
+              style={{ background: isVideoOff ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.1)', color: isVideoOff ? '#ef4444' : 'white', border: `1px solid ${isVideoOff ? '#ef4444' : 'rgba(255,255,255,0.2)'}`, borderRadius: '10px', height: '44px', width: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', cursor: 'pointer', transition: 'all 0.2s' }}
+              title={isVideoOff ? "Turn on camera" : "Turn off camera"}
+            >
+              {isVideoOff ? '🚫' : '📷'}
+            </button>
+            <button
+              onClick={toggleScreenShare}
+              style={{ background: isScreenSharing ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.1)', color: isScreenSharing ? '#818cf8' : 'white', border: `1px solid ${isScreenSharing ? '#6366f1' : 'rgba(255,255,255,0.2)'}`, borderRadius: '10px', height: '44px', width: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', cursor: 'pointer', transition: 'all 0.2s' }}
+              title={isScreenSharing ? "Stop sharing screen" : "Share screen"}
+            >
+              {isScreenSharing ? '💻' : '📺'}
+            </button>
             <button
               onClick={endStream}
-              style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '12px', padding: '12px 28px', fontWeight: 700, fontSize: '15px', cursor: 'pointer', boxShadow: '0 4px 15px rgba(239,68,68,0.5)' }}
+              style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '10px', padding: '0 24px', fontWeight: 700, fontSize: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 15px rgba(239,68,68,0.4)' }}
             >
               ⏹ End Stream
             </button>
