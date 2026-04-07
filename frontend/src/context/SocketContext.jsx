@@ -13,16 +13,17 @@ export const SocketContextProvider = ({ children }) => {
       const [socket, setSocket] = useState(null);
       const [onlineUsers, setOnlineUsers] = useState([]);
       const [isConnected, setIsConnected] = useState(false);
-      const { user } = useAuth();
+      const { user, token } = useAuth();
 
       useEffect(() => {
-            if (user) {
+            if (user && token) {
                   const userId = (user._id || user.id || user).toString();
                   // Remove /api suffix to get base URL for socket connection
                   const socketUrl = API_URL.replace(/\/api$/, '');
 
                   const socketInstance = io(socketUrl, {
                         query: { userId },
+                        auth: { token },
                         // Allow both WebSocket and polling so it works on ALL networks
                         transports: ['websocket', 'polling'],
                         reconnection: true,
@@ -63,7 +64,7 @@ export const SocketContextProvider = ({ children }) => {
                   // user logged out — cleanup is handled by the return() above
                   // No action needed here, avoids stale closure bug
             }
-      }, [user]);
+      }, [user, token]);
 
       return (
             <SocketContext.Provider value={{ socket, onlineUsers, isConnected }}>
