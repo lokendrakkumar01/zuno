@@ -1,4 +1,4 @@
-import{u as D,d as F,a as I,r as m,A as b,j as e,L as E,R as M,h as z}from"./index-DzyMTnLe.js";const d={stats:null,users:null,verifications:null,contents:null,configs:null,reports:null},w=new EventTarget,V=()=>(m.useEffect(()=>{const r="zuno-admin-styles";if(document.getElementById(r))return;const i=document.createElement("style");i.id=r,i.textContent=`
+import{u as D,d as F,a as I,r as m,A as b,j as e,L as E,R as M,h as z}from"./index-D-BUgiDn.js";const d={stats:null,users:null,verifications:null,contents:null,configs:null,reports:null},w=new EventTarget,V=()=>(m.useEffect(()=>{const r="zuno-admin-styles";if(document.getElementById(r))return;const i=document.createElement("style");i.id=r,i.textContent=`
       @keyframes adminFadeUp {
         from { opacity:0; transform:translateY(20px); }
         to   { opacity:1; transform:translateY(0); }
