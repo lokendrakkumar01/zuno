@@ -261,7 +261,7 @@ const Chat = () => {
                               // Otherwise, just append (unlikely if user is sender, but safe)
                               sentMsgIds.current.add(realMsgId);
                               const updated = [...prev, newMessage];
-                              updated.sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+                              updated.sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
                               return updated;
                         });
                         return;
@@ -278,7 +278,7 @@ const Chat = () => {
                         }
 
                         const updated = [...prev, newMessage];
-                        updated.sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+                        updated.sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
                         return updated;
                   });
 
@@ -359,8 +359,12 @@ const Chat = () => {
                   const exec = () => {
                         try { localStorage.setItem(`zuno_chat_cache_${userId}`, JSON.stringify(messages.slice(-100))); } catch (e) {}
                   };
-                  if (window.requestIdleCallback) window.requestIdleCallback(exec);
-                  else setTimeout(exec, 100);
+                  try {
+                        if (window.requestIdleCallback) window.requestIdleCallback(exec);
+                        else setTimeout(exec, 100);
+                  } catch (idleErr) {
+                        setTimeout(exec, 100);
+                  }
             }
 
             // Always scroll to bottom when messages change. We debounce it to prevent stutter.
@@ -458,7 +462,7 @@ const Chat = () => {
                                     // ensure uniqueness
                                     const map = new Map();
                                     merged.forEach(m => map.set(m._id?.toString(), m));
-                                    return Array.from(map.values()).sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+                                    return Array.from(map.values()).sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
                               });
                               // keep scroll position
                               requestAnimationFrame(() => {
@@ -620,7 +624,7 @@ const Chat = () => {
                               }
                               
                               // Fix order: Long uploads might place new messages behind older ones
-                              updated.sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+                              updated.sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
 
                               return updated;
                         });

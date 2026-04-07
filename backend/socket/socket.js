@@ -69,16 +69,15 @@ io.on("connection", (socket) => {
 
   io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
-  // ── Chat ──────────────────────────────────────────────────
   socket.on("typing", (data) => {
     if (data.receiverId) {
-      io.to(data.receiverId).volatile.emit("typing", { senderId: userId });
+      io.to(data.receiverId).emit("typing", { senderId: userId });
     }
   });
 
   socket.on("stopTyping", (data) => {
     if (data.receiverId) {
-      io.to(data.receiverId).volatile.emit("stopTyping", { senderId: userId });
+      io.to(data.receiverId).emit("stopTyping", { senderId: userId });
     }
   });
 
@@ -102,7 +101,7 @@ io.on("connection", (socket) => {
 
   socket.on("webrtcSignal", (data) => {
     if (data.to) {
-      io.to(data.to).volatile.emit("webrtcSignal", data.signal);
+      io.to(data.to).emit("webrtcSignal", data.signal);
     }
   });
 
@@ -212,7 +211,7 @@ io.on("connection", (socket) => {
   socket.on("streamReaction", (data) => {
     const stream = activeStreams.get(data.hostId);
     if (stream) {
-      io.to(stream.roomId).volatile.emit("streamReaction", { emoji: data.emoji, userId });
+      io.to(stream.roomId).emit("streamReaction", { emoji: data.emoji, userId });
     }
   });
 
