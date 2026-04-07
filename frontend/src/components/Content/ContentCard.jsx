@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useMusic } from '../../context/MusicContext';
@@ -1478,6 +1478,4 @@ const ContentCard = ({ content, onDelete, autoOpenFullscreen = false, onCloseFul
             </article>
       );
 };
-import { memo } from 'react';
-
 export default memo(ContentCard);
