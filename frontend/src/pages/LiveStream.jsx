@@ -5,6 +5,39 @@ import { useSocketContext } from '../context/SocketContext';
 import { API_URL } from '../config';
 import { LiveKitRoom, RoomAudioRenderer, VideoConference, ControlBar, useRoomContext, VideoTrack } from '@livekit/components-react';
 import '@livekit/components-styles';
+import React from 'react';
+
+/* ─────────────────────────────────────────────
+   REACTIONS OVERLAY (Optimized)
+───────────────────────────────────────────── */
+const ReactionsManager = React.memo(({ socket }) => {
+  const [reactions, setReactions] = useState([]);
+
+  useEffect(() => {
+    if (!socket) return;
+    const handleComment = (data) => {
+      if (data.comment?.startsWith('REACTION:')) {
+        const emoji = data.comment.split(':')[1];
+        const reactionId = Date.now() + Math.random();
+        const newReaction = { id: reactionId, emoji, left: Math.random() * 80 + 10 };
+        setReactions(prev => [...prev.slice(-30), newReaction]);
+        setTimeout(() => setReactions(prev => prev.filter(r => r.id !== reactionId)), 2500);
+      }
+    };
+    socket.on('newStreamComment', handleComment);
+    return () => socket.off('newStreamComment', handleComment);
+  }, [socket]);
+
+  return (
+    <>
+      {reactions.map(r => (
+        <div key={r.id} className="floating-reaction" style={{ left: `${r.left}%`, zIndex: 40 }}>
+          {r.emoji}
+        </div>
+      ))}
+    </>
+  );
+});
 
 /* ─────────────────────────────────────────────
    LIVE STREAM PAGE (LiveKit SFU Powered)
@@ -38,12 +71,15 @@ const LiveStream = () => {
   const [lkUrl, setLkUrl] = useState(null);
   const [lkRoomName, setLkRoomName] = useState(null);
 
-  /* ── Host AV Controls & Reactions ── */
-  const [reactions, setReactions] = useState([]);
-
   /* ── Chat scroll ── */
   const commentsEndRef = useRef(null);
-  useEffect(() => { commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [comments]);
+  const scrollTimeoutRef = useRef(null);
+  useEffect(() => { 
+    if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+    scrollTimeoutRef.current = setTimeout(() => {
+        commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 150);
+  }, [comments]);
 
   /* ── Fetch active streams ── */
   useEffect(() => {
@@ -69,11 +105,7 @@ const LiveStream = () => {
     socket.on('viewerLeft', ({ viewerCount: vc }) => setViewerCount(vc));
     socket.on('newStreamComment', (data) => {
       if (data.comment?.startsWith('REACTION:')) {
-        const emoji = data.comment.split(':')[1];
-        const reactionId = Date.now() + Math.random();
-        const newReaction = { id: reactionId, emoji, left: Math.random() * 80 + 10 };
-        setReactions(prev => [...prev.slice(-30), newReaction]);
-        setTimeout(() => setReactions(prev => prev.filter(r => r.id !== reactionId)), 2500);
+        // Reactions are now handled separately strictly within ReactionsManager
         return;
       }
       setComments(prev => [...prev.slice(-200), data]);
@@ -178,8 +210,6 @@ const LiveStream = () => {
   /* ── SEND REACTION ── */
   const sendReaction = (emoji) => {
     if (!socket) return;
-    const newReaction = { id: Date.now() + Math.random(), emoji, left: Math.random() * 80 + 10 };
-    setReactions(prev => [...prev.slice(-30), newReaction]);
     socket.emit('streamComment', {
       hostId: isHostMode ? user._id : hostId,
       comment: `REACTION:${emoji}`,
@@ -358,12 +388,8 @@ const LiveStream = () => {
           </div>
         )}
 
-        {/* Floating Reactions */}
-        {reactions.map(r => (
-          <div key={r.id} className="floating-reaction" style={{ left: `${r.left}%`, zIndex: 40 }}>
-            {r.emoji}
-          </div>
-        ))}
+        {/* Floating Reactions overlay decoupled from main container renders */}
+        <ReactionsManager socket={socket} />
       </div>
 
       {/* Chat Panel */}

@@ -312,31 +312,24 @@ const Chat = () => {
                               const isMySentMsg = senderId === currentUserId;
                               return (isMySentMsg && !m.read) ? { ...m, read: true } : m;
                         });
-                        try { localStorage.setItem(`zuno_chat_cache_${userId}`, JSON.stringify(updated.slice(-100))); } catch (e) { }
                         return updated;
                   });
             };
 
             const handleMessageReaction = (data) => {
                   setMessages(prev => {
-                        const updated = prev.map(m => m._id === data.messageId ? { ...m, reactions: data.reactions } : m);
-                        try {
-                              localStorage.setItem(`zuno_chat_cache_${userId}`, JSON.stringify(updated.slice(-100)));
-                        } catch (e) { }
-                        return updated;
+                        return prev.map(m => m._id === data.messageId ? { ...m, reactions: data.reactions } : m);
                   });
             };
 
             // Real-time delete for everyone (receiver side)
             const handleMessageDeletedForEveryone = (data) => {
                   setMessages(prev => {
-                        const updated = prev.map(m =>
+                        return prev.map(m =>
                               m._id?.toString() === data.messageId?.toString()
                                     ? { ...m, deletedForEveryone: true, text: '', media: null }
                                     : m
                         );
-                        try { localStorage.setItem(`zuno_chat_cache_${userId}`, JSON.stringify(updated.slice(-100))); } catch (e) { }
-                        return updated;
                   });
             };
 
@@ -360,11 +353,22 @@ const Chat = () => {
       useEffect(() => {
             const lastMsg = messages[messages.length - 1];
             const isMySent = lastMsg?.sender?._id === user?._id || lastMsg?.sender === user?._id;
-            // Always scroll to bottom when messages change, use instant if it's my own message or initial load
-            setTimeout(() => {
+
+            // Asynchronously save cache
+            if (messages.length > 0) {
+                  const exec = () => {
+                        try { localStorage.setItem(`zuno_chat_cache_${userId}`, JSON.stringify(messages.slice(-100))); } catch (e) {}
+                  };
+                  if (window.requestIdleCallback) window.requestIdleCallback(exec);
+                  else setTimeout(exec, 100);
+            }
+
+            // Always scroll to bottom when messages change. We debounce it to prevent stutter.
+            const timer = setTimeout(() => {
                   scrollToBottom(isMySent);
-            }, 50);
-      }, [messages]);
+            }, 100);
+            return () => clearTimeout(timer);
+      }, [messages, userId, user]);
 
       // Close menu/emoji on click outside — emoji picker check is careful to not close when clicking emojis
       useEffect(() => {
@@ -436,7 +440,6 @@ const Chat = () => {
                               setBlockedInfo(data.data.blockedInfo || { iBlocked: false, theyBlocked: false });
 
                               try {
-                                    localStorage.setItem(`zuno_chat_cache_${userId}`, JSON.stringify(fetchedMessages.slice(-100)));
                                     localStorage.setItem(`zuno_user_cache_${userId}`, JSON.stringify(data.data.otherUser));
                               } catch (e) {
                                     console.warn('Cache quota exceeded');
@@ -619,17 +622,6 @@ const Chat = () => {
                               // Fix order: Long uploads might place new messages behind older ones
                               updated.sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
 
-                              // Use requestIdleCallback or setTimeout for non-blocking storage
-                              if (window.requestIdleCallback) {
-                                    window.requestIdleCallback(() => {
-                                          try { localStorage.setItem(`zuno_chat_cache_${userId}`, JSON.stringify(updated.slice(-100))); } catch (e) {}
-                                    });
-                              } else {
-                                    setTimeout(() => {
-                                          try { localStorage.setItem(`zuno_chat_cache_${userId}`, JSON.stringify(updated.slice(-100))); } catch (e) {}
-                                    }, 0);
-                              }
-
                               return updated;
                         });
                   } else {
@@ -768,9 +760,7 @@ const Chat = () => {
                   const data = await res.json();
                   if (data.success) {
                         setMessages(prev => {
-                              const updated = prev.map(m => m._id === messageId ? data.data.message : m);
-                              try { localStorage.setItem(`zuno_chat_cache_${userId}`, JSON.stringify(updated.slice(-100))); } catch (e) { }
-                              return updated;
+                              return prev.map(m => m._id === messageId ? data.data.message : m);
                         });
                   }
             } catch (err) {
