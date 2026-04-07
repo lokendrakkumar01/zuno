@@ -3379,4 +3379,74 @@ video.chat-media-content {
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
+}
+
+/* ========================================
+   LiveStream Responsive & Floating Reactions
+   ======================================== */
+.livestream-layout {
+  display: flex;
+  height: calc(100vh - 70px);
+  background: #0a0a14;
+  color: white;
+  overflow: hidden;
+  flex-direction: row;
+}
+
+.livestream-video-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: #000;
+}
+
+.livestream-chat-area {
+  width: 330px;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid rgba(255,255,255,0.1);
+  background: #0f0f1a;
+}
+
+@media (max-width: 800px) {
+  .livestream-layout {
+    flex-direction: column;
+    height: calc(100svh - 60px);
+  }
+  .livestream-chat-area {
+    width: 100%;
+    flex: 1;
+    border-left: none;
+    border-top: 1px solid rgba(255,255,255,0.1);
+  }
+  .livestream-video-area {
+    flex: none;
+    height: 40svh;
+  }
+}
+
+.floating-reaction {
+  position: absolute;
+  bottom: 0;
+  font-size: 28px;
+  pointer-events: none;
+  animation: floatUp 3.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  z-index: 1000;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5));
+}
+
+@keyframes floatUp {
+  0% {
+    transform: translateY(20px) scale(0.5);
+    opacity: 0;
+  }
+  15% {
+    transform: translateY(-20px) scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-200px) scale(1);
+    opacity: 0;
+  }
 }

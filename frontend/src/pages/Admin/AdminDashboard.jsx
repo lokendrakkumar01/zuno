@@ -612,6 +612,14 @@ const UsersManagement = ({ token }) => {
                         📧 Email
                       </button>
                       <button
+                        className="admin-btn admin-btn-sm admin-btn-ghost"
+                        style={{ border: '1px solid rgba(99,102,241,0.3)', color: '#818cf8' }}
+                        onClick={() => window.open(`/u/${u.username}`, '_blank')}
+                        title="View Full Profile"
+                      >
+                        🔍 Profile
+                      </button>
+                      <button
                         className="admin-btn admin-btn-sm"
                         style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444' }}
                         onClick={() => handleDeleteUser(u)}

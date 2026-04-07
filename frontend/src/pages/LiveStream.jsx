@@ -32,10 +32,11 @@ const LiveStream = () => {
   const [loadingStreams, setLoadingStreams] = useState(true);
   const [streamError, setStreamError] = useState('');
 
-  /* ── Host AV Controls ── */
+  /* ── Host AV Controls & Reactions ── */
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [reactions, setReactions] = useState([]);
 
   /* ── Video refs ── */
   const localVideoRef = useRef(null);
@@ -93,7 +94,16 @@ const LiveStream = () => {
 
     socket.on('viewerJoined', ({ viewerCount: vc }) => setViewerCount(vc));
     socket.on('viewerLeft', ({ viewerCount: vc }) => setViewerCount(vc));
-    socket.on('newStreamComment', (data) => setComments(prev => [...prev.slice(-200), data]));
+    socket.on('newStreamComment', (data) => {
+      // Intercept Reactions
+      if (data.comment?.startsWith('REACTION:')) {
+        const emoji = data.comment.split(':')[1];
+        const newReaction = { id: Date.now() + Math.random(), emoji, left: Math.random() * 80 + 10 };
+        setReactions(prev => [...prev.slice(-30), newReaction]); // keep memory light
+        return;
+      }
+      setComments(prev => [...prev.slice(-200), data]);
+    });
     socket.on('streamEnded', () => {
       setIsLive(false);
       setStreamError('Stream has ended.');
@@ -244,6 +254,21 @@ const LiveStream = () => {
     setCommentText('');
   };
 
+  /* ── SEND REACTION ── */
+  const sendReaction = (emoji) => {
+    if (!socket) return;
+    // Visually show locally immediately for low latency feel
+    const newReaction = { id: Date.now() + Math.random(), emoji, left: Math.random() * 80 + 10 };
+    setReactions(prev => [...prev.slice(-30), newReaction]);
+
+    socket.emit('streamComment', {
+      hostId: isHostMode ? user._id : hostId,
+      comment: `REACTION:${emoji}`,
+      username: user?.username,
+      avatar: user?.avatar
+    });
+  };
+
   /* ────────────────────────────────
      RENDER: STREAM DASHBOARD
   ──────────────────────────────── */
@@ -328,9 +353,9 @@ const LiveStream = () => {
      RENDER: HOST / VIEWER MODE
   ──────────────────────────────── */
   return (
-    <div style={{ display: 'flex', height: 'calc(100vh - 70px)', background: '#0a0a14', color: 'white', overflow: 'hidden' }}>
+    <div className="livestream-layout">
       {/* Video Area */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', background: '#000' }}>
+      <div className="livestream-video-area">
         {/* Stream video */}
         {isHostMode
           ? <video ref={localVideoRef} autoPlay muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -399,26 +424,33 @@ const LiveStream = () => {
           </div>
         )}
 
+        {/* Floating Reactions */}
+        {reactions.map(r => (
+          <div key={r.id} className="floating-reaction" style={{ left: `${r.left}%` }}>
+            {r.emoji}
+          </div>
+        ))}
+
         {/* Host Controls */}
         {isHostMode && isLive && (
-          <div style={{ position: 'absolute', bottom: '24px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '16px', background: 'rgba(0,0,0,0.6)', padding: '12px 24px', borderRadius: '16px', backdropFilter: 'blur(10px)' }}>
+          <div style={{ position: 'absolute', bottom: '24px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '16px', background: 'rgba(0,0,0,0.6)', padding: '12px 24px', borderRadius: '16px', backdropFilter: 'blur(10px)', zIndex: 10 }}>
             <button
               onClick={toggleMute}
-              style={{ background: isMuted ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.1)', color: isMuted ? '#ef4444' : 'white', border: `1px solid ${isMuted ? '#ef4444' : 'rgba(255,255,255,0.2)'}`, borderRadius: '10px', height: '44px', width: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', cursor: 'pointer', transition: 'all 0.2s' }}
+              style={{ background: isMuted ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.1)', color: isMuted ? '#ef4444' : 'white', border: `1px solid ${isMuted ? '#ef4444' : 'rgba(255,255,255,0.2)'}`, borderRadius: '10px', height: '44px', width: '44px', display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center', fontSize: '18px', cursor: 'pointer', transition: 'all 0.2s' }}
               title={isMuted ? "Unmute" : "Mute"}
             >
               {isMuted ? '🔇' : '🎤'}
             </button>
             <button
               onClick={toggleVideo}
-              style={{ background: isVideoOff ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.1)', color: isVideoOff ? '#ef4444' : 'white', border: `1px solid ${isVideoOff ? '#ef4444' : 'rgba(255,255,255,0.2)'}`, borderRadius: '10px', height: '44px', width: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', cursor: 'pointer', transition: 'all 0.2s' }}
+              style={{ background: isVideoOff ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.1)', color: isVideoOff ? '#ef4444' : 'white', border: `1px solid ${isVideoOff ? '#ef4444' : 'rgba(255,255,255,0.2)'}`, borderRadius: '10px', height: '44px', width: '44px', display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center', fontSize: '18px', cursor: 'pointer', transition: 'all 0.2s' }}
               title={isVideoOff ? "Turn on camera" : "Turn off camera"}
             >
               {isVideoOff ? '🚫' : '📷'}
             </button>
             <button
               onClick={toggleScreenShare}
-              style={{ background: isScreenSharing ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.1)', color: isScreenSharing ? '#818cf8' : 'white', border: `1px solid ${isScreenSharing ? '#6366f1' : 'rgba(255,255,255,0.2)'}`, borderRadius: '10px', height: '44px', width: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', cursor: 'pointer', transition: 'all 0.2s' }}
+              style={{ background: isScreenSharing ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.1)', color: isScreenSharing ? '#818cf8' : 'white', border: `1px solid ${isScreenSharing ? '#6366f1' : 'rgba(255,255,255,0.2)'}`, borderRadius: '10px', height: '44px', width: '44px', display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center', fontSize: '18px', cursor: 'pointer', transition: 'all 0.2s' }}
               title={isScreenSharing ? "Stop sharing screen" : "Share screen"}
             >
               {isScreenSharing ? '💻' : '📺'}
@@ -434,9 +466,25 @@ const LiveStream = () => {
       </div>
 
       {/* Chat Panel */}
-      <div style={{ width: '300px', display: 'flex', flexDirection: 'column', borderLeft: '1px solid rgba(255,255,255,0.1)', background: '#0f0f1a' }}>
-        <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.1)', fontWeight: 700, fontSize: '15px' }}>
-          💬 Live Chat <span style={{ fontWeight: 400, fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginLeft: '6px' }}>{viewerCount} watching</span>
+      <div className="livestream-chat-area">
+        <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.1)', fontWeight: 700, fontSize: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>💬 Live Chat <span style={{ fontWeight: 400, fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginLeft: '6px' }}>{viewerCount} online</span></div>
+          {/* Reaction Buttons */}
+          {user && isLive && (
+            <div style={{ display: 'flex', gap: '4px' }}>
+              {['❤️','😂','👏','🔥'].map(emoji => (
+                <button
+                  key={emoji}
+                  onClick={() => sendReaction(emoji)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', padding: '2px', transition: 'transform 0.1s' }}
+                  onMouseDown={e => e.currentTarget.style.transform = 'scale(0.8)'}
+                  onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>

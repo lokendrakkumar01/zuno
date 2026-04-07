@@ -1,37 +1,40 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SocketContextProvider } from './context/SocketContext';
 import { CallProvider } from './context/CallContext';
 import { LanguageProvider } from './context/LanguageContext';
-import { MusicProvider } from './context/MusicContext'; // Correct placement
+import { MusicProvider } from './context/MusicContext';
 import SplashScreen from './components/SplashScreen';
 import Layout from './components/Layout/Layout';
-import Home from './pages/Home';
-import Login from './pages/Auth/Login';
-import Register from './pages/Auth/Register';
-import Upload from './pages/Upload/Upload';
-import Profile from './pages/Profile';
-import ContentView from './pages/ContentView';
-import AdminDashboard from './pages/Admin/AdminDashboard';
-import Settings from './pages/Settings/Settings';
-import Appearance from './pages/Settings/Appearance';
-import Privacy from './pages/Settings/Privacy';
-import Language from './pages/Settings/Language';
-import Notifications from './pages/Settings/Notifications';
-import TimeManagement from './pages/Settings/TimeManagement';
-import PasswordSecurity from './pages/Settings/PasswordSecurity';
-import CloseFriends from './pages/Settings/CloseFriends';
-import Activity from './pages/Settings/Activity';
-import ScheduledContent from './pages/Settings/ScheduledContent';
-import Insights from './pages/Settings/Insights';
-import Search from './pages/Search/Search';
-import SavedContent from './pages/SavedContent';
-import Messages from './pages/Messages/Messages';
-import Chat from './pages/Messages/Chat';
-import GroupChat from './pages/Messages/GroupChat';
-import LiveStream from './pages/LiveStream';
-import Status from './pages/Status';
+
+// Lazy load all heavy page components
+const Home = React.lazy(() => import('./pages/Home'));
+const Login = React.lazy(() => import('./pages/Auth/Login'));
+const Register = React.lazy(() => import('./pages/Auth/Register'));
+const Upload = React.lazy(() => import('./pages/Upload/Upload'));
+const Profile = React.lazy(() => import('./pages/Profile'));
+const ContentView = React.lazy(() => import('./pages/ContentView'));
+const AdminDashboard = React.lazy(() => import('./pages/Admin/AdminDashboard'));
+const Settings = React.lazy(() => import('./pages/Settings/Settings'));
+const Appearance = React.lazy(() => import('./pages/Settings/Appearance'));
+const Privacy = React.lazy(() => import('./pages/Settings/Privacy'));
+const Language = React.lazy(() => import('./pages/Settings/Language'));
+const Notifications = React.lazy(() => import('./pages/Settings/Notifications'));
+const TimeManagement = React.lazy(() => import('./pages/Settings/TimeManagement'));
+const PasswordSecurity = React.lazy(() => import('./pages/Settings/PasswordSecurity'));
+const CloseFriends = React.lazy(() => import('./pages/Settings/CloseFriends'));
+const Activity = React.lazy(() => import('./pages/Settings/Activity'));
+const ScheduledContent = React.lazy(() => import('./pages/Settings/ScheduledContent'));
+const Insights = React.lazy(() => import('./pages/Settings/Insights'));
+const Search = React.lazy(() => import('./pages/Search/Search'));
+const SavedContent = React.lazy(() => import('./pages/SavedContent'));
+const Messages = React.lazy(() => import('./pages/Messages/Messages'));
+const Chat = React.lazy(() => import('./pages/Messages/Chat'));
+const GroupChat = React.lazy(() => import('./pages/Messages/GroupChat'));
+const LiveStream = React.lazy(() => import('./pages/LiveStream'));
+const Status = React.lazy(() => import('./pages/Status'));
+
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import GlobalNotification from './components/GlobalNotification';
@@ -89,43 +92,45 @@ function AppRouter() {
                   <CallOverlay />
                   {/* Group Call Overlay handled via CallContext later, or we can render it conditionally here using CallContext state. For now, we will add the state to CallContext and let CallProvider render it, or we render it here consuming the context. Actually, let's keep GroupCallOverlay rendering inside App conditionally based on useCallContext state.*/}
                   <ToastContainer theme="colored" autoClose={4000} />
-                  <Routes>
-                        {/* Auth routes - no layout */}
-                        <Route path="/login" element={<Login />} />
-                        <Route path="/register" element={<Register />} />
+                  <Suspense fallback={<div style={{ display: 'flex', height: '100vh', width: '100vw', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: '40px', height: '40px', border: '4px solid rgba(255,255,255,0.1)', borderTopColor: '#ef4444', borderRadius: '50%', animation: 'spin 1s linear infinite' }} /></div>}>
+                    <Routes>
+                          {/* Auth routes - no layout */}
+                          <Route path="/login" element={<Login />} />
+                          <Route path="/register" element={<Register />} />
 
-                        {/* Main routes with layout */}
-                        <Route path="/" element={<Layout />}>
-                              <Route index element={<Home />} />
-                              <Route path="upload" element={<Upload />} />
-                              <Route path="profile" element={<Profile />} />
-                              <Route path="settings" element={<Settings />} />
-                              <Route path="settings/appearance" element={<Appearance />} />
-                              <Route path="settings/privacy" element={<Privacy />} />
-                              <Route path="settings/language" element={<Language />} />
-                              <Route path="settings/notifications" element={<Notifications />} />
-                              <Route path="settings/time-management" element={<TimeManagement />} />
-                              <Route path="settings/password-security" element={<PasswordSecurity />} />
-                              <Route path="settings/close-friends" element={<CloseFriends />} />
-                              <Route path="settings/activity" element={<Activity />} />
-                              <Route path="settings/scheduled-content" element={<ScheduledContent />} />
-                              <Route path="settings/insights" element={<Insights />} />
-                              <Route path="status" element={<Status />} />
-                              <Route path="search" element={<Search />} />
-                              <Route path="messages" element={<Messages />} />
-                              <Route path="messages/group/:groupId" element={<GroupChat />} />
-                              <Route path="messages/:userId" element={<Chat />} />
-                              <Route path="live/:hostId?" element={<LiveStream />} />
-                              <Route path="live" element={<LiveStream />} />
-                              <Route path="saved" element={<SavedContent />} />
-                              <Route path="content/saved" element={<SavedContent />} />
-                              <Route path="content/:id" element={<ContentView />} />
-                              <Route path="u/:username" element={<Profile />} />
-                        </Route>
+                          {/* Main routes with layout */}
+                          <Route path="/" element={<Layout />}>
+                                <Route index element={<Home />} />
+                                <Route path="upload" element={<Upload />} />
+                                <Route path="profile" element={<Profile />} />
+                                <Route path="settings" element={<Settings />} />
+                                <Route path="settings/appearance" element={<Appearance />} />
+                                <Route path="settings/privacy" element={<Privacy />} />
+                                <Route path="settings/language" element={<Language />} />
+                                <Route path="settings/notifications" element={<Notifications />} />
+                                <Route path="settings/time-management" element={<TimeManagement />} />
+                                <Route path="settings/password-security" element={<PasswordSecurity />} />
+                                <Route path="settings/close-friends" element={<CloseFriends />} />
+                                <Route path="settings/activity" element={<Activity />} />
+                                <Route path="settings/scheduled-content" element={<ScheduledContent />} />
+                                <Route path="settings/insights" element={<Insights />} />
+                                <Route path="status" element={<Status />} />
+                                <Route path="search" element={<Search />} />
+                                <Route path="messages" element={<Messages />} />
+                                <Route path="messages/group/:groupId" element={<GroupChat />} />
+                                <Route path="messages/:userId" element={<Chat />} />
+                                <Route path="live/:hostId?" element={<LiveStream />} />
+                                <Route path="live" element={<LiveStream />} />
+                                <Route path="saved" element={<SavedContent />} />
+                                <Route path="content/saved" element={<SavedContent />} />
+                                <Route path="content/:id" element={<ContentView />} />
+                                <Route path="u/:username" element={<Profile />} />
+                          </Route>
 
-                        {/* Admin routes */}
-                        <Route path="/admin/*" element={<AdminDashboard />} />
-                  </Routes>
+                          {/* Admin routes */}
+                          <Route path="/admin/*" element={<AdminDashboard />} />
+                    </Routes>
+                  </Suspense>
             </>
       );
 }
