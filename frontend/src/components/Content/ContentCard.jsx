@@ -399,6 +399,14 @@ const ContentCard = ({ content, onDelete, autoOpenFullscreen = false, onCloseFul
       const [imageError, setImageError] = useState(false);
       const [imageRetryCount, setImageRetryCount] = useState(0);
 
+      // Determine if content is video - MUST be before any useEffect that relies on it!
+      const isVideo = (content.media && content.media.length > 0 &&
+            (content.media[0].type === 'video' ||
+                  /\.(mp4|mov|wmv|avi|flv|mkv|webm)$/i.test(content.media[0].url))) ||
+            (content.type && (content.type === 'short-video' || content.type === 'long-video')) ||
+            (content.contentType && (content.contentType === 'short-video' || content.contentType === 'long-video'));
+      const videoAspect = '56.25%';
+
       // IntersectionObserver: auto-play video when in view, pause when out
       useEffect(() => {
             if (!isVideo || !videoContainerRef.current) return;
@@ -486,15 +494,6 @@ const ContentCard = ({ content, onDelete, autoOpenFullscreen = false, onCloseFul
       };
 
       // ... existing code ...
-
-      const isVideo = (content.media && content.media.length > 0 &&
-            (content.media[0].type === 'video' ||
-                  /\.(mp4|mov|wmv|avi|flv|mkv|webm)$/i.test(content.media[0].url))) ||
-            (content.type && (content.type === 'short-video' || content.type === 'long-video')) ||
-            (content.contentType && (content.contentType === 'short-video' || content.contentType === 'long-video'));
-
-      // Dynamic aspect ratio: videos use 9:16 (portrait reels) or 16:9 (landscape)
-      const videoAspect = '56.25%'; // 16:9 default — consistent grid layout
 
       return (
             <article className={`content-card ${isVideo ? 'reel-card' : 'standard-card'}`} style={{ position: 'relative' }}>
