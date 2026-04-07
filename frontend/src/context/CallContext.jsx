@@ -228,10 +228,10 @@ export const CallProvider = ({ children }) => {
                         myVideo.current.muted = true; // Always mute self-view
                   }
 
-                  // Use trickle: false for 100% reliable connection times (waits for full ICE gathering before signaling)
+                  // Use trickle: true for extremely fast connection times (allows ICE candidates to flow instantly)
                   const peer = new Peer({
                         initiator: true,
-                        trickle: false,
+                        trickle: true,
                         stream: mediaStream,
                         config: ICE_SERVERS,
                         sdpTransform: (sdp) => {
@@ -324,10 +324,10 @@ export const CallProvider = ({ children }) => {
                         || callerRef.current?._id || callerRef.current?.id
                         || (typeof callerRef.current === 'string' ? callerRef.current : null);
 
-                  // Use trickle: false for 100% reliable answer signaling
+                  // Use trickle: true for extremely fast answer signaling
                   const peer = new Peer({
                         initiator: false,
-                        trickle: false,
+                        trickle: true,
                         stream: mediaStream,
                         config: ICE_SERVERS
                   });

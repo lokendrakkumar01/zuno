@@ -18,13 +18,7 @@ const getFeed = async (req, res) => {
             let query = {
                   status: 'published',
                   visibility: 'public',
-                  isApproved: true,
-                  // Exclude expired content only if expiresAt is set AND in the past
-                  $or: [
-                        { expiresAt: null },
-                        { expiresAt: { $exists: false } },
-                        { expiresAt: { $gt: new Date() } }
-                  ]
+                  isApproved: true
             };
 
             // Mode-specific filtering
@@ -149,12 +143,7 @@ const getFeedByTopic = async (req, res) => {
                   visibility: 'public',
                   isApproved: true,
                   topics: topic,
-                  contentType: { $nin: ['story', 'status', 'text-status'] },
-                  $or: [
-                        { expiresAt: null },
-                        { expiresAt: { $exists: false } },
-                        { expiresAt: { $gt: new Date() } }
-                  ]
+                  contentType: { $nin: ['story', 'status', 'text-status'] }
             };
 
             const contents = await Content.find(query)
@@ -227,12 +216,7 @@ const getCreatorFeed = async (req, res) => {
             let query = {
                   creator: creator._id,
                   isApproved: true,
-                  contentType: { $nin: ['story', 'status', 'text-status'] },
-                  $or: [
-                        { expiresAt: null },
-                        { expiresAt: { $exists: false } },
-                        { expiresAt: { $gt: new Date() } }
-                  ]
+                  contentType: { $nin: ['story', 'status', 'text-status'] }
             };
 
             // Only show public/published content if viewer is NOT the creator
@@ -297,6 +281,7 @@ const searchContent = async (req, res) => {
                   status: 'published',
                   visibility: 'public',
                   isApproved: true,
+                  contentType: { $nin: ['story', 'status', 'text-status'] },
                   $or: [
                         { title: { $regex: q, $options: 'i' } },
                         { body: { $regex: q, $options: 'i' } },
