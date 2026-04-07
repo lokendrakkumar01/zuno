@@ -153,8 +153,13 @@ io.on("connection", (socket) => {
             const viewerCount = stream.viewers.size;
             // Notify host about new viewer
             io.to(stream.hostSocketId).emit("viewerJoined", { viewerId: data.viewerId, viewerCount });
-            // Send stream info to viewer
-            socket.emit("streamJoined", { hostId: data.hostId, roomId: stream.roomId, viewerCount });
+            // Send stream info to viewer including host's socket ID for direct signaling
+            socket.emit("streamJoined", { 
+                  hostId: data.hostId, 
+                  roomId: stream.roomId, 
+                  viewerCount,
+                  hostSocketId: stream.hostSocketId
+            });
             // Tell host to initiate WebRTC stream to this viewer
             io.to(stream.hostSocketId).emit("initPeerWithViewer", { viewerId: data.viewerId, viewerSocketId: socket.id });
       });

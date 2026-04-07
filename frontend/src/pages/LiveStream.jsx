@@ -44,6 +44,7 @@ const LiveStream = () => {
   const localStreamRef = useRef(null);
   const peersRef = useRef({}); // { viewerSocketId: Peer }
   const hostPeerRef = useRef(null); // viewer's connection to host
+  const hostSocketIdRef = useRef(null);
 
   /* ── Chat scroll ── */
   const commentsEndRef = useRef(null);
@@ -110,7 +111,10 @@ const LiveStream = () => {
       if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
     });
     socket.on('streamNotFound', () => setStreamError('Stream not found or has already ended.'));
-    socket.on('streamJoined', ({ viewerCount: vc }) => setViewerCount(vc));
+    socket.on('streamJoined', ({ viewerCount: vc, hostSocketId: hsid }) => {
+      setViewerCount(vc);
+      hostSocketIdRef.current = hsid;
+    });
 
     return () => {
       socket.off('initPeerWithViewer');
@@ -225,12 +229,19 @@ const LiveStream = () => {
     const peer = new Peer({ initiator: false, trickle: true });
     hostPeerRef.current = peer;
 
-    peer.on('signal', signal => socket.emit('streamSignal', { to: hostId, signal }));
+    peer.on('signal', signal => {
+      const target = hostSocketIdRef.current || hostId;
+      socket.emit('streamSignal', { to: target, signal });
+    });
     peer.on('stream', remoteStream => {
       if (remoteVideoRef.current) remoteVideoRef.current.srcObject = remoteStream;
       setIsLive(true);
     });
-    peer.on('error', () => setStreamError('Connection error. Try refreshing.'));
+    peer.on('error', (err) => {
+      console.error("WebRTC Error:", err);
+      // Only set error if we don't have a stream yet
+      if (!setIsLive) setStreamError('Connection error. Try refreshing.');
+    });
 
     socket.emit('joinStream', { hostId, viewerId });
 

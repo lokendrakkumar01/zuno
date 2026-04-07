@@ -69,6 +69,8 @@ const Profile = () => {
       const [openPostIdx, setOpenPostIdx] = useState(null);
       const [verificationReqMsg, setVerificationReqMsg] = useState('');
       const [verificationReqLoading, setVerificationReqLoading] = useState(false);
+      const [quickChatText, setQuickChatText] = useState('');
+      const [sendingQuickChat, setSendingQuickChat] = useState(false);
 
 
       // Followers/Following modal states
@@ -312,7 +314,6 @@ const Profile = () => {
                   const data = await res.json();
                   if (data.success) {
                         setIsFollowing(!isFollowing);
-                        // Update follower count locally
                         setProfileUser(prev => ({
                               ...prev,
                               followersCount: isFollowing
@@ -326,6 +327,35 @@ const Profile = () => {
                   console.error('Failed to toggle follow:', error);
             }
             setFollowLoading(false);
+      };
+
+      const handleQuickSend = async (e) => {
+            if (e) e.preventDefault();
+            if (!quickChatText.trim() || !token || !profileUser) return;
+
+            setSendingQuickChat(true);
+            try {
+                  const res = await fetch(`${API_URL}/messages/send/${profileUser._id}`, {
+                        method: 'POST',
+                        headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ message: quickChatText.trim() })
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                        setQuickChatText('');
+                        setMessage('✅ Message sent successfully!');
+                        setTimeout(() => setMessage(''), 3000);
+                  } else {
+                        setMessage('⚠️ ' + data.message);
+                  }
+            } catch (err) {
+                  setMessage('⚠️ Failed to send message');
+            } finally {
+                  setSendingQuickChat(false);
+            }
       };
 
       const handleBlockToggle = async () => {
@@ -933,8 +963,12 @@ const Profile = () => {
                                                       )}
                                                 </button>
                                                 <button
-                                                      onClick={() => navigate(`/messages/${profileUser._id}`)}
-                                                      className="btn btn-secondary flex-1 min-w-[120px]"
+                                                      onClick={() => {
+                                                            setActiveTab('chat');
+                                                            const chatSection = document.getElementById('chat-tab-section');
+                                                            if (chatSection) chatSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                      }}
+                                                      className={`btn ${activeTab === 'chat' ? 'btn-primary' : 'btn-secondary'} flex-1 min-w-[120px]`}
                                                 >
                                                       💬 Message
                                                 </button>
@@ -949,6 +983,19 @@ const Profile = () => {
                                           </div>
                                     )}
                               </div>
+                        </div>
+
+                        {/* Middle Tabs - now includes Chat for visitors */}
+                        <div className="mode-pills mb-xl animate-fadeIn" style={{ maxWidth: '600px' }}>
+                              {!isOwnProfile && <button className={`mode-pill ${activeTab === 'chat' ? 'active' : ''}`} onClick={() => setActiveTab('chat')}>💬 Chat</button>}
+                              <button className={`mode-pill ${activeTab === 'posts' || activeTab === 'profile' ? 'active' : ''}`} onClick={() => setActiveTab(isOwnProfile ? 'profile' : 'posts')}>📝 Posts</button>
+                              {isOwnProfile && (
+                                    <>
+                                          <button className={`mode-pill ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>⚙️ Settings</button>
+                                          <button className={`mode-pill ${activeTab === 'stats' ? 'active' : ''}`} onClick={() => setActiveTab('stats')}>📊 Stats</button>
+                                          <button className={`mode-pill ${activeTab === 'games' ? 'active' : ''}`} onClick={() => setActiveTab('games')}>🏏 Games</button>
+                                    </>
+                              )}
                         </div>
 
                         {/* Verification request feedback */}
@@ -1018,6 +1065,47 @@ const Profile = () => {
                                     <div className="flex gap-md mt-xl">
                                           <button onClick={handleSaveProfile} className="btn btn-primary">💾 Save Changes</button>
                                           <button onClick={() => setEditing(false)} className="btn btn-ghost">Cancel</button>
+                                    </div>
+                              </div>
+                        )}
+
+                        {activeTab === 'chat' && !isOwnProfile && (
+                              <div id="chat-tab-section" className="card animate-fadeInUp mb-xl" style={{ border: '2px solid rgba(99, 102, 241, 0.3)', padding: '24px' }}>
+                                    <div className="flex items-center gap-sm mb-lg">
+                                          <div style={{ fontSize: '1.8rem' }}>💬</div>
+                                          <h2 className="text-2xl font-bold">Quick Message to {profileUser.displayName || profileUser.username}</h2>
+                                    </div>
+                                    <p className="text-muted mb-lg" style={{ fontSize: '1.05rem' }}>Send a professional direct message instantly. It will appear immediately in their inbox.</p>
+                                    <form onSubmit={handleQuickSend} className="flex flex-col gap-md">
+                                          <textarea 
+                                                className="input" 
+                                                rows={5} 
+                                                value={quickChatText} 
+                                                onChange={(e) => setQuickChatText(e.target.value)} 
+                                                placeholder={`Write your message to ${profileUser.username}...`}
+                                                style={{ resize: 'none', fontSize: '1.1rem', padding: '18px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(99, 102, 241, 0.2)' }}
+                                                onKeyDown={(e) => {
+                                                      if (e.key === 'Enter' && !e.shiftKey) {
+                                                            e.preventDefault();
+                                                            handleQuickSend();
+                                                      }
+                                                }}
+                                          />
+                                          <button 
+                                                type="submit" 
+                                                disabled={sendingQuickChat || !quickChatText.trim()}
+                                                className="btn btn-primary w-full"
+                                                style={{ padding: '16px', fontSize: '1.2rem', fontWeight: 700, boxShadow: '0 4px 15px rgba(99, 102, 241, 0.3)' }}
+                                          >
+                                                {sendingQuickChat ? '⏳ Sending...' : '✈️ Send Message Now'}
+                                          </button>
+                                    </form>
+                                    <div className="mt-xl p-lg bg-indigo-50 border border-indigo-100 rounded-xl flex items-start gap-md text-sm text-indigo-700">
+                                          <span style={{ fontSize: '1.4rem' }}>💡</span>
+                                          <div>
+                                                <p style={{ fontWeight: 700, marginBottom: '4px' }}>Engagement Tip</p>
+                                                <p>For high-quality collaboration, voice/video calls, or sharing files, please visit the <strong>Full Messages</strong> section in the main menu.</p>
+                                          </div>
                                     </div>
                               </div>
                         )}
