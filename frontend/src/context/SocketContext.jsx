@@ -60,11 +60,8 @@ export const SocketContextProvider = ({ children }) => {
                         setIsConnected(false);
                   };
             } else {
-                  if (socket) {
-                        socket.close();
-                        setSocket(null);
-                        setIsConnected(false);
-                  }
+                  // user logged out — cleanup is handled by the return() above
+                  // No action needed here, avoids stale closure bug
             }
       }, [user]);
 

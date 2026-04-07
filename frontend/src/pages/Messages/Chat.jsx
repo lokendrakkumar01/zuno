@@ -37,11 +37,10 @@ const Chat = () => {
             }
       });
       const [currentUserId, setCurrentUserId] = useState(userId);
-      const [newMessage, setNewMessage] = useState('');
-      const [loading, setLoading] = useState(!localStorage.getItem(`zuno_chat_cache_${userId}`));
-      
-      // Synchronous layout update when navigating between users
-      if (userId !== currentUserId) {
+
+      // Synchronous-like layout update when navigating between users (useState init, then effect for changes)
+      useEffect(() => {
+            if (userId === currentUserId) return;
             setCurrentUserId(userId);
             try {
                   const cachedMsgs = localStorage.getItem(`zuno_chat_cache_${userId}`);
@@ -54,8 +53,11 @@ const Chat = () => {
                   setOtherUser(null);
                   setLoading(true);
             }
-      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [userId]);
 
+      const [newMessage, setNewMessage] = useState('');
+      const [loading, setLoading] = useState(!localStorage.getItem(`zuno_chat_cache_${userId}`));
       const [sending, setSending] = useState(false);
       const [loadingMore, setLoadingMore] = useState(false);
       const [page, setPage] = useState(1);

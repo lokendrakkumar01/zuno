@@ -58,11 +58,17 @@ app.use('/uploads', (req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*'); // Allow CORS for media
   next();
 }, express.static(path.join(__dirname, 'uploads'), {
-  setHeaders: (res, path) => {
-    // Additional headers for video streaming support
-    if (path.endsWith('.mp4') || path.endsWith('.webm') || path.endsWith('.mov')) {
+  setHeaders: (res, filePath) => {
+    // Set correct MIME type based on extension for video streaming
+    if (filePath.endsWith('.mp4')) {
       res.setHeader('Accept-Ranges', 'bytes');
       res.setHeader('Content-Type', 'video/mp4');
+    } else if (filePath.endsWith('.webm')) {
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('Content-Type', 'video/webm');
+    } else if (filePath.endsWith('.mov')) {
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('Content-Type', 'video/quicktime');
     }
   }
 }));

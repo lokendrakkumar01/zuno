@@ -211,6 +211,16 @@ io.on("connection", (socket) => {
                   activeCalls.delete(socket.id);
             }
 
+            // If the disconnecting socket was a live stream HOST, clean up and notify viewers
+            for (const [hostUserId, stream] of activeStreams.entries()) {
+                  if (stream.hostSocketId === socket.id) {
+                        io.to(stream.roomId).emit("streamEnded", { hostId: hostUserId });
+                        activeStreams.delete(hostUserId);
+                        console.log(`[Stream] Host ${hostUserId} disconnected — stream ended`);
+                        break;
+                  }
+            }
+
             if (userId && userSocketMap[userId]) {
                   userSocketMap[userId]--;
                   if (userSocketMap[userId] === 0) {
@@ -228,4 +238,4 @@ const getReceiverSocketId = (receiverId) => {
       return receiverId.toString();
 };
 
-module.exports = { app, io, server, getReceiverSocketId };
+module.exports = { app, io, server, getReceiverSocketId, activeStreams };

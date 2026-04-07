@@ -28,6 +28,8 @@ const LiveStream = () => {
   const [commentText, setCommentText] = useState('');
   const [viewerCount, setViewerCount] = useState(0);
   const [isLive, setIsLive] = useState(false);
+  const isLiveRef = useRef(false); // ref for use inside peer event closures
+  const [hostSocketReady, setHostSocketReady] = useState(null); // hostSocketId once streamJoined fires
   const [activeStreams, setActiveStreams] = useState([]);
   const [loadingStreams, setLoadingStreams] = useState(true);
   const [streamError, setStreamError] = useState('');
@@ -99,13 +101,17 @@ const LiveStream = () => {
       // Intercept Reactions
       if (data.comment?.startsWith('REACTION:')) {
         const emoji = data.comment.split(':')[1];
-        const newReaction = { id: Date.now() + Math.random(), emoji, left: Math.random() * 80 + 10 };
-        setReactions(prev => [...prev.slice(-30), newReaction]); // keep memory light
+        const reactionId = Date.now() + Math.random();
+        const newReaction = { id: reactionId, emoji, left: Math.random() * 80 + 10 };
+        setReactions(prev => [...prev.slice(-30), newReaction]);
+        // Auto-remove after animation (2.5s) to prevent memory leak
+        setTimeout(() => setReactions(prev => prev.filter(r => r.id !== reactionId)), 2500);
         return;
       }
       setComments(prev => [...prev.slice(-200), data]);
     });
     socket.on('streamEnded', () => {
+      isLiveRef.current = false;
       setIsLive(false);
       setStreamError('Stream has ended.');
       if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
@@ -114,6 +120,7 @@ const LiveStream = () => {
     socket.on('streamJoined', ({ viewerCount: vc, hostSocketId: hsid }) => {
       setViewerCount(vc);
       hostSocketIdRef.current = hsid;
+      setHostSocketReady(hsid); // trigger viewer peer creation now that we have the host socket ID
     });
 
     return () => {
@@ -221,36 +228,50 @@ const LiveStream = () => {
     }
   };
 
-  /* ── JOIN STREAM (viewer) ── */
+  /* ── JOIN STREAM (viewer) — emit joinStream on mount, wait for hostSocketReady ── */
   useEffect(() => {
     if (!isViewMode || !socket || !user) return;
-    const viewerId = user._id;
+    // Tell server we want to join; server will send back streamJoined with hostSocketId
+    socket.emit('joinStream', { hostId, viewerId: user._id });
+    return () => {
+      socket.emit('leaveStreamView', { hostId, viewerId: user._id });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isViewMode, socket, hostId]);
+
+  /* ── Create WebRTC peer ONLY after hostSocketId is known from streamJoined ── */
+  useEffect(() => {
+    if (!isViewMode || !socket || !hostSocketReady) return;
 
     const peer = new Peer({ initiator: false, trickle: true });
     hostPeerRef.current = peer;
 
     peer.on('signal', signal => {
-      const target = hostSocketIdRef.current || hostId;
-      socket.emit('streamSignal', { to: target, signal });
+      // Send answer signal directly to host's socket ID (guaranteed now)
+      socket.emit('streamSignal', { to: hostSocketReady, signal });
     });
     peer.on('stream', remoteStream => {
       if (remoteVideoRef.current) remoteVideoRef.current.srcObject = remoteStream;
+      isLiveRef.current = true;
       setIsLive(true);
     });
     peer.on('error', (err) => {
-      console.error("WebRTC Error:", err);
-      // Only set error if we don't have a stream yet
-      if (!setIsLive) setStreamError('Connection error. Try refreshing.');
+      console.error('WebRTC viewer error:', err);
+      // Only show error if stream has NOT started yet
+      if (!isLiveRef.current) {
+        setStreamError('Connection error. Try refreshing.');
+      }
     });
-
-    socket.emit('joinStream', { hostId, viewerId });
+    peer.on('close', () => {
+      if (!isLiveRef.current) setStreamError('Stream connection closed.');
+    });
 
     return () => {
       peer.destroy();
-      socket.emit('leaveStreamView', { hostId, viewerId });
+      hostPeerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isViewMode, socket, hostId]);
+  }, [isViewMode, socket, hostSocketReady]);
 
   /* ── SEND COMMENT ── */
   const sendComment = (e) => {

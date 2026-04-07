@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const { protect } = require('../middleware/auth');
+// Use socket.js activeStreams as the single source of truth
+// This prevents duplicate state and stale streams after socket disconnect cleanup
+const { activeStreams } = require('../socket/socket');
 
-// In-memory store for active live streams
-const activeStreams = new Map();
-
-// Start a new live stream
+// Start a new live stream — registers stream metadata in the shared activeStreams map
 router.post('/start', protect, (req, res) => {
   const { title, description } = req.body;
   const userId = req.user._id.toString();
@@ -13,10 +13,18 @@ router.post('/start', protect, (req, res) => {
   const avatar = req.user.avatar;
   const displayName = req.user.displayName || username;
 
-  // End any existing stream for this user
-  activeStreams.delete(userId);
+  // End any existing stream for this user (cleanup previous session)
+  const existing = activeStreams.get(userId);
+  if (existing) {
+    activeStreams.delete(userId);
+  }
 
-  const stream = {
+  // Store metadata in the same Map that socket.js uses
+  // Note: socket.js will overwrite this with roomId/viewers/hostSocketId when startStream is emitted
+  // This HTTP call just registers the human-readable metadata
+  const existing2 = activeStreams.get(userId) || {};
+  activeStreams.set(userId, {
+    ...existing2,
     id: `stream_${userId}_${Date.now()}`,
     hostId: userId,
     hostUsername: username,
@@ -25,31 +33,40 @@ router.post('/start', protect, (req, res) => {
     title: title || `${displayName}'s Live Stream`,
     description: description || '',
     startedAt: new Date().toISOString(),
-    viewerCount: 0,
-    comments: []
-  };
+    viewerCount: 0
+  });
 
-  activeStreams.set(userId, stream);
-
-  res.json({ success: true, data: { stream } });
+  res.json({ success: true, data: { stream: activeStreams.get(userId) } });
 });
 
-// Get all active streams
+// Get all active streams — filter out zombie entries with no hostSocketId (socket never connected)
 router.get('/active', (req, res) => {
-  const streams = Array.from(activeStreams.values());
+  const streams = Array.from(activeStreams.values())
+    .filter(s => s.hostSocketId) // only return streams that are actually LIVE (socket connected)
+    .map(s => ({
+      id: s.id,
+      hostId: s.hostId,
+      hostUsername: s.hostUsername,
+      hostAvatar: s.hostAvatar,
+      hostDisplayName: s.hostDisplayName,
+      title: s.title,
+      description: s.description,
+      startedAt: s.startedAt,
+      viewerCount: s.viewers ? s.viewers.size : 0
+    }));
   res.json({ success: true, data: { streams } });
 });
 
 // Get a specific stream
 router.get('/:hostId', (req, res) => {
   const stream = activeStreams.get(req.params.hostId);
-  if (!stream) {
+  if (!stream || !stream.hostSocketId) {
     return res.status(404).json({ success: false, message: 'Stream not found or has ended' });
   }
   res.json({ success: true, data: { stream } });
 });
 
-// End a stream
+// End a stream (HTTP fallback — socket endStream handler is the primary cleanup)
 router.delete('/end', protect, (req, res) => {
   const userId = req.user._id.toString();
   activeStreams.delete(userId);
@@ -57,4 +74,3 @@ router.delete('/end', protect, (req, res) => {
 });
 
 module.exports = router;
-module.exports.activeStreams = activeStreams;
