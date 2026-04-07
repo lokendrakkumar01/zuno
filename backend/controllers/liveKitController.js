@@ -12,8 +12,12 @@ const getLiveKitToken = async (req, res) => {
         const avatar = req.user.avatar || '';
 
         // If the API keys aren't set in environment, throw an error
-        if (!process.env.LIVEKIT_API_KEY || !process.env.LIVEKIT_API_SECRET) {
-            console.error('[LiveKit] Missing API keys in environment');
+        let apiKey = process.env.LIVEKIT_API_KEY?.replace(/['"]+/g, '');
+        let apiSecret = process.env.LIVEKIT_API_SECRET?.replace(/['"]+/g, '');
+        let wsUrl = process.env.LIVEKIT_URL?.replace(/['"]+/g, '');
+
+        if (!apiKey || !apiSecret || !wsUrl) {
+            console.error('[LiveKit] Missing API keys or URL in environment');
             return res.status(500).json({ success: false, message: 'LiveKit configuration missing on server.' });
         }
 
@@ -28,7 +32,7 @@ const getLiveKitToken = async (req, res) => {
 
         // Generate the token
         const participantName = displayName;
-        const at = new AccessToken(process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET, {
+        const at = new AccessToken(apiKey, apiSecret, {
             identity: userId,
             name: participantName,
         });
@@ -70,7 +74,7 @@ const getLiveKitToken = async (req, res) => {
             data: {
                 token,
                 roomName,
-                wsUrl: process.env.LIVEKIT_URL // The frontend needs this URL to connect
+                wsUrl // The frontend needs this URL to connect
             }
         });
     } catch (error) {
