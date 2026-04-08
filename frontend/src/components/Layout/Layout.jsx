@@ -98,6 +98,23 @@ const Layout = () => {
             </svg>
       );
 
+      const LiveIcon = () => (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19 12a7 7 0 0 0-7-7" />
+                  <path d="M5 12a7 7 0 0 1 7-7" />
+                  <path d="M22 12a10 10 0 0 0-10-10" />
+                  <path d="M2 12A10 10 0 0 1 12 2" />
+            </svg>
+      );
+
+      const ProfileIcon = () => (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 21a8 8 0 0 0-16 0" />
+                  <circle cx="12" cy="7" r="4" />
+            </svg>
+      );
+
       return (
             <div className="app">
                   {/* Header */}
@@ -143,13 +160,16 @@ const Layout = () => {
                                                       )}
                                                 </Link>
                                                 <Link to="/upload" className={`nav-link ${isActive('/upload') ? 'active' : ''}`}>
-                                                      ➕ {t('upload')}
+                                                      <PlusIcon />
+                                                      <span>{t('upload')}</span>
                                                 </Link>
                                                 <Link to="/live" className={`nav-link ${isActive('/live') ? 'active' : ''}`}>
-                                                      🔴 Live
+                                                      <LiveIcon />
+                                                      <span>Live</span>
                                                 </Link>
                                                 <Link to="/profile" className={`nav-link ${isActive('/profile') ? 'active' : ''}`}>
-                                                      👤 {t('profile')}
+                                                      <ProfileIcon />
+                                                      <span>{t('profile')}</span>
                                                 </Link>
                                                 {user?.role === 'admin' && (
                                                       <Link to="/admin" className="nav-link" style={{ color: 'var(--color-accent-pink)' }}>
@@ -177,7 +197,7 @@ const Layout = () => {
                                                             transition: 'background 0.3s ease'
                                                       }}
                                                 >
-                                                      {theme === 'light' ? '🌙' : '☀️'}
+                                                      {theme === 'light' ? '◐' : '◑'}
                                                 </button>
 
                                                 <div className="flex items-center gap-sm" style={{ marginLeft: 'var(--space-sm)' }}>
@@ -229,7 +249,7 @@ const Layout = () => {
                               <span style={{ fontSize: '10px' }}>{t('search')}</span>
                         </Link>
                         <Link to="/live" className={`bottom-nav-item ${isActive('/live') ? 'active' : ''}`}>
-                              <div style={{ fontSize: '16px', lineHeight: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🔴</div>
+                              <LiveIcon />
                               <span style={{ fontSize: '10px' }}>Live</span>
                         </Link>
 

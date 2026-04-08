@@ -28,13 +28,19 @@ const Login = () => {
 
       const handleSubmit = async (e) => {
             e.preventDefault();
+            const normalizedEmail = email.trim().toLowerCase();
+            const normalizedPassword = password;
+            if (!normalizedEmail || !normalizedPassword) {
+                  setError('Please enter email and password.');
+                  return;
+            }
             setError('');
             setWakingUp(false);
             setRetryInfo(null);
             setCountdown(0);
             setLoading(true);
 
-            const result = await login(email, password, (info) => {
+            const result = await login(normalizedEmail, normalizedPassword, (info) => {
                   // Called when auto-retry is happening
                   setWakingUp(true);
                   setRetryInfo(info);

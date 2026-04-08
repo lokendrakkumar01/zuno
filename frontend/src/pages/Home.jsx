@@ -178,13 +178,13 @@ const Home = () => {
 
                               {error === 'network' && contents.length === 0 && (
                                     <div className="text-center py-xl">
-                                          <p className="text-danger mb-md">⚠️ Unable to connect to the server.</p>
+                                          <p className="text-secondary mb-md">Unable to connect to the server.</p>
                                           <button onClick={() => fetchFeed(mode, 1)} className="btn btn-primary">Try Again</button>
                                     </div>
                               )}
 
                               {/* Feed Grid */}
-                              <div className="grid grid-cols-1 md-grid-cols-2 lg-grid-cols-3 gap-xl">
+                              <div className="content-grid">
                                     {contents.map((content, idx) => (
                                           <div key={content._id} className="animate-fadeInUp" style={{ animationDelay: `${idx * 0.05}s` }}>
                                                 <ContentCard content={content} />

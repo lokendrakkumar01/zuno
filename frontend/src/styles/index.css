@@ -418,6 +418,19 @@ video {
   color: var(--color-text-secondary);
 }
 
+.line-clamp-1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.line-clamp-2 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
 .font-light {
   font-weight: 300;
 }
@@ -1673,6 +1686,41 @@ textarea.input {
 .content-grid {
   display: grid;
   gap: var(--space-lg);
+}
+
+.mode-btn {
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-card);
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-full);
+  padding: 8px 12px;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mode-btn.active {
+  color: var(--color-accent-primary);
+  border-color: var(--color-accent-primary);
+  background: rgba(0, 149, 246, 0.08);
+}
+
+.topic-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  padding: 6px 10px;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-card);
+}
+
+.topic-badge button {
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
 }
 
 /* Posts Grid - Profile Page */

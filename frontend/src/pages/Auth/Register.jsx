@@ -64,13 +64,28 @@ const Register = () => {
             setRetryInfo(null);
             setCountdown(0);
 
-            if (formData.password !== formData.confirmPassword) {
+            const normalizedData = {
+                  ...formData,
+                  username: formData.username.trim(),
+                  email: formData.email.trim().toLowerCase(),
+                  displayName: formData.displayName.trim()
+            };
+
+            if (normalizedData.password !== normalizedData.confirmPassword) {
                   setError('Passwords do not match.');
+                  return;
+            }
+            if (!isValidUsername(normalizedData.username)) {
+                  setError('Username must be 3–20 characters and can only contain letters, numbers, and underscores (no spaces).');
+                  return;
+            }
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedData.email)) {
+                  setError('Please enter a valid email address.');
                   return;
             }
 
             setLoading(true);
-            const { confirmPassword, ...submitData } = formData;
+            const { confirmPassword, ...submitData } = normalizedData;
             const result = await register(submitData, (info) => {
                   setWakingUp(true);
                   setRetryInfo(info);

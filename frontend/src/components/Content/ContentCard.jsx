@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { API_URL, API_BASE_URL } from '../../config';
 
 const ContentCard = ({ content }) => {
       const { user: currentUser, token } = useAuth();
-      const [isHelpful, setIsHelpful] = useState(content.metrics?.viewedBy?.includes(currentUser?._id) || false);
+      const [isHelpful, setIsHelpful] = useState(false);
       const [helpfulCount, setHelpfulCount] = useState(content.metrics?.helpfulCount || 0);
       const [isSaved, setIsSaved] = useState(false);
       
@@ -35,7 +35,17 @@ const ContentCard = ({ content }) => {
       const handleSave = async (e) => {
             e.stopPropagation();
             if (!token) return;
-            setIsSaved(!isSaved);
+            try {
+                  const res = await fetch(`${API_URL}/content/${content._id}/save`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                  });
+                  if (res.ok) {
+                        setIsSaved(!isSaved);
+                  }
+            } catch (error) {
+                  console.error('Failed to save content:', error);
+            }
       };
 
       return (
