@@ -141,7 +141,7 @@ const Chat = () => {
             if (!file) return;
 
             if (file.size > 5 * 1024 * 1024) {
-                  alert('Background image must be less than 5MB');
+                  console.warn('Background image must be less than 5MB');
                   return;
             }
 
@@ -659,7 +659,7 @@ const Chat = () => {
                         setEditingId(null);
                         setEditText('');
                   } else {
-                        alert(data.message);
+                        console.warn(data.message || 'Failed to edit message');
                   }
             } catch (err) {
                   console.error('Failed to edit message:', err);
@@ -864,7 +864,7 @@ const Chat = () => {
             if (!file) return;
 
             if (file.size > 25 * 1024 * 1024) {
-                  alert('File must be less than 25MB');
+                  console.warn('File must be less than 25MB');
                   return;
             }
 

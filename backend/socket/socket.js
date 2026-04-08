@@ -81,6 +81,16 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("joinConversation", (data) => {
+    if (!data?.conversationId) return;
+    socket.join(`conversation:${data.conversationId}`);
+  });
+
+  socket.on("leaveConversation", (data) => {
+    if (!data?.conversationId) return;
+    socket.leave(`conversation:${data.conversationId}`);
+  });
+
   socket.on("stopTyping", (data) => {
     if (data.receiverId) {
       io.to(data.receiverId).emit("stopTyping", { senderId: userId });
@@ -182,8 +192,9 @@ io.on("connection", (socket) => {
   });
 
   socket.on("joinStream", (data) => {
+    if (!data?.hostId) return;
     const stream = activeStreams.get(data.hostId);
-    if (!stream) return socket.emit("streamNotFound");
+    if (!stream || !stream.hostSocketId) return socket.emit("streamNotFound");
     if (stream.bannedViewers?.has(userId)) {
       return socket.emit("streamBanned", { reason: 'You have been removed from this stream.' });
     }

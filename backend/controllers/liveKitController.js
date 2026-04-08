@@ -48,9 +48,8 @@ const getLiveKitToken = async (req, res) => {
 
         const token = await at.toJwt();
 
-        // If host, update the activeStreams store
+        // If host, pre-register stream metadata. Socket lifecycle will finalize live presence.
         if (isHost) {
-            // End any existing stream for this user first
             if (activeStreams.has(userId)) {
                 activeStreams.delete(userId);
             }
@@ -65,7 +64,8 @@ const getLiveKitToken = async (req, res) => {
                 description: '',
                 startedAt: new Date().toISOString(),
                 viewerCount: 0,
-                hostSocketId: 'livekit_managed' // flag to indicate it's a livekit stream
+                hostSocketId: null,
+                liveKitProvisioned: true
             });
         }
 

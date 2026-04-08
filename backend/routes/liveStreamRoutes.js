@@ -41,7 +41,7 @@ router.post('/token', protect, getLiveKitToken);
 // Get all active streams — filter out zombie entries with no hostSocketId (socket never connected)
 router.get('/active', (req, res) => {
   const streams = Array.from(activeStreams.values())
-    .filter(s => s.hostSocketId) // only return streams that are actually LIVE (socket connected)
+    .filter(s => s.hostSocketId || s.liveKitProvisioned)
     .map(s => ({
       id: s.id,
       hostId: s.hostId,
@@ -59,7 +59,7 @@ router.get('/active', (req, res) => {
 // Get a specific stream
 router.get('/:hostId', (req, res) => {
   const stream = activeStreams.get(req.params.hostId);
-  if (!stream || !stream.hostSocketId) {
+  if (!stream || (!stream.hostSocketId && !stream.liveKitProvisioned)) {
     return res.status(404).json({ success: false, message: 'Stream not found or has ended' });
   }
   res.json({ success: true, data: { stream } });

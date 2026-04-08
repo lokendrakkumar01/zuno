@@ -26,12 +26,11 @@ export const SocketContextProvider = ({ children }) => {
                         auth: { token },
                         transports: ['websocket', 'polling'],
                         reconnection: true,
-                        reconnectionAttempts: Infinity, // Keep trying
+                        reconnectionAttempts: 20,
                         reconnectionDelay: 1000,
-                        reconnectionDelayMax: 5000,
+                        reconnectionDelayMax: 10000,
                         timeout: 20000,
-                        upgrade: true,
-                        forceNew: true
+                        upgrade: true
                   });
 
                   setSocket(socketInstance);
@@ -49,11 +48,20 @@ export const SocketContextProvider = ({ children }) => {
                         setIsConnected(false);
                   });
 
+                  socketInstance.on("reconnect_attempt", () => {
+                        setIsConnected(false);
+                  });
+
                   socketInstance.on("getOnlineUsers", (users) => {
                         setOnlineUsers(users);
                   });
 
                   return () => {
+                        socketInstance.off("connect");
+                        socketInstance.off("disconnect");
+                        socketInstance.off("connect_error");
+                        socketInstance.off("reconnect_attempt");
+                        socketInstance.off("getOnlineUsers");
                         socketInstance.close();
                         setSocket(null);
                         setIsConnected(false);

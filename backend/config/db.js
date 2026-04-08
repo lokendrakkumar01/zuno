@@ -1,10 +1,15 @@
 const mongoose = require('mongoose');
 
 const connectDB = async () => {
+  const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
+  if (!mongoUri) {
+    throw new Error('Missing MongoDB connection string. Set MONGODB_URI (or MONGO_URI).');
+  }
+
   const MAX_RETRIES = 3;
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const conn = await mongoose.connect(process.env.MONGODB_URI, {
+      const conn = await mongoose.connect(mongoUri, {
         serverSelectionTimeoutMS: 15000,  // 15s to find a server
         socketTimeoutMS: 60000,           // 60s socket timeout
         connectTimeoutMS: 15000,          // 15s connection timeout
@@ -29,8 +34,7 @@ const connectDB = async () => {
         console.log(`🔄 Retrying in 3 seconds...`);
         await new Promise(resolve => setTimeout(resolve, 3000));
       } else {
-        console.error('💥 All MongoDB connection attempts failed. Exiting...');
-        process.exit(1);
+        throw new Error('All MongoDB connection attempts failed.');
       }
     }
   }

@@ -5,7 +5,17 @@ const { sendLoginEmail } = require('../config/emailService');
 // Generate JWT Token
 const generateToken = (id) => {
       return jwt.sign({ id }, process.env.JWT_SECRET, {
-            expiresIn: process.env.JWT_EXPIRE || '365d'
+            expiresIn: process.env.JWT_EXPIRE || '30d'
+      });
+};
+
+const handleAuthError = (res, message, error) => {
+      if (process.env.NODE_ENV !== 'production') {
+            console.error(`[Auth] ${message}:`, error);
+      }
+      return res.status(500).json({
+            success: false,
+            message
       });
 };
 
@@ -46,11 +56,7 @@ const register = async (req, res) => {
                   }
             });
       } catch (error) {
-            res.status(500).json({
-                  success: false,
-                  message: 'Registration failed',
-                  error: error.message
-            });
+            return handleAuthError(res, 'Registration failed', error);
       }
 };
 
@@ -117,11 +123,7 @@ const login = async (req, res) => {
                   }
             });
       } catch (error) {
-            res.status(500).json({
-                  success: false,
-                  message: 'Login failed',
-                  error: error.message
-            });
+            return handleAuthError(res, 'Login failed', error);
       }
 };
 
@@ -138,11 +140,7 @@ const getMe = async (req, res) => {
                   }
             });
       } catch (error) {
-            res.status(500).json({
-                  success: false,
-                  message: 'Failed to get user data',
-                  error: error.message
-            });
+            return handleAuthError(res, 'Failed to get user data', error);
       }
 };
 
@@ -198,11 +196,7 @@ const changePassword = async (req, res) => {
                   message: 'Password changed successfully'
             });
       } catch (error) {
-            res.status(500).json({
-                  success: false,
-                  message: 'Internal server error',
-                  error: error.message
-            });
+            return handleAuthError(res, 'Internal server error', error);
       }
 };
 
@@ -239,7 +233,7 @@ const resetPassword = async (req, res) => {
 
             res.json({ success: true, message: 'Password reset successfully. You can now log in.' });
       } catch (error) {
-            res.status(500).json({ success: false, message: 'Reset failed', error: error.message });
+            return handleAuthError(res, 'Reset failed', error);
       }
 };
 

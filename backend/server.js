@@ -6,8 +6,9 @@ const path = require('path');
 require('dotenv').config();
 
 const connectDB = require('./config/db');
-const { uploadLimiter, messageLimiter } = require('./middleware/rateLimit');
+const { apiLimiter, uploadLimiter, messageLimiter } = require('./middleware/rateLimit');
 const errorHandler = require('./middleware/errorMiddleware');
+const mongoose = require('mongoose');
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
@@ -65,8 +66,9 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions)); // Handle preflight for all routes
 
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use('/api', apiLimiter);
 
 // Static files for uploads with proper headers
 app.use('/uploads', (req, res, next) => {
@@ -132,9 +134,16 @@ app.get('/', (req, res) => {
 
 // Health check + keep-alive ping
 app.get('/api/health', (req, res) => {
+  const dbReady = mongoose.connection.readyState === 1;
+  const statusCode = dbReady ? 200 : 503;
+  res.status(statusCode);
   res.json({
-    status: 'ok',
+    status: dbReady ? 'ok' : 'degraded',
     message: 'ZUNO Backend is running',
+    dependencies: {
+      mongodb: dbReady ? 'connected' : 'disconnected'
+    },
+    uptimeSeconds: Math.round(process.uptime()),
     timestamp: new Date().toISOString()
   });
 });

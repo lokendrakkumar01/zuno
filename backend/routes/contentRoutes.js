@@ -22,6 +22,9 @@ const { contentRules } = require('../utils/validationRules');
 const { validate } = require('../middleware/validation');
 
 // Public routes
+// Keep fixed user-prefixed routes BEFORE dynamic :id to avoid route shadowing.
+router.get('/user/my', protect, getMyContent);
+router.get('/user/saved', protect, getSavedContent);
 router.get('/:id', getContent);
 
 // Multer error handler wrapper
@@ -64,9 +67,5 @@ router.post('/:id/report', protect, reportContent);
 // Share is public
 router.post('/:id/share', shareContent);
 router.post('/:id/view', protect, markAsViewed);
-
-// User's content
-router.get('/user/my', protect, getMyContent);
-router.get('/user/saved', protect, getSavedContent);
 
 module.exports = router;

@@ -2,6 +2,16 @@ const { Message, Conversation } = require('../models/Message');
 const User = require('../models/User');
 const { getReceiverSocketId, io } = require('../socket/socket');
 
+const handleMessageError = (res, userMessage, error) => {
+      if (process.env.NODE_ENV !== 'production') {
+            console.error(`[Messages] ${userMessage}:`, error);
+      }
+      return res.status(500).json({
+            success: false,
+            message: userMessage
+      });
+};
+
 // @desc    Get conversations for current user
 // @route   GET /api/messages/conversations
 // @access  Private
@@ -46,12 +56,7 @@ const getConversations = async (req, res) => {
                   data: { conversations: formatted }
             });
       } catch (error) {
-            console.error('getConversations error:', error);
-            res.status(500).json({
-                  success: false,
-                  message: 'Failed to get conversations',
-                  error: error.message
-            });
+            return handleMessageError(res, 'Failed to get conversations', error);
       }
 };
 
@@ -284,29 +289,16 @@ const sendMessage = async (req, res) => {
 
             msgData.conversationId = conversation._id;
 
-            // Create message instance after the DM conversation is known.
-            const message = new Message(msgData);
-
-            // Construct manual populated payload for INSTANT socket delivery
+            // Persist message first so every success response has durable storage.
+            let message = await Message.create(msgData);
+            await message.populate('sender', 'username displayName avatar');
+            await message.populate('receiver', 'username displayName avatar');
             const socketPayload = message.toObject();
-            socketPayload.createdAt = new Date(); // FIX: unsaved Mongoose docs don't have timestamps yet
             if (req.body.clientMsgId) {
                   socketPayload.clientMsgId = req.body.clientMsgId;
             }
-            socketPayload.sender = {
-                  _id: req.user._id || req.user.id,
-                  username: req.user.username,
-                  displayName: req.user.displayName,
-                  avatar: req.user.avatar
-            };
-            socketPayload.receiver = {
-                  _id: receiver._id,
-                  username: receiver.username,
-                  displayName: receiver.displayName,
-                  avatar: receiver.avatar
-            };
 
-            // SOCKET.IO functionality — fires instantly, no awaiting db
+            // Emit only after persistence to keep realtime + HTTP states consistent.
             const receiverSocketId = getReceiverSocketId(userId);
             if (receiverSocketId) {
                   io.to(receiverSocketId).emit("newMessage", socketPayload);
@@ -317,27 +309,13 @@ const sendMessage = async (req, res) => {
                   io.to(senderSocketId).emit("newMessage", socketPayload);
             }
 
-            // Immediately send back a fast HTTP response for optimistic UI
             res.status(201).json({
                   success: true,
-                  message: 'Message sent quickly (optimistic)',
-                  data: { message: socketPayload } // The raw populated payload sent via socket
+                  message: 'Message sent',
+                  data: { message: socketPayload }
             });
-
-            // NOW save to DB in the background to not delay the sender
-            try {
-                  await message.save();
-                  // Populate if needed for future cache invalidation, though not strictly required for this specific HTTP response anymore
-            } catch (saveErr) {
-                  console.error("Delayed message save err:", saveErr);
-            }
       } catch (error) {
-            console.error('sendMessage error:', error);
-            res.status(500).json({
-                  success: false,
-                  message: 'Failed to send message',
-                  error: error.message
-            });
+            return handleMessageError(res, 'Failed to send message', error);
       }
 };
 
@@ -364,11 +342,7 @@ const markAsRead = async (req, res) => {
                   message: 'Messages marked as read'
             });
       } catch (error) {
-            res.status(500).json({
-                  success: false,
-                  message: 'Failed to mark messages as read',
-                  error: error.message
-            });
+            return handleMessageError(res, 'Failed to mark messages as read', error);
       }
 };
 
@@ -387,11 +361,7 @@ const getUnreadCount = async (req, res) => {
                   data: { unreadCount: count }
             });
       } catch (error) {
-            res.status(500).json({
-                  success: false,
-                  message: 'Failed to get unread count',
-                  error: error.message
-            });
+            return handleMessageError(res, 'Failed to get unread count', error);
       }
 };
 
@@ -450,12 +420,7 @@ const editMessage = async (req, res) => {
                   data: { message }
             });
       } catch (error) {
-            console.error('editMessage error:', error);
-            res.status(500).json({
-                  success: false,
-                  message: 'Failed to edit message',
-                  error: error.message
-            });
+            return handleMessageError(res, 'Failed to edit message', error);
       }
 };
 
@@ -503,8 +468,15 @@ const deleteMessage = async (req, res) => {
 
                   const deletedPayload = { messageId: message._id, conversationId: message.conversationId };
                   if (message.conversationId) {
-                        // Group chat - emit to all group members via socket room (group room id)
-                        io.to(message.conversationId.toString()).emit('messageDeletedForEveryone', deletedPayload);
+                        const groupConversation = await Conversation.findById(message.conversationId).select('participants').lean();
+                        if (groupConversation?.participants?.length) {
+                              groupConversation.participants.forEach((participantId) => {
+                                    const participantSocketId = getReceiverSocketId(participantId.toString());
+                                    if (participantSocketId) {
+                                          io.to(participantSocketId).emit('messageDeletedForEveryone', deletedPayload);
+                                    }
+                              });
+                        }
                   } else if (message.receiver) {
                         // DM - emit to receiver
                         const receiverSocketId = getReceiverSocketId(message.receiver.toString());
@@ -541,12 +513,7 @@ const deleteMessage = async (req, res) => {
                   });
             }
       } catch (error) {
-            console.error('Delete message error:', error);
-            res.status(500).json({
-                  success: false,
-                  message: 'Failed to delete message',
-                  error: error.message
-            });
+            return handleMessageError(res, 'Failed to delete message', error);
       }
 };
 
@@ -609,12 +576,7 @@ const reactToMessage = async (req, res) => {
                   data: { message }
             });
       } catch (error) {
-            console.error('reactToMessage error:', error);
-            res.status(500).json({
-                  success: false,
-                  message: 'Failed to react to message',
-                  error: error.message
-            });
+            return handleMessageError(res, 'Failed to react to message', error);
       }
 };
 
@@ -657,12 +619,7 @@ const clearChat = async (req, res) => {
                   message: 'Chat cleared successfully'
             });
       } catch (error) {
-            console.error('clearChat error:', error);
-            res.status(500).json({
-                  success: false,
-                  message: 'Failed to clear chat',
-                  error: error.message
-            });
+            return handleMessageError(res, 'Failed to clear chat', error);
       }
 };
 
@@ -813,7 +770,7 @@ const sendGroupMessage = async (req, res) => {
                   };
             }
 
-            const message = new Message(msgData);
+            let message = await Message.create(msgData);
             const lastText = text ? text.trim() : (msgData.media?.type === 'video' ? '🎬 Video' : '📷 Photo');
 
             conversation.lastMessage = { text: lastText, sender: req.user.id, createdAt: new Date() };
@@ -826,10 +783,9 @@ const sendGroupMessage = async (req, res) => {
             });
             await conversation.save();
 
+            await message.populate('sender', 'username displayName avatar');
             const socketPayload = message.toObject();
-            socketPayload.createdAt = new Date();
             if (req.body.clientMsgId) socketPayload.clientMsgId = req.body.clientMsgId;
-            socketPayload.sender = { _id: req.user.id, id: req.user.id, username: req.user.username, displayName: req.user.displayName, avatar: req.user.avatar };
 
             conversation.participants.forEach(pId => {
                   const socketId = getReceiverSocketId(pId.toString());
@@ -840,11 +796,8 @@ const sendGroupMessage = async (req, res) => {
 
             res.status(201).json({ success: true, data: { message: socketPayload } });
 
-            try { await message.save(); } catch (e) { console.error(e); }
-
       } catch (error) {
-            console.error('sendGroupMessage error:', error);
-            res.status(500).json({ success: false, message: 'Failed to send group message', error: error.message });
+            return handleMessageError(res, 'Failed to send group message', error);
       }
 };
 
