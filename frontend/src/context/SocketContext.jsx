@@ -24,16 +24,14 @@ export const SocketContextProvider = ({ children }) => {
                   const socketInstance = io(socketUrl, {
                         query: { userId },
                         auth: { token },
-                        // Allow both WebSocket and polling so it works on ALL networks
                         transports: ['websocket', 'polling'],
                         reconnection: true,
-                        reconnectionAttempts: 15,
-                        reconnectionDelay: 500,
+                        reconnectionAttempts: Infinity, // Keep trying
+                        reconnectionDelay: 1000,
                         reconnectionDelayMax: 5000,
-                        timeout: 10000,
-                        // Upgrade to websocket as soon as possible
+                        timeout: 20000,
                         upgrade: true,
-                        forceNew: false
+                        forceNew: true
                   });
 
                   setSocket(socketInstance);

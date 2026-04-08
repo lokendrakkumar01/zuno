@@ -2,6 +2,7 @@ const { Server } = require("socket.io");
 const http = require("http");
 const express = require("express");
 const jwt = require("jsonwebtoken");
+const User = require("../models/User");
 
 const app = express();
 const server = http.createServer(app);
@@ -65,6 +66,11 @@ io.on("connection", (socket) => {
   if (userId) {
     socket.join(userId);
     userSocketMap[userId] = (userSocketMap[userId] || 0) + 1;
+    
+    // Update online status in DB
+    User.findByIdAndUpdate(userId, { isOnline: true, offlineStatus: null }).catch(err => {
+      console.error(`[Socket] Error updating online status for ${userId}:`, err);
+    });
   }
 
   io.emit("getOnlineUsers", Object.keys(userSocketMap));
@@ -202,10 +208,6 @@ io.on("connection", (socket) => {
     const stream = activeStreams.get(data.hostId);
     if (!stream) return;
     if (stream.bannedViewers?.has(userId)) return;
-    // Slow mode: only host and moderators bypass
-    if (stream.slowMode && userId !== data.hostId) {
-      // enforce 3s cooldown tracked client-side; server just re-emits
-    }
     io.to(stream.roomId).emit("newStreamComment", {
       comment: data.comment, username: data.username,
       avatar: data.avatar, userId, timestamp: new Date().toISOString()
@@ -278,13 +280,21 @@ io.on("connection", (socket) => {
         io.to(stream.roomId).emit("streamEnded", { hostId: hostUserId });
         activeStreams.delete(hostUserId);
         console.log(`[Stream] Host ${hostUserId} disconnected — stream ended`);
-        break;
+      } else if (stream.viewers.has(userId)) {
+        stream.viewers.delete(userId);
+        io.to(stream.hostSocketId).emit("viewerLeft", { viewerId: userId, viewerCount: stream.viewers.size });
       }
     }
 
-    if (userId && userSocketMap[userId]) {
-      userSocketMap[userId]--;
-      if (userSocketMap[userId] === 0) delete userSocketMap[userId];
+    if (userId) {
+      userSocketMap[userId] = Math.max(0, (userSocketMap[userId] || 0) - 1);
+      if (userSocketMap[userId] === 0) {
+        delete userSocketMap[userId];
+        // Update offline status in DB
+        User.findByIdAndUpdate(userId, { isOnline: false, offlineStatus: new Date() }).catch(err => {
+          console.error(`[Socket] Error updating offline status for ${userId}:`, err);
+        });
+      }
     }
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
   });

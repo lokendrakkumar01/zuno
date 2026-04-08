@@ -30,6 +30,8 @@ const ICE_SERVERS = {
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
             { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun3.l.google.com:19302' },
+            { urls: 'stun:stun4.l.google.com:19302' },
             {
                   urls: 'turn:openrelay.metered.ca:80',
                   username: 'openrelayproject',
@@ -45,7 +47,9 @@ const ICE_SERVERS = {
                   username: 'openrelayproject',
                   credential: 'openrelayproject'
             }
-      ]
+      ],
+      iceTransportPolicy: 'all',
+      iceCandidatePoolSize: 10
 };
 
 export const useCallContext = () => useContext(CallContext);
@@ -159,7 +163,12 @@ export const CallProvider = ({ children }) => {
             // For trickle=false, we don't need webrtcSignal events — but keep for compatibility
             const handleWebrtcSignal = (signal) => {
                   if (connectionRef.current) {
-                        try { connectionRef.current.signal(signal); } catch (e) { }
+                        try { 
+                              connectionRef.current.signal(signal); 
+                        } catch (e) { 
+                              console.error('WebRTC Signal error:', e);
+                              showCallToast('⚠️ Connection issue. Retrying...', 'warning');
+                        }
                   }
             };
 
@@ -306,12 +315,15 @@ export const CallProvider = ({ children }) => {
                   });
 
                   peer.on("error", (err) => {
-                        console.error("Peer error:", err);
-                        showCallToast('⚠️ Call connection failed. Please try again.', 'error');
+                        console.error('Peer error:', err);
+                        showCallToast('⚠️ Connection dropped. Please try again.', 'error');
                         leaveCall(true);
                   });
-
-                  peer.on("close", () => { leaveCall(false); });
+                  
+                  peer.on("close", () => {
+                        console.log('Peer connection closed');
+                        leaveCall(false);
+                  });
 
                   connectionRef.current = peer;
 
@@ -324,7 +336,7 @@ export const CallProvider = ({ children }) => {
                   }, 40000);
 
             } catch (err) {
-                  console.error('Failed to get local stream:', err);
+                  console.error('Call initialization failed:', err);
                   setIsCalling(false);
                   isCallingRef.current = false;
                   setShowCallModal(null);
@@ -338,6 +350,7 @@ export const CallProvider = ({ children }) => {
                   } else {
                         showCallToast('⚠️ Could not start call. Check your camera/mic permissions.', 'error');
                   }
+                  leaveCall(false);
             }
       };
 

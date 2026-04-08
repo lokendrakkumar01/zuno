@@ -3,10 +3,12 @@ const router = express.Router();
 const { register, login, getMe, logout, changePassword, resetPassword } = require('../controllers/authController');
 const { protect } = require('../middleware/auth');
 const { authLimiter } = require('../middleware/rateLimit');
+const { registerRules, loginRules } = require('../utils/validationRules');
+const { validate } = require('../middleware/validation');
 
 // Public routes
-router.post('/register', authLimiter, register);
-router.post('/login', authLimiter, login);
+router.post('/register', authLimiter, registerRules(), validate, register);
+router.post('/login', authLimiter, loginRules(), validate, login);
 router.post('/reset-password', authLimiter, resetPassword); // token-based reset from admin
 
 // Protected routes

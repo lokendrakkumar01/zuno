@@ -18,31 +18,60 @@ class ErrorBoundary extends React.Component {
       render() {
             if (this.state.hasError) {
                   return (
-                        <div style={{ padding: '3rem 2rem', textAlign: 'center', fontFamily: 'system-ui, -apple-system, sans-serif', minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                              <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>😔</div>
-                              <h1 style={{ fontSize: '1.5rem', fontWeight: '700', marginBottom: '0.5rem', color: 'var(--text-primary, #1a1a2e)' }}>Something went wrong</h1>
-                              <p style={{ color: 'var(--text-muted, #6b7280)', marginBottom: '1.5rem', maxWidth: '400px' }}>
-                                    Don't worry! Just tap the button below to get back on track.
+                        <div style={{ 
+                              padding: '3rem 2rem', 
+                              textAlign: 'center', 
+                              fontFamily: 'var(--font-family)', 
+                              minHeight: '100vh', 
+                              display: 'flex', 
+                              flexDirection: 'column', 
+                              alignItems: 'center', 
+                              justifyContent: 'center',
+                              background: 'var(--color-bg-primary)',
+                              color: 'var(--color-text-primary)'
+                        }}>
+                              <div style={{ fontSize: '5rem', marginBottom: '1.5rem' }}>✨</div>
+                              <h1 style={{ fontSize: '2rem', fontWeight: '800', marginBottom: '1rem' }}>Something unexpected happened</h1>
+                              <p style={{ color: 'var(--color-text-secondary)', marginBottom: '2.5rem', maxWidth: '500px', fontSize: '1.1rem' }}>
+                                    ZUNO encountered a temporary issue. We've logged the error and our team will look into it. 
+                                    Try refreshing the page to continue your journey.
                               </p>
-                              <button
-                                    onClick={() => {
-                                          this.setState({ hasError: false, error: null, errorInfo: null });
-                                          window.location.reload();
-                                    }}
-                                    style={{
-                                          padding: '12px 32px',
-                                          background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                                          color: 'white',
-                                          border: 'none',
-                                          borderRadius: '12px',
-                                          fontSize: '1rem',
-                                          fontWeight: '600',
-                                          cursor: 'pointer',
-                                          boxShadow: '0 4px 14px rgba(99, 102, 241, 0.4)'
-                                    }}
-                              >
-                                    🔄 Reload App
-                              </button>
+                              <div style={{ display: 'flex', gap: '1rem' }}>
+                                    <button
+                                          onClick={() => {
+                                                this.setState({ hasError: false, error: null, errorInfo: null });
+                                                window.location.reload();
+                                          }}
+                                          style={{
+                                                padding: '1rem 2.5rem',
+                                                background: 'var(--color-accent-primary)',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: 'var(--radius-lg)',
+                                                fontSize: '1.1rem',
+                                                fontWeight: '600',
+                                                cursor: 'pointer',
+                                                boxShadow: 'var(--shadow-md)'
+                                          }}
+                                    >
+                                          Refresh Page
+                                    </button>
+                                    <button
+                                          onClick={() => window.location.href = '/'}
+                                          style={{
+                                                padding: '1rem 2.5rem',
+                                                background: 'transparent',
+                                                color: 'var(--color-text-primary)',
+                                                border: '1px solid var(--color-border)',
+                                                borderRadius: 'var(--radius-lg)',
+                                                fontSize: '1.1rem',
+                                                fontWeight: '600',
+                                                cursor: 'pointer'
+                                          }}
+                                    >
+                                          Go to Home
+                                    </button>
+                              </div>
                         </div>
                   );
             }

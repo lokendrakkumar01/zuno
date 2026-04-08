@@ -18,6 +18,8 @@ const {
 const { protect } = require('../middleware/auth');
 const { uploadMultiple } = require('../middleware/upload');
 const { uploadLimiter } = require('../middleware/rateLimit');
+const { contentRules } = require('../utils/validationRules');
+const { validate } = require('../middleware/validation');
 
 // Public routes
 router.get('/:id', getContent);
@@ -49,7 +51,7 @@ const handleUpload = (req, res, next) => {
 };
 
 // Protected routes
-router.post('/', protect, uploadLimiter, handleUpload, createContent);
+router.post('/', protect, uploadLimiter, handleUpload, contentRules(), validate, createContent);
 router.put('/:id', protect, updateContent);
 router.delete('/:id', protect, deleteContent);
 

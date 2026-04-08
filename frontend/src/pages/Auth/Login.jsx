@@ -93,13 +93,13 @@ const Login = () => {
                   }} />
 
                   <div className="auth-card" style={{ position: 'relative', zIndex: 1 }}>
-                        <Link to="/" className="logo" style={{ justifyContent: 'center', marginBottom: 'var(--space-xl)' }}>
+                        <Link to="/welcome" className="logo" style={{ justifyContent: 'center', marginBottom: 'var(--space-xl)', display: 'flex', alignItems: 'center', gap: '10px' }}>
                               <img src={zunoLogo} alt="ZUNO" className="animate-pulse" style={{ height: '50px', borderRadius: '8px' }} />
-                              <span>ZUNO</span>
+                              <span style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--color-accent-primary)' }}>ZUNO</span>
                         </Link>
 
-                        <h1 className="auth-title animate-fadeInUp">{t('welcomeBack')}</h1>
-                        <p className="auth-subtitle animate-fadeInUp stagger-1">Continue your learning journey</p>
+                        <h1 className="auth-title animate-fadeInUp">Welcome Back</h1>
+                        <p className="auth-subtitle animate-fadeInUp">Continue your journey with ZUNO</p>
 
                         {/* Error / Waking Up Banner */}
                         {error && (
@@ -151,7 +151,7 @@ const Login = () => {
 
                         <form onSubmit={handleSubmit} className="auth-form">
                               <div className="input-group animate-fadeInUp stagger-2">
-                                    <label className="input-label">📧 {t('email')}</label>
+                                    <label className="input-label">Email Address</label>
                                     <input
                                           type="email"
                                           className="input"
@@ -165,7 +165,7 @@ const Login = () => {
                               </div>
 
                               <div className="input-group animate-fadeInUp stagger-3">
-                                    <label className="input-label">🔒 {t('password')}</label>
+                                    <label className="input-label">Password</label>
                                     <div style={{ position: 'relative' }}>
                                           <input
                                                 type={showPassword ? 'text' : 'password'}
@@ -176,7 +176,7 @@ const Login = () => {
                                                 required
                                                 autoComplete="current-password"
                                                 disabled={loading}
-                                                style={{ paddingRight: '48px' }}
+                                                style={{ width: '100%', paddingRight: '48px' }}
                                           />
                                           <button
                                                 type="button"

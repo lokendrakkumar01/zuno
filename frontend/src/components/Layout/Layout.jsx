@@ -2,6 +2,7 @@ import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useSocketContext } from '../../context/SocketContext';
 import { useLanguage } from '../../context/LanguageContext';
+import { useTheme } from '../../context/ThemeContext';
 import { useState, useEffect, useCallback } from 'react';
 import zunoLogo from '../../assets/zuno-logo.png';
 import { API_URL } from '../../config';
@@ -11,6 +12,7 @@ const Layout = () => {
       const { user, isAuthenticated, logout, token } = useAuth();
       const { socket } = useSocketContext();
       const { t } = useLanguage();
+      const { theme, toggleTheme } = useTheme();
       const navigate = useNavigate();
       const location = useLocation();
       const [scrolled, setScrolled] = useState(false);
@@ -109,15 +111,18 @@ const Layout = () => {
                               {/* Desktop Navigation */}
                               <nav className="nav">
                                     <Link to="/" className={`nav-link ${isActive('/') && location.pathname === '/' ? 'active' : ''}`}>
-                                          🏠 {t('home')}
+                                          <HomeIcon />
+                                          <span>{t('home')}</span>
                                     </Link>
                                     {isAuthenticated ? (
                                           <>
                                                 <Link to="/status" className={`nav-link ${isActive('/status') ? 'active' : ''}`}>
-                                                      ⭕ Status
+                                                      <StatusIcon />
+                                                      <span>Status</span>
                                                 </Link>
                                                 <Link to="/messages" className={`nav-link ${isActive('/messages') ? 'active' : ''}`} style={{ position: 'relative' }}>
-                                                      💬 Messages
+                                                      <MessagesIcon />
+                                                      <span>Messages</span>
                                                       {unreadCount > 0 && (
                                                             <span className="nav-unread-badge" style={{
                                                                   position: 'absolute',
@@ -148,9 +153,33 @@ const Layout = () => {
                                                 </Link>
                                                 {user?.role === 'admin' && (
                                                       <Link to="/admin" className="nav-link" style={{ color: 'var(--color-accent-pink)' }}>
-                                                            👑 {t('admin')}
+                                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                                                  <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z" />
+                                                            </svg>
+                                                            <span>Admin</span>
                                                       </Link>
                                                 )}
+                                                
+                                                <button 
+                                                      onClick={toggleTheme} 
+                                                      className="theme-toggle-btn"
+                                                      aria-label="Toggle Theme"
+                                                      style={{
+                                                            background: 'none',
+                                                            border: 'none',
+                                                            cursor: 'pointer',
+                                                            padding: '8px',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            color: 'var(--color-text-primary)',
+                                                            borderRadius: '50%',
+                                                            transition: 'background 0.3s ease'
+                                                      }}
+                                                >
+                                                      {theme === 'light' ? '🌙' : '☀️'}
+                                                </button>
+
                                                 <div className="flex items-center gap-sm" style={{ marginLeft: 'var(--space-sm)' }}>
                                                       <div className="avatar avatar-sm" style={{ cursor: 'pointer', overflow: 'hidden' }} onClick={() => navigate('/profile')}>
                                                             {user?.avatar ? (

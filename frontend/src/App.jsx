@@ -5,10 +5,12 @@ import { SocketContextProvider } from './context/SocketContext';
 import { CallProvider } from './context/CallContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { MusicProvider } from './context/MusicContext';
+import { ThemeProvider } from './context/ThemeContext';
 import SplashScreen from './components/SplashScreen';
 import Layout from './components/Layout/Layout';
 
 // Lazy load all heavy page components
+const Landing = React.lazy(() => import('./pages/Landing'));
 const Home = React.lazy(() => import('./pages/Home'));
 const Login = React.lazy(() => import('./pages/Auth/Login'));
 const Register = React.lazy(() => import('./pages/Auth/Register'));
@@ -75,9 +77,9 @@ function AppRouter() {
             setShowSplash(false);
 
             // Navigate if not already on a route
-            if (window.location.pathname === '/' || window.location.pathname === '/login') {
+            if (window.location.pathname === '/') {
                   if (isAuthenticated) navigate('/');
-                  else navigate('/login');
+                  else navigate('/welcome');
             }
       };
 
@@ -94,12 +96,15 @@ function AppRouter() {
                   <ToastContainer theme="colored" autoClose={4000} />
                   <Suspense fallback={<div style={{ display: 'flex', height: '100vh', width: '100vw', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: '40px', height: '40px', border: '4px solid rgba(255,255,255,0.1)', borderTopColor: '#ef4444', borderRadius: '50%', animation: 'spin 1s linear infinite' }} /></div>}>
                     <Routes>
+                          {/* Welcome/Landing Page */}
+                          <Route path="/welcome" element={!isAuthenticated ? <Landing /> : <Navigate to="/" />} />
+
                           {/* Auth routes - no layout */}
-                          <Route path="/login" element={<Login />} />
-                          <Route path="/register" element={<Register />} />
+                          <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to="/" />} />
+                          <Route path="/register" element={!isAuthenticated ? <Register /> : <Navigate to="/" />} />
 
                           {/* Main routes with layout */}
-                          <Route path="/" element={<Layout />}>
+                          <Route path="/" element={isAuthenticated ? <Layout /> : <Navigate to="/welcome" />}>
                                 <Route index element={<Home />} />
                                 <Route path="upload" element={<Upload />} />
                                 <Route path="profile" element={<Profile />} />
@@ -136,12 +141,6 @@ function AppRouter() {
 }
 
 function App() {
-      // Initialize theme on app load
-      useEffect(() => {
-            const savedTheme = localStorage.getItem('theme') || 'light';
-            document.documentElement.setAttribute('data-theme', savedTheme);
-      }, []);
-
       // Keep-alive ping to prevent Render free tier server from sleeping
       // This helps avoid login failures and content loading delays
       useEffect(() => {
@@ -157,21 +156,23 @@ function App() {
       }, []);
 
       return (
-            <AuthProvider>
-                  <SocketContextProvider>
-                        <LanguageProvider>
-                              <MusicProvider>
-                                    <Router>
-                                          <ErrorBoundary>
-                                                <CallProvider>
-                                                      <AppRouter />
-                                                </CallProvider>
-                                          </ErrorBoundary>
-                                    </Router>
-                              </MusicProvider>
-                        </LanguageProvider>
-                  </SocketContextProvider>
-            </AuthProvider>
+            <ThemeProvider>
+                  <AuthProvider>
+                        <SocketContextProvider>
+                              <LanguageProvider>
+                                    <MusicProvider>
+                                          <Router>
+                                                <ErrorBoundary>
+                                                      <CallProvider>
+                                                            <AppRouter />
+                                                      </CallProvider>
+                                                </ErrorBoundary>
+                                          </Router>
+                                    </MusicProvider>
+                              </LanguageProvider>
+                        </SocketContextProvider>
+                  </AuthProvider>
+            </ThemeProvider>
       );
 }
 

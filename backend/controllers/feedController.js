@@ -1,6 +1,13 @@
 const Content = require('../models/Content');
 const User = require('../models/User');
 
+// Simple in-memory cache for public feed (expires every 2 minutes)
+let feedCache = {
+      data: null,
+      lastUpdated: 0,
+      ttl: 2 * 60 * 1000 // 2 minutes
+};
+
 // @desc    Get feed based on mode
 // @route   GET /api/feed
 // @access  Public/Private
@@ -14,6 +21,12 @@ const getFeed = async (req, res) => {
                   topic
             } = req.query;
 
+            // Use cache for public 'all' mode on first page
+            const isPublicFirstPage = !req.user && mode === 'all' && page == 1 && !contentType && !topic;
+            if (isPublicFirstPage && feedCache.data && (Date.now() - feedCache.lastUpdated < feedCache.ttl)) {
+                  return res.json(feedCache.data);
+            }
+
             // Build query based on mode
             let query = {
                   status: 'published',
@@ -24,7 +37,6 @@ const getFeed = async (req, res) => {
             // Mode-specific filtering
             switch (mode) {
                   case 'all':
-                        // Show ALL published public content - exclude stories/statuses (they go to Status page)
                         query.contentType = { $nin: ['story', 'status', 'text-status'] };
                         break;
                   case 'learning':
@@ -36,7 +48,6 @@ const getFeed = async (req, res) => {
                         query.purpose = { $in: ['inspiration', 'story', 'idea'] };
                         break;
                   case 'video':
-                        // Only show video types (already excludes story/status by being explicit)
                         query.contentType = { $in: ['short-video', 'long-video'] };
                         break;
                   case 'reading':
@@ -51,12 +62,8 @@ const getFeed = async (req, res) => {
             }
 
             // Additional filters
-            if (contentType) {
-                  query.contentType = contentType;
-            }
-            if (topic) {
-                  query.topics = topic;
-            }
+            if (contentType) query.contentType = contentType;
+            if (topic) query.topics = topic;
 
             // If user is logged in, personalized filtering (including blocks)
             if (req.user) {
@@ -64,8 +71,7 @@ const getFeed = async (req, res) => {
                   if (currentUser) {
                         const blockedByMe = currentUser.blockedUsers || [];
                         
-                        // Optimized approach: Combine both directions of blocks into one $nin query
-                        // This prevents showing content from people I blocked AND people who blocked me
+                        // Optimized: Get IDs of users who blocked the current user
                         const whoBlockedMe = await User.find({ blockedUsers: req.user.id }).select('_id').lean();
                         const blockedMeIds = whoBlockedMe.map(u => u._id);
                         
@@ -77,14 +83,10 @@ const getFeed = async (req, res) => {
                   }
             }
 
-            // Sort by quality score (based on helpfulness, not views/likes)
+            // Sort options
             let sortOptions = { createdAt: -1, qualityScore: -1 };
 
-            // If user has interests, we could prioritize, but for now show all public content (sabhi user ka content)
-            // if (userInterests.length > 0) {
-            //       query.topics = { $in: userInterests };
-            // }
-
+            // Fetch content with optimized population
             const contents = await Content.find(query)
                   .populate('creator', 'username displayName avatar role')
                   .sort(sortOptions)
@@ -92,22 +94,18 @@ const getFeed = async (req, res) => {
                   .limit(parseInt(limit))
                   .lean();
 
-            // Remove metrics if silentMode is on for each content
+            // Process content (silentMode check)
             const processedContents = contents.map(c => {
-                  const content = { ...c };
-                  if (content.silentMode) {
-                        delete content.metrics;
+                  if (c.silentMode) {
+                        const { metrics, ...rest } = c;
+                        return rest;
                   }
-                  return content;
+                  return c;
             });
 
             const total = await Content.countDocuments(query);
 
-            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-            res.setHeader('Pragma', 'no-cache');
-            res.setHeader('Expires', '0');
-
-            res.json({
+            const responseData = {
                   success: true,
                   data: {
                         contents: processedContents,
@@ -120,12 +118,27 @@ const getFeed = async (req, res) => {
                               hasMore: page * limit < total
                         }
                   }
-            });
+            };
+
+            // Update cache if applicable
+            if (isPublicFirstPage) {
+                  feedCache = {
+                        data: responseData,
+                        lastUpdated: Date.now(),
+                        ttl: 2 * 60 * 1000
+                  };
+            }
+
+            // Standard caching for browser
+            res.setHeader('Cache-Control', 'public, max-age=60'); // 1 minute browser cache
+
+            res.json(responseData);
       } catch (error) {
+            console.error('[FeedController] Error:', error);
             res.status(500).json({
                   success: false,
                   message: 'Failed to get feed',
-                  error: error.message
+                  error: process.env.NODE_ENV === 'development' ? error.message : undefined
             });
       }
 };

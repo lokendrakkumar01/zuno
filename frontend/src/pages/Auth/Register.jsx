@@ -123,13 +123,13 @@ const Register = () => {
                   <div style={{ position: 'fixed', bottom: '15%', left: '10%', width: '280px', height: '280px', background: 'radial-gradient(circle, rgba(6, 182, 212, 0.08) 0%, transparent 70%)', animation: 'float 9s ease-in-out infinite reverse', zIndex: 0 }} />
 
                   <div className="auth-card" style={{ position: 'relative', zIndex: 1, maxWidth: '480px' }}>
-                        <Link to="/" className="logo" style={{ justifyContent: 'center', marginBottom: 'var(--space-xl)' }}>
+                        <Link to="/welcome" className="logo" style={{ justifyContent: 'center', marginBottom: 'var(--space-xl)', display: 'flex', alignItems: 'center', gap: '10px' }}>
                               <img src={zunoLogo} alt="ZUNO" className="animate-pulse" style={{ height: '50px', borderRadius: '8px' }} />
-                              <span>ZUNO</span>
+                              <span style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--color-accent-primary)' }}>ZUNO</span>
                         </Link>
 
-                        <h1 className="auth-title animate-fadeInUp">{t('join')}</h1>
-                        <p className="auth-subtitle animate-fadeInUp stagger-1">Start your journey of learning and growth</p>
+                        <h1 className="auth-title animate-fadeInUp">Join ZUNO</h1>
+                        <p className="auth-subtitle animate-fadeInUp">Start your journey of learning and growth</p>
 
                         {/* Progress Steps */}
                         <div className="flex gap-sm mb-xl animate-fadeIn" style={{ justifyContent: 'center' }}>
