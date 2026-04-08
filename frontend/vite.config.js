@@ -1,14 +1,14 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
-
 import basicSsl from '@vitejs/plugin-basic-ssl'
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
       plugins: [
             react(),
             nodePolyfills(),
-            basicSsl()
+            // basicSsl is dev-only — only load during `vite dev`, not during `vite build`
+            ...(command === 'serve' ? [basicSsl()] : [])
       ],
       build: {
             outDir: 'dist',
@@ -29,4 +29,4 @@ export default defineConfig({
                   }
             }
       }
-})
+}))

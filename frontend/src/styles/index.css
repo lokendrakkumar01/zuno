@@ -92,11 +92,8 @@
   --transition-normal: 0.3s ease;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    /* Apply dark mode if user prefers it and hasn't explicitly chosen light */
-  }
-}
+
+
 
 /* Header */
 .header {
@@ -683,6 +680,12 @@ video {
 .auth-divider:not(:empty)::after {
   margin-left: .5em;
 }
+
+.card {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-lg);
   transition: all var(--transition-normal);
   position: relative;
   overflow: hidden;
