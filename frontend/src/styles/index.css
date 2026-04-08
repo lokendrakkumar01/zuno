@@ -19,10 +19,17 @@
 
   --color-border: #dbdbdb;
   --color-border-light: #ebedf0;
+  --color-primary: #0095f6;
+  --color-bg-primary-rgb: 255, 255, 255;
+  --container-max: 1200px;
+  --container-padding: 1rem;
   
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.1);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.12);
+  --shadow-xl: 0 20px 36px rgba(0, 0, 0, 0.16);
+  --shadow-glow: 0 8px 24px rgba(0, 149, 246, 0.18);
+  --shadow-glow-lg: 0 14px 34px rgba(0, 149, 246, 0.26);
 }
 
 /* Dark Mode Variables */
@@ -40,6 +47,7 @@
 
   --color-border: #3e4042;
   --color-border-light: #4e4f50;
+  --color-bg-primary-rgb: 24, 25, 26;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
@@ -72,6 +80,9 @@
   --font-size-lg: 1.125rem;
   --font-size-xl: 1.5rem;
   --font-size-2xl: 2rem;
+  --font-size-3xl: 2.5rem;
+  --font-size-4xl: 3rem;
+  --font-size-5xl: 3.5rem;
 
   /* Spacing */
   --space-xs: 0.25rem;
@@ -79,17 +90,34 @@
   --space-md: 1rem;
   --space-lg: 1.5rem;
   --space-xl: 2rem;
+  --space-2xl: 2.75rem;
+  --space-3xl: 3.5rem;
 
   /* Border Radius */
   --radius-sm: 4px;
   --radius-md: 8px;
   --radius-lg: 12px;
   --radius-xl: 20px;
+  --radius-2xl: 24px;
   --radius-full: 9999px;
 
   /* Transitions */
   --transition-fast: 0.2s ease;
   --transition-normal: 0.3s ease;
+  --transition-slow: 0.45s ease;
+  --transition-bounce: 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --gradient-card: linear-gradient(180deg, var(--color-bg-card) 0%, var(--color-bg-secondary) 100%);
+  --gradient-hero: linear-gradient(180deg, var(--color-bg-secondary) 0%, var(--color-bg-primary) 100%);
+  --gradient-glow: radial-gradient(circle, rgba(0, 149, 246, 0.24) 0%, transparent 70%);
+
+  /* Compatibility aliases for legacy page styles */
+  --bg-card: var(--color-bg-card);
+  --bg-secondary: var(--color-bg-secondary);
+  --border-color: var(--color-border);
+  --text-primary: var(--color-text-primary);
+  --text-muted: var(--color-text-muted);
+  --text-color: var(--color-text-primary);
 }
 
 

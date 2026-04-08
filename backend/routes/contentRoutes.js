@@ -15,7 +15,7 @@ const {
       shareContent,
       markAsViewed
 } = require('../controllers/contentController');
-const { protect } = require('../middleware/auth');
+const { protect, optionalProtect } = require('../middleware/auth');
 const { uploadMultiple } = require('../middleware/upload');
 const { uploadLimiter } = require('../middleware/rateLimit');
 const { contentRules } = require('../utils/validationRules');
@@ -25,7 +25,7 @@ const { validate } = require('../middleware/validation');
 // Keep fixed user-prefixed routes BEFORE dynamic :id to avoid route shadowing.
 router.get('/user/my', protect, getMyContent);
 router.get('/user/saved', protect, getSavedContent);
-router.get('/:id', getContent);
+router.get('/:id', optionalProtect, getContent);
 
 // Multer error handler wrapper
 const handleUpload = (req, res, next) => {

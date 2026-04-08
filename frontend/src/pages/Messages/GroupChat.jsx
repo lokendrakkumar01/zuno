@@ -636,11 +636,11 @@ const GroupChat = () => {
                   const data = await res.json();
                   if (!data.success) {
                         console.error('Failed to delete:', data.message);
-                        fetchGroupMessages();
+                        fetchMessages(1);
                   }
             } catch (err) {
                   console.error('Failed to delete message:', err);
-                  fetchGroupMessages();
+                  fetchMessages(1);
             }
       };
 
@@ -1040,10 +1040,6 @@ const GroupChat = () => {
                                                                                     <button key={emoji} onClick={(e) => { e.stopPropagation(); handleReact(msg._id, emoji); }} style={{ fontSize: '1.2rem', background: 'none', border: 'none', cursor: 'pointer' }}>{emoji}</button>
                                                                               ))}
                                                                         </div>
-                                                                        <button onClick={() => { setReplyingTo(msg); setActiveMenu(null); }} className="chat-msg-menu-item">
-                                                                              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z" /></svg>
-                                                                              Reply
-                                                                        </button>
                                                                         <button onClick={() => { setReplyingTo(msg); setActiveMenu(null); }} className="chat-msg-menu-item">
                                                                               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z" /></svg>
                                                                               Reply

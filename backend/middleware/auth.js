@@ -30,6 +30,27 @@ const protect = async (req, res, next) => {
       }
 };
 
+// Optional auth - attach user if token is valid, continue otherwise
+const optionalProtect = async (req, res, next) => {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return next();
+      }
+
+      try {
+            const token = authHeader.split(' ')[1];
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            const user = await User.findById(decoded.id).select('-password');
+            if (user && user.isActive) {
+                  req.user = user;
+            }
+      } catch (error) {
+            // Ignore invalid tokens for public endpoints.
+      }
+
+      return next();
+};
+
 // Admin only access
 const adminOnly = (req, res, next) => {
       if (req.user && req.user.role === 'admin') {
@@ -58,4 +79,4 @@ const creatorAccess = (req, res, next) => {
       }
 };
 
-module.exports = { protect, adminOnly, moderatorAccess, creatorAccess };
+module.exports = { protect, optionalProtect, adminOnly, moderatorAccess, creatorAccess };

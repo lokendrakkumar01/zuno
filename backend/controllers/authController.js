@@ -133,6 +133,12 @@ const login = async (req, res) => {
 const getMe = async (req, res) => {
       try {
             const user = await User.findById(req.user.id);
+            if (!user) {
+                  return res.status(404).json({
+                        success: false,
+                        message: 'User not found'
+                  });
+            }
             res.json({
                   success: true,
                   data: {
@@ -209,8 +215,8 @@ const resetPassword = async (req, res) => {
             if (!token || !userId || !newPassword) {
                   return res.status(400).json({ success: false, message: 'Token, userId and newPassword are required' });
             }
-            if (newPassword.length < 6) {
-                  return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+            if (newPassword.length < 8) {
+                  return res.status(400).json({ success: false, message: 'Password must be at least 8 characters' });
             }
 
             const crypto = require('crypto');

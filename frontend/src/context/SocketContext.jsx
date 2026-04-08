@@ -1,7 +1,7 @@
 import { createContext, useState, useEffect, useContext } from "react";
 import { useAuth } from "./AuthContext";
 import io from "socket.io-client";
-import { API_URL } from "../config";
+import { SOCKET_URL } from "../config";
 
 const SocketContext = createContext();
 
@@ -17,12 +17,7 @@ export const SocketContextProvider = ({ children }) => {
 
       useEffect(() => {
             if (user && token) {
-                  const userId = (user._id || user.id || user).toString();
-                  // Remove /api suffix to get base URL for socket connection
-                  const socketUrl = API_URL.replace(/\/api$/, '');
-
-                  const socketInstance = io(socketUrl, {
-                        query: { userId },
+                  const socketInstance = io(SOCKET_URL, {
                         auth: { token },
                         transports: ['websocket', 'polling'],
                         reconnection: true,

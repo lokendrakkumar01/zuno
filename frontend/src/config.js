@@ -1,15 +1,19 @@
-// Detect production by checking hostname
-const BACKEND_URL = 'https://zuno-backend-bevi.onrender.com';
+const PROD_BACKEND_URL = 'https://zuno-backend-bevi.onrender.com';
 
 const getApiBaseUrl = () => {
-      // For APK (Mobile), window.location.hostname will not be localhost
-      // We should use the live backend URL for the APK to work everywhere
-      return BACKEND_URL;
+      const envUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+      if (envUrl) {
+            return envUrl.replace(/\/+$/, '');
+      }
+      if (import.meta.env.DEV) {
+            return 'http://localhost:5000';
+      }
+      return PROD_BACKEND_URL;
 };
 
 export const API_BASE_URL = getApiBaseUrl();
 export const API_URL = `${API_BASE_URL}/api`;
 
 // Export backend URL for socket connections
-export const SOCKET_URL = BACKEND_URL;
+export const SOCKET_URL = API_BASE_URL;
 

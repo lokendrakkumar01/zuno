@@ -101,6 +101,23 @@ const ContentView = () => {
       const [moreContent, setMoreContent] = useState([]);
       const [moreLoading, setMoreLoading] = useState(false);
 
+      const fetchMoreFromCreator = async (username) => {
+            if (!username) return;
+            setMoreLoading(true);
+            try {
+                  const res = await fetch(`${API_URL}/feed/creator/${username}`);
+                  const data = await res.json();
+                  if (data.success) {
+                        const items = data.data.contents || data.data || [];
+                        setMoreContent(items.filter(i => i._id !== id).slice(0, 4));
+                  }
+            } catch (err) {
+                  console.error(err);
+            } finally {
+                  setMoreLoading(false);
+            }
+      };
+
       useEffect(() => {
             const fetchContent = async () => {
                   setLoading(prev => content ? false : true);
@@ -119,24 +136,6 @@ const ContentView = () => {
                         console.error('Failed to fetch content:', error);
                   }
                   setLoading(false);
-            };
-
-            const fetchMoreFromCreator = async (username) => {
-                  if (!username) return;
-                  setMoreLoading(true);
-                  try {
-                        const res = await fetch(`${API_URL}/feed/creator/${username}`);
-                        const data = await res.json();
-                        if (data.success) {
-                              const items = data.data.contents || data.data || [];
-                              // Filter out current content
-                              setMoreContent(items.filter(i => i._id !== id).slice(0, 4));
-                        }
-                  } catch (err) {
-                        console.error(err);
-                  } finally {
-                        setMoreLoading(false);
-                  }
             };
 
             fetchContent();

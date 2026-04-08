@@ -2,6 +2,9 @@ const { Message, Conversation } = require('../models/Message');
 const User = require('../models/User');
 const { getReceiverSocketId, io } = require('../socket/socket');
 
+const hasUserId = (idList, id) =>
+      Array.isArray(idList) && idList.some((entry) => entry?.toString() === id?.toString());
+
 const handleMessageError = (res, userMessage, error) => {
       if (process.env.NODE_ENV !== 'production') {
             console.error(`[Messages] ${userMessage}:`, error);
@@ -158,12 +161,7 @@ const getMessages = async (req, res) => {
                   }
             });
       } catch (error) {
-            console.error('getMessages error:', error);
-            res.status(500).json({
-                  success: false,
-                  message: 'Failed to get messages',
-                  error: error.message
-            });
+            return handleMessageError(res, 'Failed to get messages', error);
       }
 };
 
@@ -202,14 +200,14 @@ const sendMessage = async (req, res) => {
  
             // Check if blocked — use lean
             const currentUser = await User.findById(req.user.id).lean();
-            if (currentUser.blockedUsers.includes(userId)) {
+            if (hasUserId(currentUser?.blockedUsers, userId)) {
                   return res.status(403).json({
                         success: false,
                         message: 'You have blocked this user. Unblock them to send messages.'
                   });
             }
  
-            if (receiver.blockedUsers.includes(req.user.id)) {
+            if (hasUserId(receiver?.blockedUsers, req.user.id)) {
                   return res.status(403).json({
                         success: false,
                         message: 'This user is unavailable'
@@ -534,10 +532,17 @@ const reactToMessage = async (req, res) => {
                   return res.status(404).json({ success: false, message: 'Message not found' });
             }
 
-            // Must be sender or receiver (or a group message participant)
-            if (message.sender.toString() !== req.user.id && 
-                  message.receiver && message.receiver.toString() !== req.user.id &&
-                  !message.conversationId) {
+            // Must be sender/receiver for DMs, or participant for group conversations.
+            const isSender = message.sender.toString() === req.user.id;
+            const isReceiver = message.receiver && message.receiver.toString() === req.user.id;
+            let isGroupParticipant = false;
+
+            if (message.conversationId) {
+                  const conversation = await Conversation.findById(message.conversationId).select('participants').lean();
+                  isGroupParticipant = hasUserId(conversation?.participants, req.user.id);
+            }
+
+            if (!isSender && !isReceiver && !isGroupParticipant) {
                   return res.status(403).json({ success: false, message: 'Not authorized' });
             }
 
@@ -562,12 +567,16 @@ const reactToMessage = async (req, res) => {
             await message.populate('reactions.user', 'username displayName avatar');
 
             // Send via socket
-            const receiverId = message.sender.toString() === req.user.id ? message.receiver.toString() : message.sender.toString();
+            const receiverId = message.sender.toString() === req.user.id
+                  ? message.receiver?.toString()
+                  : message.sender.toString();
 
-            // Broadcast to the other user's specific room
-            io.to(receiverId).emit("messageReaction", { messageId, reactions: message.reactions });
+            // Broadcast to the other user's specific room when available
+            if (receiverId) {
+                  io.to(receiverId).emit("messageReaction", { messageId, reactions: message.reactions });
+            }
 
-            // Also broadcast to the current user's room (so their other open tabs instantly sync)
+            // Also broadcast to the current user's room so their other tabs instantly sync
             io.to(req.user.id).emit("messageReaction", { messageId, reactions: message.reactions });
 
             res.json({
@@ -744,7 +753,7 @@ const sendGroupMessage = async (req, res) => {
                   return res.status(404).json({ success: false, message: 'Group not found' });
             }
 
-            if (!conversation.participants.includes(req.user.id)) {
+            if (!hasUserId(conversation.participants, req.user.id)) {
                   return res.status(403).json({ success: false, message: 'Not a member' });
             }
 
@@ -846,7 +855,10 @@ const addGroupParticipants = async (req, res) => {
                   return res.status(404).json({ success: false, message: 'Group not found' });
             }
             
-            // Anyone can add participants, removed admin check
+            // Only group admin can add participants
+            if (conversation.groupAdmin.toString() !== req.user.id) {
+                  return res.status(403).json({ success: false, message: 'Only the group admin can add participants' });
+            }
 
             if (!participants || participants.length === 0) {
                    return res.status(400).json({ success: false, message: 'No participants provided' });
