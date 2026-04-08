@@ -157,15 +157,19 @@ io.on("connection", (socket) => {
   // ── Live Streaming (Socket signaling + chat; video via LiveKit SFU) ──
   socket.on("startStream", (data) => {
     const roomId = data.roomId || `stream_${userId}`;
+    const existingStream = activeStreams.get(userId) || {};
     socket.join(roomId);
     activeStreams.set(userId, {
+      ...existingStream,
+      id: existingStream.id || roomId,
+      hostId: existingStream.hostId || userId,
       roomId,
-      title: data.title || '',
-      viewers: new Set(),
+      title: data.title || existingStream.title || '',
+      viewers: existingStream.viewers || new Set(),
       hostSocketId: socket.id,
-      bannedViewers: new Set(),
-      slowMode: false,
-      pinnedComment: null
+      bannedViewers: existingStream.bannedViewers || new Set(),
+      slowMode: existingStream.slowMode || false,
+      pinnedComment: existingStream.pinnedComment || null
     });
     io.emit("streamStarted", { hostId: userId, title: data.title, roomId });
     console.log(`[Stream] Started by ${userId} — room: ${roomId}`);

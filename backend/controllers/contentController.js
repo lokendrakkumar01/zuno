@@ -292,6 +292,9 @@ const markHelpful = async (req, res) => {
                   content: req.params.id,
                   type: { $in: ['helpful', 'not-useful'] }
             });
+            const previousType = existing?.type || null;
+            let helpfulReceivedDelta = 0;
+            let shouldNotifyHelpful = false;
 
             if (existing) {
                   // Update existing interaction
@@ -299,12 +302,15 @@ const markHelpful = async (req, res) => {
                         // Remove the helpful mark
                         await Interaction.findByIdAndDelete(existing._id);
                         content.metrics.helpfulCount = Math.max(0, content.metrics.helpfulCount - 1);
+                        helpfulReceivedDelta = -1;
                   } else {
                         // Change from not-useful to helpful
                         existing.type = 'helpful';
                         await existing.save();
                         content.metrics.helpfulCount += 1;
                         content.metrics.notUsefulCount = Math.max(0, content.metrics.notUsefulCount - 1);
+                        helpfulReceivedDelta = 1;
+                        shouldNotifyHelpful = true;
                   }
             } else {
                   // Create new interaction
@@ -314,12 +320,14 @@ const markHelpful = async (req, res) => {
                         type: 'helpful'
                   });
                   content.metrics.helpfulCount += 1;
+                  helpfulReceivedDelta = 1;
+                  shouldNotifyHelpful = true;
             }
 
             await content.save();
 
             // Notify creator that someone marked their content as helpful
-            if (existing?.type !== 'helpful') { // Only on new helpful mark
+            if (shouldNotifyHelpful && previousType !== 'helpful') {
                   const { getReceiverSocketId, io } = require('../socket/socket');
                   const receiverSocketId = getReceiverSocketId(content.creator.toString());
                   if (receiverSocketId && content.creator.toString() !== req.user.id) {
@@ -338,9 +346,11 @@ const markHelpful = async (req, res) => {
             }
 
             // Update creator's helpful received stat
-            await User.findByIdAndUpdate(content.creator, {
-                  $inc: { 'stats.helpfulReceived': existing?.type === 'helpful' ? -1 : 1 }
-            });
+            if (helpfulReceivedDelta !== 0) {
+                  await User.findByIdAndUpdate(content.creator, {
+                        $inc: { 'stats.helpfulReceived': helpfulReceivedDelta }
+                  });
+            }
 
             res.json({
                   success: true,
@@ -375,6 +385,8 @@ const markNotUseful = async (req, res) => {
                   content: req.params.id,
                   type: { $in: ['helpful', 'not-useful'] }
             });
+            const previousType = existing?.type || null;
+            let helpfulReceivedDelta = 0;
 
             if (existing) {
                   if (existing.type === 'not-useful') {
@@ -385,6 +397,9 @@ const markNotUseful = async (req, res) => {
                         await existing.save();
                         content.metrics.notUsefulCount += 1;
                         content.metrics.helpfulCount = Math.max(0, content.metrics.helpfulCount - 1);
+                        if (previousType === 'helpful') {
+                              helpfulReceivedDelta = -1;
+                        }
                   }
             } else {
                   await Interaction.create({
@@ -396,6 +411,12 @@ const markNotUseful = async (req, res) => {
             }
 
             await content.save();
+
+            if (helpfulReceivedDelta !== 0) {
+                  await User.findByIdAndUpdate(content.creator, {
+                        $inc: { 'stats.helpfulReceived': helpfulReceivedDelta }
+                  });
+            }
 
             res.json({
                   success: true,

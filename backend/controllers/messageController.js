@@ -96,25 +96,17 @@ const getMessages = async (req, res) => {
                   isGroup: false
             }).lean();
 
-            let messageQuery;
-            if (conversation) {
-                  // Fast path: single field index on conversationId
-                  messageQuery = {
-                        conversationId: conversation._id,
-                        deletedBy: { $ne: req.user.id },
-                        ...cursorFilter
-                  };
-            } else {
-                  // Legacy fallback: $or sender/receiver query
-                  messageQuery = {
-                        $or: [
-                              { sender: req.user.id, receiver: userId },
-                              { sender: userId, receiver: req.user.id }
-                        ],
-                        deletedBy: { $ne: req.user.id },
-                        ...cursorFilter
-                  };
-            }
+            const legacyDmBranches = [
+                  { sender: req.user.id, receiver: userId },
+                  { sender: userId, receiver: req.user.id }
+            ];
+            const messageQuery = {
+                  $or: conversation
+                        ? [{ conversationId: conversation._id }, ...legacyDmBranches]
+                        : legacyDmBranches,
+                  deletedBy: { $ne: req.user.id },
+                  ...cursorFilter
+            };
 
             const messages = await Message.find(messageQuery)
                   .sort({ createdAt: -1 }) // newest first — frontend reverses for display
@@ -257,40 +249,43 @@ const sendMessage = async (req, res) => {
                   }
             }
 
-            // Create message instance but DO NOT await save yet
-            const message = new Message(msgData);
-
             // Conversation last message text
             const lastText = text ? text.trim() : (msgData.media?.type === 'video' ? '🎬 Video' : '📷 Photo');
 
-            // Fire and forget conversation update to speed up socket delivery
-            Conversation.findOne({
-                  participants: { $all: [req.user.id, userId] }
-            }).then(conversation => {
-                  if (conversation) {
-                        conversation.lastMessage = {
+            let conversation = await Conversation.findOne({
+                  participants: { $all: [req.user.id, userId] },
+                  isGroup: false
+            });
+
+            if (conversation) {
+                  conversation.lastMessage = {
+                        text: lastText,
+                        sender: req.user.id,
+                        createdAt: new Date()
+                  };
+                  if (!conversation.unreadCount) {
+                        conversation.unreadCount = new Map();
+                  }
+                  const currentUnread = conversation.unreadCount.get(userId) || 0;
+                  conversation.unreadCount.set(userId, currentUnread + 1);
+                  await conversation.save();
+            } else {
+                  conversation = await Conversation.create({
+                        participants: [req.user.id, userId],
+                        isGroup: false,
+                        lastMessage: {
                               text: lastText,
                               sender: req.user.id,
                               createdAt: new Date()
-                        };
-                        if (!conversation.unreadCount) {
-                              conversation.unreadCount = new Map();
-                        }
-                        const currentUnread = conversation.unreadCount.get(userId) || 0;
-                        conversation.unreadCount.set(userId, currentUnread + 1);
-                        return conversation.save();
-                  } else {
-                        return Conversation.create({
-                              participants: [req.user.id, userId],
-                              lastMessage: {
-                                    text: lastText,
-                                    sender: req.user.id,
-                                    createdAt: new Date()
-                              },
-                              unreadCount: new Map([[userId, 1]])
-                        });
-                  }
-            }).catch(err => console.error("Conversation err:", err));
+                        },
+                        unreadCount: new Map([[userId, 1]])
+                  });
+            }
+
+            msgData.conversationId = conversation._id;
+
+            // Create message instance after the DM conversation is known.
+            const message = new Message(msgData);
 
             // Construct manual populated payload for INSTANT socket delivery
             const socketPayload = message.toObject();
