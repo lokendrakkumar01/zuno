@@ -102,6 +102,13 @@ const ContentView = () => {
       const [moreContent, setMoreContent] = useState([]);
       const [moreLoading, setMoreLoading] = useState(false);
 
+      const updateContentState = (updater) => {
+            setContent((prev) => {
+                  if (!prev) return prev;
+                  return typeof updater === 'function' ? updater(prev) : updater;
+            });
+      };
+
       const fetchMoreFromCreator = async (username) => {
             if (!username) return;
             setMoreLoading(true);
@@ -123,10 +130,14 @@ const ContentView = () => {
             const fetchContent = async () => {
                   setLoading(prev => content ? false : true);
                   try {
-                        const res = await fetch(`${API_URL}/content/${id}`);
+                        const res = await fetch(`${API_URL}/content/${id}`, {
+                              headers: token ? { Authorization: `Bearer ${token}` } : {}
+                        });
                         const data = await res.json();
                         if (data.success) {
                               setContent(data.data.content);
+                              setIsHelpful(Boolean(data.data.content?.viewerState?.isHelpful));
+                              setIsSaved(Boolean(data.data.content?.viewerState?.isSaved));
                               try {
                                     localStorage.setItem(`zuno_content_${id}`, JSON.stringify(data.data.content));
                               } catch (e) { }
@@ -140,7 +151,7 @@ const ContentView = () => {
             };
 
             fetchContent();
-      }, [id]);
+      }, [id, token]);
 
       useEffect(() => {
             if (content?.creator?.username) {
@@ -265,6 +276,21 @@ const ContentView = () => {
                                     )}
                               </div>
 
+                              <div className="mb-2xl">
+                                    <CommentSection
+                                          contentId={content._id}
+                                          onCountChange={(commentCount) => {
+                                                updateContentState((prev) => ({
+                                                      ...prev,
+                                                      metrics: {
+                                                            ...(prev.metrics || {}),
+                                                            commentCount
+                                                      }
+                                                }));
+                                          }}
+                                    />
+                              </div>
+
                               {/* Technical Details: Chapters / Notes */}
                               {(content.chapters?.length > 0 || content.notes) && (
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-lg mb-2xl">
@@ -345,6 +371,18 @@ const ContentView = () => {
                                     <div className="card p-lg mb-lg border-2 border-indigo-50 shadow-sm">
                                           <h4 className="font-bold mb-lg" style={{ fontSize: '0.9rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Actions</h4>
                                           <div className="flex flex-col gap-md">
+                                                <button
+                                                      className="btn btn-secondary w-full flex items-center justify-center gap-sm"
+                                                      onClick={() => {
+                                                            const commentsSection = document.getElementById('comments');
+                                                            if (commentsSection) {
+                                                                  commentsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                            }
+                                                      }}
+                                                >
+                                                      <span style={{ fontSize: '1.2rem' }}>💬</span>
+                                                      Comments ({content.metrics?.commentCount || 0})
+                                                </button>
                                                 <button className={`btn w-full flex items-center justify-center gap-sm ${isHelpful ? 'btn-primary' : 'btn-secondary'}`} onClick={handleHelpful}>
                                                       <span style={{ fontSize: '1.2rem' }}>{isHelpful ? '✅' : '👍'}</span>
                                                       {isHelpful ? 'Helpful' : 'Mark as Helpful'}
