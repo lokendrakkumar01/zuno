@@ -4,8 +4,7 @@ import {
       LiveKitRoom,
       RoomAudioRenderer,
       VideoConference,
-      ControlBar,
-      useRoomContext
+      ControlBar
 } from '@livekit/components-react';
 import '@livekit/components-styles';
 import { useAuth } from '../context/AuthContext';
@@ -30,35 +29,6 @@ const normalizeLiveKitUrl = (value) => {
       }
 
       return trimmed;
-};
-
-const HostMediaBootstrap = ({ enabled, onError }) => {
-      const room = useRoomContext();
-
-      useEffect(() => {
-            if (!enabled || !room) return undefined;
-
-            let mounted = true;
-
-            const startLocalMedia = async () => {
-                  try {
-                        await room.localParticipant.setMicrophoneEnabled(true);
-                        await room.localParticipant.setCameraEnabled(true);
-                  } catch (error) {
-                        if (mounted) {
-                              onError?.(error);
-                        }
-                  }
-            };
-
-            startLocalMedia();
-
-            return () => {
-                  mounted = false;
-            };
-      }, [enabled, onError, room]);
-
-      return null;
 };
 
 const ReactionsManager = memo(({ socket }) => {
@@ -522,10 +492,6 @@ const LiveStream = () => {
                                           }
                                     }}
                               >
-                                    <HostMediaBootstrap
-                                          enabled={isHostMode}
-                                          onError={(error) => handleRoomError(error.message || 'Could not start camera or microphone.')}
-                                    />
                                     <VideoConference />
                                     <RoomAudioRenderer />
                                     {isHostMode && (
