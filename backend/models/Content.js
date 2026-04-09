@@ -98,7 +98,8 @@ const contentSchema = new mongoose.Schema({
             viewCount: { type: Number, default: 0 },
             viewedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
             saveCount: { type: Number, default: 0 },
-            shareCount: { type: Number, default: 0 }
+            shareCount: { type: Number, default: 0 },
+            commentCount: { type: Number, default: 0 }
       },
 
       // Calculated quality score (for feed ranking)

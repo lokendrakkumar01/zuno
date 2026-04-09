@@ -7,6 +7,7 @@ const Content = require('../models/Content');
 const addComment = async (req, res) => {
       try {
             const { text } = req.body;
+            const trimmedText = text?.trim();
             const content = await Content.findById(req.params.contentId);
 
             if (!content) {
@@ -16,11 +17,20 @@ const addComment = async (req, res) => {
                   });
             }
 
+            if (!trimmedText) {
+                  return res.status(400).json({
+                        success: false,
+                        message: 'Comment text is required'
+                  });
+            }
+
             const comment = await Comment.create({
                   user: req.user.id,
                   content: req.params.contentId,
-                  text
+                  text: trimmedText
             });
+            content.metrics.commentCount = (content.metrics.commentCount || 0) + 1;
+            await content.save();
 
             const populatedComment = await Comment.findById(comment._id).populate('user', 'username displayName avatar');
 
@@ -37,7 +47,10 @@ const addComment = async (req, res) => {
 
             res.status(201).json({
                   success: true,
-                  data: { comment: populatedComment }
+                  data: {
+                        comment: populatedComment,
+                        commentCount: content.metrics.commentCount
+                  }
             });
       } catch (error) {
             res.status(500).json({
@@ -93,10 +106,17 @@ const deleteComment = async (req, res) => {
             }
 
             await Comment.findByIdAndDelete(req.params.id);
+            await Content.findByIdAndUpdate(comment.content, {
+                  $inc: { 'metrics.commentCount': -1 }
+            });
+            const updatedContent = await Content.findById(comment.content).select('metrics.commentCount').lean();
 
             res.json({
                   success: true,
-                  message: 'Comment deleted'
+                  message: 'Comment deleted',
+                  data: {
+                        commentCount: Math.max(0, updatedContent?.metrics?.commentCount || 0)
+                  }
             });
       } catch (error) {
             res.status(500).json({

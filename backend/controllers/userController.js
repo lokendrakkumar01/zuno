@@ -226,7 +226,17 @@ const followUser = async (req, res) => {
                         });
                   }
 
-                  return res.json({ success: true, message: "Follow request sent", status: "requested" });
+                  return res.json({
+                        success: true,
+                        message: "Follow request sent",
+                        status: "requested",
+                        data: {
+                              isFollowing: false,
+                              isRequested: true,
+                              followersCount: userToFollow.followers.length,
+                              followingCount: currentUser.following.length
+                        }
+                  });
             } else {
                   await Promise.all([
                         currentUser.updateOne({ $push: { following: req.params.id } }),
@@ -246,7 +256,17 @@ const followUser = async (req, res) => {
                         });
                   }
 
-                  return res.json({ success: true, message: "User followed", status: "following" });
+                  return res.json({
+                        success: true,
+                        message: "User followed",
+                        status: "following",
+                        data: {
+                              isFollowing: true,
+                              isRequested: false,
+                              followersCount: userToFollow.followers.length + 1,
+                              followingCount: currentUser.following.length + 1
+                        }
+                  });
             }
       } catch (error) {
             console.error('followUser error:', error.message, error.stack);
@@ -275,11 +295,29 @@ const unfollowUser = async (req, res) => {
                         currentUser.updateOne({ $pull: { following: req.params.id } }),
                         userToUnfollow.updateOne({ $pull: { followers: req.user.id } })
                   ]);
-                  res.json({ success: true, message: "User unfollowed" });
+                  res.json({
+                        success: true,
+                        message: "User unfollowed",
+                        data: {
+                              isFollowing: false,
+                              isRequested: false,
+                              followersCount: Math.max(0, userToUnfollow.followers.length - 1),
+                              followingCount: Math.max(0, currentUser.following.length - 1)
+                        }
+                  });
             } else if (userToUnfollow.followRequests.includes(req.user.id)) {
                   // Check if there was a pending request and remove it
                   await userToUnfollow.updateOne({ $pull: { followRequests: req.user.id } });
-                  res.json({ success: true, message: "Follow request cancelled" });
+                  res.json({
+                        success: true,
+                        message: "Follow request cancelled",
+                        data: {
+                              isFollowing: false,
+                              isRequested: false,
+                              followersCount: userToUnfollow.followers.length,
+                              followingCount: currentUser.following.length
+                        }
+                  });
             } else {
                   res.status(400).json({ success: false, message: "You do not follow this user" });
             }

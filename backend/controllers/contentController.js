@@ -1,6 +1,13 @@
 const Content = require('../models/Content');
 const Interaction = require('../models/Interaction');
 const User = require('../models/User');
+const {
+      decorateContentsForViewer,
+      decorateContentForViewer
+} = require('../utils/contentPresentation');
+
+const hasId = (idList, id) =>
+      Array.isArray(idList) && idList.some((entry) => entry?.toString() === id?.toString());
 
 // @desc    Create new content (photo, post, video, live)
 // @route   POST /api/content
@@ -124,7 +131,7 @@ const getContent = async (req, res) => {
 
                         if (req.user) {
                               const isOwner = req.user.id === creator._id.toString();
-                              const isFollower = creator.followers && creator.followers.includes(req.user.id);
+                              const isFollower = hasId(creator.followers, req.user.id);
                               if (isOwner || isFollower || req.user.role === 'admin') {
                                     isAllowed = true;
                               }
@@ -143,7 +150,7 @@ const getContent = async (req, res) => {
             let isNewView = false;
             
             // If logged in and hasn't viewed
-            if (req.user && !content.metrics.viewedBy.includes(req.user.id)) {
+            if (req.user && !hasId(content.metrics.viewedBy, req.user.id)) {
                   content.metrics.viewedBy.push(req.user.id);
                   isNewView = true;
             } 
@@ -158,7 +165,7 @@ const getContent = async (req, res) => {
             }
 
             // Prepare response (hide metrics if silentMode)
-            const responseContent = content.toObject();
+            const responseContent = await decorateContentForViewer(content, req.user?.id);
             if (content.silentMode) {
                   delete responseContent.metrics;
             }
@@ -294,7 +301,9 @@ const markHelpful = async (req, res) => {
             });
             const previousType = existing?.type || null;
             let helpfulReceivedDelta = 0;
+            let isNotUseful = false;
             let shouldNotifyHelpful = false;
+            let isHelpful = false;
 
             if (existing) {
                   // Update existing interaction
@@ -311,6 +320,7 @@ const markHelpful = async (req, res) => {
                         content.metrics.notUsefulCount = Math.max(0, content.metrics.notUsefulCount - 1);
                         helpfulReceivedDelta = 1;
                         shouldNotifyHelpful = true;
+                        isHelpful = true;
                   }
             } else {
                   // Create new interaction
@@ -322,6 +332,7 @@ const markHelpful = async (req, res) => {
                   content.metrics.helpfulCount += 1;
                   helpfulReceivedDelta = 1;
                   shouldNotifyHelpful = true;
+                  isHelpful = true;
             }
 
             await content.save();
@@ -354,7 +365,12 @@ const markHelpful = async (req, res) => {
 
             res.json({
                   success: true,
-                  message: 'Feedback recorded privately'
+                  message: 'Feedback recorded privately',
+                  data: {
+                        isHelpful,
+                        helpfulCount: content.metrics.helpfulCount,
+                        notUsefulCount: content.metrics.notUsefulCount
+                  }
             });
       } catch (error) {
             res.status(500).json({
@@ -400,6 +416,7 @@ const markNotUseful = async (req, res) => {
                         if (previousType === 'helpful') {
                               helpfulReceivedDelta = -1;
                         }
+                        isNotUseful = true;
                   }
             } else {
                   await Interaction.create({
@@ -408,6 +425,7 @@ const markNotUseful = async (req, res) => {
                         type: 'not-useful'
                   });
                   content.metrics.notUsefulCount += 1;
+                  isNotUseful = true;
             }
 
             await content.save();
@@ -420,7 +438,12 @@ const markNotUseful = async (req, res) => {
 
             res.json({
                   success: true,
-                  message: 'Feedback recorded. We\'ll improve your feed.'
+                  message: 'Feedback recorded. We\'ll improve your feed.',
+                  data: {
+                        isNotUseful,
+                        helpfulCount: content.metrics.helpfulCount,
+                        notUsefulCount: content.metrics.notUsefulCount
+                  }
             });
       } catch (error) {
             res.status(500).json({
@@ -453,12 +476,16 @@ const saveContent = async (req, res) => {
 
             if (existing) {
                   await Interaction.findByIdAndDelete(existing._id);
-                        content.metrics.saveCount = Math.max(0, content.metrics.saveCount - 1);
+                  content.metrics.saveCount = Math.max(0, content.metrics.saveCount - 1);
                   await content.save();
 
-                  res.json({
+                  return res.json({
                         success: true,
-                        message: 'Removed from saved items'
+                        message: 'Removed from saved items',
+                        data: {
+                              isSaved: false,
+                              saveCount: content.metrics.saveCount
+                        }
                   });
             } else {
                   await Interaction.create({
@@ -471,6 +498,10 @@ const saveContent = async (req, res) => {
 
                   res.json({
                         success: true,
+                        data: {
+                              isSaved: true,
+                              saveCount: content.metrics.saveCount
+                        },
                         message: 'Saved for later 📌'
                   });
             }
@@ -551,11 +582,12 @@ const getMyContent = async (req, res) => {
                   .limit(parseInt(limit));
 
             const total = await Content.countDocuments(query);
+            const decoratedContents = await decorateContentsForViewer(contents, req.user.id);
 
             res.json({
                   success: true,
                   data: {
-                        contents,
+                        contents: decoratedContents,
                         pagination: {
                               page: parseInt(page),
                               limit: parseInt(limit),
@@ -595,10 +627,11 @@ const getSavedContent = async (req, res) => {
             const contents = savedInteractions
                   .filter(i => i.content)
                   .map(i => i.content);
+            const decoratedContents = await decorateContentsForViewer(contents, req.user.id);
 
             res.json({
                   success: true,
-                  data: { contents }
+                  data: { contents: decoratedContents }
             });
       } catch (error) {
             res.status(500).json({
@@ -622,7 +655,14 @@ const shareContent = async (req, res) => {
             content.metrics.shareCount += 1;
             await content.save();
 
-            res.json({ success: true, message: "Content shared", data: { shareCount: content.metrics.shareCount } });
+            res.json({
+                  success: true,
+                  message: "Content shared",
+                  data: {
+                        shareCount: content.metrics.shareCount,
+                        shareUrl: `${process.env.CLIENT_URL || ''}/content/${content._id}`
+                  }
+            });
       } catch (error) {
             res.status(500).json({ success: false, message: "Failed to share content", error: error.message });
       }
@@ -642,7 +682,7 @@ const markAsViewed = async (req, res) => {
 
             let isNewView = false;
             
-            if (req.user && !content.metrics.viewedBy.includes(req.user.id)) {
+            if (req.user && !hasId(content.metrics.viewedBy, req.user.id)) {
                   content.metrics.viewedBy.push(req.user.id);
                   isNewView = true;
             } else if (!req.user) {

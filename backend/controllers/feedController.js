@@ -1,5 +1,6 @@
 const Content = require('../models/Content');
 const User = require('../models/User');
+const { decorateContentsForViewer } = require('../utils/contentPresentation');
 
 // Simple in-memory cache for public feed (expires every 2 minutes)
 let feedCache = {
@@ -93,9 +94,10 @@ const getFeed = async (req, res) => {
                   .skip((page - 1) * limit)
                   .limit(parseInt(limit))
                   .lean();
+            const decoratedContents = await decorateContentsForViewer(contents, req.user?.id);
 
             // Process content (silentMode check)
-            const processedContents = contents.map(c => {
+            const processedContents = decoratedContents.map(c => {
                   if (c.silentMode) {
                         const { metrics, ...rest } = c;
                         return rest;
@@ -165,6 +167,7 @@ const getFeedByTopic = async (req, res) => {
                   .skip((page - 1) * limit)
                   .limit(parseInt(limit))
                   .lean();
+            const decoratedContents = await decorateContentsForViewer(contents, req.user?.id);
 
             const total = await Content.countDocuments(query);
 
@@ -175,7 +178,7 @@ const getFeedByTopic = async (req, res) => {
             res.json({
                   success: true,
                   data: {
-                        contents,
+                        contents: decoratedContents,
                         topic,
                         pagination: {
                               page: parseInt(page),
@@ -245,6 +248,7 @@ const getCreatorFeed = async (req, res) => {
                   .skip((page - 1) * limit)
                   .limit(parseInt(limit))
                   .lean();
+            const decoratedContents = await decorateContentsForViewer(contents, req.user?.id);
 
             const total = await Content.countDocuments(query);
 
@@ -258,7 +262,7 @@ const getCreatorFeed = async (req, res) => {
                   success: true,
                   data: {
                         creator: creator.getPublicProfile(),
-                        contents,
+                        contents: decoratedContents,
                         pagination: {
                               page: parseInt(page),
                               limit: parseInt(limit),
@@ -308,13 +312,14 @@ const searchContent = async (req, res) => {
                   .skip((page - 1) * limit)
                   .limit(parseInt(limit))
                   .lean();
+            const decoratedContents = await decorateContentsForViewer(contents, req.user?.id);
 
             const total = await Content.countDocuments(query);
 
             res.json({
                   success: true,
                   data: {
-                        contents,
+                        contents: decoratedContents,
                         query: q,
                         pagination: {
                               page: parseInt(page),

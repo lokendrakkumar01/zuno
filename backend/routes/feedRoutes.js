@@ -29,8 +29,8 @@ const optionalAuth = async (req, res, next) => {
 // Public routes (with optional personalization if logged in)
 router.get('/', optionalAuth, getFeed);
 router.get('/stories', optionalAuth, getActiveStories);
-router.get('/search', searchContent);
-router.get('/topic/:topic', getFeedByTopic);
+router.get('/search', optionalAuth, searchContent);
+router.get('/topic/:topic', optionalAuth, getFeedByTopic);
 router.get('/creator/:username', optionalAuth, getCreatorFeed);
 
 module.exports = router;

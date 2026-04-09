@@ -90,7 +90,9 @@ const SavedContent = () => {
                                           <ContentCard
                                                 key={post._id}
                                                 content={post}
-                                                onDelete={() => handleUnsave(post._id)}
+                                                onSaveChange={(contentId, isSaved) => {
+                                                      if (!isSaved) handleUnsave(contentId);
+                                                }}
                                           />
                                     ))}
                               </div>
