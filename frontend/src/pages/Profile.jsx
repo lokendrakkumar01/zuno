@@ -932,7 +932,7 @@ const Profile = () => {
                                                       className="btn btn-secondary flex-1 min-w-[120px]"
                                                       style={{ position: 'relative' }}
                                                 >
-                                                      Inbox
+                                                      Messages
                                                 </button>
                                                 <button
                                                       onClick={() => navigate('/settings')}
