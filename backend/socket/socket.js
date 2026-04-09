@@ -56,8 +56,87 @@ io.use((socket, next) => {
 });
 
 const userSocketMap = {};  // {userId: count}
-const activeCalls = new Map(); // {socketId: otherPartyId}
+const activeDirectCalls = new Map(); // {userId: { peerId, updatedAt }}
+const pendingDirectCallDisconnects = new Map(); // {userId: timeoutId}
 const activeStreams = new Map(); // {hostUserId: {viewers: Set, ...}}
+const streamCommentCooldowns = new Map(); // {"hostId:userId": timestamp}
+
+const DIRECT_CALL_DISCONNECT_GRACE_MS = 12000;
+const STREAM_SLOW_MODE_COOLDOWN_MS = 5000;
+
+const normalizeId = (value) => value?.toString?.() || null;
+
+const clearPendingDirectCallDisconnect = (userId) => {
+  const normalizedUserId = normalizeId(userId);
+  if (!normalizedUserId) return;
+
+  const timer = pendingDirectCallDisconnects.get(normalizedUserId);
+  if (timer) {
+    clearTimeout(timer);
+    pendingDirectCallDisconnects.delete(normalizedUserId);
+  }
+};
+
+const setDirectCallLink = (userId, peerId) => {
+  const normalizedUserId = normalizeId(userId);
+  const normalizedPeerId = normalizeId(peerId);
+  if (!normalizedUserId || !normalizedPeerId) return;
+
+  clearPendingDirectCallDisconnect(normalizedUserId);
+  clearPendingDirectCallDisconnect(normalizedPeerId);
+  activeDirectCalls.set(normalizedUserId, { peerId: normalizedPeerId, updatedAt: Date.now() });
+};
+
+const clearDirectCallLink = (userId, peerId) => {
+  const normalizedUserId = normalizeId(userId);
+  const normalizedPeerId = normalizeId(peerId);
+  if (!normalizedUserId) return;
+
+  const current = activeDirectCalls.get(normalizedUserId);
+  if (!current) return;
+  if (normalizedPeerId && current.peerId !== normalizedPeerId) return;
+
+  activeDirectCalls.delete(normalizedUserId);
+};
+
+const endDirectCall = (userId, peerId, notifyPeer = false) => {
+  const normalizedUserId = normalizeId(userId);
+  const normalizedPeerId = normalizeId(peerId);
+
+  clearPendingDirectCallDisconnect(normalizedUserId);
+  clearPendingDirectCallDisconnect(normalizedPeerId);
+  clearDirectCallLink(normalizedUserId, normalizedPeerId);
+  clearDirectCallLink(normalizedPeerId, normalizedUserId);
+
+  if (notifyPeer && normalizedPeerId) {
+    io.to(normalizedPeerId).emit("callEnded");
+  }
+};
+
+const scheduleDirectCallDisconnect = (userId, peerId) => {
+  const normalizedUserId = normalizeId(userId);
+  const normalizedPeerId = normalizeId(peerId);
+  if (!normalizedUserId || !normalizedPeerId) return;
+
+  clearPendingDirectCallDisconnect(normalizedUserId);
+
+  const timeoutId = setTimeout(() => {
+    pendingDirectCallDisconnects.delete(normalizedUserId);
+
+    const current = activeDirectCalls.get(normalizedUserId);
+    if (!current || current.peerId !== normalizedPeerId) {
+      return;
+    }
+
+    if ((userSocketMap[normalizedUserId] || 0) > 0) {
+      return;
+    }
+
+    endDirectCall(normalizedUserId, normalizedPeerId, true);
+  }, DIRECT_CALL_DISCONNECT_GRACE_MS);
+
+  pendingDirectCallDisconnects.set(normalizedUserId, timeoutId);
+};
 
 io.on("connection", (socket) => {
   const userId = socket.userId; // from JWT, safe
@@ -66,6 +145,7 @@ io.on("connection", (socket) => {
   if (userId) {
     socket.join(userId);
     userSocketMap[userId] = (userSocketMap[userId] || 0) + 1;
+    clearPendingDirectCallDisconnect(userId);
     
     // Update online status in DB
     User.findByIdAndUpdate(userId, { isOnline: true, offlineStatus: null }).catch(err => {
@@ -106,7 +186,7 @@ io.on("connection", (socket) => {
   // ── 1:1 WebRTC Calls ─────────────────────────────────────
   socket.on("callUser", (data) => {
     if (data.userToCall) {
-      activeCalls.set(socket.id, data.userToCall);
+      setDirectCallLink(userId, data.userToCall);
       io.to(data.userToCall).emit("callUser", {
         signal: data.signalData,
         from: data.from,
@@ -123,25 +203,25 @@ io.on("connection", (socket) => {
 
   socket.on("answerCall", (data) => {
     if (data.to) {
-      activeCalls.set(socket.id, data.to);
+      setDirectCallLink(userId, data.to);
+      setDirectCallLink(data.to, userId);
       io.to(data.to).emit("callAccepted", data.signal);
     }
   });
 
   socket.on("cancelCall", (data) => {
-    activeCalls.delete(socket.id);
+    endDirectCall(userId, data?.to, false);
     if (data.to) io.to(data.to).emit("callCancelled");
   });
 
   socket.on("leaveCall", (data) => {
-    activeCalls.delete(socket.id);
+    endDirectCall(userId, data?.to, false);
     if (data.to) io.to(data.to).emit("callEnded");
   });
 
   // ── Group Calls ───────────────────────────────────────────
   socket.on("groupCallUser", (data) => {
     if (data.targetUserId) {
-      activeCalls.set(socket.id, data.groupId);
       io.to(data.targetUserId).emit("groupCallIncoming", {
         signal: data.signalData,
         from: data.from,
@@ -162,7 +242,6 @@ io.on("connection", (socket) => {
   });
 
   socket.on("groupCallLeft", (data) => {
-    activeCalls.delete(socket.id);
     if (data.participants) {
       data.participants.forEach(uid => {
         io.to(uid).emit("groupCallParticipantLeft", { userId, groupId: data.groupId });
@@ -236,8 +315,21 @@ io.on("connection", (socket) => {
     const stream = activeStreams.get(data.hostId);
     if (!stream) return;
     if (stream.bannedViewers?.has(userId)) return;
+
+    const commentText = String(data.comment || '');
+    const isReaction = commentText.startsWith('REACTION:');
+
+    if (stream.slowMode && !isReaction && normalizeId(userId) !== normalizeId(data.hostId)) {
+      const cooldownKey = `${normalizeId(data.hostId)}:${normalizeId(userId)}`;
+      const lastCommentAt = streamCommentCooldowns.get(cooldownKey) || 0;
+      if (Date.now() - lastCommentAt < STREAM_SLOW_MODE_COOLDOWN_MS) {
+        return;
+      }
+      streamCommentCooldowns.set(cooldownKey, Date.now());
+    }
+
     io.to(stream.roomId).emit("newStreamComment", {
-      comment: data.comment, username: data.username,
+      comment: commentText, username: data.username,
       avatar: data.avatar, userId, timestamp: new Date().toISOString()
     });
   });
@@ -300,12 +392,6 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     console.log(`[Socket] Disconnected: ${socket.id} (user: ${userId})`);
 
-    const otherPartyId = activeCalls.get(socket.id);
-    if (otherPartyId) {
-      io.to(otherPartyId).emit("callEnded");
-      activeCalls.delete(socket.id);
-    }
-
     for (const [hostUserId, stream] of activeStreams.entries()) {
       if (stream.hostSocketId === socket.id) {
         io.to(stream.roomId).emit("streamEnded", { hostId: hostUserId });
@@ -323,6 +409,10 @@ io.on("connection", (socket) => {
       userSocketMap[userId] = Math.max(0, (userSocketMap[userId] || 0) - 1);
       if (userSocketMap[userId] === 0) {
         delete userSocketMap[userId];
+        const directCall = activeDirectCalls.get(userId);
+        if (directCall?.peerId) {
+          scheduleDirectCallDisconnect(userId, directCall.peerId);
+        }
         // Update offline status in DB
         User.findByIdAndUpdate(userId, { isOnline: false, offlineStatus: new Date() }).catch(err => {
           console.error(`[Socket] Error updating offline status for ${userId}:`, err);

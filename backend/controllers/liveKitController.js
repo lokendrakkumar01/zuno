@@ -85,6 +85,8 @@ const getLiveKitToken = async (req, res) => {
                 hostSocketId: existingStream.hostSocketId || null,
                 viewers: existingStream.viewers || new Set(),
                 bannedViewers: existingStream.bannedViewers || new Set(),
+                slowMode: existingStream.slowMode || false,
+                pinnedComment: existingStream.pinnedComment || null,
                 liveKitProvisioned: true
             });
         }

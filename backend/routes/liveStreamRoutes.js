@@ -16,6 +16,8 @@ const serializeStream = (stream) => ({
   description: stream.description || '',
   startedAt: stream.startedAt,
   viewerCount: stream.viewers ? stream.viewers.size : (stream.viewerCount || 0),
+  slowMode: !!stream.slowMode,
+  pinnedComment: stream.pinnedComment || null,
   liveKitProvisioned: !!stream.liveKitProvisioned
 });
 
