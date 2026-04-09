@@ -19,6 +19,16 @@ const normalizeLiveKitUrl = (value = '') => {
     return trimmed;
 };
 
+const sanitizeRoomName = (value, fallback) => {
+    const normalized = String(value || fallback || '')
+        .trim()
+        .replace(/[^a-zA-Z0-9_-]/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '');
+
+    return normalized || fallback;
+};
+
 // Generate an access token for LiveKit
 // Used by both host (creating stream) and viewers (joining stream)
 const getLiveKitToken = async (req, res) => {
@@ -40,19 +50,31 @@ const getLiveKitToken = async (req, res) => {
         }
 
         // Host must define their own room Name
+        const fallbackRoomName = `stream_${userId}`;
         if (isHost && !roomName) {
-            roomName = `stream_${userId}`;
+            roomName = fallbackRoomName;
         }
         
         if (!roomName) {
              return res.status(400).json({ success: false, message: 'roomName is required for viewers.' });
         }
 
+        roomName = sanitizeRoomName(roomName, fallbackRoomName);
+
         // Generate the token
         const participantName = displayName;
         const at = new AccessToken(apiKey, apiSecret, {
             identity: userId,
             name: participantName,
+            ttl: '6h'
+        });
+
+        at.metadata = JSON.stringify({
+            userId,
+            username,
+            displayName,
+            avatar,
+            role: isHost ? 'host' : 'viewer'
         });
 
         // Add Grants
@@ -62,6 +84,8 @@ const getLiveKitToken = async (req, res) => {
             canPublish: isHost ? true : false,
             canPublishData: true,
             canSubscribe: true,
+            roomCreate: !!isHost,
+            roomAdmin: !!isHost
         });
 
         const token = await at.toJwt();

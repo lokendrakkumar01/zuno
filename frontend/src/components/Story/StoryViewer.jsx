@@ -130,9 +130,9 @@ const StoryViewer = ({ group, onClose }) => {
                   });
                   const data = await res.json();
                   if (data.success) {
+                        window.dispatchEvent(new Event('zuno:stories-updated'));
                         if (localStories.length === 1) {
                               onClose();
-                              window.location.reload(); // Refresh to update list
                         } else {
                               // Remove story from local state (no prop mutation)
                               const updated = localStories.filter((_, i) => i !== currentIndex);
@@ -167,6 +167,7 @@ const StoryViewer = ({ group, onClose }) => {
                         setLocalStories(prev => prev.map((s, i) =>
                               i === currentIndex ? { ...s, body: editBody } : s
                         ));
+                        window.dispatchEvent(new Event('zuno:stories-updated'));
                         setIsEditing(false);
                   }
             } catch (err) {

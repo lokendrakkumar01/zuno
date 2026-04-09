@@ -89,6 +89,7 @@ const LiveStream = () => {
       const [lkRoomName, setLkRoomName] = useState(null);
 
       const commentsEndRef = useRef(null);
+      const tokenRetryRef = useRef(0);
 
       useEffect(() => {
             commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -194,9 +195,75 @@ const LiveStream = () => {
             };
       }, [socket]);
 
+      const requestLiveAccess = useCallback(async ({ isHost, roomName, title, description }) => {
+            const res = await fetch(`${API_URL}/livestream/token`, {
+                  method: 'POST',
+                  headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`
+                  },
+                  cache: 'no-store',
+                  body: JSON.stringify({
+                        isHost,
+                        roomName,
+                        title,
+                        description
+                  })
+            });
+            const data = await res.json();
+
+            if (!data.success) {
+                  throw new Error(data.message || 'Failed to get stream token');
+            }
+
+            const roomUrl = normalizeLiveKitUrl(data.data.wsUrl);
+            if (!roomUrl) {
+                  throw new Error('Live room URL is missing on the server.');
+            }
+
+            return {
+                  token: data.data.token,
+                  roomName: data.data.roomName || roomName,
+                  roomUrl
+            };
+      }, [token]);
+
+      const reconnectLiveAccess = useCallback(async () => {
+            if (!user) {
+                  return false;
+            }
+
+            const fallbackRoomName = lkRoomName
+                  || streamInfo?.roomId
+                  || streamInfo?.id
+                  || (isHostMode ? `stream_${user._id}` : `stream_${hostId}`);
+
+            const access = await requestLiveAccess({
+                  isHost: isHostMode,
+                  roomName: isHostMode ? undefined : fallbackRoomName,
+                  title: isHostMode ? (streamTitle || `${user.displayName || user.username}'s Live`) : undefined,
+                  description: isHostMode ? streamDescription : undefined
+            });
+
+            setLkToken(access.token);
+            setLkUrl(access.roomUrl);
+            setLkRoomName(access.roomName);
+            setStreamError('');
+            return true;
+      }, [hostId, isHostMode, lkRoomName, requestLiveAccess, streamDescription, streamInfo, streamTitle, user]);
+
       const handleRoomError = useCallback((message) => {
+            if (/invalid token/i.test(message) && tokenRetryRef.current < 1) {
+                  tokenRetryRef.current += 1;
+                  setStreamError('Refreshing secure stream access...');
+                  reconnectLiveAccess().catch(() => {
+                        setStreamError(message);
+                  });
+                  return;
+            }
+
             setStreamError(message);
-      }, []);
+      }, [reconnectLiveAccess]);
 
       const warmupLocalMedia = useCallback(async () => {
             if (!navigator?.mediaDevices?.getUserMedia) {
@@ -221,26 +288,12 @@ const LiveStream = () => {
                   await warmupLocalMedia();
 
                   const title = streamTitle || `${user.displayName || user.username}'s Live`;
-                  const res = await fetch(`${API_URL}/livestream/token`, {
-                        method: 'POST',
-                        headers: {
-                              'Content-Type': 'application/json',
-                              Authorization: `Bearer ${token}`
-                        },
-                        body: JSON.stringify({
-                              isHost: true,
-                              title,
-                              description: streamDescription
-                        })
+                  const access = await requestLiveAccess({
+                        isHost: true,
+                        title,
+                        description: streamDescription
                   });
-                  const data = await res.json();
-
-                  if (!data.success) {
-                        throw new Error(data.message || 'Failed to get stream token');
-                  }
-
-                  const roomUrl = normalizeLiveKitUrl(data.data.wsUrl);
-                  const roomName = data.data.roomName;
+                  const roomName = access.roomName;
                   const nextInfo = {
                         hostId: user._id,
                         roomId: roomName,
@@ -253,13 +306,14 @@ const LiveStream = () => {
 
                   setStreamInfo(nextInfo);
                   setStreamTitle(nextInfo.title);
-                  setLkToken(data.data.token);
-                  setLkUrl(roomUrl);
+                  setLkToken(access.token);
+                  setLkUrl(access.roomUrl);
                   setLkRoomName(roomName);
                   setIsLive(true);
                   setComments([]);
                   setViewerCount(0);
                   setSlowModeEnabled(false);
+                  tokenRetryRef.current = 0;
 
                   socket.emit('startStream', {
                         hostId: user._id,
@@ -277,7 +331,7 @@ const LiveStream = () => {
             } finally {
                   setIsStarting(false);
             }
-      }, [isConnected, socket, streamDescription, streamTitle, token, user, warmupLocalMedia]);
+      }, [isConnected, requestLiveAccess, socket, streamDescription, streamTitle, user, warmupLocalMedia]);
 
       const endStream = useCallback(async () => {
             if (!user || !socket) return;
@@ -297,6 +351,7 @@ const LiveStream = () => {
             setLkToken(null);
             setLkUrl(null);
             setLkRoomName(null);
+            tokenRetryRef.current = 0;
             navigate('/live');
       }, [navigate, socket, token, user]);
 
@@ -308,27 +363,19 @@ const LiveStream = () => {
             const joinStream = async () => {
                   try {
                         const roomName = streamInfo?.roomId || streamInfo?.id || `stream_${hostId}`;
-                        const res = await fetch(`${API_URL}/livestream/token`, {
-                              method: 'POST',
-                              headers: {
-                                    'Content-Type': 'application/json',
-                                    Authorization: `Bearer ${token}`
-                              },
-                              body: JSON.stringify({ isHost: false, roomName })
+                        const access = await requestLiveAccess({
+                              isHost: false,
+                              roomName
                         });
-                        const data = await res.json();
-
-                        if (!data.success) {
-                              throw new Error(data.message || 'Failed to connect');
-                        }
 
                         if (ignore) return;
 
-                        setLkToken(data.data.token);
-                        setLkUrl(normalizeLiveKitUrl(data.data.wsUrl));
-                        setLkRoomName(data.data.roomName || roomName);
+                        setLkToken(access.token);
+                        setLkUrl(access.roomUrl);
+                        setLkRoomName(access.roomName || roomName);
                         setIsLive(true);
                         setStreamError('');
+                        tokenRetryRef.current = 0;
                         socket.emit('joinStream', { hostId, viewerId: user._id });
                   } catch (error) {
                         if (!ignore) {
@@ -343,7 +390,7 @@ const LiveStream = () => {
                   ignore = true;
                   socket.emit('leaveStreamView', { hostId, viewerId: user._id });
             };
-      }, [hostId, isViewMode, socket, streamInfo, token, user]);
+      }, [hostId, isViewMode, requestLiveAccess, socket, streamInfo, user]);
 
       const sendComment = (event) => {
             event.preventDefault();

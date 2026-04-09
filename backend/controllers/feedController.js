@@ -344,7 +344,7 @@ const searchContent = async (req, res) => {
 const getActiveStories = async (req, res) => {
       try {
             const stories = await Content.find({
-                  contentType: 'story',
+                  contentType: { $in: ['story', 'text-status'] },
                   expiresAt: { $gt: new Date() },
                   status: 'published',
                   visibility: 'public' // Respect privacy? For now public.
@@ -409,9 +409,19 @@ const getActiveStories = async (req, res) => {
                   }
             }
 
+            const groupedStoryList = Object.values(groupedStories).sort((left, right) => {
+                  const leftLatest = left.stories[left.stories.length - 1]?.createdAt || 0;
+                  const rightLatest = right.stories[right.stories.length - 1]?.createdAt || 0;
+                  return new Date(rightLatest) - new Date(leftLatest);
+            });
+
+            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
+
             res.json({
                   success: true,
-                  data: Object.values(groupedStories)
+                  data: groupedStoryList
             });
       } catch (error) {
             res.status(500).json({

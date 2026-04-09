@@ -1,7 +1,7 @@
 const PROD_BACKEND_URL = 'https://zuno-backend-bevi.onrender.com';
 
 const getApiBaseUrl = () => {
-      const envUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+      const envUrl = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').trim();
       if (envUrl) {
             return envUrl.replace(/\/+$/, '');
       }

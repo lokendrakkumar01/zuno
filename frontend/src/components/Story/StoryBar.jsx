@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { API_URL } from '../../config';
@@ -6,41 +6,83 @@ import StoryViewer from './StoryViewer';
 import UserAvatar from '../User/UserAvatar';
 
 const StoryBar = () => {
+      const { user, token, isAuthenticated } = useAuth();
+      const storyCacheKey = user?._id ? `zuno_stories_cache_bar_${user._id}` : 'zuno_stories_cache_bar_guest';
       const [storyGroups, setStoryGroups] = useState(() => {
             try {
-                  const cached = localStorage.getItem('zuno_stories_cache');
+                  const cached = localStorage.getItem(storyCacheKey);
                   return cached ? JSON.parse(cached) : [];
             } catch {
                   return [];
             }
       });
       const [selectedGroup, setSelectedGroup] = useState(null);
-      const { user, isAuthenticated } = useAuth();
-      const location = useLocation(); // Need useLocation
+      const location = useLocation();
+
+      const fetchStories = useCallback(async () => {
+            try {
+                  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+                  const res = await fetch(`${API_URL}/feed/stories`, {
+                        headers,
+                        cache: 'no-store'
+                  });
+                  const data = await res.json();
+
+                  if (!data.success) {
+                        return;
+                  }
+
+                  setStoryGroups(data.data);
+                  localStorage.setItem(storyCacheKey, JSON.stringify(data.data));
+
+                  const params = new URLSearchParams(location.search);
+                  const viewStoryId = params.get('viewStory');
+                  if (viewStoryId) {
+                        const group = data.data.find((entry) => entry.creator._id === viewStoryId);
+                        if (group) {
+                              setSelectedGroup(group);
+                        }
+                  }
+            } catch (error) {
+                  console.error('Failed to fetch stories', error);
+            }
+      }, [location.search, storyCacheKey, token]);
 
       useEffect(() => {
-            const fetchStories = async () => {
-                  try {
-                        const res = await fetch(`${API_URL}/feed/stories`);
-                        const data = await res.json();
-                        if (data.success) {
-                              setStoryGroups(data.data);
-                              localStorage.setItem('zuno_stories_cache', JSON.stringify(data.data));
-
-                              // Check for viewStory param after fetch
-                              const params = new URLSearchParams(location.search);
-                              const viewStoryId = params.get('viewStory');
-                              if (viewStoryId) {
-                                    const group = data.data.find(g => g.creator._id === viewStoryId);
-                                    if (group) setSelectedGroup(group);
-                              }
-                        }
-                  } catch (error) {
-                        console.error("Failed to fetch stories", error);
-                  }
-            };
             fetchStories();
-      }, [location.search]); // Re-run if query params change
+      }, [fetchStories]);
+
+      useEffect(() => {
+            const handleStoriesUpdated = () => {
+                  try {
+                        localStorage.removeItem(storyCacheKey);
+                  } catch {
+                        // Cache clearing is best effort only.
+                  }
+                  fetchStories();
+            };
+
+            window.addEventListener('zuno:stories-updated', handleStoriesUpdated);
+            window.addEventListener('focus', handleStoriesUpdated);
+
+            return () => {
+                  window.removeEventListener('zuno:stories-updated', handleStoriesUpdated);
+                  window.removeEventListener('focus', handleStoriesUpdated);
+            };
+      }, [fetchStories, storyCacheKey]);
+
+      useEffect(() => {
+            if (!selectedGroup) {
+                  return;
+            }
+
+            const refreshedGroup = storyGroups.find((group) => group.creator._id === selectedGroup.creator._id);
+            if (refreshedGroup) {
+                  setSelectedGroup(refreshedGroup);
+            } else {
+                  setSelectedGroup(null);
+            }
+      }, [selectedGroup, storyGroups]);
 
       // Instagram-style gradient ring
       const gradientRingStyle = {
@@ -56,6 +98,8 @@ const StoryBar = () => {
       };
 
       if (storyGroups.length === 0 && !isAuthenticated) return null;
+
+      const visibleStoryGroups = storyGroups.filter((group) => group.creator._id !== user?._id);
 
       return (
             <div style={{
@@ -134,7 +178,7 @@ const StoryBar = () => {
                         )}
 
                         {/* Story Circles - Instagram Style */}
-                        {storyGroups.map(group => (
+                        {visibleStoryGroups.map(group => (
                               <div
                                     key={group.creator._id}
                                     onClick={() => setSelectedGroup(group)}

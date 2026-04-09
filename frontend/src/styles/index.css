@@ -3207,14 +3207,22 @@ video.chat-media-content {
   border-top: 1px solid var(--color-border);
   padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
   z-index: 100;
-  justify-content: space-around;
+  justify-content: space-between;
   align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
 @media (max-width: 768px) {
   .bottom-nav {
     display: flex;
+    padding-inline: 8px;
   }
+}
+
+.bottom-nav::-webkit-scrollbar {
+  display: none;
 }
 
 .bottom-nav-item {
@@ -3223,19 +3231,26 @@ video.chat-media-content {
   align-items: center;
   justify-content: center;
   gap: 3px;
-  padding: 6px 12px;
+  padding: 6px 4px;
   border-radius: 10px;
   color: var(--color-text-secondary);
   text-decoration: none;
   transition: all 0.2s ease;
-  min-width: 56px;
+  min-width: 0;
   min-height: 52px;
+  flex: 1 1 0;
 }
 
 .bottom-nav-item svg {
   color: var(--color-text-secondary);
   width: 24px;
   height: 24px;
+}
+
+.bottom-nav-item span:last-child {
+  font-size: 0.68rem;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .bottom-nav-item:hover {
@@ -3261,10 +3276,45 @@ video.chat-media-content {
   border-top-color: #262626;
 }
 
+.bottom-create-fab {
+  position: fixed;
+  right: 18px;
+  bottom: calc(74px + env(safe-area-inset-bottom));
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  background: linear-gradient(135deg, #f97316, #ec4899);
+  box-shadow: 0 16px 30px rgba(236, 72, 153, 0.28);
+  z-index: 101;
+}
+
+.bottom-create-fab.active {
+  transform: translateY(-1px);
+}
+
 /* Ensure main content doesn't get hidden behind bottom nav on mobile */
 @media (max-width: 768px) {
   .main {
-    padding-bottom: 80px;
+    padding-bottom: 112px;
+  }
+
+  .bottom-create-fab {
+    display: inline-flex;
+  }
+}
+
+@media (max-width: 420px) {
+  .bottom-nav-item span:last-child {
+    font-size: 0.62rem;
+  }
+
+  .bottom-nav-item svg {
+    width: 22px;
+    height: 22px;
   }
 }
 
@@ -4759,7 +4809,6 @@ video.chat-media-content {
 
 @media (max-width: 960px) {
   .nav-desktop,
-  .header-status-pill,
   .shell-profile-copy,
   .shell-upload-btn span {
     display: none;
@@ -4827,6 +4876,23 @@ video.chat-media-content {
     display: none;
   }
 
+  .header-brand-cluster {
+    gap: 0.5rem;
+  }
+
+  .header-status-pill {
+    display: inline-flex;
+    max-width: 9.5rem;
+    padding: 0.45rem 0.7rem;
+    font-size: 0.72rem;
+  }
+
+  .header-status-pill span:last-child {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   .home-hero-copy,
   .messages-hero-card,
   .live-dashboard-hero,
@@ -4857,6 +4923,11 @@ video.chat-media-content {
 @media (max-width: 640px) {
   .header-inner {
     padding-inline: 0.8rem;
+  }
+
+  .header-status-pill {
+    max-width: 8rem;
+    padding-inline: 0.62rem;
   }
 
   .logo-image {

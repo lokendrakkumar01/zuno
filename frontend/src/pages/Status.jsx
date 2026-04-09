@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config';
 import { formatDistanceToNow } from 'date-fns';
@@ -8,45 +8,92 @@ import StoryViewer from '../components/Story/StoryViewer';
 const Status = () => {
       const { user, token, isAuthenticated } = useAuth();
       const navigate = useNavigate();
-      const CACHE_KEY = `zuno_stories_cache_${user?._id}`;
+      const [searchParams] = useSearchParams();
+      const cacheKey = user?._id ? `zuno_stories_cache_${user._id}` : 'zuno_stories_cache_guest';
+      const refreshMarker = searchParams.get('refresh');
       // Initialize from cache for instant display
       const [storyGroups, setStoryGroups] = useState(() => {
             try {
-                  const cached = localStorage.getItem(`zuno_stories_cache_${user?._id}`);
+                  const cached = localStorage.getItem(cacheKey);
                   return cached ? JSON.parse(cached) : [];
             } catch { return []; }
       });
       // Only show spinner if no cache exists
-      const [loading, setLoading] = useState(() => !localStorage.getItem(`zuno_stories_cache_${user?._id}`));
+      const [loading, setLoading] = useState(() => !localStorage.getItem(cacheKey));
       const [selectedGroup, setSelectedGroup] = useState(null);
       const [searchTerm, setSearchTerm] = useState('');
       const [isSearching, setIsSearching] = useState(false);
 
-      useEffect(() => {
+      const fetchStatuses = useCallback(async ({ forceRefresh = false, silent = false } = {}) => {
             if (!isAuthenticated) {
                   navigate('/login');
                   return;
             }
 
-            const fetchStatuses = async () => {
+            if (!silent) {
+                  setLoading(true);
+            }
+
+            if (forceRefresh) {
                   try {
-                        const res = await fetch(`${API_URL}/feed/stories`, {
-                              headers: { 'Authorization': `Bearer ${token}` }
-                        });
-                        const data = await res.json();
-                        if (data.success) {
-                              setStoryGroups(data.data);
-                              try { localStorage.setItem(CACHE_KEY, JSON.stringify(data.data)); } catch (e) {}
+                        localStorage.removeItem(cacheKey);
+                  } catch {
+                        // Cache clearing is best effort only.
+                  }
+            }
+
+            try {
+                  const res = await fetch(`${API_URL}/feed/stories`, {
+                        headers: { Authorization: `Bearer ${token}` },
+                        cache: 'no-store'
+                  });
+                  const data = await res.json();
+
+                  if (data.success) {
+                        setStoryGroups(data.data);
+                        try {
+                              localStorage.setItem(cacheKey, JSON.stringify(data.data));
+                        } catch {
+                              // Cache writes are best effort only.
                         }
-                  } catch (error) {
-                        console.error("Failed to fetch statuses", error);
-                  } finally {
+                  }
+            } catch (error) {
+                  console.error('Failed to fetch statuses', error);
+            } finally {
+                  if (!silent) {
                         setLoading(false);
                   }
-            };
+            }
+      }, [cacheKey, isAuthenticated, navigate, token]);
 
-            fetchStatuses();
-      }, [isAuthenticated, token, navigate]);
+      useEffect(() => {
+            fetchStatuses({ forceRefresh: Boolean(refreshMarker) });
+      }, [fetchStatuses, refreshMarker]);
+
+      useEffect(() => {
+            const handleStoriesUpdated = () => fetchStatuses({ forceRefresh: true, silent: true });
+
+            window.addEventListener('zuno:stories-updated', handleStoriesUpdated);
+            window.addEventListener('focus', handleStoriesUpdated);
+
+            return () => {
+                  window.removeEventListener('zuno:stories-updated', handleStoriesUpdated);
+                  window.removeEventListener('focus', handleStoriesUpdated);
+            };
+      }, [fetchStatuses]);
+
+      useEffect(() => {
+            if (!selectedGroup) {
+                  return;
+            }
+
+            const refreshedGroup = storyGroups.find((group) => group.creator._id === selectedGroup.creator._id);
+            if (refreshedGroup) {
+                  setSelectedGroup(refreshedGroup);
+            } else {
+                  setSelectedGroup(null);
+            }
+      }, [selectedGroup, storyGroups]);
 
       // Filter groups by searchTerm
       const filteredGroups = storyGroups.filter(group => {

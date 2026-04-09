@@ -200,12 +200,25 @@ const Upload = () => {
 
                   if (result.success) {
                         const FEED_MODES_TO_CLEAR = ['all', 'learning', 'calm', 'video', 'reading', 'problem-solving'];
+                        const isStoryUpload = ['story', 'text-status'].includes(formData.contentType);
                         try {
                               FEED_MODES_TO_CLEAR.forEach(mode => {
                                     localStorage.removeItem(`zuno_feedCache_${mode}`);
                               });
+
+                              Object.keys(localStorage)
+                                    .filter((key) => key.startsWith('zuno_stories_cache'))
+                                    .forEach((key) => localStorage.removeItem(key));
                         } catch (e) { }
-                        navigate('/');
+
+                        if (isStoryUpload && typeof window !== 'undefined') {
+                              window.dispatchEvent(new Event('zuno:stories-updated'));
+                        }
+
+                        navigate(
+                              isStoryUpload ? `/status?refresh=${Date.now()}` : '/',
+                              { replace: isStoryUpload }
+                        );
                   } else {
                         const rawMsg = result.message || result.error || '';
                         const isCloudinaryError = rawMsg.toLowerCase().includes('api_key') ||

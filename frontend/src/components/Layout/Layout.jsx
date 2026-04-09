@@ -155,6 +155,8 @@ const Layout = () => {
             </Link>
       );
 
+      const mobileCreateTarget = isAuthenticated ? '/upload' : '/login';
+
       return (
             <div className="app-shell">
                   <header className={`header ${scrolled ? 'scrolled' : ''}`}>
@@ -272,19 +274,7 @@ const Layout = () => {
                   </main>
 
                   <nav className="bottom-nav">
-                        {renderNavLink(navItems[0], true)}
-                        {renderNavLink(navItems[1], true)}
-
-                        <Link to={isAuthenticated ? '/upload' : '/login'} className="bottom-nav-item bottom-nav-create">
-                              <span className="bottom-nav-create-pill">
-                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                          <path d="M12 5v14M5 12h14" />
-                                    </svg>
-                              </span>
-                              <span>{isAuthenticated ? 'Create' : 'Login'}</span>
-                        </Link>
-
-                        {renderNavLink(navItems[3], true)}
+                        {navItems.map((item) => renderNavLink(item, true))}
 
                         <Link to="/profile" className={`bottom-nav-item ${location.pathname.startsWith('/profile') || location.pathname.startsWith('/u/') ? 'active' : ''}`}>
                               <span className="nav-icon-wrap bottom-profile-avatar">
@@ -297,6 +287,18 @@ const Layout = () => {
                               <span>Profile</span>
                         </Link>
                   </nav>
+
+                  {isAuthenticated && (
+                        <Link
+                              to={mobileCreateTarget}
+                              className={`bottom-create-fab ${location.pathname.startsWith('/upload') ? 'active' : ''}`}
+                              aria-label="Create content"
+                        >
+                              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M12 5v14M5 12h14" />
+                              </svg>
+                        </Link>
+                  )}
             </div>
       );
 };
