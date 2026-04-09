@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { API_URL } from '../../config';
 import { toast } from 'react-toastify';
 
 const Notifications = () => {
       const navigate = useNavigate();
-      const { user, token } = useAuth();
+      const { user, updateProfile } = useAuth();
       const [settings, setSettings] = useState({
             pushNotifications: true,
             emailNotifications: true,
@@ -33,22 +32,17 @@ const Notifications = () => {
             setLoading(true);
 
             try {
-                  const res = await fetch(`${API_URL}/users/profile`, {
-                        method: 'PUT',
-                        headers: {
-                              'Content-Type': 'application/json',
-                              'Authorization': `Bearer ${token}`
-                        },
-                        body: JSON.stringify({ notificationSettings: settings })
-                  });
-                  const data = await res.json();
+                  const result = await updateProfile({ notificationSettings: settings });
 
-                  if (data.success) {
+                  if (result.success) {
+                        if (settings.pushNotifications && 'Notification' in window && Notification.permission === 'default') {
+                              Notification.requestPermission().catch(() => {});
+                        }
                         toast.success('Notification settings updated!');
                   } else {
-                        toast.error(data.message || 'Update failed');
+                        toast.error(result.message || 'Update failed');
                   }
-            } catch (error) {
+                } catch (error) {
                   toast.error('Failed to update settings');
             }
             setLoading(false);

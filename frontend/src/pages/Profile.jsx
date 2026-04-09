@@ -940,6 +940,14 @@ const Profile = () => {
                                                 >
                                                       ⚙️ Settings
                                                 </button>
+                                                {profileUser?.role === 'admin' && (
+                                                      <button
+                                                            onClick={() => navigate('/admin')}
+                                                            className="btn btn-primary flex-1 min-w-[140px]"
+                                                      >
+                                                            Admin Panel
+                                                      </button>
+                                                )}
                                                 {/* Request Blue Tick — only shown if not already verified and not pending */}
                                                 {!profileUser?.isVerified && profileUser?.verificationRequest?.status !== 'pending' && (
                                                       <button

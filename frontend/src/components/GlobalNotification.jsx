@@ -5,6 +5,16 @@ import { useCallContext } from '../context/CallContext';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
 
+const DEFAULT_NOTIFICATION_SETTINGS = {
+      pushNotifications: true,
+      emailNotifications: true,
+      likesNotifications: true,
+      commentsNotifications: true,
+      followsNotifications: true,
+      mentionsNotifications: true,
+      sharesNotifications: true
+};
+
 const playNotificationSound = () => {
       try {
             const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -12,7 +22,7 @@ const playNotificationSound = () => {
             const gain = audioCtx.createGain();
             osc.type = 'sine';
             osc.frequency.setValueAtTime(587.33, audioCtx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(880.00, audioCtx.currentTime + 0.1);
+            osc.frequency.exponentialRampToValueAtTime(880.0, audioCtx.currentTime + 0.1);
             gain.gain.setValueAtTime(0, audioCtx.currentTime);
             gain.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + 0.05);
             gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
@@ -20,95 +30,126 @@ const playNotificationSound = () => {
             gain.connect(audioCtx.destination);
             osc.start();
             osc.stop(audioCtx.currentTime + 0.3);
-      } catch (e) {
-            console.log('Audio blocked:', e);
+      } catch (error) {
+            console.log('Audio blocked:', error);
       }
 };
 
 const GlobalNotification = () => {
       const { socket } = useSocketContext();
-      const { answerCall, leaveCall } = useCallContext();
+      const { answerCall, rejectCall } = useCallContext();
       const { user } = useAuth();
       const location = useLocation();
       const navigate = useNavigate();
       const callToastId = useRef(null);
+      const recentEventsRef = useRef(new Map());
+
+      const notificationSettings = {
+            ...DEFAULT_NOTIFICATION_SETTINGS,
+            ...(user?.notificationSettings || {})
+      };
+
+      const shouldAllow = (settingKey = 'pushNotifications') => {
+            if (!notificationSettings.pushNotifications) return false;
+            if (settingKey === 'pushNotifications') return true;
+            return notificationSettings[settingKey] !== false;
+      };
+
+      const isThrottled = (key, ttl = 2500) => {
+            const now = Date.now();
+            const lastSeen = recentEventsRef.current.get(key) || 0;
+            if (now - lastSeen < ttl) return true;
+            recentEventsRef.current.set(key, now);
+            return false;
+      };
 
       useEffect(() => {
-            // Request native notification permission on mount
+            if (!notificationSettings.pushNotifications) return;
+
             if ('Notification' in window && Notification.permission === 'default') {
-                  Notification.requestPermission();
+                  Notification.requestPermission().catch(() => {});
             }
-      }, []);
+      }, [notificationSettings.pushNotifications]);
 
       useEffect(() => {
-            if (!socket) return;
+            if (!socket || !user?._id) return;
+
+            const showNativeNotification = (title, body, tag, onClick) => {
+                  if (!notificationSettings.pushNotifications) return;
+                  if (!('Notification' in window) || Notification.permission !== 'granted' || !document.hidden) return;
+
+                  const nativeNotification = new Notification(title, { body, tag });
+                  nativeNotification.onclick = () => {
+                        window.focus();
+                        nativeNotification.close();
+                        onClick?.();
+                  };
+            };
 
             const handleNewMessage = (newMessage) => {
+                  if (!shouldAllow()) return;
+
                   const senderId = (newMessage.sender?._id || newMessage.sender || '').toString();
                   const currentUserId = (user?._id || user?.id || '').toString();
-
-                  // Do not notify for our OWN messages!
-                  if (senderId === currentUserId) return;
+                  if (!senderId || senderId === currentUserId) return;
 
                   const pathSegments = location.pathname.split('/').filter(Boolean);
                   const pathUserId = pathSegments[pathSegments.length - 1];
                   const isOnChatPage = location.pathname.startsWith('/messages') && pathUserId === senderId;
+                  if (isOnChatPage || isThrottled(`message:${newMessage._id || senderId}:${newMessage.createdAt || ''}`)) return;
 
-                  // Only notify if not currently viewing this chat
-                  if (!isOnChatPage) {
-                        playNotificationSound();
-                        const senderName = newMessage.sender?.displayName || newMessage.sender?.username || 'Someone';
-                        const textPreview = newMessage.text
-                              ? (newMessage.text.length > 40 ? newMessage.text.substring(0, 40) + '...' : newMessage.text)
-                              : (newMessage.media?.type === 'video' ? '🎬 Video message' : '📷 Photo message');
+                  const senderName = newMessage.sender?.displayName || newMessage.sender?.username || 'Someone';
+                  const textPreview = newMessage.text
+                        ? (newMessage.text.length > 40 ? `${newMessage.text.substring(0, 40)}...` : newMessage.text)
+                        : (newMessage.media?.type === 'video' ? 'Video message' : 'Photo message');
+                  const navigateId = senderId || (typeof newMessage.sender === 'string' ? newMessage.sender : '');
 
-                        const navigateId = senderId || (typeof newMessage.sender === 'string' ? newMessage.sender : '');
+                  playNotificationSound();
+                  toast.info(
+                        <div onClick={() => navigate(`/messages/${navigateId}`)} style={{ cursor: 'pointer' }}>
+                              <strong style={{ display: 'block' }}>{senderName}</strong>
+                              <span style={{ fontSize: '0.9em', opacity: 0.9 }}>{textPreview}</span>
+                        </div>,
+                        { position: 'top-right', autoClose: 4000, icon: '💬', toastId: `msg-${newMessage._id || senderId}` }
+                  );
 
-                        toast.info(
-                              <div onClick={() => navigate(`/messages/${navigateId}`)} style={{ cursor: 'pointer' }}>
-                                    <strong style={{ display: 'block' }}>{senderName}</strong>
-                                    <span style={{ fontSize: '0.9em', opacity: 0.9 }}>{textPreview}</span>
-                              </div>,
-                              { position: "top-right", autoClose: 4000, icon: "💬" }
-                        );
-
-                        // Native notification if tab is hidden
-                        if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
-                              const n = new Notification(`New message from ${senderName}`, {
-                                    body: textPreview,
-                                    tag: `zuno-msg-${senderId}`
-                              });
-                              n.onclick = () => {
-                                    window.focus();
-                                    navigate(`/messages/${navigateId}`);
-                              };
-                        }
-                  }
+                  showNativeNotification(
+                        `New message from ${senderName}`,
+                        textPreview,
+                        `zuno-msg-${senderId}`,
+                        () => navigate(`/messages/${navigateId}`)
+                  );
             };
 
             const handleIncomingCall = (data) => {
+                  if (!shouldAllow()) return;
+                  if (isThrottled(`call:${data.from?._id || data.from?.id || 'incoming'}`, 1500)) return;
+
                   const callerName = data.from?.displayName || data.from?.username || 'Someone';
-                  const callTypeLabel = data.callType === 'video' ? '📹 Video Call' : '📞 Voice Call';
+                  const callTypeLabel = data.callType === 'video' ? 'Video Call' : 'Voice Call';
 
-                  // Play ringtone notification
                   playNotificationSound();
-
-                  // Persistent toast with Accept / Decline buttons
                   callToastId.current = toast.info(
                         <div style={{ lineHeight: 1.5 }}>
                               <strong style={{ display: 'block', fontSize: '1em', marginBottom: '4px' }}>
-                                    {callTypeLabel} — {callerName}
+                                    {callTypeLabel} - {callerName}
                               </strong>
                               <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
                                     <button
                                           onClick={() => {
                                                 toast.dismiss(callToastId.current);
-                                                leaveCall(true);
+                                                rejectCall();
                                           }}
                                           style={{
-                                                flex: 1, background: '#ef4444', color: 'white',
-                                                border: 'none', borderRadius: '8px', padding: '6px',
-                                                cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem'
+                                                flex: 1,
+                                                background: '#ef4444',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                padding: '6px',
+                                                cursor: 'pointer',
+                                                fontWeight: 'bold',
+                                                fontSize: '0.85rem'
                                           }}
                                     >
                                           Decline
@@ -119,9 +160,15 @@ const GlobalNotification = () => {
                                                 answerCall();
                                           }}
                                           style={{
-                                                flex: 1, background: '#10b981', color: 'white',
-                                                border: 'none', borderRadius: '8px', padding: '6px',
-                                                cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem'
+                                                flex: 1,
+                                                background: '#10b981',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                padding: '6px',
+                                                cursor: 'pointer',
+                                                fontWeight: 'bold',
+                                                fontSize: '0.85rem'
                                           }}
                                     >
                                           Answer
@@ -129,8 +176,8 @@ const GlobalNotification = () => {
                               </div>
                         </div>,
                         {
-                              position: "top-right",
-                              autoClose: 45000,   // Auto-dismiss after 45s (matches call timeout)
+                              position: 'top-right',
+                              autoClose: 45000,
                               closeOnClick: false,
                               closeButton: false,
                               icon: data.callType === 'video' ? '📹' : '📞',
@@ -138,151 +185,171 @@ const GlobalNotification = () => {
                         }
                   );
 
-                  // Native browser notification if tab is hidden
-                  if ('Notification' in window && Notification.permission === 'granted') {
-                        const n = new Notification(`${callTypeLabel} from ${callerName}`, {
-                              body: 'Open ZUNO to answer',
-                              tag: 'zuno-call',
-                              requireInteraction: true
-                        });
-                        n.onclick = () => {
-                              window.focus();
-                              n.close();
-                        };
-                  }
+                  showNativeNotification(
+                        `${callTypeLabel} from ${callerName}`,
+                        'Open ZUNO to answer',
+                        'zuno-call',
+                        () => window.focus()
+                  );
             };
 
-            // When the caller cancels before we answer — dismiss the call toast
             const handleCallCancelled = () => {
                   toast.dismiss('incoming-call');
                   callToastId.current = null;
-                  toast.info('Caller hung up.', { autoClose: 2000, icon: '📵' });
             };
 
-            // When call ends (after being answered)
             const handleCallEnded = () => {
                   toast.dismiss('incoming-call');
                   callToastId.current = null;
             };
 
             const handleNewFollow = (data) => {
+                  if (!shouldAllow('followsNotifications')) return;
+                  if (isThrottled(`follow:${data.sender?._id || data.sender?.username}`)) return;
+
                   playNotificationSound();
                   toast.success(
                         <div onClick={() => navigate(`/u/${data.sender.username}`)} style={{ cursor: 'pointer' }}>
-                              <strong>New Follower!</strong>
+                              <strong>New Follower</strong>
                               <p style={{ fontSize: '0.85em' }}>{data.sender.displayName || data.sender.username} followed you</p>
                         </div>,
-                        { position: "top-right", autoClose: 5000, icon: "👤" }
+                        { position: 'top-right', autoClose: 5000, icon: '👤' }
                   );
             };
 
             const handleNewFollowRequest = (data) => {
+                  if (!shouldAllow('followsNotifications')) return;
+                  if (isThrottled(`follow-request:${data.sender?._id || data.sender?.username}`)) return;
+
                   playNotificationSound();
                   toast.info(
-                        <div onClick={() => navigate(`/settings?tab=requests`)} style={{ cursor: 'pointer' }}>
+                        <div onClick={() => navigate('/settings/notifications')} style={{ cursor: 'pointer' }}>
                               <strong>Follow Request</strong>
                               <p style={{ fontSize: '0.85em' }}>{data.sender.displayName || data.sender.username} wants to follow you</p>
                         </div>,
-                        { position: "top-right", autoClose: 5000, icon: "🔒" }
+                        { position: 'top-right', autoClose: 5000, icon: '🔒' }
                   );
             };
 
             const handleFollowAccepted = (data) => {
+                  if (!shouldAllow('followsNotifications')) return;
+                  if (isThrottled(`follow-accepted:${data.sender?._id || data.sender?.username}`)) return;
+
                   playNotificationSound();
                   toast.success(
                         <div onClick={() => navigate(`/u/${data.sender.username}`)} style={{ cursor: 'pointer' }}>
-                              <strong>Request Accepted!</strong>
+                              <strong>Request Accepted</strong>
                               <p style={{ fontSize: '0.85em' }}>{data.sender.displayName || data.sender.username} accepted your follow request</p>
                         </div>,
-                        { position: "top-right", autoClose: 5000, icon: "✅" }
+                        { position: 'top-right', autoClose: 5000, icon: '✅' }
                   );
             };
 
             const handleNewInteraction = (data) => {
+                  if (!shouldAllow('likesNotifications')) return;
+                  if (isThrottled(`interaction:${data.contentId}:${data.sender?._id || data.sender?.username}`)) return;
+
                   playNotificationSound();
                   toast.success(
                         <div onClick={() => navigate(`/content/${data.contentId}`)} style={{ cursor: 'pointer' }}>
-                              <strong>Helpful Tip!</strong>
+                              <strong>Post feedback</strong>
                               <p style={{ fontSize: '0.85em' }}>{data.sender.displayName || data.sender.username} marked your post "{data.title}" as helpful</p>
                         </div>,
-                        { position: "top-right", autoClose: 5000, icon: "💎" }
+                        { position: 'top-right', autoClose: 5000, icon: '💎' }
                   );
             };
 
             const handleNewComment = (data) => {
+                  if (!shouldAllow('commentsNotifications')) return;
+                  if (isThrottled(`comment:${data.comment?._id || data.contentId}`)) return;
+
                   playNotificationSound();
                   toast.info(
                         <div onClick={() => navigate(`/content/${data.contentId}`)} style={{ cursor: 'pointer' }}>
                               <strong>New Comment</strong>
                               <p style={{ fontSize: '0.85em' }}>{data.comment.user.displayName || data.comment.user.username} commented on "{data.contentTitle}"</p>
                         </div>,
-                        { position: "top-right", autoClose: 5000, icon: "💬" }
+                        { position: 'top-right', autoClose: 5000, icon: '💬' }
                   );
             };
 
             const handleGlobalBroadcast = (data) => {
+                  if (!shouldAllow()) return;
+                  if (isThrottled(`broadcast:${data.timestamp || data.message}`, 5000)) return;
+
                   playNotificationSound();
-                  
-                  let icon = "📢";
-                  if (data.type === 'success') icon = "✅";
-                  if (data.type === 'warning') icon = "⚠️";
-                  if (data.type === 'error') icon = "🚨";
+
+                  let icon = '📢';
+                  if (data.type === 'success') icon = '✅';
+                  if (data.type === 'warning') icon = '⚠️';
+                  if (data.type === 'error') icon = '🚨';
 
                   toast(
                         <div style={{ padding: '4px' }}>
                               <strong style={{ display: 'block', fontSize: '1.1em', marginBottom: '4px' }}>System Broadcast</strong>
                               <p style={{ fontSize: '0.95em', margin: 0 }}>{data.message}</p>
                         </div>,
-                        { 
-                              position: "top-center", 
-                              autoClose: 10000, 
+                        {
+                              position: 'top-center',
+                              autoClose: 10000,
                               icon,
-                              type: data.type === 'error' ? 'error' : data.type === 'warning' ? 'warning' : data.type === 'success' ? 'success' : 'info',
-                              style: { border: data.type === 'error' ? '1px solid #ef4444' : '1px solid #6366f1' }
+                              type: data.type === 'error' ? 'error' : data.type === 'warning' ? 'warning' : data.type === 'success' ? 'success' : 'info'
                         }
                   );
             };
 
             const handleStreamStarted = (data) => {
-                  // Don't notify if I am the host
+                  if (!shouldAllow()) return;
                   if (data.hostId === user?._id || data.hostId === user?.id) return;
-                  
+                  if (isThrottled(`stream-started:${data.hostId}:${data.roomId || ''}`, 5000)) return;
+
                   playNotificationSound();
                   toast.info(
                         <div onClick={() => navigate(`/live/${data.hostId}`)} style={{ cursor: 'pointer' }}>
-                              <strong style={{ color: '#ef4444' }}>🔴 Live Stream Started!</strong>
+                              <strong style={{ color: '#ef4444' }}>Live Stream Started</strong>
                               <p style={{ fontSize: '0.85em', marginTop: '4px' }}>{data.title || 'Tap to join the stream'}</p>
                         </div>,
-                        { position: "top-center", autoClose: 8000, icon: "📡" }
+                        { position: 'top-center', autoClose: 8000, icon: '📡' }
                   );
             };
 
-            socket.on("newMessage", handleNewMessage);
-            socket.on("callUser", handleIncomingCall);
-            socket.on("callCancelled", handleCallCancelled);
-            socket.on("callEnded", handleCallEnded);
-            socket.on("newFollow", handleNewFollow);
-            socket.on("newFollowRequest", handleNewFollowRequest);
-            socket.on("followAccepted", handleFollowAccepted);
-            socket.on("newInteraction", handleNewInteraction);
-            socket.on("newComment", handleNewComment);
-            socket.on("globalBroadcast", handleGlobalBroadcast);
-            socket.on("streamStarted", handleStreamStarted);
+            socket.on('newMessage', handleNewMessage);
+            socket.on('callUser', handleIncomingCall);
+            socket.on('callCancelled', handleCallCancelled);
+            socket.on('callEnded', handleCallEnded);
+            socket.on('newFollow', handleNewFollow);
+            socket.on('newFollowRequest', handleNewFollowRequest);
+            socket.on('followAccepted', handleFollowAccepted);
+            socket.on('newInteraction', handleNewInteraction);
+            socket.on('newComment', handleNewComment);
+            socket.on('globalBroadcast', handleGlobalBroadcast);
+            socket.on('streamStarted', handleStreamStarted);
 
             return () => {
-                  socket.off("newMessage", handleNewMessage);
-                  socket.off("callUser", handleIncomingCall);
-                  socket.off("callCancelled", handleCallCancelled);
-                  socket.off("callEnded", handleCallEnded);
-                  socket.off("newFollow", handleNewFollow);
-                  socket.off("newFollowRequest", handleNewFollowRequest);
-                  socket.off("followAccepted", handleFollowAccepted);
-                  socket.off("newInteraction", handleNewInteraction);
-                  socket.off("newComment", handleNewComment);
-                  socket.off("globalBroadcast", handleGlobalBroadcast);
-                  socket.off("streamStarted", handleStreamStarted);
+                  socket.off('newMessage', handleNewMessage);
+                  socket.off('callUser', handleIncomingCall);
+                  socket.off('callCancelled', handleCallCancelled);
+                  socket.off('callEnded', handleCallEnded);
+                  socket.off('newFollow', handleNewFollow);
+                  socket.off('newFollowRequest', handleNewFollowRequest);
+                  socket.off('followAccepted', handleFollowAccepted);
+                  socket.off('newInteraction', handleNewInteraction);
+                  socket.off('newComment', handleNewComment);
+                  socket.off('globalBroadcast', handleGlobalBroadcast);
+                  socket.off('streamStarted', handleStreamStarted);
             };
-      }, [socket, location.pathname, navigate, answerCall, leaveCall, user?._id]);
+      }, [
+            socket,
+            location.pathname,
+            navigate,
+            answerCall,
+            rejectCall,
+            user?._id,
+            notificationSettings.pushNotifications,
+            notificationSettings.likesNotifications,
+            notificationSettings.commentsNotifications,
+            notificationSettings.followsNotifications
+      ]);
 
       return null;
 };

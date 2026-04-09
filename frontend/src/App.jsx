@@ -47,7 +47,7 @@ import { API_BASE_URL } from './config';
 
 // Main App Router Component (inside AuthProvider)
 function AppRouter() {
-      const { isAuthenticated, loading } = useAuth();
+      const { isAuthenticated, loading, user } = useAuth();
       const [showSplash, setShowSplash] = useState(() => {
             const shown = localStorage.getItem('zuno_splash_shown');
             const time = localStorage.getItem('zuno_splash_time');
@@ -69,6 +69,12 @@ function AppRouter() {
                   setShowSplash(false);
             }
       }, []);
+
+      useEffect(() => {
+            if (isAuthenticated && user?.role === 'admin') {
+                  import('./pages/Admin/AdminDashboard');
+            }
+      }, [isAuthenticated, user?.role]);
 
       const handleSplashComplete = () => {
             // Mark splash as shown
