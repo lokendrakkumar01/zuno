@@ -1,6 +1,12 @@
 import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { LiveKitRoom, RoomAudioRenderer, VideoConference, ControlBar } from '@livekit/components-react';
+import {
+      LiveKitRoom,
+      RoomAudioRenderer,
+      VideoConference,
+      ControlBar,
+      useRoomContext
+} from '@livekit/components-react';
 import '@livekit/components-styles';
 import { useAuth } from '../context/AuthContext';
 import { useSocketContext } from '../context/SocketContext';
@@ -8,11 +14,58 @@ import { API_URL } from '../config';
 
 const REACTION_OPTIONS = ['❤️', '😂', '👏', '🔥'];
 
+const normalizeLiveKitUrl = (value) => {
+      if (!value) {
+            return null;
+      }
+
+      const trimmed = value.trim().replace(/\/+$/, '');
+
+      if (trimmed.startsWith('https://')) {
+            return `wss://${trimmed.slice('https://'.length)}`;
+      }
+
+      if (trimmed.startsWith('http://')) {
+            return `ws://${trimmed.slice('http://'.length)}`;
+      }
+
+      return trimmed;
+};
+
+const HostMediaBootstrap = ({ enabled, onError }) => {
+      const room = useRoomContext();
+
+      useEffect(() => {
+            if (!enabled || !room) return undefined;
+
+            let mounted = true;
+
+            const startLocalMedia = async () => {
+                  try {
+                        await room.localParticipant.setMicrophoneEnabled(true);
+                        await room.localParticipant.setCameraEnabled(true);
+                  } catch (error) {
+                        if (mounted) {
+                              onError?.(error);
+                        }
+                  }
+            };
+
+            startLocalMedia();
+
+            return () => {
+                  mounted = false;
+            };
+      }, [enabled, onError, room]);
+
+      return null;
+};
+
 const ReactionsManager = memo(({ socket }) => {
       const [reactions, setReactions] = useState([]);
 
       useEffect(() => {
-            if (!socket) return;
+            if (!socket) return undefined;
 
             const handleComment = (data) => {
                   if (!data.comment?.startsWith('REACTION:')) return;
@@ -28,7 +81,10 @@ const ReactionsManager = memo(({ socket }) => {
             };
 
             socket.on('newStreamComment', handleComment);
-            return () => socket.off('newStreamComment', handleComment);
+
+            return () => {
+                  socket.off('newStreamComment', handleComment);
+            };
       }, [socket]);
 
       return reactions.map((reaction) => (
@@ -41,7 +97,7 @@ const ReactionsManager = memo(({ socket }) => {
 const LiveStream = () => {
       const { hostId } = useParams();
       const { user, token } = useAuth();
-      const { socket } = useSocketContext();
+      const { socket, isConnected } = useSocketContext();
       const navigate = useNavigate();
 
       const isHostMode = hostId === 'host';
@@ -57,6 +113,7 @@ const LiveStream = () => {
       const [activeStreams, setActiveStreams] = useState([]);
       const [loadingStreams, setLoadingStreams] = useState(true);
       const [streamError, setStreamError] = useState('');
+      const [isStarting, setIsStarting] = useState(false);
 
       const [lkToken, setLkToken] = useState(null);
       const [lkUrl, setLkUrl] = useState(null);
@@ -85,15 +142,16 @@ const LiveStream = () => {
       }, [isHostMode, isViewMode]);
 
       useEffect(() => {
-            if (isHostMode || isViewMode) return;
+            if (isHostMode || isViewMode) return undefined;
 
             loadActiveStreams();
             const interval = setInterval(loadActiveStreams, 10000);
+
             return () => clearInterval(interval);
       }, [isHostMode, isViewMode, loadActiveStreams]);
 
       useEffect(() => {
-            if (!isViewMode || !hostId) return;
+            if (!isViewMode || !hostId) return undefined;
 
             let ignore = false;
 
@@ -103,10 +161,11 @@ const LiveStream = () => {
                         const data = await res.json();
 
                         if (!ignore && data.success) {
-                              setStreamInfo(data.data.stream);
-                              setStreamTitle(data.data.stream?.title || '');
-                              setStreamDescription(data.data.stream?.description || '');
-                              setViewerCount(data.data.stream?.viewerCount || 0);
+                              const nextStream = data.data.stream;
+                              setStreamInfo(nextStream);
+                              setStreamTitle(nextStream?.title || '');
+                              setStreamDescription(nextStream?.description || '');
+                              setViewerCount(nextStream?.viewerCount || 0);
                         }
                   } catch {
                         if (!ignore) {
@@ -116,13 +175,14 @@ const LiveStream = () => {
             };
 
             loadStreamInfo();
+
             return () => {
                   ignore = true;
             };
       }, [hostId, isViewMode]);
 
       useEffect(() => {
-            if (!socket) return;
+            if (!socket) return undefined;
 
             const handleViewerJoined = ({ viewerCount: nextViewerCount }) => setViewerCount(nextViewerCount || 0);
             const handleViewerLeft = ({ viewerCount: nextViewerCount }) => setViewerCount(nextViewerCount || 0);
@@ -134,32 +194,58 @@ const LiveStream = () => {
                   setIsLive(false);
                   setStreamError('This stream has ended.');
                   setLkToken(null);
+                  setLkUrl(null);
+                  setLkRoomName(null);
+            };
+            const handleStreamNotFound = () => setStreamError('Stream not found or already offline.');
+            const handleStreamJoined = (payload) => {
+                  setViewerCount(payload.viewerCount || 0);
             };
 
             socket.on('viewerJoined', handleViewerJoined);
             socket.on('viewerLeft', handleViewerLeft);
             socket.on('newStreamComment', handleNewComment);
             socket.on('streamEnded', handleStreamEnded);
-            socket.on('streamNotFound', () => setStreamError('Stream not found or already offline.'));
-            socket.on('streamJoined', (payload) => {
-                  setViewerCount(payload.viewerCount || 0);
-            });
+            socket.on('streamNotFound', handleStreamNotFound);
+            socket.on('streamJoined', handleStreamJoined);
 
             return () => {
                   socket.off('viewerJoined', handleViewerJoined);
                   socket.off('viewerLeft', handleViewerLeft);
                   socket.off('newStreamComment', handleNewComment);
                   socket.off('streamEnded', handleStreamEnded);
-                  socket.off('streamNotFound');
-                  socket.off('streamJoined');
+                  socket.off('streamNotFound', handleStreamNotFound);
+                  socket.off('streamJoined', handleStreamJoined);
             };
       }, [socket]);
+
+      const handleRoomError = useCallback((message) => {
+            setStreamError(message);
+      }, []);
+
+      const warmupLocalMedia = useCallback(async () => {
+            if (!navigator?.mediaDevices?.getUserMedia) {
+                  return;
+            }
+
+            const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            mediaStream.getTracks().forEach((track) => track.stop());
+      }, []);
 
       const startStream = useCallback(async () => {
             if (!user || !socket) return;
 
             try {
+                  setIsStarting(true);
                   setStreamError('');
+
+                  if (!isConnected) {
+                        throw new Error('Realtime connection is still getting ready. Please wait a moment and try again.');
+                  }
+
+                  await warmupLocalMedia();
+
+                  const title = streamTitle || `${user.displayName || user.username}'s Live`;
                   const res = await fetch(`${API_URL}/livestream/token`, {
                         method: 'POST',
                         headers: {
@@ -168,7 +254,7 @@ const LiveStream = () => {
                         },
                         body: JSON.stringify({
                               isHost: true,
-                              title: streamTitle || `${user.displayName || user.username}'s Live`,
+                              title,
                               description: streamDescription
                         })
                   });
@@ -178,20 +264,23 @@ const LiveStream = () => {
                         throw new Error(data.message || 'Failed to get stream token');
                   }
 
+                  const roomUrl = normalizeLiveKitUrl(data.data.wsUrl);
+                  const roomName = data.data.roomName;
                   const nextInfo = {
                         hostId: user._id,
+                        roomId: roomName,
                         hostUsername: user.username,
                         hostDisplayName: user.displayName || user.username,
                         hostAvatar: user.avatar,
-                        title: streamTitle || `${user.displayName || user.username}'s Live`,
+                        title,
                         description: streamDescription
                   };
 
                   setStreamInfo(nextInfo);
                   setStreamTitle(nextInfo.title);
                   setLkToken(data.data.token);
-                  setLkUrl(data.data.wsUrl);
-                  setLkRoomName(data.data.roomName);
+                  setLkUrl(roomUrl);
+                  setLkRoomName(roomName);
                   setIsLive(true);
                   setComments([]);
                   setViewerCount(0);
@@ -200,12 +289,19 @@ const LiveStream = () => {
                         hostId: user._id,
                         title: nextInfo.title,
                         description: streamDescription,
-                        roomId: data.data.roomName
+                        roomId: roomName
                   });
-            } catch (err) {
-                  setStreamError(err.message || 'Could not start the stream.');
+            } catch (error) {
+                  const permissionBlocked = error?.name === 'NotAllowedError' || error?.name === 'PermissionDeniedError';
+                  setStreamError(
+                        permissionBlocked
+                              ? 'Camera and microphone permission blocked. Allow access in the browser and try again.'
+                              : (error.message || 'Could not start the stream.')
+                  );
+            } finally {
+                  setIsStarting(false);
             }
-      }, [socket, streamDescription, streamTitle, token, user]);
+      }, [isConnected, socket, streamDescription, streamTitle, token, user, warmupLocalMedia]);
 
       const endStream = useCallback(async () => {
             if (!user || !socket) return;
@@ -229,19 +325,20 @@ const LiveStream = () => {
       }, [navigate, socket, token, user]);
 
       useEffect(() => {
-            if (!isViewMode || !socket || !user || !hostId) return;
+            if (!isViewMode || !socket || !user || !hostId) return undefined;
 
             let ignore = false;
 
             const joinStream = async () => {
                   try {
+                        const roomName = streamInfo?.roomId || streamInfo?.id || `stream_${hostId}`;
                         const res = await fetch(`${API_URL}/livestream/token`, {
                               method: 'POST',
                               headers: {
                                     'Content-Type': 'application/json',
                                     Authorization: `Bearer ${token}`
                               },
-                              body: JSON.stringify({ isHost: false, roomName: `stream_${hostId}` })
+                              body: JSON.stringify({ isHost: false, roomName })
                         });
                         const data = await res.json();
 
@@ -252,14 +349,14 @@ const LiveStream = () => {
                         if (ignore) return;
 
                         setLkToken(data.data.token);
-                        setLkUrl(data.data.wsUrl);
-                        setLkRoomName(data.data.roomName);
+                        setLkUrl(normalizeLiveKitUrl(data.data.wsUrl));
+                        setLkRoomName(data.data.roomName || roomName);
                         setIsLive(true);
                         setStreamError('');
                         socket.emit('joinStream', { hostId, viewerId: user._id });
-                  } catch (err) {
+                  } catch (error) {
                         if (!ignore) {
-                              setStreamError(err.message || 'Connection error');
+                              setStreamError(error.message || 'Connection error');
                         }
                   }
             };
@@ -270,7 +367,7 @@ const LiveStream = () => {
                   ignore = true;
                   socket.emit('leaveStreamView', { hostId, viewerId: user._id });
             };
-      }, [hostId, isViewMode, socket, token, user]);
+      }, [hostId, isViewMode, socket, streamInfo, token, user]);
 
       const sendComment = (event) => {
             event.preventDefault();
@@ -341,7 +438,11 @@ const LiveStream = () => {
                                     <div className="live-empty-card">
                                           <h3>No live streams right now</h3>
                                           <p>Start the next session and bring your audience in instantly.</p>
-                                          {user && <button type="button" className="btn btn-secondary" onClick={() => navigate('/live/host')}>Start Stream</button>}
+                                          {user && (
+                                                <button type="button" className="btn btn-secondary" onClick={() => navigate('/live/host')}>
+                                                      Start Stream
+                                                </button>
+                                          )}
                                     </div>
                               ) : (
                                     <div className="live-stream-grid">
@@ -386,7 +487,9 @@ const LiveStream = () => {
                               <div className="live-empty-card">
                                     <h3>Login required</h3>
                                     <p>You need an account to host or join a protected live room.</p>
-                                    <button type="button" className="btn btn-primary" onClick={() => navigate('/login')}>Go to Login</button>
+                                    <button type="button" className="btn btn-primary" onClick={() => navigate('/login')}>
+                                          Go to Login
+                                    </button>
                               </div>
                         </div>
                   </div>
@@ -400,12 +503,18 @@ const LiveStream = () => {
                   <div className="livestream-video-area">
                         {lkToken && lkUrl ? (
                               <LiveKitRoom
-                                    video={isHostMode}
-                                    audio={isHostMode}
+                                    connect={Boolean(lkToken && lkUrl)}
+                                    video={isHostMode ? { resolution: { width: 1280, height: 720, frameRate: 24 } } : false}
+                                    audio={isHostMode ? { echoCancellation: true, noiseSuppression: true } : false}
                                     token={lkToken}
                                     serverUrl={lkUrl}
                                     data-lk-theme="default"
                                     style={{ width: '100%', height: '100%' }}
+                                    onError={(error) => handleRoomError(error.message || 'Live room connection failed.')}
+                                    onMediaDeviceFailure={(_, kind) => {
+                                          const label = kind === 'videoinput' ? 'camera' : 'microphone';
+                                          handleRoomError(`Could not access your ${label}. Check browser permission and device availability.`);
+                                    }}
                                     onDisconnected={() => {
                                           if (isViewMode) {
                                                 setIsLive(false);
@@ -413,11 +522,15 @@ const LiveStream = () => {
                                           }
                                     }}
                               >
+                                    <HostMediaBootstrap
+                                          enabled={isHostMode}
+                                          onError={(error) => handleRoomError(error.message || 'Could not start camera or microphone.')}
+                                    />
                                     <VideoConference />
                                     <RoomAudioRenderer />
                                     {isHostMode && (
                                           <div className="live-control-bar-wrap">
-                                                <ControlBar controls={{ leave: false }} />
+                                                <ControlBar controls={{ microphone: true, camera: true, screenShare: true, settings: true, leave: false }} />
                                           </div>
                                     )}
                               </LiveKitRoom>
@@ -429,6 +542,7 @@ const LiveStream = () => {
                                           <span className="live-badge">LIVE</span>
                                           <h2>{liveHeading}</h2>
                                           <p>{streamDescription || streamInfo?.description || 'Realtime chat, streaming and stable room controls.'}</p>
+                                          {lkRoomName ? <small className="live-room-label">Room: {lkRoomName}</small> : null}
                                     </div>
 
                                     <div className="live-topbar-actions">
@@ -468,7 +582,9 @@ const LiveStream = () => {
                                           {streamError && <p className="live-error-text">{streamError}</p>}
 
                                           <div className="live-setup-actions">
-                                                <button type="button" className="btn btn-primary" onClick={startStream}>Go Live</button>
+                                                <button type="button" className="btn btn-primary" onClick={startStream} disabled={isStarting}>
+                                                      {isStarting ? 'Starting...' : 'Go Live'}
+                                                </button>
                                                 <button type="button" className="btn btn-secondary" onClick={() => navigate('/live')}>Cancel</button>
                                           </div>
                                     </div>

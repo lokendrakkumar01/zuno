@@ -4530,6 +4530,15 @@ video.chat-media-content {
   max-width: 50ch;
 }
 
+.live-room-label {
+  display: inline-block;
+  margin-top: 0.5rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .live-topbar-actions {
   display: flex;
   align-items: center;

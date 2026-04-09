@@ -1,6 +1,24 @@
 const { AccessToken } = require('livekit-server-sdk');
 const { activeStreams } = require('../socket/socket'); // We still use this to track stream metadata
 
+const normalizeLiveKitUrl = (value = '') => {
+    const trimmed = value.replace(/['"]+/g, '').trim().replace(/\/+$/, '');
+
+    if (!trimmed) {
+        return '';
+    }
+
+    if (trimmed.startsWith('https://')) {
+        return `wss://${trimmed.slice('https://'.length)}`;
+    }
+
+    if (trimmed.startsWith('http://')) {
+        return `ws://${trimmed.slice('http://'.length)}`;
+    }
+
+    return trimmed;
+};
+
 // Generate an access token for LiveKit
 // Used by both host (creating stream) and viewers (joining stream)
 const getLiveKitToken = async (req, res) => {
@@ -14,7 +32,7 @@ const getLiveKitToken = async (req, res) => {
         // If the API keys aren't set in environment, throw an error
         let apiKey = process.env.LIVEKIT_API_KEY?.replace(/['"]+/g, '');
         let apiSecret = process.env.LIVEKIT_API_SECRET?.replace(/['"]+/g, '');
-        let wsUrl = process.env.LIVEKIT_URL?.replace(/['"]+/g, '');
+        let wsUrl = normalizeLiveKitUrl(process.env.LIVEKIT_URL);
 
         if (!apiKey || !apiSecret || !wsUrl) {
             console.error('[LiveKit] Missing API keys or URL in environment');
@@ -50,21 +68,23 @@ const getLiveKitToken = async (req, res) => {
 
         // If host, pre-register stream metadata. Socket lifecycle will finalize live presence.
         if (isHost) {
-            if (activeStreams.has(userId)) {
-                activeStreams.delete(userId);
-            }
-            
+            const existingStream = activeStreams.get(userId) || {};
+
             activeStreams.set(userId, {
+                ...existingStream,
                 id: roomName,
+                roomId: roomName,
                 hostId: userId,
                 hostUsername: username,
                 hostAvatar: avatar,
                 hostDisplayName: displayName,
                 title: title || `${displayName}'s Live Stream`,
-                description: '',
-                startedAt: new Date().toISOString(),
-                viewerCount: 0,
-                hostSocketId: null,
+                description: req.body.description || existingStream.description || '',
+                startedAt: existingStream.startedAt || new Date().toISOString(),
+                viewerCount: existingStream.viewers ? existingStream.viewers.size : 0,
+                hostSocketId: existingStream.hostSocketId || null,
+                viewers: existingStream.viewers || new Set(),
+                bannedViewers: existingStream.bannedViewers || new Set(),
                 liveKitProvisioned: true
             });
         }

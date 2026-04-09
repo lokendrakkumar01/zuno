@@ -181,6 +181,7 @@ io.on("connection", (socket) => {
       hostId: existingStream.hostId || userId,
       roomId,
       title: data.title || existingStream.title || '',
+      description: data.description || existingStream.description || '',
       viewers: existingStream.viewers || new Set(),
       hostSocketId: socket.id,
       bannedViewers: existingStream.bannedViewers || new Set(),
@@ -194,21 +195,37 @@ io.on("connection", (socket) => {
   socket.on("joinStream", (data) => {
     if (!data?.hostId) return;
     const stream = activeStreams.get(data.hostId);
-    if (!stream || !stream.hostSocketId) return socket.emit("streamNotFound");
+    if (!stream || (!stream.hostSocketId && !stream.liveKitProvisioned)) {
+      return socket.emit("streamNotFound");
+    }
+
+    stream.viewers = stream.viewers || new Set();
+    stream.bannedViewers = stream.bannedViewers || new Set();
+
     if (stream.bannedViewers?.has(userId)) {
       return socket.emit("streamBanned", { reason: 'You have been removed from this stream.' });
     }
-    socket.join(stream.roomId);
+
+    const roomId = stream.roomId || stream.id || `stream_${data.hostId}`;
+    stream.roomId = roomId;
+    socket.join(roomId);
     stream.viewers.add(userId);
     const viewerCount = stream.viewers.size;
-    io.to(stream.hostSocketId).emit("viewerJoined", { viewerId: userId, viewerCount });
+
+    if (stream.hostSocketId) {
+      io.to(stream.hostSocketId).emit("viewerJoined", { viewerId: userId, viewerCount });
+    }
+
     socket.emit("streamJoined", {
-      hostId: data.hostId, roomId: stream.roomId, viewerCount,
+      hostId: data.hostId, roomId, viewerCount,
       hostSocketId: stream.hostSocketId,
       slowMode: stream.slowMode,
       pinnedComment: stream.pinnedComment
     });
-    io.to(stream.hostSocketId).emit("initPeerWithViewer", { viewerId: userId, viewerSocketId: socket.id });
+
+    if (stream.hostSocketId) {
+      io.to(stream.hostSocketId).emit("initPeerWithViewer", { viewerId: userId, viewerSocketId: socket.id });
+    }
   });
 
   socket.on("streamSignal", (data) => {
@@ -270,9 +287,12 @@ io.on("connection", (socket) => {
   socket.on("leaveStreamView", (data) => {
     const stream = activeStreams.get(data.hostId);
     if (stream) {
+      stream.viewers = stream.viewers || new Set();
       stream.viewers.delete(userId);
-      socket.leave(stream.roomId);
-      io.to(stream.hostSocketId).emit("viewerLeft", { viewerId: userId, viewerCount: stream.viewers.size });
+      socket.leave(stream.roomId || stream.id || `stream_${data.hostId}`);
+      if (stream.hostSocketId) {
+        io.to(stream.hostSocketId).emit("viewerLeft", { viewerId: userId, viewerCount: stream.viewers.size });
+      }
     }
   });
 
@@ -291,9 +311,11 @@ io.on("connection", (socket) => {
         io.to(stream.roomId).emit("streamEnded", { hostId: hostUserId });
         activeStreams.delete(hostUserId);
         console.log(`[Stream] Host ${hostUserId} disconnected — stream ended`);
-      } else if (stream.viewers.has(userId)) {
+      } else if (stream.viewers?.has(userId)) {
         stream.viewers.delete(userId);
-        io.to(stream.hostSocketId).emit("viewerLeft", { viewerId: userId, viewerCount: stream.viewers.size });
+        if (stream.hostSocketId) {
+          io.to(stream.hostSocketId).emit("viewerLeft", { viewerId: userId, viewerCount: stream.viewers.size });
+        }
       }
     }
 
