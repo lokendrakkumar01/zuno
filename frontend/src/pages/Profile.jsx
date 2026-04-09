@@ -24,7 +24,7 @@ const FEED_MODES = [
 
 const Profile = () => {
       const { username } = useParams();
-      const { user, token, isAuthenticated, updateProfile, logout, blockUser, unblockUser } = useAuth();
+      const { user, token, isAuthenticated, updateProfile, logout, blockUser, unblockUser, updateFollowState } = useAuth();
       const navigate = useNavigate();
       const fileInputRef = useRef(null);
       const { playTrack, stopTrack, currentTrack, isPlaying: isMusicPlayingGlobal } = useMusic();
@@ -62,6 +62,7 @@ const Profile = () => {
       const [uploadingPhoto, setUploadingPhoto] = useState(false);
       const [activeTab, setActiveTab] = useState('profile');
       const [isFollowing, setIsFollowing] = useState(false);
+      const [followRequested, setFollowRequested] = useState(false);
       const [isBlocked, setIsBlocked] = useState(false);
       const [followLoading, setFollowLoading] = useState(false);
       const [blockLoading, setBlockLoading] = useState(false);
@@ -125,6 +126,9 @@ const Profile = () => {
                         const res = await fetch(`${API_URL}/users/${encodedUsername}`);
                         const data = await res.json();
                         if (data.success) {
+                              if (username && data.data.user?.username && data.data.user.username !== username) {
+                                    navigate(`/u/${data.data.user.username}`, { replace: true });
+                              }
                               setProfileUser(data.data.user);
                               try {
                                     localStorage.setItem(`zuno_profile_cache_${targetUsername}`, JSON.stringify(data.data.user));
@@ -289,11 +293,12 @@ const Profile = () => {
             if (!isOwnProfile && profileUser && user) {
                   // Check following
                   const following = user.following || [];
-                  setIsFollowing(following.includes(profileUser._id));
+                  setIsFollowing(following.some(id => id?.toString() === profileUser._id?.toString()));
+                  setFollowRequested(false);
 
                   // Check blocked
                   const blocked = user.blockedUsers || [];
-                  setIsBlocked(blocked.includes(profileUser._id));
+                  setIsBlocked(blocked.some(id => id?.toString() === profileUser._id?.toString()));
             }
       }, [profileUser, user, isOwnProfile]);
 
@@ -306,19 +311,22 @@ const Profile = () => {
             }
             setFollowLoading(true);
             try {
-                  const endpoint = isFollowing ? 'unfollow' : 'follow';
+                  const endpoint = (isFollowing || followRequested) ? 'unfollow' : 'follow';
                   const res = await fetch(`${API_URL}/users/${profileUser._id}/${endpoint}`, {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${token}` }
                   });
                   const data = await res.json();
                   if (data.success) {
-                        setIsFollowing(!isFollowing);
+                        const nextIsFollowing = data.status === 'following' || data.data?.isFollowing === true;
+                        const nextIsRequested = data.status === 'requested' || data.data?.isRequested === true;
+
+                        setIsFollowing(nextIsFollowing);
+                        setFollowRequested(nextIsRequested);
+                        updateFollowState(profileUser._id, nextIsFollowing);
                         setProfileUser(prev => ({
                               ...prev,
-                              followersCount: isFollowing
-                                    ? (prev.followersCount || 1) - 1
-                                    : (prev.followersCount || 0) + 1
+                              followersCount: data.data?.followersCount ?? prev.followersCount ?? 0
                         }));
                         setMessage(data.message);
                         setTimeout(() => setMessage(''), 3000);
@@ -335,13 +343,13 @@ const Profile = () => {
 
             setSendingQuickChat(true);
             try {
-                  const res = await fetch(`${API_URL}/messages/send/${profileUser._id}`, {
+                  const res = await fetch(`${API_URL}/messages/${profileUser._id}`, {
                         method: 'POST',
                         headers: {
                               'Content-Type': 'application/json',
                               'Authorization': `Bearer ${token}`
                         },
-                        body: JSON.stringify({ message: quickChatText.trim() })
+                        body: JSON.stringify({ text: quickChatText.trim() })
                   });
                   const data = await res.json();
                   if (data.success) {
@@ -372,6 +380,8 @@ const Profile = () => {
                         setIsBlocked(!isBlocked);
                         if (!isBlocked) {
                               setIsFollowing(false);
+                              setFollowRequested(false);
+                              updateFollowState(profileUser._id, false);
                               // Update followers count as blocking auto-unfollows
                               setProfileUser(prev => ({
                                     ...prev,
@@ -692,16 +702,16 @@ const Profile = () => {
                                                             onClick={fetchFollowers}
                                                             style={{ cursor: 'pointer' }}
                                                       >
-                                                            <span className="font-bold text-gray-900 text-lg">{profileUser.followersCount || 0}</span>
-                                                            <span className="text-gray-500 hover:text-blue-500">Followers</span>
+                                                            <span className="font-bold text-lg" style={{ color: 'var(--color-text-primary)' }}>{profileUser.followersCount || 0}</span>
+                                                            <span style={{ color: 'var(--color-text-secondary)' }}>Followers</span>
                                                       </div>
                                                       <div
                                                             className="flex items-center gap-xs cursor-pointer hover:opacity-80 transition-opacity"
                                                             onClick={fetchFollowing}
                                                             style={{ cursor: 'pointer' }}
                                                       >
-                                                            <span className="font-bold text-gray-900 text-lg">{profileUser.followingCount || 0}</span>
-                                                            <span className="text-gray-500 hover:text-blue-500">Following</span>
+                                                            <span className="font-bold text-lg" style={{ color: 'var(--color-text-primary)' }}>{profileUser.followingCount || 0}</span>
+                                                            <span style={{ color: 'var(--color-text-secondary)' }}>Following</span>
                                                       </div>
                                                       <div
                                                             className="flex items-center gap-xs cursor-pointer hover:opacity-80 transition-opacity"
@@ -713,8 +723,8 @@ const Profile = () => {
                                                             }}
                                                             style={{ cursor: 'pointer' }}
                                                       >
-                                                            <span className="font-bold text-gray-900 text-lg">{userPosts.length || 0}</span>
-                                                            <span className="text-gray-500 hover:text-blue-500">Posts</span>
+                                                            <span className="font-bold text-lg" style={{ color: 'var(--color-text-primary)' }}>{userPosts.length || 0}</span>
+                                                            <span style={{ color: 'var(--color-text-secondary)' }}>Posts</span>
                                                       </div>
                                                       {isOwnProfile && totalViews > 0 && (
                                                             <div className="flex items-center gap-xs">
@@ -952,10 +962,12 @@ const Profile = () => {
                                                 <button
                                                       onClick={handleFollow}
                                                       disabled={followLoading}
-                                                      className={`btn ${isFollowing ? 'btn-secondary' : 'btn-primary'} flex-1 min-w-[120px]`}
+                                                      className={`btn ${(isFollowing || followRequested) ? 'btn-secondary' : 'btn-primary'} flex-1 min-w-[120px]`}
                                                 >
                                                       {followLoading ? (
                                                             <span style={{ fontSize: '16px' }}>⏳</span>
+                                                      ) : followRequested ? (
+                                                            'Requested'
                                                       ) : isFollowing ? (
                                                             '✓ Following'
                                                       ) : (
@@ -965,8 +977,10 @@ const Profile = () => {
                                                 <button
                                                       onClick={() => {
                                                             setActiveTab('chat');
-                                                            const chatSection = document.getElementById('chat-tab-section');
-                                                            if (chatSection) chatSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                            setTimeout(() => {
+                                                                  const chatSection = document.getElementById('chat-tab-section');
+                                                                  if (chatSection) chatSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                            }, 50);
                                                       }}
                                                       className={`btn ${activeTab === 'chat' ? 'btn-primary' : 'btn-secondary'} flex-1 min-w-[120px]`}
                                                 >
@@ -1018,7 +1032,7 @@ const Profile = () => {
                         )}
 
 
-                        {isOwnProfile && (
+                        {false && isOwnProfile && (
                               <div className="mode-pills mb-xl" style={{ maxWidth: '500px' }}>
                                     <button className={`mode-pill ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => setActiveTab('profile')}>👤 Profile</button>
                                     <button className={`mode-pill ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>⚙️ Settings</button>
@@ -1110,7 +1124,7 @@ const Profile = () => {
                               </div>
                         )}
 
-                        {activeTab === 'profile' && !editing && (
+                        {(activeTab === 'profile' || activeTab === 'posts') && !editing && (
                               <>
                                     {profileUser.interests && profileUser.interests.length > 0 && (
                                           <div className="card mb-lg animate-fadeInUp">
