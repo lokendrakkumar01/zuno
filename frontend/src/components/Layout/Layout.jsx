@@ -4,13 +4,73 @@ import { useSocketContext } from '../../context/SocketContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import zunoLogo from '../../assets/zuno-logo.png';
 import { API_URL } from '../../config';
-import { motion, AnimatePresence } from 'framer-motion';
+
+const navItems = [
+      {
+            path: '/',
+            label: 'Home',
+            match: (pathname) => pathname === '/',
+            icon: (
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M3 10.5 12 3l9 7.5" />
+                        <path d="M5 9.5V20h14V9.5" />
+                  </svg>
+            )
+      },
+      {
+            path: '/search',
+            label: 'Search',
+            match: (pathname) => pathname.startsWith('/search'),
+            icon: (
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="11" cy="11" r="7" />
+                        <path d="m20 20-3.5-3.5" />
+                  </svg>
+            )
+      },
+      {
+            path: '/status',
+            label: 'Status',
+            match: (pathname) => pathname.startsWith('/status'),
+            icon: (
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="9" />
+                        <path d="M12 7v5l3 2" />
+                  </svg>
+            )
+      },
+      {
+            path: '/messages',
+            label: 'Messages',
+            match: (pathname) => pathname.startsWith('/messages'),
+            icon: (
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z" />
+                  </svg>
+            )
+      },
+      {
+            path: '/live',
+            label: 'Live',
+            match: (pathname) => pathname.startsWith('/live'),
+            icon: (
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="3" />
+                        <path d="M5 12a7 7 0 0 1 7-7" />
+                        <path d="M19 12a7 7 0 0 0-7-7" />
+                        <path d="M2 12A10 10 0 0 1 12 2" />
+                        <path d="M22 12A10 10 0 0 0 12 2" />
+                  </svg>
+            )
+      }
+];
 
 const Layout = () => {
       const { user, isAuthenticated, logout, token } = useAuth();
-      const { socket } = useSocketContext();
+      const { socket, isConnected } = useSocketContext();
       const { t } = useLanguage();
       const { theme, toggleTheme } = useTheme();
       const navigate = useNavigate();
@@ -19,21 +79,26 @@ const Layout = () => {
       const [unreadCount, setUnreadCount] = useState(0);
 
       useEffect(() => {
-            const handleScroll = () => setScrolled(window.scrollY > 20);
+            const handleScroll = () => setScrolled(window.scrollY > 12);
             window.addEventListener('scroll', handleScroll, { passive: true });
             return () => window.removeEventListener('scroll', handleScroll);
       }, []);
 
-      // Fetch unread message count
       const fetchUnread = useCallback(async () => {
             if (!isAuthenticated || !token) return;
+
             try {
                   const res = await fetch(`${API_URL}/messages/unread/count`, {
-                        headers: { 'Authorization': `Bearer ${token}` }
+                        headers: { Authorization: `Bearer ${token}` }
                   });
                   const data = await res.json();
-                  if (data.success) setUnreadCount(data.data.unreadCount);
-            } catch (err) { /* silently fail */ }
+
+                  if (data.success) {
+                        setUnreadCount(data.data.unreadCount || 0);
+                  }
+            } catch {
+                  // Keep the last known value for a smoother shell.
+            }
       }, [isAuthenticated, token]);
 
       useEffect(() => {
@@ -42,187 +107,153 @@ const Layout = () => {
             return () => clearInterval(interval);
       }, [fetchUnread]);
 
-      // Socket listener for real-time unread updates
       useEffect(() => {
             if (!socket) return;
-            const handleNewMessage = () => setTimeout(fetchUnread, 300);
-            socket.on('newMessage', handleNewMessage);
-            socket.on('messageRead', fetchUnread);
+
+            const syncUnread = () => window.setTimeout(fetchUnread, 250);
+            socket.on('newMessage', syncUnread);
+            socket.on('newGroupMessage', syncUnread);
+            socket.on('messageRead', syncUnread);
+
             return () => {
-                  socket.off('newMessage', handleNewMessage);
-                  socket.off('messageRead', fetchUnread);
+                  socket.off('newMessage', syncUnread);
+                  socket.off('newGroupMessage', syncUnread);
+                  socket.off('messageRead', syncUnread);
             };
       }, [socket, fetchUnread]);
 
-      const handleLogout = () => {
-            logout();
-            navigate('/login');
-      };
+      const isActive = (item) => item.match(location.pathname);
+      const profileLabel = user?.displayName || user?.username || 'Profile';
 
-      // Check if path is active (supports nested routes like /messages/:id)
-      const isActive = (path) => {
-            if (path === '/') return location.pathname === '/';
-            return location.pathname.startsWith(path);
-      };
+      const ThemeIcon = () =>
+            theme === 'light' ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="4" />
+                        <path d="M12 2v2.5M12 19.5V22M4.93 4.93l1.77 1.77M17.3 17.3l1.77 1.77M2 12h2.5M19.5 12H22M4.93 19.07l1.77-1.77M17.3 6.7l1.77-1.77" />
+                  </svg>
+            ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" />
+                  </svg>
+            );
 
-      // SVG Icons
-      const HomeIcon = () => (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
-            </svg>
-      );
-
-      const SearchIcon = () => (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="11" cy="11" r="8" />
-                  <path d="M21 21l-4.35-4.35" />
-            </svg>
-      );
-
-      const StatusIcon = () => (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M12 6v6l4 2" />
-            </svg>
-      );
-
-      const PlusIcon = () => (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z" />
-            </svg>
-      );
-
-      const MessagesIcon = () => (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
-      );
-
-      const LiveIcon = () => (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="3" />
-                  <path d="M19 12a7 7 0 0 0-7-7" />
-                  <path d="M5 12a7 7 0 0 1 7-7" />
-                  <path d="M22 12a10 10 0 0 0-10-10" />
-                  <path d="M2 12A10 10 0 0 1 12 2" />
-            </svg>
-      );
-
-      const ProfileIcon = () => (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20 21a8 8 0 0 0-16 0" />
-                  <circle cx="12" cy="7" r="4" />
-            </svg>
+      const renderNavLink = (item, mobile = false) => (
+            <Link
+                  key={`${mobile ? 'mobile' : 'desktop'}-${item.path}`}
+                  to={item.path}
+                  className={`${mobile ? 'bottom-nav-item' : 'nav-link'} ${isActive(item) ? 'active' : ''}`}
+            >
+                  <span className="nav-icon-wrap">
+                        {item.icon}
+                        {item.path === '/messages' && unreadCount > 0 && (
+                              <span className="nav-unread-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+                        )}
+                  </span>
+                  <span>{item.path === '/' ? t('home') : item.path === '/search' ? t('search') : item.label}</span>
+            </Link>
       );
 
       return (
-            <div className="app">
-                  {/* Header */}
+            <div className="app-shell">
                   <header className={`header ${scrolled ? 'scrolled' : ''}`}>
                         <div className="container header-inner">
-                              <Link to="/" className="logo">
-                                    <img src={zunoLogo} alt="ZUNO" style={{ height: '40px', borderRadius: '8px' }} />
-                                    <span>ZUNO</span>
-                              </Link>
-
-                              {/* Desktop Navigation */}
-                              <nav className="nav">
-                                    <Link to="/" className={`nav-link ${isActive('/') && location.pathname === '/' ? 'active' : ''}`}>
-                                          <HomeIcon />
-                                          <span>{t('home')}</span>
+                              <div className="header-brand-cluster">
+                                    <Link to="/" className="logo">
+                                          <img src={zunoLogo} alt="ZUNO" className="logo-image" />
+                                          <div className="logo-copy">
+                                                <span>ZUNO</span>
+                                                <small>Social, chat, live and calls</small>
+                                          </div>
                                     </Link>
+
+                                    {isAuthenticated && (
+                                          <div className={`header-status-pill ${isConnected ? 'online' : 'offline'}`}>
+                                                <span className="status-dot" />
+                                                <span>{isConnected ? 'Realtime ready' : 'Reconnecting'}</span>
+                                          </div>
+                                    )}
+                              </div>
+
+                              <nav className="nav nav-desktop">
+                                    {navItems.map((item) => renderNavLink(item))}
+                              </nav>
+
+                              <div className="header-actions">
                                     {isAuthenticated ? (
                                           <>
-                                                <Link to="/status" className={`nav-link ${isActive('/status') ? 'active' : ''}`}>
-                                                      <StatusIcon />
-                                                      <span>Status</span>
-                                                </Link>
-                                                <Link to="/messages" className={`nav-link ${isActive('/messages') ? 'active' : ''}`} style={{ position: 'relative' }}>
-                                                      <MessagesIcon />
-                                                      <span>Messages</span>
-                                                      {unreadCount > 0 && (
-                                                            <span className="nav-unread-badge" style={{
-                                                                  position: 'absolute',
-                                                                  top: '-6px',
-                                                                  right: '-10px',
-                                                                  background: 'linear-gradient(135deg,#ef4444,#dc2626)',
-                                                                  color: '#fff',
-                                                                  borderRadius: '99px',
-                                                                  fontSize: '10px',
-                                                                  fontWeight: 700,
-                                                                  padding: '1px 5px',
-                                                                  minWidth: '16px',
-                                                                  textAlign: 'center',
-                                                                  lineHeight: '14px'
-                                                            }}>
-                                                                  {unreadCount > 99 ? '99+' : unreadCount}
-                                                            </span>
-                                                      )}
-                                                </Link>
-                                                <Link to="/upload" className={`nav-link ${isActive('/upload') ? 'active' : ''}`}>
-                                                      <PlusIcon />
-                                                      <span>{t('upload')}</span>
-                                                </Link>
-                                                <Link to="/live" className={`nav-link ${isActive('/live') ? 'active' : ''}`}>
-                                                      <LiveIcon />
-                                                      <span>Live</span>
-                                                </Link>
-                                                <Link to="/profile" className={`nav-link ${isActive('/profile') ? 'active' : ''}`}>
-                                                      <ProfileIcon />
-                                                      <span>{t('profile')}</span>
-                                                </Link>
-                                                {user?.role === 'admin' && (
-                                                      <Link to="/admin" className="nav-link" style={{ color: 'var(--color-accent-pink)' }}>
-                                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                                                                  <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z" />
-                                                            </svg>
-                                                            <span>Admin</span>
-                                                      </Link>
-                                                )}
-                                                
-                                                <button 
-                                                      onClick={toggleTheme} 
-                                                      className="theme-toggle-btn"
-                                                      aria-label="Toggle Theme"
-                                                      style={{
-                                                            background: 'none',
-                                                            border: 'none',
-                                                            cursor: 'pointer',
-                                                            padding: '8px',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            justifyContent: 'center',
-                                                            color: 'var(--color-text-primary)',
-                                                            borderRadius: '50%',
-                                                            transition: 'background 0.3s ease'
-                                                      }}
+                                                <button
+                                                      type="button"
+                                                      onClick={() => navigate('/upload')}
+                                                      className="shell-upload-btn"
                                                 >
-                                                      {theme === 'light' ? '◐' : '◑'}
+                                                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                            <path d="M12 5v14M5 12h14" />
+                                                      </svg>
+                                                      <span>{t('upload')}</span>
                                                 </button>
 
-                                                <div className="flex items-center gap-sm" style={{ marginLeft: 'var(--space-sm)' }}>
-                                                      <div className="avatar avatar-sm" style={{ cursor: 'pointer', overflow: 'hidden' }} onClick={() => navigate('/profile')}>
+                                                <button
+                                                      type="button"
+                                                      onClick={toggleTheme}
+                                                      className="theme-toggle-btn shell-icon-btn"
+                                                      aria-label="Toggle theme"
+                                                >
+                                                      <ThemeIcon />
+                                                </button>
+
+                                                <button
+                                                      type="button"
+                                                      onClick={() => navigate('/profile')}
+                                                      className="shell-profile-btn"
+                                                      aria-label={profileLabel}
+                                                >
+                                                      <span className="shell-profile-copy">
+                                                            <strong>{profileLabel}</strong>
+                                                            <small>@{user?.username}</small>
+                                                      </span>
+                                                      <span className="avatar avatar-sm shell-avatar">
                                                             {user?.avatar ? (
-                                                                  <img src={user.avatar} alt={user.displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                                  <img src={user.avatar} alt={profileLabel} />
                                                             ) : (
-                                                                  user?.displayName?.charAt(0) || user?.username?.charAt(0) || 'U'
+                                                                  (user?.displayName?.charAt(0) || user?.username?.charAt(0) || 'U').toUpperCase()
                                                             )}
-                                                      </div>
-                                                </div>
+                                                      </span>
+                                                </button>
+
+                                                <button
+                                                      type="button"
+                                                      onClick={() => {
+                                                            logout();
+                                                            navigate('/login');
+                                                      }}
+                                                      className="shell-icon-btn"
+                                                      aria-label="Log out"
+                                                >
+                                                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                                                            <path d="m16 17 5-5-5-5" />
+                                                            <path d="M21 12H9" />
+                                                      </svg>
+                                                </button>
                                           </>
                                     ) : (
                                           <>
+                                                <button
+                                                      type="button"
+                                                      onClick={toggleTheme}
+                                                      className="theme-toggle-btn shell-icon-btn"
+                                                      aria-label="Toggle theme"
+                                                >
+                                                      <ThemeIcon />
+                                                </button>
                                                 <Link to="/login" className="btn btn-ghost btn-sm">{t('login')}</Link>
-                                                <Link to="/register" className="btn btn-primary btn-sm">
-                                                      {t('join')}
-                                                </Link>
+                                                <Link to="/register" className="btn btn-primary btn-sm">{t('join')}</Link>
                                           </>
                                     )}
-                              </nav>
+                              </div>
                         </div>
                   </header>
 
-                  {/* Main Content */}
                   <main className="main">
                         <AnimatePresence mode="wait">
                               <motion.div
@@ -230,7 +261,7 @@ const Layout = () => {
                                     initial={{ opacity: 0, y: 8 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: -8 }}
-                                    transition={{ duration: 0.15 }}
+                                    transition={{ duration: 0.16 }}
                                     style={{ width: '100%', height: '100%' }}
                               >
                                     <Outlet />
@@ -238,106 +269,30 @@ const Layout = () => {
                         </AnimatePresence>
                   </main>
 
-                  {/* Mobile Bottom Navigation */}
                   <nav className="bottom-nav">
-                        <Link to="/" className={`bottom-nav-item ${location.pathname === '/' ? 'active' : ''}`}>
-                              <HomeIcon />
-                              <span style={{ fontSize: '10px' }}>{t('home')}</span>
-                        </Link>
-                        <Link to="/search" className={`bottom-nav-item ${isActive('/search') ? 'active' : ''}`}>
-                              <SearchIcon />
-                              <span style={{ fontSize: '10px' }}>{t('search')}</span>
-                        </Link>
-                        <Link to="/live" className={`bottom-nav-item ${isActive('/live') ? 'active' : ''}`}>
-                              <LiveIcon />
-                              <span style={{ fontSize: '10px' }}>Live</span>
+                        {renderNavLink(navItems[0], true)}
+                        {renderNavLink(navItems[1], true)}
+
+                        <Link to={isAuthenticated ? '/upload' : '/login'} className="bottom-nav-item bottom-nav-create">
+                              <span className="bottom-nav-create-pill">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                          <path d="M12 5v14M5 12h14" />
+                                    </svg>
+                              </span>
+                              <span>{isAuthenticated ? 'Create' : 'Login'}</span>
                         </Link>
 
-                        {isAuthenticated ? (
-                              <Link to="/upload" className={`bottom-nav-item ${isActive('/upload') ? 'active' : ''}`}>
-                                    <div style={{
-                                          background: 'var(--gradient-primary)',
-                                          borderRadius: '12px',
-                                          padding: '10px',
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          justifyContent: 'center',
-                                          boxShadow: '0 4px 15px rgba(99, 102, 241, 0.4)'
-                                    }}>
-                                          <PlusIcon />
-                                    </div>
-                              </Link>
-                        ) : (
-                              <Link to="/login" className={`bottom-nav-item ${isActive('/login') ? 'active' : ''}`}>
-                                    <div style={{
-                                          background: 'var(--gradient-primary)',
-                                          borderRadius: '12px',
-                                          padding: '10px',
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          justifyContent: 'center',
-                                          boxShadow: '0 4px 15px rgba(99, 102, 241, 0.4)'
-                                    }}>
-                                          <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
-                                                <path d="M11 7L9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5-5-5zm9 12h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-8v2h8v14z" />
-                                          </svg>
-                                    </div>
-                                    <span style={{ fontSize: '10px' }}>Login</span>
-                              </Link>
-                        )}
+                        {renderNavLink(navItems[3], true)}
 
-                        {/* Messages with unread badge */}
-                        <Link to="/messages" className={`bottom-nav-item ${isActive('/messages') ? 'active' : ''}`} style={{ position: 'relative' }}>
-                              <div style={{ position: 'relative' }}>
-                                    <MessagesIcon />
-                                    {unreadCount > 0 && (
-                                          <span style={{
-                                                position: 'absolute',
-                                                top: '-6px',
-                                                right: '-8px',
-                                                background: 'linear-gradient(135deg,#ef4444,#dc2626)',
-                                                color: '#fff',
-                                                borderRadius: '99px',
-                                                fontSize: '9px',
-                                                fontWeight: 700,
-                                                padding: '1px 4px',
-                                                minWidth: '14px',
-                                                textAlign: 'center',
-                                                lineHeight: '12px'
-                                          }}>
-                                                {unreadCount > 99 ? '99+' : unreadCount}
-                                          </span>
-                                    )}
-                              </div>
-                              <span style={{ fontSize: '10px' }}>Messages</span>
-                        </Link>
-
-                        {/* Profile */}
-                        <Link to="/profile" className={`bottom-nav-item ${isActive('/profile') ? 'active' : ''}`}>
-                              <div style={{
-                                    width: '32px',
-                                    height: '32px',
-                                    borderRadius: '50%',
-                                    overflow: 'hidden',
-                                    background: 'var(--gradient-primary)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    border: isActive('/profile') ? '2px solid var(--color-accent-primary)' : '2px solid transparent',
-                                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
-                              }}>
+                        <Link to="/profile" className={`bottom-nav-item ${location.pathname.startsWith('/profile') || location.pathname.startsWith('/u/') ? 'active' : ''}`}>
+                              <span className="nav-icon-wrap bottom-profile-avatar">
                                     {user?.avatar ? (
-                                          <img src={user.avatar} alt={user?.displayName || 'User'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                    ) : isAuthenticated ? (
-                                          <span style={{ fontSize: '14px', color: 'white', fontWeight: 'bold' }}>
-                                                {user?.displayName?.charAt(0) || user?.username?.charAt(0) || 'U'}
-                                          </span>
+                                          <img src={user.avatar} alt={profileLabel} />
                                     ) : (
-                                          <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-                                                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-                                          </svg>
+                                          <span>{(user?.displayName?.charAt(0) || user?.username?.charAt(0) || 'U').toUpperCase()}</span>
                                     )}
-                              </div>
+                              </span>
+                              <span>Profile</span>
                         </Link>
                   </nav>
             </div>

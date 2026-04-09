@@ -14,6 +14,21 @@ export default defineConfig(({ command }) => ({
             outDir: 'dist',
             sourcemap: false,
             rollupOptions: {
+                  output: {
+                        manualChunks(id) {
+                              if (!id.includes('node_modules')) return;
+
+                              if (id.includes('livekit')) {
+                                    return 'livekit';
+                              }
+
+                              if (id.includes('framer-motion')) {
+                                    return 'motion';
+                              }
+
+                              return 'vendor';
+                        }
+                  }
             }
       },
       server: {

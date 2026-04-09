@@ -114,6 +114,14 @@ const Chat = () => {
             { id: 'dark', color: '#334155' }
       ];
 
+      useEffect(() => {
+            return () => {
+                  if (mediaPreview?.url?.startsWith('blob:')) {
+                        URL.revokeObjectURL(mediaPreview.url);
+                  }
+            };
+      }, [mediaPreview]);
+
       // Load customization on mount
       useEffect(() => {
             if (user && user._id) {
@@ -875,6 +883,9 @@ const Chat = () => {
       };
 
       const cancelMedia = () => {
+            if (mediaPreview?.url?.startsWith('blob:')) {
+                  URL.revokeObjectURL(mediaPreview.url);
+            }
             setMediaFile(null);
             setMediaPreview(null);
             if (fileInputRef.current) fileInputRef.current.value = '';

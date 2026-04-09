@@ -1,30 +1,27 @@
-import { useState, useEffect } from 'react';
-import { Link, useSearchParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useLanguage } from '../context/LanguageContext';
 import ContentCard from '../components/Content/ContentCard';
 import StoryBar from '../components/Story/StoryBar';
 import { API_URL } from '../config';
 
 const FEED_MODES = [
-      { id: 'all', label: '🌟 All', desc: 'All public content from everyone', icon: '🌟' },
-      { id: 'learning', label: '📚 Learning', desc: 'Skills, tutorials & explanations', icon: '📚' },
-      { id: 'calm', label: '🧘 Calm', desc: 'Inspiration & peaceful stories', icon: '🧘' },
-      { id: 'video', label: '🎬 Video', desc: 'Watch & learn visually', icon: '🎬' },
-      { id: 'reading', label: '📖 Reading', desc: 'Articles & text posts', icon: '📖' },
-      { id: 'problem-solving', label: '💡 Solutions', desc: 'Questions & answers', icon: '💡' }
+      { id: 'all', label: 'All', desc: 'A fast mix of current conversations, posts and videos.' },
+      { id: 'learning', label: 'Learning', desc: 'Tutorials, skill building and explainers.' },
+      { id: 'calm', label: 'Calm', desc: 'Inspiration, reflection and low-noise updates.' },
+      { id: 'video', label: 'Video', desc: 'Short and long videos optimized for quick watching.' },
+      { id: 'reading', label: 'Reading', desc: 'Text-first posts and deeper breakdowns.' },
+      { id: 'problem-solving', label: 'Solutions', desc: 'Questions, answers and practical help.' }
 ];
 
-const Home = () => {
-      const { token, isAuthenticated, user } = useAuth();
-      const { t } = useLanguage();
-      const [searchParams, setSearchParams] = useSearchParams();
-      const navigate = useNavigate();
+const FALLBACK_TOPICS = ['learning', 'technology', 'creativity', 'business', 'problem-solving'];
 
+const Home = () => {
+      const { token, user } = useAuth();
+      const [searchParams, setSearchParams] = useSearchParams();
       const topicParam = searchParams.get('topic') || '';
       const [mode, setMode] = useState('all');
 
-      // Always initialize from cache - NEVER show loading to user
       const [contents, setContents] = useState(() => {
             try {
                   const cached = localStorage.getItem('zuno_feedCache_all');
@@ -33,15 +30,19 @@ const Home = () => {
                   return [];
             }
       });
-
-      // loading = false ALWAYS for UI — we refresh silently in background
       const [silentRefreshing, setSilentRefreshing] = useState(false);
       const [error, setError] = useState(null);
       const [page, setPage] = useState(1);
       const [hasMore, setHasMore] = useState(true);
 
+      const activeRequestRef = useRef(null);
+
       const fetchFeed = async (currentMode, currentPage, append = false, currentTopic = topicParam) => {
             let hasCachedContent = false;
+
+            if (activeRequestRef.current) {
+                  activeRequestRef.current.abort();
+            }
 
             if (currentPage === 1 && !append) {
                   try {
@@ -54,7 +55,10 @@ const Home = () => {
                                     hasCachedContent = true;
                               }
                         }
-                  } catch { }
+                  } catch {
+                        // Ignore cache parse issues and continue with network fetch.
+                  }
+
                   setSilentRefreshing(true);
                   setError(null);
             } else {
@@ -63,17 +67,27 @@ const Home = () => {
 
             const attemptFetch = async (timeoutMs) => {
                   const controller = new AbortController();
+                  activeRequestRef.current = controller;
                   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
                   try {
-                        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+                        const headers = token ? { Authorization: `Bearer ${token}` } : {};
                         const url = new URL(`${API_URL}/feed`);
                         url.searchParams.append('mode', currentMode);
                         url.searchParams.append('page', currentPage);
                         url.searchParams.append('limit', 12);
-                        if (currentTopic) url.searchParams.append('topic', currentTopic);
+
+                        if (currentTopic) {
+                              url.searchParams.append('topic', currentTopic);
+                        }
+
                         const res = await fetch(url.toString(), { headers, signal: controller.signal });
                         clearTimeout(timeoutId);
-                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+                        if (!res.ok) {
+                              throw new Error(`HTTP ${res.status}`);
+                        }
+
                         return await res.json();
                   } catch (err) {
                         clearTimeout(timeoutId);
@@ -83,6 +97,7 @@ const Home = () => {
 
             try {
                   let data;
+
                   try {
                         data = await attemptFetch(20000);
                   } catch (firstErr) {
@@ -94,32 +109,44 @@ const Home = () => {
                         }
                   }
 
-                  if (data && data.success) {
-                        const newContents = data.data.contents;
+                  if (activeRequestRef.current?.signal?.aborted) {
+                        return;
+                  }
+
+                  if (data?.success) {
+                        const newContents = data.data.contents || [];
+
                         if (append) {
-                              setContents(prev => {
-                                    const existingIds = new Set(prev.map(c => c._id));
-                                    const uniqueNew = newContents.filter(c => !existingIds.has(c._id));
+                              setContents((prev) => {
+                                    const existingIds = new Set(prev.map((item) => item._id));
+                                    const uniqueNew = newContents.filter((item) => !existingIds.has(item._id));
                                     return [...prev, ...uniqueNew];
                               });
                         } else {
                               setContents(newContents);
+
                               try {
                                     const cacheKey = currentTopic ? `zuno_feedCache_${currentMode}_${currentTopic}` : `zuno_feedCache_${currentMode}`;
                                     localStorage.setItem(cacheKey, JSON.stringify(newContents));
-                              } catch (e) { }
+                              } catch {
+                                    // Cache writes are best-effort only.
+                              }
                         }
-                        setHasMore(data.data.pagination.hasMore);
+
+                        setHasMore(Boolean(data.data.pagination?.hasMore));
                         setError(null);
                   } else {
                         throw new Error(data?.message || 'Failed to load');
                   }
             } catch (err) {
-                  console.error('Feed fetch failed:', err);
-                  if (!hasCachedContent) {
-                        setError(err.name === 'AbortError' ? 'timeout' : 'network');
+                  if (err.name !== 'AbortError') {
+                        console.error('Feed fetch failed:', err);
+                        if (!hasCachedContent) {
+                              setError(err.name === 'AbortError' ? 'timeout' : 'network');
+                        }
                   }
             } finally {
+                  activeRequestRef.current = null;
                   setSilentRefreshing(false);
             }
       };
@@ -127,50 +154,119 @@ const Home = () => {
       useEffect(() => {
             setPage(1);
             fetchFeed(mode, 1, false, topicParam);
+
+            return () => {
+                  if (activeRequestRef.current) {
+                        activeRequestRef.current.abort();
+                  }
+            };
       }, [mode, token, topicParam]);
 
       const loadMore = () => {
             const nextPage = page + 1;
             setPage(nextPage);
-            fetchFeed(mode, nextPage, true);
+            fetchFeed(mode, nextPage, true, topicParam);
       };
+
+      const derivedTopics = Array.from(
+            new Set(contents.flatMap((content) => content.topics || []).filter(Boolean))
+      ).slice(0, 6);
+      const quickTopics = derivedTopics.length > 0 ? derivedTopics : FALLBACK_TOPICS;
+      const selectedMode = FEED_MODES.find((item) => item.id === mode) || FEED_MODES[0];
+      const videoCount = contents.filter((item) => item.contentType?.includes('video')).length;
+      const textCount = contents.filter((item) => item.contentType === 'post').length;
 
       return (
             <div className="home-page">
-                  {/* Stories Section */}
-                  <div className="container mt-md animate-fadeIn">
-                        <StoryBar />
-                  </div>
+                  <section className="home-hero-shell">
+                        <div className="container home-hero">
+                              <div className="home-hero-copy">
+                                    <span className="home-kicker">Fast social feed</span>
+                                    <h1>{user?.displayName ? `Welcome back, ${user.displayName.split(' ')[0]}` : 'Your ZUNO home'}</h1>
+                                    <p>
+                                          Clean navigation, fast loading, and a quieter feed that still keeps chat, live streams and sharing close at hand.
+                                    </p>
 
-                  {/* Feed Section */}
-                  <section className="section">
-                        <div className="container">
-                              <div className="feed-header mb-xl">
-                                    <div className="flex items-center justify-between flex-wrap gap-md">
-                                          <div className="flex gap-md overflow-x-auto pb-sm no-scrollbar">
-                                                {FEED_MODES.map(m => (
-                                                      <button
-                                                            key={m.id}
-                                                            onClick={() => setMode(m.id)}
-                                                            className={`mode-btn ${mode === m.id ? 'active' : ''}`}
-                                                      >
-                                                            {m.label}
-                                                      </button>
-                                                ))}
-                                          </div>
+                                    <div className="home-hero-actions">
+                                          <Link to="/upload" className="btn btn-primary">Create Post</Link>
+                                          <Link to="/messages" className="btn btn-secondary">Open Messages</Link>
+                                      </div>
+
+                                    <div className="home-hero-topics">
+                                          {quickTopics.map((topic) => (
+                                                <button
+                                                      key={topic}
+                                                      type="button"
+                                                      className={`home-topic-pill ${topicParam === topic ? 'active' : ''}`}
+                                                      onClick={() => setSearchParams({ topic })}
+                                                >
+                                                      #{topic}
+                                                </button>
+                                          ))}
                                           {topicParam && (
-                                                <div className="topic-badge">
-                                                      <span># {topicParam}</span>
-                                                      <button onClick={() => setSearchParams({})}>✕</button>
-                                                </div>
+                                                <button type="button" className="home-topic-clear" onClick={() => setSearchParams({})}>
+                                                      Clear topic
+                                                </button>
                                           )}
                                     </div>
                               </div>
 
-                              {/* Error States */}
+                              <div className="home-hero-panels">
+                                    <div className="home-summary-card">
+                                          <span className="home-summary-label">Current mode</span>
+                                          <strong>{selectedMode.label}</strong>
+                                          <p>{selectedMode.desc}</p>
+                                    </div>
+                                    <div className="home-stat-grid">
+                                          <div className="home-stat-card">
+                                                <span>Loaded now</span>
+                                                <strong>{contents.length}</strong>
+                                          </div>
+                                          <div className="home-stat-card">
+                                                <span>Video</span>
+                                                <strong>{videoCount}</strong>
+                                          </div>
+                                          <div className="home-stat-card">
+                                                <span>Reading</span>
+                                                <strong>{textCount}</strong>
+                                          </div>
+                                          <div className="home-stat-card">
+                                                <span>Live</span>
+                                                <strong>{mode === 'video' ? 'Ready' : 'Discover'}</strong>
+                                          </div>
+                                    </div>
+                              </div>
+                        </div>
+                  </section>
+
+                  <div className="container home-story-strip">
+                        <StoryBar />
+                  </div>
+
+                  <section className="section">
+                        <div className="container">
+                              <div className="feed-header home-feed-toolbar">
+                                    <div className="home-mode-scroller">
+                                          {FEED_MODES.map((feedMode) => (
+                                                <button
+                                                      key={feedMode.id}
+                                                      type="button"
+                                                      onClick={() => setMode(feedMode.id)}
+                                                      className={`mode-btn ${mode === feedMode.id ? 'active' : ''}`}
+                                                >
+                                                      {feedMode.label}
+                                                </button>
+                                          ))}
+                                    </div>
+
+                                    <div className="home-toolbar-status">
+                                          {silentRefreshing ? <span className="home-inline-loader">Refreshing</span> : <span>Updated for smooth scrolling</span>}
+                                    </div>
+                              </div>
+
                               {error === '__waking_up__' && contents.length === 0 && (
                                     <div className="text-center py-xl">
-                                          <div className="loader mb-md"></div>
+                                          <div className="loader mb-md" />
                                           <h3 className="text-lg">ZUNO is waking up...</h3>
                                           <p className="text-secondary">Please wait a few seconds while we warm up the servers.</p>
                                     </div>
@@ -179,65 +275,41 @@ const Home = () => {
                               {error === 'network' && contents.length === 0 && (
                                     <div className="text-center py-xl">
                                           <p className="text-secondary mb-md">Unable to connect to the server.</p>
-                                          <button onClick={() => fetchFeed(mode, 1)} className="btn btn-primary">Try Again</button>
+                                          <button onClick={() => fetchFeed(mode, 1, false, topicParam)} className="btn btn-primary">Try Again</button>
                                     </div>
                               )}
 
-                              {/* Feed Grid */}
                               <div className="content-grid">
-                                    {contents.map((content, idx) => (
-                                          <div key={content._id} className="animate-fadeInUp" style={{ animationDelay: `${idx * 0.05}s` }}>
+                                    {contents.map((content, index) => (
+                                          <div key={content._id} className="animate-fadeInUp" style={{ animationDelay: `${index * 0.04}s` }}>
                                                 <ContentCard content={content} />
                                           </div>
                                     ))}
                               </div>
 
-                              {/* Empty State */}
                               {contents.length === 0 && !silentRefreshing && !error && (
-                                    <div className="text-center py-3xl card glass">
-                                          <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🍃</div>
-                                          <h3 className="text-xl font-bold mb-sm">Quiet for now</h3>
-                                          <p className="text-secondary mb-xl">Be the first to share something meaningful in this category!</p>
-                                          <Link to="/upload" className="btn btn-primary">
-                                                ➕ Start Creating
-                                          </Link>
+                                    <div className="text-center py-3xl card">
+                                          <div style={{ fontSize: '3.5rem', marginBottom: '1rem' }}>Quiet for now</div>
+                                          <h3 className="text-xl font-bold mb-sm">Nothing has landed here yet</h3>
+                                          <p className="text-secondary mb-xl">Switch modes or share the first post in this lane.</p>
+                                          <Link to="/upload" className="btn btn-primary">Start Creating</Link>
                                     </div>
                               )}
 
-                              {/* Load More */}
                               {hasMore && contents.length > 0 && (
                                     <div className="text-center mt-3xl">
-                                          <button
-                                                onClick={loadMore}
-                                                disabled={silentRefreshing}
-                                                className="btn btn-secondary"
-                                          >
-                                                {silentRefreshing ? 'Loading...' : 'Load More Content'}
+                                          <button onClick={loadMore} disabled={silentRefreshing} className="btn btn-secondary">
+                                                {silentRefreshing ? 'Loading...' : 'Load More'}
                                           </button>
                                     </div>
                               )}
                         </div>
                   </section>
 
-                  {/* Silent Refresh Indicator */}
                   {silentRefreshing && contents.length > 0 && (
-                        <div style={{
-                              position: 'fixed',
-                              bottom: '80px',
-                              right: '20px',
-                              background: 'var(--color-bg-card)',
-                              padding: '8px 16px',
-                              borderRadius: 'var(--radius-full)',
-                              boxShadow: 'var(--shadow-lg)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '8px',
-                              fontSize: '12px',
-                              zIndex: 1000,
-                              border: '1px solid var(--color-border)'
-                        }}>
-                              <div className="loader-xs"></div>
-                              <span>Updating...</span>
+                        <div className="home-floating-refresh">
+                              <div className="loader-xs" />
+                              <span>Updating feed</span>
                         </div>
                   )}
             </div>

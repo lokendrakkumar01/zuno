@@ -349,10 +349,16 @@ const markAsRead = async (req, res) => {
 // @access  Private
 const getUnreadCount = async (req, res) => {
       try {
-            const count = await Message.countDocuments({
-                  receiver: req.user.id,
-                  read: false
-            });
+            const conversations = await Conversation.find({
+                  participants: req.user.id
+            })
+                  .select('unreadCount')
+                  .lean();
+
+            const count = conversations.reduce((total, conversation) => {
+                  const unreadCount = conversation?.unreadCount?.[req.user.id] || 0;
+                  return total + unreadCount;
+            }, 0);
 
             res.json({
                   success: true,
