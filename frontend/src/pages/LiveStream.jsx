@@ -2,9 +2,7 @@ import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
       LiveKitRoom,
-      RoomAudioRenderer,
-      VideoConference,
-      ControlBar
+      VideoConference
 } from '@livekit/components-react';
 import '@livekit/components-styles';
 import { useAuth } from '../context/AuthContext';
@@ -493,12 +491,6 @@ const LiveStream = () => {
                                     }}
                               >
                                     <VideoConference />
-                                    <RoomAudioRenderer />
-                                    {isHostMode && (
-                                          <div className="live-control-bar-wrap">
-                                                <ControlBar controls={{ microphone: true, camera: true, screenShare: true, settings: true, leave: false }} />
-                                          </div>
-                                    )}
                               </LiveKitRoom>
                         ) : null}
 
