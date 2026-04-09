@@ -70,7 +70,7 @@ const navItems = [
 
 const Layout = () => {
       const { user, isAuthenticated, logout, token } = useAuth();
-      const { socket, isConnected } = useSocketContext();
+      const { socket, isConnected, onlineUsers } = useSocketContext();
       const { t } = useLanguage();
       const { theme, toggleTheme } = useTheme();
       const navigate = useNavigate();
@@ -124,6 +124,8 @@ const Layout = () => {
 
       const isActive = (item) => item.match(location.pathname);
       const profileLabel = user?.displayName || user?.username || 'Profile';
+      const activeUserCount = onlineUsers.length;
+      const activeUserLabel = activeUserCount === 1 ? '1 user active' : `${activeUserCount} users active`;
 
       const ThemeIcon = () =>
             theme === 'light' ? (
@@ -169,7 +171,7 @@ const Layout = () => {
                                     {isAuthenticated && (
                                           <div className={`header-status-pill ${isConnected ? 'online' : 'offline'}`}>
                                                 <span className="status-dot" />
-                                                <span>{isConnected ? 'Realtime ready' : 'Reconnecting'}</span>
+                                                <span>{isConnected ? activeUserLabel : 'Realtime reconnecting'}</span>
                                           </div>
                                     )}
                               </div>

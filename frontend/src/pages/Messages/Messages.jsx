@@ -83,11 +83,13 @@ const Messages = () => {
       }, [token]);
 
       const debouncedRefetch = useCallback(() => {
-            if (refetchTimerRef.current) return;
+            if (refetchTimerRef.current) {
+                  clearTimeout(refetchTimerRef.current);
+            }
             refetchTimerRef.current = setTimeout(() => {
                   refetchTimerRef.current = null;
                   fetchConversations();
-            }, 1500);
+            }, 250);
       }, [fetchConversations]);
 
       useEffect(() => {

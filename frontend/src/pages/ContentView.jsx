@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useMusic } from '../context/MusicContext';
 import { API_URL, API_BASE_URL } from '../config';
 import CommentSection from '../components/Content/CommentSection';
+import { BookmarkIcon, CheckIcon, CommentIcon, HeartIcon, ShareIcon } from '../components/Icons/ActionIcons';
 
 // Separate component for media items to avoid React hooks violation
 const MediaItem = ({ m, content }) => {
@@ -81,7 +82,7 @@ const MediaItem = ({ m, content }) => {
 
 const ContentView = () => {
       const { id } = useParams();
-      const { token } = useAuth();
+      const { token, user } = useAuth();
       const { playTrack, stopTrack, currentTrack, isPlaying: isGlobalPlaying } = useMusic();
       const [content, setContent] = useState(() => {
             try {
@@ -101,13 +102,32 @@ const ContentView = () => {
       const [isSaved, setIsSaved] = useState(false);
       const [moreContent, setMoreContent] = useState([]);
       const [moreLoading, setMoreLoading] = useState(false);
+      const [shareBusy, setShareBusy] = useState(false);
+      const [editingContent, setEditingContent] = useState(false);
+      const [savingContent, setSavingContent] = useState(false);
+      const [contentForm, setContentForm] = useState({ title: '', body: '' });
+      const isOwner = Boolean(user?._id && content?.creator?._id?.toString() === user._id?.toString());
 
       const updateContentState = (updater) => {
             setContent((prev) => {
                   if (!prev) return prev;
-                  return typeof updater === 'function' ? updater(prev) : updater;
+                  const next = typeof updater === 'function' ? updater(prev) : updater;
+                  try {
+                        localStorage.setItem(`zuno_content_${id}`, JSON.stringify(next));
+                  } catch {
+                        // Cache writes are optional.
+                  }
+                  return next;
             });
       };
+
+      useEffect(() => {
+            if (!content) return;
+            setContentForm({
+                  title: content.title || '',
+                  body: content.body || ''
+            });
+      }, [content?._id, content?.title, content?.body]);
 
       const fetchMoreFromCreator = async (username) => {
             if (!username) return;
@@ -180,11 +200,21 @@ const ContentView = () => {
                   playTrack(content.music);
             }
             try {
-                  await fetch(`${API_URL}/content/${id}/helpful`, {
+                  const res = await fetch(`${API_URL}/content/${id}/helpful`, {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${token}` }
                   });
-                  setIsHelpful(!isHelpful);
+                  const data = await res.json();
+                  if (data.success) {
+                        setIsHelpful(Boolean(data.data?.isHelpful));
+                        updateContentState((prev) => ({
+                              ...prev,
+                              metrics: {
+                                    ...(prev.metrics || {}),
+                                    helpfulCount: data.data?.helpfulCount ?? prev.metrics?.helpfulCount ?? 0
+                              }
+                        }));
+                  }
             } catch (error) {
                   console.error('Failed:', error);
             }
@@ -193,13 +223,118 @@ const ContentView = () => {
       const handleSave = async () => {
             if (!token) return;
             try {
-                  await fetch(`${API_URL}/content/${id}/save`, {
+                  const res = await fetch(`${API_URL}/content/${id}/save`, {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${token}` }
                   });
-                  setIsSaved(!isSaved);
+                  const data = await res.json();
+                  if (data.success) {
+                        setIsSaved(Boolean(data.data?.isSaved));
+                        updateContentState((prev) => ({
+                              ...prev,
+                              metrics: {
+                                    ...(prev.metrics || {}),
+                                    saveCount: data.data?.saveCount ?? prev.metrics?.saveCount ?? 0
+                              }
+                        }));
+                  }
             } catch (error) {
                   console.error('Failed:', error);
+            }
+      };
+
+      const handleShare = async () => {
+            if (shareBusy) return;
+
+            setShareBusy(true);
+
+            try {
+                  const res = await fetch(`${API_URL}/content/${id}/share`, {
+                        method: 'POST'
+                  });
+                  const data = await res.json();
+                  const shareUrl = data.data?.shareUrl || `${window.location.origin}/content/${id}`;
+
+                  updateContentState((prev) => ({
+                        ...prev,
+                        metrics: {
+                              ...(prev.metrics || {}),
+                              shareCount: data.data?.shareCount ?? prev.metrics?.shareCount ?? 0
+                        }
+                  }));
+
+                  if (navigator.share) {
+                        await navigator.share({
+                              title: content.title || 'ZUNO content',
+                              text: content.body?.slice(0, 120) || 'Check this out on ZUNO.',
+                              url: shareUrl
+                        });
+                  } else if (navigator.clipboard?.writeText) {
+                        await navigator.clipboard.writeText(shareUrl);
+                  } else {
+                        window.open(shareUrl, '_blank', 'noopener,noreferrer');
+                  }
+            } catch (error) {
+                  console.error('Failed to share content:', error);
+            } finally {
+                  setShareBusy(false);
+            }
+      };
+
+      const handleDownloadMedia = async () => {
+            if (!content.media?.[0]) return;
+
+            try {
+                  const media = content.media[0];
+                  const url = media.url?.startsWith('http') ? media.url : `${API_BASE_URL}${media.url}`;
+                  const filename = `zuno-${content._id}.${media.type === 'video' ? 'mp4' : 'jpg'}`;
+                  const res = await fetch(url);
+                  const blob = await res.blob();
+                  const blobUrl = window.URL.createObjectURL(blob);
+                  const link = document.createElement('a');
+                  link.href = blobUrl;
+                  link.download = filename;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  window.URL.revokeObjectURL(blobUrl);
+            } catch (error) {
+                  console.error('Download failed:', error);
+            }
+      };
+
+      const handleSaveContentEdit = async () => {
+            if (!token || !isOwner || savingContent) return;
+
+            setSavingContent(true);
+
+            try {
+                  const res = await fetch(`${API_URL}/content/${id}`, {
+                        method: 'PUT',
+                        headers: {
+                              'Content-Type': 'application/json',
+                              Authorization: `Bearer ${token}`
+                        },
+                        body: JSON.stringify({
+                              title: contentForm.title.trim(),
+                              body: contentForm.body
+                        })
+                  });
+                  const data = await res.json();
+
+                  if (data.success) {
+                        updateContentState((prev) => ({
+                              ...prev,
+                              title: data.data?.content?.title ?? contentForm.title.trim(),
+                              body: data.data?.content?.body ?? contentForm.body,
+                              updatedAt: data.data?.content?.updatedAt ?? prev.updatedAt
+                        }));
+                        setEditingContent(false);
+                  }
+            } catch (error) {
+                  console.error('Failed to update content:', error);
+            } finally {
+                  setSavingContent(false);
             }
       };
 
@@ -244,7 +379,24 @@ const ContentView = () => {
 
                               {/* Title & Stats */}
                               <div className="mb-xl">
-                                    <h1 className="text-4xl font-extrabold mb-md" style={{ letterSpacing: '-0.02em', lineHeight: '1.2' }}>{content.title || 'Untitled Content'}</h1>
+                                    <div className="flex items-start justify-between gap-md flex-wrap">
+                                          <h1 className="text-4xl font-extrabold mb-md" style={{ letterSpacing: '-0.02em', lineHeight: '1.2', flex: '1 1 320px' }}>
+                                                {content.title || 'Untitled Content'}
+                                          </h1>
+                                          {isOwner && (
+                                                <button
+                                                      type="button"
+                                                      className={`btn ${editingContent ? 'btn-primary' : 'btn-secondary'} btn-sm flex items-center gap-sm`}
+                                                      onClick={() => setEditingContent((prev) => !prev)}
+                                                >
+                                                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                            <path d="M12 20h9" />
+                                                            <path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4Z" />
+                                                      </svg>
+                                                      <span>{editingContent ? 'Close editor' : 'Edit content'}</span>
+                                                </button>
+                                          )}
+                                    </div>
                                     <div className="flex gap-sm flex-wrap items-center">
                                           <span className="tag tag-primary" style={{ textTransform: 'uppercase', fontSize: '0.75rem', fontWeight: 800 }}>{content.contentType}</span>
                                           <span className="text-muted" style={{ margin: '0 8px' }}>•</span>
@@ -257,6 +409,48 @@ const ContentView = () => {
                                           </div>
                                     </div>
                               </div>
+
+                              {isOwner && editingContent && (
+                                    <div className="card p-lg mb-xl" style={{ border: '1px solid rgba(99, 102, 241, 0.18)' }}>
+                                          <div className="grid gap-md">
+                                                <div className="input-group">
+                                                      <label className="input-label">Title</label>
+                                                      <input
+                                                            type="text"
+                                                            className="input"
+                                                            value={contentForm.title}
+                                                            onChange={(event) => setContentForm((prev) => ({ ...prev, title: event.target.value }))}
+                                                            placeholder="Add a clear title"
+                                                      />
+                                                </div>
+                                                <div className="input-group">
+                                                      <label className="input-label">Description</label>
+                                                      <textarea
+                                                            className="input"
+                                                            rows={5}
+                                                            value={contentForm.body}
+                                                            onChange={(event) => setContentForm((prev) => ({ ...prev, body: event.target.value }))}
+                                                            placeholder="Describe your content"
+                                                      />
+                                                </div>
+                                                <div className="flex gap-sm flex-wrap">
+                                                      <button type="button" className="btn btn-primary" onClick={handleSaveContentEdit} disabled={savingContent}>
+                                                            {savingContent ? 'Saving...' : 'Save changes'}
+                                                      </button>
+                                                      <button
+                                                            type="button"
+                                                            className="btn btn-ghost"
+                                                            onClick={() => {
+                                                                  setContentForm({ title: content.title || '', body: content.body || '' });
+                                                                  setEditingContent(false);
+                                                            }}
+                                                      >
+                                                            Cancel
+                                                      </button>
+                                                </div>
+                                          </div>
+                                    </div>
+                              )}
 
                               {/* Media Section */}
                               {content.media && content.media.length > 0 && (
@@ -380,6 +574,66 @@ const ContentView = () => {
                                                             }
                                                       }}
                                                 >
+                                                      <CommentIcon size={18} />
+                                                      Comments ({content.metrics?.commentCount || 0})
+                                                </button>
+                                                <button className={`btn w-full flex items-center justify-center gap-sm ${isHelpful ? 'btn-primary' : 'btn-secondary'}`} onClick={handleHelpful}>
+                                                      {isHelpful ? <CheckIcon size={18} /> : <HeartIcon size={18} />}
+                                                      {isHelpful ? 'Helpful' : 'Mark as Helpful'}
+                                                </button>
+                                                <button className={`btn w-full flex items-center justify-center gap-sm ${isSaved ? 'btn-primary' : 'btn-secondary'}`} onClick={handleSave}>
+                                                      <BookmarkIcon size={18} filled={isSaved} />
+                                                      {isSaved ? 'Saved' : 'Save for Later'}
+                                                </button>
+                                                <button
+                                                      className="btn btn-secondary w-full flex items-center justify-center gap-sm"
+                                                      onClick={handleShare}
+                                                      disabled={shareBusy}
+                                                >
+                                                      <ShareIcon size={18} />
+                                                      {shareBusy ? 'Sharing...' : `Share (${content.metrics?.shareCount || 0})`}
+                                                </button>
+                                                {isOwner && (
+                                                      <button
+                                                            type="button"
+                                                            className="btn btn-ghost w-full flex items-center justify-center gap-sm"
+                                                            onClick={() => setEditingContent((prev) => !prev)}
+                                                      >
+                                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                                  <path d="M12 20h9" />
+                                                                  <path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4Z" />
+                                                            </svg>
+                                                            {editingContent ? 'Hide editor' : 'Edit title and description'}
+                                                      </button>
+                                                )}
+                                                {content.media?.[0] && (
+                                                      <button
+                                                            className="btn btn-ghost w-full flex items-center justify-center gap-sm text-indigo-600 border border-indigo-100"
+                                                            onClick={handleDownloadMedia}
+                                                      >
+                                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                                  <path d="M12 3v12" />
+                                                                  <path d="m7 10 5 5 5-5" />
+                                                                  <path d="M5 21h14" />
+                                                            </svg>
+                                                            Download Media
+                                                      </button>
+                                                )}
+                                          </div>
+                                    </div>
+
+                                    <div className="card p-lg mb-lg border-2 border-indigo-50 shadow-sm" style={{ display: 'none' }}>
+                                          <h4 className="font-bold mb-lg" style={{ fontSize: '0.9rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Actions</h4>
+                                          <div className="flex flex-col gap-md">
+                                                <button
+                                                      className="btn btn-secondary w-full flex items-center justify-center gap-sm"
+                                                      onClick={() => {
+                                                            const commentsSection = document.getElementById('comments');
+                                                            if (commentsSection) {
+                                                                  commentsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                            }
+                                                      }}
+                                                >
                                                       <span style={{ fontSize: '1.2rem' }}>💬</span>
                                                       Comments ({content.metrics?.commentCount || 0})
                                                 </button>
@@ -446,7 +700,7 @@ const ContentView = () => {
                                     grid-template-columns: 1fr !important;
                               }
                               .content-sidebar {
-                                    display: none !important;
+                                    display: block !important;
                               }
                               .mobile-only {
                                     display: flex !important;
@@ -456,6 +710,9 @@ const ContentView = () => {
                               }
                               .text-4xl {
                                     font-size: 2.25rem !important;
+                              }
+                              .content-sidebar > div {
+                                    position: static !important;
                               }
                         }
                   `}</style>

@@ -7,6 +7,7 @@ import SpotifySearch from '../components/Music/SpotifySearch';
 import { useMusic } from '../context/MusicContext';
 import UserAvatar from '../components/User/UserAvatar';
 import CricketGame from '../components/Games/CricketGame';
+import { CheckIcon, MessageIcon, UserPlusIcon } from '../components/Icons/ActionIcons';
 
 const INTERESTS = [
       'learning', 'technology', 'creativity', 'health',
@@ -957,8 +958,71 @@ const Profile = () => {
                                                 )}
                                           </div>
                                     ) : isAuthenticated && (
+                                          <>
+                                                <div className="flex gap-md flex-wrap w-full mt-sm">
+                                                <button
+                                                      onClick={handleFollow}
+                                                      disabled={followLoading}
+                                                      className={`btn ${(isFollowing || followRequested) ? 'btn-secondary' : 'btn-primary'} flex-1 min-w-[120px]`}
+                                                >
+                                                      {followLoading ? (
+                                                            <span>Loading...</span>
+                                                      ) : followRequested ? (
+                                                            <span className="flex items-center justify-center gap-sm">
+                                                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                                        <circle cx="12" cy="12" r="9" />
+                                                                        <path d="M12 7v5l3 2" />
+                                                                  </svg>
+                                                                  Requested
+                                                            </span>
+                                                      ) : isFollowing ? (
+                                                            <span className="flex items-center justify-center gap-sm">
+                                                                  <CheckIcon size={16} />
+                                                                  Following
+                                                            </span>
+                                                      ) : (
+                                                            <span className="flex items-center justify-center gap-sm">
+                                                                  <UserPlusIcon size={16} />
+                                                                  Follow
+                                                            </span>
+                                                      )}
+                                                </button>
+                                                <button
+                                                      onClick={() => {
+                                                            setActiveTab('chat');
+                                                            setTimeout(() => {
+                                                                  const chatSection = document.getElementById('chat-tab-section');
+                                                                  if (chatSection) chatSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                            }, 50);
+                                                      }}
+                                                      className={`btn ${activeTab === 'chat' ? 'btn-primary' : 'btn-secondary'} flex-1 min-w-[120px]`}
+                                                >
+                                                      <span className="flex items-center justify-center gap-sm">
+                                                            <MessageIcon size={16} />
+                                                            Message
+                                                      </span>
+                                                </button>
+                                                <button
+                                                      onClick={handleBlockToggle}
+                                                      disabled={blockLoading}
+                                                      className="btn btn-ghost text-red-500 hover:bg-red-50 flex-1 min-w-[120px]"
+                                                      style={{ borderColor: 'rgba(239, 68, 68, 0.2)' }}
+                                                >
+                                                      {blockLoading ? (
+                                                            'Loading...'
+                                                      ) : (
+                                                            <span className="flex items-center justify-center gap-sm">
+                                                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                                        <circle cx="12" cy="12" r="9" />
+                                                                        <path d="M8.5 8.5l7 7" />
+                                                                  </svg>
+                                                                  {isBlocked ? 'Unblock' : 'Block'}
+                                                            </span>
+                                                      )}
+                                                </button>
+                                                </div>
 
-                                          <div className="flex gap-md flex-wrap w-full mt-sm">
+                                                <div className="flex gap-md flex-wrap w-full mt-sm" style={{ display: 'none' }}>
                                                 <button
                                                       onClick={handleFollow}
                                                       disabled={followLoading}
@@ -994,7 +1058,8 @@ const Profile = () => {
                                                 >
                                                       {blockLoading ? '⏳' : isBlocked ? '🔓 Unblock' : '🚫 Block'}
                                                 </button>
-                                          </div>
+                                                </div>
+                                          </>
                                     )}
                               </div>
                         </div>

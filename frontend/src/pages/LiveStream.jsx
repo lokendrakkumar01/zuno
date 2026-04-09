@@ -82,6 +82,7 @@ const LiveStream = () => {
       const [loadingStreams, setLoadingStreams] = useState(true);
       const [streamError, setStreamError] = useState('');
       const [isStarting, setIsStarting] = useState(false);
+      const [slowModeEnabled, setSlowModeEnabled] = useState(false);
 
       const [lkToken, setLkToken] = useState(null);
       const [lkUrl, setLkUrl] = useState(null);
@@ -168,6 +169,10 @@ const LiveStream = () => {
             const handleStreamNotFound = () => setStreamError('Stream not found or already offline.');
             const handleStreamJoined = (payload) => {
                   setViewerCount(payload.viewerCount || 0);
+                  setSlowModeEnabled(Boolean(payload.slowMode));
+            };
+            const handleSlowModeUpdated = (payload) => {
+                  setSlowModeEnabled(Boolean(payload.enabled));
             };
 
             socket.on('viewerJoined', handleViewerJoined);
@@ -176,6 +181,7 @@ const LiveStream = () => {
             socket.on('streamEnded', handleStreamEnded);
             socket.on('streamNotFound', handleStreamNotFound);
             socket.on('streamJoined', handleStreamJoined);
+            socket.on('slowModeUpdated', handleSlowModeUpdated);
 
             return () => {
                   socket.off('viewerJoined', handleViewerJoined);
@@ -184,6 +190,7 @@ const LiveStream = () => {
                   socket.off('streamEnded', handleStreamEnded);
                   socket.off('streamNotFound', handleStreamNotFound);
                   socket.off('streamJoined', handleStreamJoined);
+                  socket.off('slowModeUpdated', handleSlowModeUpdated);
             };
       }, [socket]);
 
@@ -252,6 +259,7 @@ const LiveStream = () => {
                   setIsLive(true);
                   setComments([]);
                   setViewerCount(0);
+                  setSlowModeEnabled(false);
 
                   socket.emit('startStream', {
                         hostId: user._id,
@@ -340,6 +348,7 @@ const LiveStream = () => {
       const sendComment = (event) => {
             event.preventDefault();
             if (!commentText.trim() || !socket) return;
+            if (slowModeEnabled && !isHostMode) return;
 
             socket.emit('streamComment', {
                   hostId: isHostMode ? user?._id : hostId,
@@ -349,6 +358,13 @@ const LiveStream = () => {
             });
 
             setCommentText('');
+      };
+
+      const toggleSlowMode = () => {
+            if (!socket || !isHostMode) return;
+            const nextSlowMode = !slowModeEnabled;
+            setSlowModeEnabled(nextSlowMode);
+            socket.emit('setSlowMode', { enabled: nextSlowMode });
       };
 
       const sendReaction = (emoji) => {
@@ -506,7 +522,12 @@ const LiveStream = () => {
                                     <div className="live-topbar-actions">
                                           <span className="live-viewer-pill">{viewerCount} watching</span>
                                           {isHostMode && isLive ? (
-                                                <button type="button" className="btn btn-secondary" onClick={endStream}>End Stream</button>
+                                                <>
+                                                      <button type="button" className="btn btn-ghost btn-sm" onClick={toggleSlowMode}>
+                                                            {slowModeEnabled ? 'Slow mode on' : 'Slow mode off'}
+                                                      </button>
+                                                      <button type="button" className="btn btn-secondary" onClick={endStream}>End Stream</button>
+                                                </>
                                           ) : (
                                                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => navigate('/live')}>Back</button>
                                           )}
@@ -570,7 +591,7 @@ const LiveStream = () => {
                         <div className="live-chat-header">
                               <div>
                                     <strong>Live chat</strong>
-                                    <small>{viewerCount} online</small>
+                                    <small>{slowModeEnabled ? `${viewerCount} online • slow mode` : `${viewerCount} online`}</small>
                               </div>
                               {user && isLive && (
                                     <div className="live-reaction-row">
@@ -610,9 +631,10 @@ const LiveStream = () => {
                                           type="text"
                                           value={commentText}
                                           onChange={(event) => setCommentText(event.target.value)}
-                                          placeholder="Say something helpful..."
+                                          placeholder={slowModeEnabled && !isHostMode ? 'Host enabled slow mode for chat.' : 'Say something helpful...'}
+                                          disabled={slowModeEnabled && !isHostMode}
                                     />
-                                    <button type="submit">Send</button>
+                                    <button type="submit" disabled={slowModeEnabled && !isHostMode}>Send</button>
                               </form>
                         ) : (
                               <div className="live-chat-login-note">

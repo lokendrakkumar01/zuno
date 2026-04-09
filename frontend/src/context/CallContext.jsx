@@ -23,6 +23,41 @@ const supportsScreenShare = () => {
 };
 
 const CallContext = createContext();
+const ACTIVE_CALL_SESSION_KEY = 'zuno_active_call_session_v1';
+const ACTIVE_CALL_MAX_RESUME_AGE_MS = 20000;
+
+const readPersistedCallSession = () => {
+      try {
+            const raw = window.sessionStorage.getItem(ACTIVE_CALL_SESSION_KEY);
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            return parsed?.targetUserId ? parsed : null;
+      } catch {
+            return null;
+      }
+};
+
+const persistCallSession = (session) => {
+      try {
+            window.sessionStorage.setItem(
+                  ACTIVE_CALL_SESSION_KEY,
+                  JSON.stringify({
+                        ...session,
+                        updatedAt: Date.now()
+                  })
+            );
+      } catch {
+            // Session persistence is optional.
+      }
+};
+
+const clearPersistedCallSession = () => {
+      try {
+            window.sessionStorage.removeItem(ACTIVE_CALL_SESSION_KEY);
+      } catch {
+            // Ignore storage failures.
+      }
+};
 
 // Public STUN + reliable TURN servers for NAT traversal
 const ICE_SERVERS = {
@@ -99,6 +134,8 @@ export const CallProvider = ({ children }) => {
       const callStartTime = useRef(null);
       const targetUserIdRef = useRef(null);
       const callTimeoutRef = useRef(null);
+      const pageUnloadRef = useRef(false);
+      const restoredSessionRef = useRef(false);
 
       // Refs to avoid stale closures in event handlers
       const callAcceptedRef = useRef(false);
@@ -108,6 +145,71 @@ export const CallProvider = ({ children }) => {
       useEffect(() => { callAcceptedRef.current = callAccepted; }, [callAccepted]);
       useEffect(() => { isCallingRef.current = isCalling; }, [isCalling]);
       useEffect(() => { callerRef.current = caller; }, [caller]);
+
+      useEffect(() => {
+            pageUnloadRef.current = false;
+      }, []);
+
+      useEffect(() => {
+            if (!user?._id || (!isCalling && !callAccepted) || !callType) return;
+
+            const otherPartyId = targetUserIdRef.current
+                  || callerRef.current?._id?.toString()
+                  || callerRef.current?.id?.toString()
+                  || (typeof callerRef.current === 'string' ? callerRef.current : null);
+
+            if (!otherPartyId) return;
+
+            const otherUser = typeof callerRef.current === 'string' || !callerRef.current
+                  ? { _id: otherPartyId }
+                  : {
+                        _id: callerRef.current._id || callerRef.current.id || otherPartyId,
+                        username: callerRef.current.username,
+                        displayName: callerRef.current.displayName,
+                        avatar: callerRef.current.avatar
+                  };
+
+            persistCallSession({
+                  ownerUserId: user._id,
+                  targetUserId: otherPartyId,
+                  callType,
+                  otherUser,
+                  direction: isCalling ? 'outgoing' : 'incoming'
+            });
+      }, [callAccepted, callType, isCalling, user?._id, caller]);
+
+      useEffect(() => {
+            if (!socket || !user?._id || restoredSessionRef.current || isCalling || callAccepted || receivingCall) return;
+
+            const persisted = readPersistedCallSession();
+            if (!persisted) return;
+
+            if (persisted.ownerUserId !== user._id) {
+                  clearPersistedCallSession();
+                  return;
+            }
+
+            if (Date.now() - (persisted.updatedAt || 0) > ACTIVE_CALL_MAX_RESUME_AGE_MS) {
+                  clearPersistedCallSession();
+                  return;
+            }
+
+            restoredSessionRef.current = true;
+
+            const timer = window.setTimeout(() => {
+                  showCallToast('Reconnecting your last call...', 'info');
+                  startCall(
+                        persisted.targetUserId,
+                        persisted.callType || 'voice',
+                        persisted.otherUser || { _id: persisted.targetUserId },
+                        { resume: true }
+                  );
+            }, 900);
+
+            return () => window.clearTimeout(timer);
+            // startCall is intentionally omitted to avoid reconnect loops while state is being restored.
+            // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [socket, user?._id, isCalling, callAccepted, receivingCall, showCallToast]);
 
       useEffect(() => {
             if (!socket) return;
@@ -138,6 +240,8 @@ export const CallProvider = ({ children }) => {
             };
 
             const handleCallCancelled = () => {
+                  clearPersistedCallSession();
+                  restoredSessionRef.current = false;
                   setShowCallModal(null);
                   setReceivingCall(false);
                   setCallerSignal(null);
@@ -187,17 +291,14 @@ export const CallProvider = ({ children }) => {
                   }
             };
 
-            const handleUnload = () => {
+            const handlePageHide = () => {
                   if (isCallingRef.current || callAcceptedRef.current) {
-                        const otherPartyId = targetUserIdRef.current
-                              || callerRef.current?._id?.toString() || callerRef.current?.id?.toString()
-                              || (typeof callerRef.current === 'string' ? callerRef.current : null);
-                        if (socket && otherPartyId) socket.emit("leaveCall", { to: otherPartyId });
+                        pageUnloadRef.current = true;
                   }
             };
 
             window.addEventListener('beforeunload', handleBeforeUnload);
-            window.addEventListener('unload', handleUnload);
+            window.addEventListener('pagehide', handlePageHide);
 
             return () => {
                   socket.off("callUser", handleCallUser);
@@ -206,7 +307,7 @@ export const CallProvider = ({ children }) => {
                   socket.off("callEnded", handleCallEndedEvent);
                   socket.off("webrtcSignal", handleWebrtcSignal);
                   window.removeEventListener('beforeunload', handleBeforeUnload);
-                  window.removeEventListener('unload', handleUnload);
+                  window.removeEventListener('pagehide', handlePageHide);
             };
       }, [socket]);
 
@@ -255,7 +356,9 @@ export const CallProvider = ({ children }) => {
             return await navigator.mediaDevices.getUserMedia(constraints);
       };
 
-      const startCall = async (targetUserId, type, otherUserData) => {
+      const startCall = async (targetUserId, type, otherUserData, options = {}) => {
+            pageUnloadRef.current = false;
+            setCallEnded(false);
             setCallType(type);
             setIsCalling(true);
             isCallingRef.current = true;
@@ -270,6 +373,10 @@ export const CallProvider = ({ children }) => {
                   if (myVideo.current) {
                         myVideo.current.srcObject = mediaStream;
                         myVideo.current.muted = true; // Always mute self-view
+                  }
+
+                  if (options.resume) {
+                        showCallToast('Trying to reconnect the call...', 'info');
                   }
 
                   // Use trickle: true for extremely fast connection times (allows ICE candidates to flow instantly)
@@ -341,6 +448,8 @@ export const CallProvider = ({ children }) => {
                   isCallingRef.current = false;
                   setShowCallModal(null);
                   targetUserIdRef.current = null;
+                  clearPersistedCallSession();
+                  restoredSessionRef.current = false;
                   if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
                         showCallToast('🎙️ No microphone/camera found. Please connect a device.', 'error');
                   } else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
@@ -355,6 +464,7 @@ export const CallProvider = ({ children }) => {
       };
 
       const answerCall = async () => {
+            pageUnloadRef.current = false;
             setShowCallModal(null);
             setCallAccepted(true);
             callAcceptedRef.current = true;
@@ -578,6 +688,14 @@ export const CallProvider = ({ children }) => {
                   callTimeoutRef.current = null;
             }
 
+            if (pageUnloadRef.current) {
+                  if (connectionRef.current) {
+                        connectionRef.current.destroy();
+                        connectionRef.current = null;
+                  }
+                  return;
+            }
+
             // Stop screen share cleanly
             if (screenTrackRef.current) {
                   screenTrackRef.current.stop();
@@ -625,6 +743,8 @@ export const CallProvider = ({ children }) => {
             }
 
             // Cleanup state
+            clearPersistedCallSession();
+            restoredSessionRef.current = false;
             setCallEnded(true);
             setIsCalling(false);
             isCallingRef.current = false;
@@ -662,6 +782,8 @@ export const CallProvider = ({ children }) => {
       };
 
       const rejectCall = () => {
+            clearPersistedCallSession();
+            restoredSessionRef.current = false;
             const callerId = targetUserIdRef.current
                   || callerRef.current?._id?.toString() || callerRef.current?.id?.toString()
                   || (typeof callerRef.current === 'string' ? callerRef.current : null);
