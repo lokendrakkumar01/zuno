@@ -74,6 +74,25 @@ export const AuthProvider = ({ children }) => {
             }
       };
 
+      const getApiErrorMessage = async (res, fallbackMessage) => {
+            let data = null;
+
+            try {
+                  data = await res.json();
+            } catch {
+                  return fallbackMessage;
+            }
+
+            const fieldMessages = data?.fieldErrors
+                  ? Object.values(data.fieldErrors)
+                  : Array.isArray(data?.errors)
+                        ? data.errors.flatMap((entry) => Object.values(entry || {}))
+                        : [];
+
+            const detailedMessage = fieldMessages.filter(Boolean).join(' ');
+            return data?.message || detailedMessage || fallbackMessage;
+      };
+
       const login = async (email, password, onRetry = null) => {
             const MAX_RETRIES = 3;
             const RETRY_DELAYS = [5000, 10000, 20000]; // Faster recovery
@@ -84,9 +103,17 @@ export const AuthProvider = ({ children }) => {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ email, password })
                   }, timeoutMs);
-                  if (!res.ok && res.status !== 401 && res.status !== 400) {
+                  if (!res.ok && res.status !== 401 && res.status !== 400 && res.status !== 422) {
                         throw new Error(`HTTP ${res.status}`);
                   }
+
+                  if (!res.ok) {
+                        return {
+                              success: false,
+                              message: await getApiErrorMessage(res, 'Login failed. Please try again.')
+                        };
+                  }
+
                   return await res.json();
             };
 
@@ -102,8 +129,10 @@ export const AuthProvider = ({ children }) => {
                               localStorage.setItem('zuno_user', JSON.stringify(data.data.user));
                               return { success: true, message: data.message };
                         }
-                        // Server responded with auth error — wrong credentials, don't retry
-                        return { success: false, message: data.message || 'Invalid email or password.' };
+                        return {
+                              success: false,
+                              message: data.message || 'Invalid email or password.'
+                        };
                   } catch (error) {
                         const isNetworkError = error.name === 'AbortError' ||
                               error.message === 'Failed to fetch' ||
@@ -152,7 +181,13 @@ export const AuthProvider = ({ children }) => {
                               body: JSON.stringify(userData)
                         }, 35000);
 
-                        // If server responded (even 400/409), don't retry — it's a user error
+                        if (!res.ok) {
+                              return {
+                                    success: false,
+                                    message: await getApiErrorMessage(res, 'Registration failed.')
+                              };
+                        }
+
                         const data = await res.json();
                         if (data.success) {
                               setUser(data.data.user);
@@ -161,7 +196,6 @@ export const AuthProvider = ({ children }) => {
                               localStorage.setItem('zuno_user', JSON.stringify(data.data.user));
                               return { success: true, message: data.message };
                         }
-                        // e.g. duplicate email/username — don't retry
                         return { success: false, message: data.message || 'Registration failed.' };
                   } catch (error) {
                         const isNetworkError = error.name === 'AbortError' ||

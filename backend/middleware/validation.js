@@ -10,13 +10,19 @@ const validate = (req, res, next) => {
     return next();
   }
   
+  const errorList = errors.array({ onlyFirstError: true });
   const extractedErrors = [];
-  errors.array().map(err => extractedErrors.push({ [err.path]: err.msg }));
+  const fieldErrors = {};
+  errorList.forEach((err) => {
+    extractedErrors.push({ [err.path]: err.msg });
+    fieldErrors[err.path] = err.msg;
+  });
 
   return res.status(422).json({
     success: false,
-    message: 'Validation failed',
+    message: errorList[0]?.msg || 'Validation failed',
     errors: extractedErrors,
+    fieldErrors,
   });
 };
 
