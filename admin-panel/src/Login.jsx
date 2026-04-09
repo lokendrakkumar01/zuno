@@ -21,7 +21,7 @@ export default function Login({ onLogin }) {
       let data;
       try {
         data = await res.json();
-      } catch (parseErr) {
+      } catch {
         throw new Error('Invalid server response');
       }
 

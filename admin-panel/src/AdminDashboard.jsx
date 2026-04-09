@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { API_URL } from './config';
 
@@ -170,10 +170,10 @@ const AdminStyles = () => {
 /* ── Toast helper ── */
 const useToast = () => {
   const [toast, setToast] = useState(null);
-  const show = (msg, type='✅') => {
+  const show = useCallback((msg, type='✅') => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3500);
-  };
+  }, []);
   const Toast = toast ? (
     <div className="admin-toast">
       <span style={{ fontSize:'1.2rem' }}>{toast.type}</span>
@@ -303,7 +303,7 @@ const DashboardHome = ({ token }) => {
   const [refreshing, setRefreshing] = useState(false);
   const { show, Toast } = useToast();
 
-  const fetchStats = async (isRefresh = false) => {
+  const fetchStats = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     try {
@@ -321,9 +321,9 @@ const DashboardHome = ({ token }) => {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [show, token]);
 
-  useEffect(() => { fetchStats(); }, [token]);
+  useEffect(() => { fetchStats(); }, [fetchStats]);
 
   const cards = [
     { label:'Total Users', value:stats?.totalUsers, icon:'👥', color:'#6366f1' },
@@ -399,7 +399,7 @@ const UsersManagement = ({ token }) => {
   const [search, setSearch] = useState('');
   const { show, Toast } = useToast();
 
-  const fetchUsers = async (q = search) => {
+  const fetchUsers = useCallback(async (q = '') => {
     setLoading(true);
     try {
       const res = await fetch(`${API_URL}/admin/users?search=${encodeURIComponent(q)}&limit=50`, {
@@ -408,9 +408,9 @@ const UsersManagement = ({ token }) => {
       const data = await res.json();
       if (data.success) setUsers(data.data.users);
     } catch {/**/} finally { setLoading(false); }
-  };
+  }, [token]);
 
-  useEffect(() => { fetchUsers(''); }, [token]);
+  useEffect(() => { fetchUsers(''); }, [fetchUsers]);
 
   const handleRoleChange = async (userId, newRole) => {
     await fetch(`${API_URL}/admin/users/${userId}`, {
@@ -419,7 +419,7 @@ const UsersManagement = ({ token }) => {
       body: JSON.stringify({ role: newRole })
     });
     show(`Role updated to "${newRole}"`, '✏️');
-    fetchUsers();
+    fetchUsers(search);
   };
 
   const handleBan = async (userId, isActive) => {
@@ -431,7 +431,7 @@ const UsersManagement = ({ token }) => {
       const data = await res.json();
       if (data.success) {
         show(isActive ? 'User banned successfully' : 'User unbanned successfully', isActive ? '🔒' : '🔓');
-        fetchUsers();
+        fetchUsers(search);
       } else {
         show(data.message || 'Failed to update user status', '❌');
       }
@@ -450,7 +450,7 @@ const UsersManagement = ({ token }) => {
       const data = await res.json();
       if (data.success) {
         show(!current ? 'User verified ✓' : 'Verification removed', '🏷️');
-        fetchUsers();
+        fetchUsers(search);
       } else {
         show(data.message || 'Failed to update verification', '❌');
       }
@@ -469,7 +469,7 @@ const UsersManagement = ({ token }) => {
       const data = await res.json();
       if (data.success) {
         show(`User "${username}" deleted.`, '🗑️');
-        fetchUsers();
+        fetchUsers(search);
       } else {
         show(data.message || 'Failed to delete user', '❌');
       }
@@ -492,9 +492,9 @@ const UsersManagement = ({ token }) => {
           placeholder="🔍 Search by name or email..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && fetchUsers()}
+          onKeyDown={e => e.key === 'Enter' && fetchUsers(search)}
         />
-        <button className="admin-btn admin-btn-primary" onClick={() => fetchUsers()}>Search</button>
+        <button className="admin-btn admin-btn-primary" onClick={() => fetchUsers(search)}>Search</button>
       </div>
 
       {loading ? <div className="admin-spinner" /> : (
@@ -595,7 +595,7 @@ const VerificationsManagement = ({ token, onUpdate }) => {
   const [loading, setLoading] = useState(true);
   const { show, Toast } = useToast();
 
-  const fetchVerifications = async () => {
+  const fetchVerifications = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`${API_URL}/admin/verifications`, {
@@ -607,9 +607,9 @@ const VerificationsManagement = ({ token, onUpdate }) => {
         onUpdate?.(data.data.users.length);
       }
     } catch {/**/} finally { setLoading(false); }
-  };
+  }, [onUpdate, token]);
 
-  useEffect(() => { fetchVerifications(); }, [token]);
+  useEffect(() => { fetchVerifications(); }, [fetchVerifications]);
 
   const handle = async (userId, action) => {
     const res = await fetch(`${API_URL}/admin/verifications/${userId}`, {
@@ -687,16 +687,16 @@ const ContentManagement = ({ token }) => {
   const [loading, setLoading] = useState(true);
   const { show, Toast } = useToast();
 
-  const fetchContent = async () => {
+  const fetchContent = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`${API_URL}/admin/content?limit=30`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       if (data.success) setContents(data.data.contents);
     } catch {/**/} finally { setLoading(false); }
-  };
+  }, [token]);
 
-  useEffect(() => { fetchContent(); }, [token]);
+  useEffect(() => { fetchContent(); }, [fetchContent]);
 
   const handleModerate = async (id, body) => {
     await fetch(`${API_URL}/admin/content/${id}`, {
@@ -762,15 +762,15 @@ const ConfigManagement = ({ token }) => {
   const [loading, setLoading] = useState(true);
   const { show, Toast } = useToast();
 
-  const fetchConfigs = async () => {
+  const fetchConfigs = useCallback(async () => {
     try {
       const res = await fetch(`${API_URL}/admin/config`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       if (data.success) setConfigs(data.data.configs);
     } catch {/**/} finally { setLoading(false); }
-  };
+  }, [token]);
 
-  useEffect(() => { fetchConfigs(); }, [token]);
+  useEffect(() => { fetchConfigs(); }, [fetchConfigs]);
 
   const initConfigs = async () => {
     await fetch(`${API_URL}/admin/config/init`, { method:'POST', headers: { Authorization: `Bearer ${token}` } });
