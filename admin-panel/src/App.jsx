@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Routes, Route } from 'react-router-dom';
 import Login from './Login';
 import AdminDashboard from './AdminDashboard';
+import { API_URL } from './config';
 
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem('admin_token'));
@@ -25,6 +26,34 @@ export default function App() {
     setToken(null); 
     setUser(null);
   };
+
+  useEffect(() => {
+    if (!token || user?.role !== 'admin') return;
+
+    let ignore = false;
+
+    const validateAdminSession = async () => {
+      try {
+        const res = await fetch(`${API_URL}/admin/stats`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (ignore) return;
+
+        if (res.status === 401 || res.status === 403) {
+          handleLogout();
+        }
+      } catch {
+        // Keep the last known session on transient network failures.
+      }
+    };
+
+    validateAdminSession();
+
+    return () => {
+      ignore = true;
+    };
+  }, [token, user?.role]);
 
   if (!token || user?.role !== 'admin') {
     return <Login onLogin={handleLogin} />;

@@ -19,7 +19,7 @@ const protect = async (req, res, next) => {
                         return res.status(401).json({ success: false, message: 'Account is deactivated' });
                   }
 
-                  next();
+                  return next();
             } catch (error) {
                   return res.status(401).json({ success: false, message: 'Not authorized, token failed' });
             }
@@ -54,18 +54,18 @@ const optionalProtect = async (req, res, next) => {
 // Admin only access
 const adminOnly = (req, res, next) => {
       if (req.user && req.user.role === 'admin') {
-            next();
+            return next();
       } else {
-            res.status(403).json({ success: false, message: 'Admin access required' });
+            return res.status(403).json({ success: false, message: 'Admin access required' });
       }
 };
 
 // Moderator or Admin access
 const moderatorAccess = (req, res, next) => {
       if (req.user && (req.user.role === 'admin' || req.user.role === 'moderator')) {
-            next();
+            return next();
       } else {
-            res.status(403).json({ success: false, message: 'Moderator access required' });
+            return res.status(403).json({ success: false, message: 'Moderator access required' });
       }
 };
 
@@ -73,9 +73,9 @@ const moderatorAccess = (req, res, next) => {
 const creatorAccess = (req, res, next) => {
       const allowedRoles = ['admin', 'moderator', 'creator', 'mentor'];
       if (req.user && allowedRoles.includes(req.user.role)) {
-            next();
+            return next();
       } else {
-            res.status(403).json({ success: false, message: 'Creator access required' });
+            return res.status(403).json({ success: false, message: 'Creator access required' });
       }
 };
 

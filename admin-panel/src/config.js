@@ -1,14 +1,17 @@
+const PROD_BACKEND_URL = 'https://zuno-backend-bevi.onrender.com';
+
 const getApiBaseUrl = () => {
-      // 1. Production check based on domain (overrides potentially incorrect env vars)
-      if (typeof window !== 'undefined' && window.location.hostname.includes('onrender.com')) {
-            return 'https://zuno-backend-bevi.onrender.com/api';
+      const envUrl = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').trim();
+      if (envUrl) {
+            return envUrl.replace(/\/+$/, '');
       }
-      
-      // 2. Environment variable if set locally
-      if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
-      
-      // 3. Local development fallback
-      return 'http://localhost:5000/api';
+
+      if (import.meta.env.DEV) {
+            return 'http://localhost:5000';
+      }
+
+      return PROD_BACKEND_URL;
 };
 
-export const API_URL = getApiBaseUrl();
+export const API_BASE_URL = getApiBaseUrl();
+export const API_URL = `${API_BASE_URL}/api`;
