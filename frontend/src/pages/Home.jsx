@@ -189,7 +189,7 @@ const Home = () => {
 
                                     <div className="home-hero-actions">
                                           <Link to="/upload" className="btn btn-primary">Create Post</Link>
-                                          <Link to="/messages" className="btn btn-secondary">Open Messages</Link>
+                                          <Link to="/profile" className="btn btn-secondary">Open Profile Inbox</Link>
                                       </div>
 
                                     <div className="home-hero-topics">

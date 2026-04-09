@@ -60,9 +60,11 @@ const activeDirectCalls = new Map(); // {userId: { peerId, updatedAt }}
 const pendingDirectCallDisconnects = new Map(); // {userId: timeoutId}
 const activeStreams = new Map(); // {hostUserId: {viewers: Set, ...}}
 const streamCommentCooldowns = new Map(); // {"hostId:userId": timestamp}
+const pendingStreamDisconnects = new Map(); // {hostUserId: timeoutId}
 
 const DIRECT_CALL_DISCONNECT_GRACE_MS = 12000;
 const STREAM_SLOW_MODE_COOLDOWN_MS = 5000;
+const STREAM_HOST_DISCONNECT_GRACE_MS = 15000;
 
 const normalizeId = (value) => value?.toString?.() || null;
 
@@ -138,6 +140,39 @@ const scheduleDirectCallDisconnect = (userId, peerId) => {
   pendingDirectCallDisconnects.set(normalizedUserId, timeoutId);
 };
 
+const clearPendingStreamDisconnect = (hostUserId) => {
+  const normalizedHostId = normalizeId(hostUserId);
+  if (!normalizedHostId) return;
+
+  const timer = pendingStreamDisconnects.get(normalizedHostId);
+  if (timer) {
+    clearTimeout(timer);
+    pendingStreamDisconnects.delete(normalizedHostId);
+  }
+};
+
+const scheduleStreamDisconnect = (hostUserId, expectedSocketId) => {
+  const normalizedHostId = normalizeId(hostUserId);
+  if (!normalizedHostId) return;
+
+  clearPendingStreamDisconnect(normalizedHostId);
+
+  const timeoutId = setTimeout(() => {
+    pendingStreamDisconnects.delete(normalizedHostId);
+
+    const stream = activeStreams.get(normalizedHostId);
+    if (!stream) return;
+    if (stream.hostSocketId && stream.hostSocketId !== expectedSocketId) return;
+
+    const roomId = stream.roomId || stream.id || `stream_${normalizedHostId}`;
+    io.to(roomId).emit("streamEnded", { hostId: normalizedHostId });
+    activeStreams.delete(normalizedHostId);
+    console.log(`[Stream] Host ${normalizedHostId} did not reconnect in time - stream ended`);
+  }, STREAM_HOST_DISCONNECT_GRACE_MS);
+
+  pendingStreamDisconnects.set(normalizedHostId, timeoutId);
+};
+
 io.on("connection", (socket) => {
   const userId = socket.userId; // from JWT, safe
   console.log(`[Socket] Connected: ${socket.id} (user: ${userId})`);
@@ -151,6 +186,15 @@ io.on("connection", (socket) => {
     User.findByIdAndUpdate(userId, { isOnline: true, offlineStatus: null }).catch(err => {
       console.error(`[Socket] Error updating online status for ${userId}:`, err);
     });
+
+    const hostedStream = activeStreams.get(userId);
+    if (hostedStream) {
+      clearPendingStreamDisconnect(userId);
+      const roomId = hostedStream.roomId || hostedStream.id || `stream_${userId}`;
+      hostedStream.roomId = roomId;
+      hostedStream.hostSocketId = socket.id;
+      socket.join(roomId);
+    }
   }
 
   io.emit("getOnlineUsers", Object.keys(userSocketMap));
@@ -253,6 +297,7 @@ io.on("connection", (socket) => {
   socket.on("startStream", (data) => {
     const roomId = data.roomId || `stream_${userId}`;
     const existingStream = activeStreams.get(userId) || {};
+    clearPendingStreamDisconnect(userId);
     socket.join(roomId);
     activeStreams.set(userId, {
       ...existingStream,
@@ -370,6 +415,7 @@ io.on("connection", (socket) => {
   socket.on("endStream", (data) => {
     const stream = activeStreams.get(userId);
     if (stream) {
+      clearPendingStreamDisconnect(userId);
       io.to(stream.roomId).emit("streamEnded", { hostId: userId });
       activeStreams.delete(userId);
       console.log(`[Stream] Ended by host ${userId}`);
@@ -393,6 +439,13 @@ io.on("connection", (socket) => {
     console.log(`[Socket] Disconnected: ${socket.id} (user: ${userId})`);
 
     for (const [hostUserId, stream] of activeStreams.entries()) {
+      if (stream.hostSocketId === socket.id) {
+        stream.hostSocketId = null;
+        scheduleStreamDisconnect(hostUserId, socket.id);
+        console.log(`[Stream] Host ${hostUserId} disconnected, waiting for reconnect`);
+        continue;
+      }
+
       if (stream.hostSocketId === socket.id) {
         io.to(stream.roomId).emit("streamEnded", { hostId: hostUserId });
         activeStreams.delete(hostUserId);

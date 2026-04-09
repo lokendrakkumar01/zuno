@@ -932,7 +932,7 @@ const Profile = () => {
                                                       className="btn btn-secondary flex-1 min-w-[120px]"
                                                       style={{ position: 'relative' }}
                                                 >
-                                                      💬 Messages
+                                                      Inbox
                                                 </button>
                                                 <button
                                                       onClick={() => navigate('/settings')}
@@ -1185,6 +1185,14 @@ const Profile = () => {
                                                 style={{ padding: '16px', fontSize: '1.2rem', fontWeight: 700, boxShadow: '0 4px 15px rgba(99, 102, 241, 0.3)' }}
                                           >
                                                 {sendingQuickChat ? '⏳ Sending...' : '✈️ Send Message Now'}
+                                          </button>
+                                          <button
+                                                type="button"
+                                                className="btn btn-secondary w-full"
+                                                style={{ padding: '14px', fontSize: '1rem', fontWeight: 600 }}
+                                                onClick={() => navigate(`/messages/${profileUser._id}`)}
+                                          >
+                                                Open Full Chat and Calling
                                           </button>
                                     </form>
                                     <div className="mt-xl p-lg bg-indigo-50 border border-indigo-100 rounded-xl flex items-start gap-md text-sm text-indigo-700">

@@ -1,80 +1,154 @@
 import { useState } from 'react';
 import { API_URL } from './config';
 
+const styles = `
+.admin-login-page{
+  min-height:100vh;
+  display:grid;
+  place-items:center;
+  background:
+    radial-gradient(circle at top left, rgba(249,115,22,.16), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(14,165,233,.16), transparent 24%),
+    linear-gradient(180deg,#fff8f1 0%,#f5faff 100%);
+  padding:24px;
+}
+.admin-login-card{
+  width:min(420px,100%);
+  padding:28px;
+  border-radius:28px;
+  background:rgba(255,255,255,.86);
+  backdrop-filter:blur(16px);
+  border:1px solid rgba(148,163,184,.18);
+  box-shadow:0 28px 70px rgba(15,23,42,.12);
+  color:#0f172a;
+}
+.admin-login-brand{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin-bottom:18px;
+}
+.admin-login-mark{
+  width:48px;
+  height:48px;
+  border-radius:16px;
+  display:grid;
+  place-items:center;
+  font-weight:800;
+  color:#fff;
+  background:linear-gradient(135deg,#ea580c,#fb7185);
+}
+.admin-login-card h1{margin:0 0 6px;font-size:1.9rem}
+.admin-login-card p{margin:0;color:#64748b}
+.admin-login-error{
+  margin:18px 0 0;
+  padding:12px 14px;
+  border-radius:16px;
+  background:#fff1f2;
+  color:#be123c;
+  border:1px solid rgba(244,63,94,.14);
+}
+.admin-login-form{display:grid;gap:14px;margin-top:22px}
+.admin-login-input{
+  width:100%;
+  border-radius:16px;
+  border:1px solid rgba(148,163,184,.25);
+  background:#fff;
+  color:#0f172a;
+  padding:13px 15px;
+}
+.admin-login-btn{
+  border:none;
+  border-radius:16px;
+  padding:13px 16px;
+  font-weight:800;
+  color:#fff;
+  background:linear-gradient(135deg,#ea580c,#fb7185);
+  cursor:pointer;
+}
+.admin-login-btn:disabled{opacity:.7;cursor:not-allowed}
+`;
+
+function ensureStyles() {
+      const id = 'zuno-admin-login-styles';
+      if (document.getElementById(id)) return;
+      const style = document.createElement('style');
+      style.id = id;
+      style.textContent = styles;
+      document.head.appendChild(style);
+}
+
 export default function Login({ onLogin }) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+      ensureStyles();
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    try {
-      const res = await fetch(`${API_URL}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
-      
-      let data;
-      try {
-        data = await res.json();
-      } catch {
-        throw new Error('Invalid server response');
-      }
+      const [email, setEmail] = useState('');
+      const [password, setPassword] = useState('');
+      const [error, setError] = useState('');
+      const [loading, setLoading] = useState(false);
 
-      if (res.ok && data.success && data.data && data.data.user.role === 'admin') {
-        localStorage.setItem('admin_token', data.data.token);
-        localStorage.setItem('admin_user', JSON.stringify(data.data.user));
-        onLogin(data.data.token, data.data.user);
-      } else if (res.ok && data.success && data.data.user.role !== 'admin') {
-        setError('⚠️ Admin privileges required to access this panel.');
-      } else {
-        setError(data.message || '⚠️ Invalid credentials or server error');
-      }
-    } catch (err) {
-      console.error(err);
-      setError('⚠️ Network error. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+      const handleLogin = async (event) => {
+            event.preventDefault();
+            setLoading(true);
+            setError('');
 
-  return (
-    <div style={{ minHeight:'100vh', background:'#0f0f1a', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Inter, sans-serif' }}>
-      <form onSubmit={handleLogin} style={{ background:'#1e1e32', padding:'40px', borderRadius:'20px', border:'1px solid rgba(99,102,241,.2)', width:'320px', boxShadow: '0 20px 40px rgba(0,0,0,0.4)' }}>
-        <h2 style={{ color:'#f1f5f9', fontWeight:800, marginBottom:'8px', display:'flex', alignItems:'center', gap:'10px' }}>
-          <div style={{ width:'32px', height:'32px', borderRadius:'8px', background:'linear-gradient(135deg,#ef4444,#dc2626)', display:'flex', alignItems:'center', justifyContent:'center', color:'white', fontSize:'1.2rem', boxShadow:'0 4px 12px rgba(239,68,68,0.4)' }}>Z</div>
-          Admin Login
-        </h2>
-        <p style={{ color:'#64748b', fontSize:'0.85rem', marginBottom:'24px' }}>Sign in to access the control panel</p>
-        
-        {error && <div style={{ background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.3)', color:'#ef4444', padding:'10px 14px', borderRadius:'10px', fontSize:'0.85rem', marginBottom:'16px' }}>{error}</div>}
-        
-        <input 
-          type="email" placeholder="Admin Email" 
-          value={email} onChange={e=>setEmail(e.target.value)}
-          style={{ width:'100%', padding:'12px 14px', background:'#0f0f1a', border:'1px solid rgba(99,102,241,.3)', borderRadius:'10px', color:'#e2e8f0', marginBottom:'12px', outline:'none', boxSizing:'border-box', fontSize:'0.9rem', transition:'border-color 0.2s' }} 
-          onFocus={(e) => e.target.style.borderColor = '#6366f1'}
-          onBlur={(e) => e.target.style.borderColor = 'rgba(99,102,241,.3)'}
-          required 
-        />
-        
-        <input 
-          type="password" placeholder="Password" 
-          value={password} onChange={e=>setPassword(e.target.value)}
-          style={{ width:'100%', padding:'12px 14px', background:'#0f0f1a', border:'1px solid rgba(99,102,241,.3)', borderRadius:'10px', color:'#e2e8f0', marginBottom:'24px', outline:'none', boxSizing:'border-box', fontSize:'0.9rem', transition:'border-color 0.2s' }} 
-          onFocus={(e) => e.target.style.borderColor = '#6366f1'}
-          onBlur={(e) => e.target.style.borderColor = 'rgba(99,102,241,.3)'}
-          required 
-        />
-        
-        <button type="submit" disabled={loading} style={{ width:'100%', padding:'14px', background:'linear-gradient(135deg,#6366f1,#8b5cf6)', color:'#fff', border:'none', borderRadius:'12px', fontWeight:700, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, transition:'all 0.2s', boxShadow:'0 8px 20px rgba(99,102,241,0.3)', fontSize:'0.95rem' }}>
-          {loading ? 'Authenticating...' : 'Login as Admin'}
-        </button>
-      </form>
-    </div>
-  );
+            try {
+                  const res = await fetch(`${API_URL}/auth/login`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email, password })
+                  });
+
+                  const data = await res.json();
+                  if (res.ok && data.success && data.data?.user?.role === 'admin') {
+                        localStorage.setItem('admin_token', data.data.token);
+                        localStorage.setItem('admin_user', JSON.stringify(data.data.user));
+                        onLogin(data.data.token, data.data.user);
+                        return;
+                  }
+
+                  setError(data.message || 'Admin login failed.');
+            } catch {
+                  setError('Network error. Please try again.');
+            } finally {
+                  setLoading(false);
+            }
+      };
+
+      return (
+            <div className="admin-login-page">
+                  <form className="admin-login-card" onSubmit={handleLogin}>
+                        <div className="admin-login-brand">
+                              <div className="admin-login-mark">Z</div>
+                              <div>
+                                    <h1>Admin Login</h1>
+                                    <p>Sign in to manage users, content, and platform settings.</p>
+                              </div>
+                        </div>
+
+                        <div className="admin-login-form">
+                              <input
+                                    className="admin-login-input"
+                                    type="email"
+                                    placeholder="Admin email"
+                                    value={email}
+                                    onChange={(event) => setEmail(event.target.value)}
+                                    required
+                              />
+                              <input
+                                    className="admin-login-input"
+                                    type="password"
+                                    placeholder="Password"
+                                    value={password}
+                                    onChange={(event) => setPassword(event.target.value)}
+                                    required
+                              />
+                              <button className="admin-login-btn" type="submit" disabled={loading}>
+                                    {loading ? 'Signing in...' : 'Open Admin Panel'}
+                              </button>
+                        </div>
+
+                        {error ? <div className="admin-login-error">{error}</div> : null}
+                  </form>
+            </div>
+      );
 }

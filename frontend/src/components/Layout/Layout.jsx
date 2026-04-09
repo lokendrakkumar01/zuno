@@ -1,11 +1,11 @@
-import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
-import { useSocketContext } from '../../context/SocketContext';
-import { useLanguage } from '../../context/LanguageContext';
-import { useTheme } from '../../context/ThemeContext';
-import { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useCallback, useEffect, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import zunoLogo from '../../assets/zuno-logo.png';
+import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
+import { useSocketContext } from '../../context/SocketContext';
+import { useTheme } from '../../context/ThemeContext';
 import { API_URL } from '../../config';
 
 const navItems = [
@@ -43,16 +43,6 @@ const navItems = [
             )
       },
       {
-            path: '/messages',
-            label: 'Messages',
-            match: (pathname) => pathname.startsWith('/messages'),
-            icon: (
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z" />
-                  </svg>
-            )
-      },
-      {
             path: '/live',
             label: 'Live',
             match: (pathname) => pathname.startsWith('/live'),
@@ -67,6 +57,18 @@ const navItems = [
             )
       }
 ];
+
+const ThemeIcon = ({ theme }) =>
+      theme === 'light' ? (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="4" />
+                  <path d="M12 2v2.5M12 19.5V22M4.93 4.93l1.77 1.77M17.3 17.3l1.77 1.77M2 12h2.5M19.5 12H22M4.93 19.07l1.77-1.77M17.3 6.7l1.77-1.77" />
+            </svg>
+      ) : (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" />
+            </svg>
+      );
 
 const Layout = () => {
       const { user, isAuthenticated, logout, token } = useAuth();
@@ -92,12 +94,11 @@ const Layout = () => {
                         headers: { Authorization: `Bearer ${token}` }
                   });
                   const data = await res.json();
-
                   if (data.success) {
                         setUnreadCount(data.data.unreadCount || 0);
                   }
             } catch {
-                  // Keep the last known value for a smoother shell.
+                  // Ignore transient badge sync errors.
             }
       }, [isAuthenticated, token]);
 
@@ -108,7 +109,7 @@ const Layout = () => {
       }, [fetchUnread]);
 
       useEffect(() => {
-            if (!socket) return;
+            if (!socket) return undefined;
 
             const syncUnread = () => window.setTimeout(fetchUnread, 250);
             socket.on('newMessage', syncUnread);
@@ -120,42 +121,28 @@ const Layout = () => {
                   socket.off('newGroupMessage', syncUnread);
                   socket.off('messageRead', syncUnread);
             };
-      }, [socket, fetchUnread]);
+      }, [fetchUnread, socket]);
 
-      const isActive = (item) => item.match(location.pathname);
       const profileLabel = user?.displayName || user?.username || 'Profile';
-      const activeUserCount = onlineUsers.length;
-      const activeUserLabel = activeUserCount === 1 ? '1 user active' : `${activeUserCount} users active`;
-
-      const ThemeIcon = () =>
-            theme === 'light' ? (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <circle cx="12" cy="12" r="4" />
-                        <path d="M12 2v2.5M12 19.5V22M4.93 4.93l1.77 1.77M17.3 17.3l1.77 1.77M2 12h2.5M19.5 12H22M4.93 19.07l1.77-1.77M17.3 6.7l1.77-1.77" />
-                  </svg>
-            ) : (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" />
-                  </svg>
-            );
+      const activeUserLabel = onlineUsers.length === 1 ? '1 user active' : `${onlineUsers.length} users active`;
+      const showProfileAsActive = location.pathname.startsWith('/profile') || location.pathname.startsWith('/u/') || location.pathname.startsWith('/messages');
 
       const renderNavLink = (item, mobile = false) => (
             <Link
                   key={`${mobile ? 'mobile' : 'desktop'}-${item.path}`}
                   to={item.path}
-                  className={`${mobile ? 'bottom-nav-item' : 'nav-link'} ${isActive(item) ? 'active' : ''}`}
+                  className={`${mobile ? 'bottom-nav-item' : 'nav-link'} ${item.match(location.pathname) ? 'active' : ''}`}
             >
-                  <span className="nav-icon-wrap">
-                        {item.icon}
-                        {item.path === '/messages' && unreadCount > 0 && (
-                              <span className="nav-unread-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
-                        )}
-                  </span>
+                  <span className="nav-icon-wrap">{item.icon}</span>
                   <span>{item.path === '/' ? t('home') : item.path === '/search' ? t('search') : item.label}</span>
             </Link>
       );
 
-      const mobileCreateTarget = isAuthenticated ? '/upload' : '/login';
+      const profileAvatar = user?.avatar ? (
+            <img src={user.avatar} alt={profileLabel} />
+      ) : (
+            <span>{(user?.displayName?.charAt(0) || user?.username?.charAt(0) || 'U').toUpperCase()}</span>
+      );
 
       return (
             <div className="app-shell">
@@ -185,24 +172,15 @@ const Layout = () => {
                               <div className="header-actions">
                                     {isAuthenticated ? (
                                           <>
-                                                <button
-                                                      type="button"
-                                                      onClick={() => navigate('/upload')}
-                                                      className="shell-upload-btn"
-                                                >
+                                                <button type="button" onClick={() => navigate('/upload')} className="shell-upload-btn">
                                                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                                             <path d="M12 5v14M5 12h14" />
                                                       </svg>
                                                       <span>{t('upload')}</span>
                                                 </button>
 
-                                                <button
-                                                      type="button"
-                                                      onClick={toggleTheme}
-                                                      className="theme-toggle-btn shell-icon-btn"
-                                                      aria-label="Toggle theme"
-                                                >
-                                                      <ThemeIcon />
+                                                <button type="button" onClick={toggleTheme} className="theme-toggle-btn shell-icon-btn" aria-label="Toggle theme">
+                                                      <ThemeIcon theme={theme} />
                                                 </button>
 
                                                 <button
@@ -213,14 +191,11 @@ const Layout = () => {
                                                 >
                                                       <span className="shell-profile-copy">
                                                             <strong>{profileLabel}</strong>
-                                                            <small>@{user?.username}</small>
+                                                            <small>{unreadCount > 0 ? `${unreadCount} unread in inbox` : `@${user?.username}`}</small>
                                                       </span>
-                                                      <span className="avatar avatar-sm shell-avatar">
-                                                            {user?.avatar ? (
-                                                                  <img src={user.avatar} alt={profileLabel} />
-                                                            ) : (
-                                                                  (user?.displayName?.charAt(0) || user?.username?.charAt(0) || 'U').toUpperCase()
-                                                            )}
+                                                      <span className="nav-icon-wrap bottom-profile-avatar">
+                                                            {profileAvatar}
+                                                            {unreadCount > 0 && <span className="nav-unread-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>}
                                                       </span>
                                                 </button>
 
@@ -242,13 +217,8 @@ const Layout = () => {
                                           </>
                                     ) : (
                                           <>
-                                                <button
-                                                      type="button"
-                                                      onClick={toggleTheme}
-                                                      className="theme-toggle-btn shell-icon-btn"
-                                                      aria-label="Toggle theme"
-                                                >
-                                                      <ThemeIcon />
+                                                <button type="button" onClick={toggleTheme} className="theme-toggle-btn shell-icon-btn" aria-label="Toggle theme">
+                                                      <ThemeIcon theme={theme} />
                                                 </button>
                                                 <Link to="/login" className="btn btn-ghost btn-sm">{t('login')}</Link>
                                                 <Link to="/register" className="btn btn-primary btn-sm">{t('join')}</Link>
@@ -276,21 +246,18 @@ const Layout = () => {
                   <nav className="bottom-nav">
                         {navItems.map((item) => renderNavLink(item, true))}
 
-                        <Link to="/profile" className={`bottom-nav-item ${location.pathname.startsWith('/profile') || location.pathname.startsWith('/u/') ? 'active' : ''}`}>
+                        <Link to="/profile" className={`bottom-nav-item ${showProfileAsActive ? 'active' : ''}`}>
                               <span className="nav-icon-wrap bottom-profile-avatar">
-                                    {user?.avatar ? (
-                                          <img src={user.avatar} alt={profileLabel} />
-                                    ) : (
-                                          <span>{(user?.displayName?.charAt(0) || user?.username?.charAt(0) || 'U').toUpperCase()}</span>
-                                    )}
+                                    {profileAvatar}
+                                    {unreadCount > 0 && <span className="nav-unread-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>}
                               </span>
-                              <span>Profile</span>
+                              <span>{unreadCount > 0 ? 'Inbox' : 'Profile'}</span>
                         </Link>
                   </nav>
 
                   {isAuthenticated && (
                         <Link
-                              to={mobileCreateTarget}
+                              to="/upload"
                               className={`bottom-create-fab ${location.pathname.startsWith('/upload') ? 'active' : ''}`}
                               aria-label="Create content"
                         >

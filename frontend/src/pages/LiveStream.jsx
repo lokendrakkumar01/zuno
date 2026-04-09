@@ -154,6 +154,16 @@ const LiveStream = () => {
       useEffect(() => {
             if (!socket) return undefined;
 
+            const handleStreamStarted = () => {
+                  if (!isHostMode && !isViewMode) {
+                        loadActiveStreams();
+                  }
+            };
+            const handleStreamEndedRefresh = () => {
+                  if (!isHostMode && !isViewMode) {
+                        loadActiveStreams();
+                  }
+            };
             const handleViewerJoined = ({ viewerCount: nextViewerCount }) => setViewerCount(nextViewerCount || 0);
             const handleViewerLeft = ({ viewerCount: nextViewerCount }) => setViewerCount(nextViewerCount || 0);
             const handleNewComment = (data) => {
@@ -176,6 +186,8 @@ const LiveStream = () => {
                   setSlowModeEnabled(Boolean(payload.enabled));
             };
 
+            socket.on('streamStarted', handleStreamStarted);
+            socket.on('streamEnded', handleStreamEndedRefresh);
             socket.on('viewerJoined', handleViewerJoined);
             socket.on('viewerLeft', handleViewerLeft);
             socket.on('newStreamComment', handleNewComment);
@@ -185,6 +197,8 @@ const LiveStream = () => {
             socket.on('slowModeUpdated', handleSlowModeUpdated);
 
             return () => {
+                  socket.off('streamStarted', handleStreamStarted);
+                  socket.off('streamEnded', handleStreamEndedRefresh);
                   socket.off('viewerJoined', handleViewerJoined);
                   socket.off('viewerLeft', handleViewerLeft);
                   socket.off('newStreamComment', handleNewComment);
@@ -193,7 +207,7 @@ const LiveStream = () => {
                   socket.off('streamJoined', handleStreamJoined);
                   socket.off('slowModeUpdated', handleSlowModeUpdated);
             };
-      }, [socket]);
+      }, [isHostMode, isViewMode, loadActiveStreams, socket]);
 
       const requestLiveAccess = useCallback(async ({ isHost, roomName, title, description }) => {
             const res = await fetch(`${API_URL}/livestream/token`, {
@@ -359,8 +373,9 @@ const LiveStream = () => {
             if (!isViewMode || !socket || !user || !hostId) return undefined;
 
             let ignore = false;
+            let retryTimer = null;
 
-            const joinStream = async () => {
+            const joinStream = async (attempt = 1) => {
                   try {
                         const roomName = streamInfo?.roomId || streamInfo?.id || `stream_${hostId}`;
                         const access = await requestLiveAccess({
@@ -378,9 +393,17 @@ const LiveStream = () => {
                         tokenRetryRef.current = 0;
                         socket.emit('joinStream', { hostId, viewerId: user._id });
                   } catch (error) {
-                        if (!ignore) {
-                              setStreamError(error.message || 'Connection error');
+                        if (ignore) return;
+
+                        if (attempt < 3) {
+                              setStreamError('Preparing the live room...');
+                              retryTimer = window.setTimeout(() => {
+                                    joinStream(attempt + 1);
+                              }, 1400);
+                              return;
                         }
+
+                        setStreamError(error.message || 'Connection error');
                   }
             };
 
@@ -388,6 +411,9 @@ const LiveStream = () => {
 
             return () => {
                   ignore = true;
+                  if (retryTimer) {
+                        window.clearTimeout(retryTimer);
+                  }
                   socket.emit('leaveStreamView', { hostId, viewerId: user._id });
             };
       }, [hostId, isViewMode, requestLiveAccess, socket, streamInfo, user]);

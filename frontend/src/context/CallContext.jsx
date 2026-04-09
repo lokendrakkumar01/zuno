@@ -90,7 +90,7 @@ const ICE_SERVERS = {
 export const useCallContext = () => useContext(CallContext);
 
 export const CallProvider = ({ children }) => {
-      const { socket } = useSocketContext();
+      const { socket, isConnected } = useSocketContext();
       const { user, token } = useAuth();
 
       const [stream, setStream] = useState(null);
@@ -342,7 +342,7 @@ export const CallProvider = ({ children }) => {
       const getMediaStream = async (type) => {
             const constraints = {
                   video: type === 'video' ? {
-                        facingMode: { ideal: 'user' },
+                        facingMode: { ideal: facingMode },
                         width: { ideal: 1280, max: 1920 },
                         height: { ideal: 720, max: 1080 }
                   } : false,
@@ -357,6 +357,11 @@ export const CallProvider = ({ children }) => {
       };
 
       const startCall = async (targetUserId, type, otherUserData, options = {}) => {
+            if (!socket || !isConnected) {
+                  showCallToast('Realtime connection is still getting ready. Please try again in a moment.', 'warning');
+                  return;
+            }
+
             pageUnloadRef.current = false;
             setCallEnded(false);
             setCallType(type);
@@ -464,6 +469,11 @@ export const CallProvider = ({ children }) => {
       };
 
       const answerCall = async () => {
+            if (!socket || !isConnected) {
+                  showCallToast('Realtime connection is not ready, so the call cannot be answered yet.', 'warning');
+                  return;
+            }
+
             pageUnloadRef.current = false;
             setShowCallModal(null);
             setCallAccepted(true);
