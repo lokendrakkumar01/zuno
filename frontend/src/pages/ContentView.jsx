@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useMusic } from '../context/MusicContext';
 import { API_URL, API_BASE_URL } from '../config';
+import CommentSection from '../components/Content/CommentSection';
 
 // Separate component for media items to avoid React hooks violation
 const MediaItem = ({ m, content }) => {
