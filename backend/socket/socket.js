@@ -38,8 +38,11 @@ const io = new Server(server, {
     credentials: true
   },
   allowEIO3: true,
-  pingTimeout: 10000,
-  pingInterval: 5000,
+  connectionStateRecovery: {
+    maxDisconnectionDuration: 2 * 60 * 1000
+  },
+  pingTimeout: 20000,
+  pingInterval: 25000,
   transports: ['websocket', 'polling'],
   perMessageDeflate: false
 });
@@ -74,8 +77,108 @@ const pendingStreamDisconnects = new Map(); // {hostUserId: timeoutId}
 const DIRECT_CALL_DISCONNECT_GRACE_MS = 12000;
 const STREAM_SLOW_MODE_COOLDOWN_MS = 5000;
 const STREAM_HOST_DISCONNECT_GRACE_MS = 15000;
+const STREAM_PROVISION_TTL_MS = 2 * 60 * 1000;
 
 const normalizeId = (value) => value?.toString?.() || null;
+const nowIso = () => new Date().toISOString();
+
+const touchStream = (stream) => {
+  if (stream) {
+    stream.updatedAt = nowIso();
+  }
+};
+
+const getViewerSocketsMap = (stream) => {
+  if (!stream.viewerSockets) {
+    stream.viewerSockets = new Map();
+  }
+  return stream.viewerSockets;
+};
+
+const addStreamViewerSocket = (stream, viewerUserId, socketId) => {
+  const normalizedViewerId = normalizeId(viewerUserId);
+  if (!stream || !normalizedViewerId || !socketId) return 0;
+
+  const viewerSockets = getViewerSocketsMap(stream);
+  const socketIds = viewerSockets.get(normalizedViewerId) || new Set();
+  socketIds.add(socketId);
+  viewerSockets.set(normalizedViewerId, socketIds);
+
+  stream.viewers = stream.viewers || new Set();
+  stream.viewers.add(normalizedViewerId);
+  touchStream(stream);
+  return stream.viewers.size;
+};
+
+const removeStreamViewerSocket = (stream, viewerUserId, socketId) => {
+  const normalizedViewerId = normalizeId(viewerUserId);
+  if (!stream || !normalizedViewerId) {
+    return { removedViewer: false, viewerCount: 0 };
+  }
+
+  stream.viewers = stream.viewers || new Set();
+  const viewerSockets = getViewerSocketsMap(stream);
+  const socketIds = viewerSockets.get(normalizedViewerId);
+
+  if (!socketIds) {
+    return { removedViewer: false, viewerCount: stream.viewers.size };
+  }
+
+  if (socketId) {
+    socketIds.delete(socketId);
+  }
+
+  if (!socketId || socketIds.size === 0) {
+    viewerSockets.delete(normalizedViewerId);
+    const removedViewer = stream.viewers.delete(normalizedViewerId);
+    touchStream(stream);
+    return { removedViewer, viewerCount: stream.viewers.size };
+  }
+
+  viewerSockets.set(normalizedViewerId, socketIds);
+  return { removedViewer: false, viewerCount: stream.viewers.size };
+};
+
+const serializeStream = (stream) => ({
+  id: stream.id,
+  roomId: stream.roomId || stream.id,
+  hostId: stream.hostId,
+  hostUsername: stream.hostUsername,
+  hostAvatar: stream.hostAvatar,
+  hostDisplayName: stream.hostDisplayName,
+  title: stream.title,
+  description: stream.description || '',
+  startedAt: stream.startedAt,
+  updatedAt: stream.updatedAt || stream.startedAt,
+  viewerCount: stream.viewers ? stream.viewers.size : (stream.viewerCount || 0),
+  slowMode: !!stream.slowMode,
+  pinnedComment: stream.pinnedComment || null,
+  liveKitProvisioned: !!stream.liveKitProvisioned
+});
+
+const isStreamJoinable = (stream) => {
+  if (!stream) return false;
+  if (stream.hostSocketId) return true;
+  if (!stream.liveKitProvisioned) return false;
+
+  const referenceTime = stream.liveKitProvisionedAt || stream.updatedAt || stream.startedAt;
+  if (!referenceTime) return false;
+  return Date.now() - new Date(referenceTime).getTime() < STREAM_PROVISION_TTL_MS;
+};
+
+const pruneExpiredStreams = () => {
+  const removedHostIds = [];
+
+  for (const [hostUserId, stream] of activeStreams.entries()) {
+    if (isStreamJoinable(stream)) continue;
+    if ((stream.viewers && stream.viewers.size > 0) || stream.hostSocketId) continue;
+
+    activeStreams.delete(hostUserId);
+    removedHostIds.push(hostUserId);
+  }
+
+  return removedHostIds;
+};
 
 const clearPendingDirectCallDisconnect = (userId) => {
   const normalizedUserId = normalizeId(userId);
@@ -182,6 +285,13 @@ const scheduleStreamDisconnect = (hostUserId, expectedSocketId) => {
   pendingStreamDisconnects.set(normalizedHostId, timeoutId);
 };
 
+setInterval(() => {
+  const removedHostIds = pruneExpiredStreams();
+  if (removedHostIds.length > 0) {
+    console.log(`[Stream] Pruned ${removedHostIds.length} stale provisioned stream(s)`);
+  }
+}, 30000);
+
 io.on("connection", (socket) => {
   const userId = socket.userId; // from JWT, safe
   console.log(`[Socket] Connected: ${socket.id} (user: ${userId})`);
@@ -202,6 +312,9 @@ io.on("connection", (socket) => {
       const roomId = hostedStream.roomId || hostedStream.id || `stream_${userId}`;
       hostedStream.roomId = roomId;
       hostedStream.hostSocketId = socket.id;
+      hostedStream.liveKitProvisioned = true;
+      hostedStream.liveKitProvisionedAt = hostedStream.liveKitProvisionedAt || nowIso();
+      touchStream(hostedStream);
       socket.join(roomId);
     }
   }
@@ -210,7 +323,7 @@ io.on("connection", (socket) => {
 
   socket.on("typing", (data) => {
     if (data.receiverId) {
-      io.to(data.receiverId).emit("typing", { senderId: userId });
+      socket.to(data.receiverId).volatile.emit("typing", { senderId: userId });
     }
   });
 
@@ -226,13 +339,13 @@ io.on("connection", (socket) => {
 
   socket.on("stopTyping", (data) => {
     if (data.receiverId) {
-      io.to(data.receiverId).emit("stopTyping", { senderId: userId });
+      socket.to(data.receiverId).volatile.emit("stopTyping", { senderId: userId });
     }
   });
 
   socket.on("messageRead", (data) => {
     if (data.receiverId) {
-      io.to(data.receiverId).emit("messageRead", { messageId: data.messageId, readerId: userId });
+      socket.to(data.receiverId).emit("messageRead", { messageId: data.messageId, readerId: userId });
     }
   });
 
@@ -316,10 +429,15 @@ io.on("connection", (socket) => {
       title: data.title || existingStream.title || '',
       description: data.description || existingStream.description || '',
       viewers: existingStream.viewers || new Set(),
+      viewerSockets: existingStream.viewerSockets || new Map(),
       hostSocketId: socket.id,
       bannedViewers: existingStream.bannedViewers || new Set(),
       slowMode: existingStream.slowMode || false,
-      pinnedComment: existingStream.pinnedComment || null
+      pinnedComment: existingStream.pinnedComment || null,
+      liveKitProvisioned: existingStream.liveKitProvisioned || false,
+      liveKitProvisionedAt: existingStream.liveKitProvisionedAt || null,
+      startedAt: existingStream.startedAt || nowIso(),
+      updatedAt: nowIso()
     });
     io.emit("streamStarted", { hostId: userId, title: data.title, roomId });
     console.log(`[Stream] Started by ${userId} — room: ${roomId}`);
@@ -327,23 +445,24 @@ io.on("connection", (socket) => {
 
   socket.on("joinStream", (data) => {
     if (!data?.hostId) return;
+    pruneExpiredStreams();
     const stream = activeStreams.get(data.hostId);
-    if (!stream || (!stream.hostSocketId && !stream.liveKitProvisioned)) {
+    if (!isStreamJoinable(stream)) {
       return socket.emit("streamNotFound");
     }
 
     stream.viewers = stream.viewers || new Set();
     stream.bannedViewers = stream.bannedViewers || new Set();
 
-    if (stream.bannedViewers?.has(userId)) {
+    if (stream.bannedViewers?.has(normalizeId(userId))) {
       return socket.emit("streamBanned", { reason: 'You have been removed from this stream.' });
     }
 
     const roomId = stream.roomId || stream.id || `stream_${data.hostId}`;
     stream.roomId = roomId;
     socket.join(roomId);
-    stream.viewers.add(userId);
-    const viewerCount = stream.viewers.size;
+    const viewerCount = addStreamViewerSocket(stream, userId, socket.id);
+    touchStream(stream);
 
     if (stream.hostSocketId) {
       io.to(stream.hostSocketId).emit("viewerJoined", { viewerId: userId, viewerCount });
@@ -368,7 +487,7 @@ io.on("connection", (socket) => {
   socket.on("streamComment", (data) => {
     const stream = activeStreams.get(data.hostId);
     if (!stream) return;
-    if (stream.bannedViewers?.has(userId)) return;
+    if (stream.bannedViewers?.has(normalizeId(userId))) return;
 
     const commentText = String(data.comment || '');
     const isReaction = commentText.startsWith('REACTION:');
@@ -382,6 +501,7 @@ io.on("connection", (socket) => {
       streamCommentCooldowns.set(cooldownKey, Date.now());
     }
 
+    touchStream(stream);
     io.to(stream.roomId).emit("newStreamComment", {
       comment: commentText, username: data.username,
       avatar: data.avatar, userId, timestamp: new Date().toISOString()
@@ -391,6 +511,7 @@ io.on("connection", (socket) => {
   socket.on("streamReaction", (data) => {
     const stream = activeStreams.get(data.hostId);
     if (stream) {
+      touchStream(stream);
       io.to(stream.roomId).emit("streamReaction", { emoji: data.emoji, userId });
     }
   });
@@ -400,6 +521,7 @@ io.on("connection", (socket) => {
     const stream = activeStreams.get(userId);
     if (!stream) return;
     stream.pinnedComment = data.comment;
+    touchStream(stream);
     io.to(stream.roomId).emit("streamCommentPinned", { comment: data.comment });
   });
 
@@ -407,10 +529,20 @@ io.on("connection", (socket) => {
     // Only host can kick
     const stream = activeStreams.get(userId);
     if (!stream) return;
-    stream.bannedViewers.add(data.viewerId);
-    stream.viewers.delete(data.viewerId);
+    stream.bannedViewers = stream.bannedViewers || new Set();
+    stream.bannedViewers.add(normalizeId(data.viewerId));
+    const viewerSocketIds = Array.from(getViewerSocketsMap(stream).get(normalizeId(data.viewerId)) || []);
+    const { viewerCount } = removeStreamViewerSocket(stream, data.viewerId);
+    touchStream(stream);
+    viewerSocketIds.forEach((viewerSocketId) => {
+      const viewerSocket = io.sockets.sockets.get(viewerSocketId);
+      if (viewerSocket) {
+        viewerSocket.leave(stream.roomId);
+      }
+      io.to(viewerSocketId).emit("streamKicked", { reason: data.reason || 'Removed by host' });
+    });
     io.to(data.viewerId).emit("streamKicked", { reason: data.reason || 'Removed by host' });
-    io.to(stream.roomId).emit("viewerLeft", { viewerId: data.viewerId, viewerCount: stream.viewers.size });
+    io.to(stream.roomId).emit("viewerLeft", { viewerId: data.viewerId, viewerCount });
     console.log(`[Stream] Viewer ${data.viewerId} kicked from stream of ${userId}`);
   });
 
@@ -418,6 +550,7 @@ io.on("connection", (socket) => {
     const stream = activeStreams.get(userId);
     if (!stream) return;
     stream.slowMode = !!data.enabled;
+    touchStream(stream);
     io.to(stream.roomId).emit("slowModeUpdated", { enabled: stream.slowMode });
   });
 
@@ -434,11 +567,10 @@ io.on("connection", (socket) => {
   socket.on("leaveStreamView", (data) => {
     const stream = activeStreams.get(data.hostId);
     if (stream) {
-      stream.viewers = stream.viewers || new Set();
-      stream.viewers.delete(userId);
       socket.leave(stream.roomId || stream.id || `stream_${data.hostId}`);
-      if (stream.hostSocketId) {
-        io.to(stream.hostSocketId).emit("viewerLeft", { viewerId: userId, viewerCount: stream.viewers.size });
+      const { removedViewer, viewerCount } = removeStreamViewerSocket(stream, userId, socket.id);
+      if (removedViewer && stream.hostSocketId) {
+        io.to(stream.hostSocketId).emit("viewerLeft", { viewerId: userId, viewerCount });
       }
     }
   });
@@ -450,19 +582,16 @@ io.on("connection", (socket) => {
     for (const [hostUserId, stream] of activeStreams.entries()) {
       if (stream.hostSocketId === socket.id) {
         stream.hostSocketId = null;
+        touchStream(stream);
         scheduleStreamDisconnect(hostUserId, socket.id);
         console.log(`[Stream] Host ${hostUserId} disconnected, waiting for reconnect`);
         continue;
       }
 
-      if (stream.hostSocketId === socket.id) {
-        io.to(stream.roomId).emit("streamEnded", { hostId: hostUserId });
-        activeStreams.delete(hostUserId);
-        console.log(`[Stream] Host ${hostUserId} disconnected — stream ended`);
-      } else if (stream.viewers?.has(userId)) {
-        stream.viewers.delete(userId);
-        if (stream.hostSocketId) {
-          io.to(stream.hostSocketId).emit("viewerLeft", { viewerId: userId, viewerCount: stream.viewers.size });
+      if (stream.viewers?.has(userId)) {
+        const { removedViewer, viewerCount } = removeStreamViewerSocket(stream, userId, socket.id);
+        if (removedViewer && stream.hostSocketId) {
+          io.to(stream.hostSocketId).emit("viewerLeft", { viewerId: userId, viewerCount });
         }
       }
     }
@@ -490,4 +619,13 @@ const getReceiverSocketId = (receiverId) => {
   return receiverId.toString();
 };
 
-module.exports = { app, io, server, getReceiverSocketId, activeStreams };
+module.exports = {
+  app,
+  io,
+  server,
+  getReceiverSocketId,
+  activeStreams,
+  serializeStream,
+  pruneExpiredStreams,
+  isStreamJoinable
+};

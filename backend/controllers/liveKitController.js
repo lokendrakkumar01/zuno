@@ -1,5 +1,5 @@
 const { AccessToken } = require('livekit-server-sdk');
-const { activeStreams } = require('../socket/socket'); // We still use this to track stream metadata
+const { activeStreams, pruneExpiredStreams, isStreamJoinable } = require('../socket/socket');
 
 const normalizeLiveKitUrl = (value = '') => {
     const trimmed = value.replace(/['"]+/g, '').trim().replace(/\/+$/, '');
@@ -38,6 +38,7 @@ const getLiveKitToken = async (req, res) => {
         const username = req.user.username;
         const displayName = req.user.displayName || username;
         const avatar = req.user.avatar || '';
+        const requestTime = new Date().toISOString();
 
         // If the API keys aren't set in environment, throw an error
         let apiKey = process.env.LIVEKIT_API_KEY?.replace(/['"]+/g, '');
@@ -60,6 +61,21 @@ const getLiveKitToken = async (req, res) => {
         }
 
         roomName = sanitizeRoomName(roomName, fallbackRoomName);
+        pruneExpiredStreams();
+
+        if (!isHost) {
+            const targetStream = Array.from(activeStreams.values()).find((stream) => {
+                if (!stream) return false;
+                const candidateRoomId = stream.roomId || stream.id;
+                return candidateRoomId === roomName || stream.id === roomName;
+            });
+
+            if (!targetStream || !isStreamJoinable(targetStream)) {
+                return res.status(404).json({ success: false, message: 'Stream not found or has ended.' });
+            }
+
+            roomName = targetStream.roomId || targetStream.id || roomName;
+        }
 
         // Generate the token
         const participantName = displayName;
@@ -105,13 +121,16 @@ const getLiveKitToken = async (req, res) => {
                 title: title || `${displayName}'s Live Stream`,
                 description: req.body.description || existingStream.description || '',
                 startedAt: existingStream.startedAt || new Date().toISOString(),
+                updatedAt: requestTime,
                 viewerCount: existingStream.viewers ? existingStream.viewers.size : 0,
                 hostSocketId: existingStream.hostSocketId || null,
                 viewers: existingStream.viewers || new Set(),
+                viewerSockets: existingStream.viewerSockets || new Map(),
                 bannedViewers: existingStream.bannedViewers || new Set(),
                 slowMode: existingStream.slowMode || false,
                 pinnedComment: existingStream.pinnedComment || null,
-                liveKitProvisioned: true
+                liveKitProvisioned: true,
+                liveKitProvisionedAt: existingStream.liveKitProvisionedAt || requestTime
             });
         }
 

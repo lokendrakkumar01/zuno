@@ -20,12 +20,16 @@ export const SocketContextProvider = ({ children }) => {
                   const socketInstance = io(SOCKET_URL, {
                         auth: { token },
                         transports: ['websocket', 'polling'],
+                        withCredentials: true,
                         reconnection: true,
                         reconnectionAttempts: 20,
-                        reconnectionDelay: 1000,
-                        reconnectionDelayMax: 10000,
-                        timeout: 20000,
-                        upgrade: true
+                        reconnectionDelay: 500,
+                        reconnectionDelayMax: 3000,
+                        randomizationFactor: 0.25,
+                        timeout: 10000,
+                        upgrade: true,
+                        rememberUpgrade: true,
+                        autoConnect: true
                   });
 
                   setSocket(socketInstance);

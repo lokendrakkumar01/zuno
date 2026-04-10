@@ -81,12 +81,9 @@ const getMessages = async (req, res) => {
                   return res.status(404).json({ success: false, message: 'User not found' });
             }
 
-            // Check blocked status (non-blocking parallel fetch)
-            const [currentUser] = await Promise.all([
-                  User.findById(req.user.id).select('blockedUsers').lean()
-            ]);
+            // Check blocked status from auth-loaded user + target user
             const blockedInfo = {
-                  iBlocked: currentUser?.blockedUsers?.some(b => b.toString() === userId) || false,
+                  iBlocked: req.user?.blockedUsers?.some(b => b.toString() === userId) || false,
                   theyBlocked: otherUser.blockedUsers?.some(b => b.toString() === req.user.id) || false
             };
 
@@ -199,8 +196,7 @@ const sendMessage = async (req, res) => {
             }
  
             // Check if blocked — use lean
-            const currentUser = await User.findById(req.user.id).lean();
-            if (hasUserId(currentUser?.blockedUsers, userId)) {
+            if (hasUserId(req.user?.blockedUsers, userId)) {
                   return res.status(403).json({
                         success: false,
                         message: 'You have blocked this user. Unblock them to send messages.'
@@ -289,8 +285,10 @@ const sendMessage = async (req, res) => {
 
             // Persist message first so every success response has durable storage.
             let message = await Message.create(msgData);
-            await message.populate('sender', 'username displayName avatar');
-            await message.populate('receiver', 'username displayName avatar');
+            await message.populate([
+                  { path: 'sender', select: 'username displayName avatar' },
+                  { path: 'receiver', select: 'username displayName avatar' }
+            ]);
             const socketPayload = message.toObject();
             if (req.body.clientMsgId) {
                   socketPayload.clientMsgId = req.body.clientMsgId;

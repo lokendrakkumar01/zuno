@@ -58,6 +58,9 @@ messageSchema.index({ sender: 1, receiver: 1, createdAt: -1 });
 messageSchema.index({ receiver: 1, sender: 1, createdAt: -1 });
 messageSchema.index({ receiver: 1, read: 1 });
 messageSchema.index({ conversationId: 1, createdAt: -1 }); // Fast cursor pagination for group + DM chats
+messageSchema.index({ conversationId: 1, _id: -1 });
+messageSchema.index({ sender: 1, receiver: 1, _id: -1 });
+messageSchema.index({ receiver: 1, read: 1, createdAt: -1 });
 messageSchema.index({ createdAt: -1 });
 
 const conversationSchema = new mongoose.Schema({
@@ -85,6 +88,7 @@ const conversationSchema = new mongoose.Schema({
 
 // Index for efficient participant and sorting queries
 conversationSchema.index({ participants: 1, updatedAt: -1 });
+conversationSchema.index({ participants: 1, isGroup: 1, updatedAt: -1 });
 
 const Message = mongoose.model('Message', messageSchema);
 const Conversation = mongoose.model('Conversation', conversationSchema);
