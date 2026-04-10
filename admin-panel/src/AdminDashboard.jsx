@@ -75,6 +75,14 @@ function Loading({ label }) {
       return <div className="admin-load"><div className="admin-spinner" />{label}</div>;
 }
 
+async function readAdminResponse(response) {
+      const data = await response.json().catch(() => ({}));
+      return {
+            ok: response.ok && data.success !== false,
+            data
+      };
+}
+
 function Surface({ title, subtitle, children, actions }) {
       return (
             <div className="admin-panel">
@@ -98,10 +106,12 @@ function DashboardHome({ token, notify }) {
             if (!refresh) setLoading(true);
             try {
                   const res = await fetch(`${API_URL}/admin/stats`, { headers: { Authorization: `Bearer ${token}` } });
-                  const data = await res.json();
-                  if (data.success) {
-                        setStats(data.data);
+                  const { ok, data } = await readAdminResponse(res);
+                  if (ok) {
+                        setStats(data.data || null);
                         if (refresh) notify('Dashboard refreshed');
+                  } else {
+                        notify(data.message || 'Could not load dashboard stats');
                   }
             } catch {
                   notify('Could not load dashboard stats');
@@ -135,8 +145,12 @@ function UsersManagement({ token, notify }) {
             setLoading(true);
             try {
                   const res = await fetch(`${API_URL}/admin/users?limit=40&search=${encodeURIComponent(query)}`, { headers: { Authorization: `Bearer ${token}` } });
-                  const data = await res.json();
-                  if (data.success) setUsers(data.data.users || []);
+                  const { ok, data } = await readAdminResponse(res);
+                  if (ok) {
+                        setUsers(data.data?.users || []);
+                  } else {
+                        notify(data.message || 'Could not load users');
+                  }
             } catch {
                   notify('Could not load users');
             } finally {
@@ -149,10 +163,12 @@ function UsersManagement({ token, notify }) {
       const updateUser = async (userId, body, label) => {
             try {
                   const res = await fetch(`${API_URL}/admin/users/${userId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
-                  const data = await res.json();
-                  if (data.success) {
+                  const { ok, data } = await readAdminResponse(res);
+                  if (ok) {
                         notify(label);
                         fetchUsers(search);
+                  } else {
+                        notify(data.message || 'User update failed');
                   }
             } catch {
                   notify('User update failed');
@@ -162,10 +178,12 @@ function UsersManagement({ token, notify }) {
       const toggleBan = async (userId) => {
             try {
                   const res = await fetch(`${API_URL}/admin/users/${userId}/ban`, { method: 'PUT', headers: { Authorization: `Bearer ${token}` } });
-                  const data = await res.json();
-                  if (data.success) {
+                  const { ok, data } = await readAdminResponse(res);
+                  if (ok) {
                         notify(data.message || 'User status updated');
                         fetchUsers(search);
+                  } else {
+                        notify(data.message || 'Ban action failed');
                   }
             } catch {
                   notify('Ban action failed');
@@ -176,10 +194,12 @@ function UsersManagement({ token, notify }) {
             if (!window.confirm(`Delete ${username}?`)) return;
             try {
                   const res = await fetch(`${API_URL}/admin/users/${userId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
-                  const data = await res.json();
-                  if (data.success) {
+                  const { ok, data } = await readAdminResponse(res);
+                  if (ok) {
                         notify(data.message || 'User deleted');
                         fetchUsers(search);
+                  } else {
+                        notify(data.message || 'Delete failed');
                   }
             } catch {
                   notify('Delete failed');
@@ -223,11 +243,13 @@ function VerificationsManagement({ token, notify, onUpdate }) {
             setLoading(true);
             try {
                   const res = await fetch(`${API_URL}/admin/verifications`, { headers: { Authorization: `Bearer ${token}` } });
-                  const data = await res.json();
-                  if (data.success) {
-                        const nextUsers = data.data.users || [];
+                  const { ok, data } = await readAdminResponse(res);
+                  if (ok) {
+                        const nextUsers = data.data?.users || [];
                         setUsers(nextUsers);
                         onUpdate?.(nextUsers.length);
+                  } else {
+                        notify(data.message || 'Could not load verifications');
                   }
             } catch {
                   notify('Could not load verifications');
@@ -241,10 +263,12 @@ function VerificationsManagement({ token, notify, onUpdate }) {
       const review = async (userId, action) => {
             try {
                   const res = await fetch(`${API_URL}/admin/verifications/${userId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ action }) });
-                  const data = await res.json();
-                  if (data.success) {
+                  const { ok, data } = await readAdminResponse(res);
+                  if (ok) {
                         notify(action === 'approve' ? 'Verification approved' : 'Verification rejected');
                         fetchVerifications();
+                  } else {
+                        notify(data.message || 'Review failed');
                   }
             } catch {
                   notify('Review failed');
@@ -282,8 +306,12 @@ function ContentManagement({ token, notify }) {
             setLoading(true);
             try {
                   const res = await fetch(`${API_URL}/admin/content?limit=30`, { headers: { Authorization: `Bearer ${token}` } });
-                  const data = await res.json();
-                  if (data.success) setContents(data.data.contents || []);
+                  const { ok, data } = await readAdminResponse(res);
+                  if (ok) {
+                        setContents(data.data?.contents || []);
+                  } else {
+                        notify(data.message || 'Could not load content');
+                  }
             } catch {
                   notify('Could not load content');
             } finally {
@@ -296,10 +324,12 @@ function ContentManagement({ token, notify }) {
       const moderate = async (contentId, body, label) => {
             try {
                   const res = await fetch(`${API_URL}/admin/content/${contentId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
-                  const data = await res.json();
-                  if (data.success) {
+                  const { ok, data } = await readAdminResponse(res);
+                  if (ok) {
                         notify(label);
                         fetchContent();
+                  } else {
+                        notify(data.message || 'Moderation failed');
                   }
             } catch {
                   notify('Moderation failed');
@@ -332,8 +362,12 @@ function ConfigManagement({ token, notify }) {
             setLoading(true);
             try {
                   const res = await fetch(`${API_URL}/admin/config`, { headers: { Authorization: `Bearer ${token}` } });
-                  const data = await res.json();
-                  if (data.success) setConfigs(data.data.configs || []);
+                  const { ok, data } = await readAdminResponse(res);
+                  if (ok) {
+                        setConfigs(data.data?.configs || []);
+                  } else {
+                        notify(data.message || 'Could not load config');
+                  }
             } catch {
                   notify('Could not load config');
             } finally {
@@ -346,10 +380,12 @@ function ConfigManagement({ token, notify }) {
       const initDefaults = async () => {
             try {
                   const res = await fetch(`${API_URL}/admin/config/init`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
-                  const data = await res.json();
-                  if (data.success) {
+                  const { ok, data } = await readAdminResponse(res);
+                  if (ok) {
                         notify('Defaults initialized');
                         fetchConfigs();
+                  } else {
+                        notify(data.message || 'Initialization failed');
                   }
             } catch {
                   notify('Initialization failed');
@@ -359,10 +395,12 @@ function ConfigManagement({ token, notify }) {
       const toggleConfig = async (config) => {
             try {
                   const res = await fetch(`${API_URL}/admin/config/${config.key}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ value: !config.value }) });
-                  const data = await res.json();
-                  if (data.success) {
+                  const { ok, data } = await readAdminResponse(res);
+                  if (ok) {
                         notify(`${config.key} updated`);
                         fetchConfigs();
+                  } else {
+                        notify(data.message || 'Config update failed');
                   }
             } catch {
                   notify('Config update failed');
@@ -403,9 +441,9 @@ export default function AdminDashboard({ token, user, onLogout }) {
       useEffect(() => {
             if (!token || user?.role !== 'admin') return;
             fetch(`${API_URL}/admin/verifications`, { headers: { Authorization: `Bearer ${token}` } })
-                  .then((response) => response.json())
-                  .then((data) => {
-                        if (data.success) setPendingCount((data.data.users || []).length);
+                  .then((response) => readAdminResponse(response))
+                  .then(({ ok, data }) => {
+                        if (ok) setPendingCount((data.data?.users || []).length);
                   })
                   .catch(() => {});
       }, [token, user]);

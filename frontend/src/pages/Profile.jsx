@@ -1046,59 +1046,6 @@ const Profile = () => {
                                           </>
                                     )}
 
-                                    {isOwnProfile && (
-                                          <div className="profile-manage-card">
-                                                <div className="profile-manage-head">
-                                                      <div>
-                                                            <h3 className="font-semibold">Manage your profile</h3>
-                                                            <p className="text-sm text-muted">Mobile par messages, settings, profile editing, aur admin tools ko yahin se quickly open karo.</p>
-                                                      </div>
-                                                      <span
-                                                            className="profile-status-badge pending"
-                                                            style={{
-                                                                  background: 'rgba(99, 102, 241, 0.12)',
-                                                                  borderColor: 'rgba(99, 102, 241, 0.24)',
-                                                                  color: '#4338ca'
-                                                            }}
-                                                      >
-                                                            Mobile ready
-                                                      </span>
-                                                </div>
-
-                                                <div className="profile-manage-grid">
-                                                      <button type="button" className="profile-manage-button" onClick={() => navigate('/messages')}>
-                                                            <div className="profile-manage-button-top">
-                                                                  <span className="profile-manage-icon">Chat</span>
-                                                                  <strong>Messages</strong>
-                                                            </div>
-                                                            <span>Open inbox fast</span>
-                                                      </button>
-                                                      <button type="button" className="profile-manage-button" onClick={() => navigate('/settings')}>
-                                                            <div className="profile-manage-button-top">
-                                                                  <span className="profile-manage-icon">Set</span>
-                                                                  <strong>Settings</strong>
-                                                            </div>
-                                                            <span>Privacy and controls</span>
-                                                      </button>
-                                                      <button type="button" className="profile-manage-button" onClick={openProfileEditor}>
-                                                            <div className="profile-manage-button-top">
-                                                                  <span className="profile-manage-icon">Edit</span>
-                                                                  <strong>Edit Profile</strong>
-                                                            </div>
-                                                            <span>Bio and profile info</span>
-                                                      </button>
-                                                      {canAccessAdminPanel && (
-                                                            <button type="button" className="profile-manage-button profile-manage-button--primary" onClick={() => navigate('/admin')}>
-                                                                  <div className="profile-manage-button-top">
-                                                                        <span className="profile-manage-icon">ADM</span>
-                                                                        <strong>Admin Panel</strong>
-                                                                  </div>
-                                                                  <span>Moderation tools</span>
-                                                            </button>
-                                                      )}
-                                                </div>
-                                          </div>
-                                    )}
                               </div>
                         </div>
 

@@ -5,6 +5,15 @@ const Interaction = require('../models/Interaction');
 const { sendCustomAdminEmail } = require('../config/emailService');
 const { io } = require('../socket/socket');
 
+const mapReportForAdmin = (report) => ({
+      ...report,
+      reporter: report.user || null,
+      reason: report.reportReason || report.reason || 'other',
+      details: report.reportNote || report.details || '',
+      targetModel: report.content ? 'content' : 'unknown',
+      targetId: report.content?._id?.toString?.() || report.content?.toString?.() || null
+});
+
 // @desc    Get admin dashboard stats
 // @route   GET /api/admin/stats
 // @access  Admin
@@ -72,7 +81,8 @@ const getAllUsers = async (req, res) => {
                   .select('-password')
                   .sort({ createdAt: -1 })
                   .skip((page - 1) * limit)
-                  .limit(parseInt(limit));
+                  .limit(parseInt(limit))
+                  .lean();
 
             const total = await User.countDocuments(query);
 
@@ -148,7 +158,7 @@ const updateUser = async (req, res) => {
                         const clientUrl = process.env.CLIENT_URL || 'https://zunoworld.tech';
                         const resetLink = `${clientUrl}/reset-password?token=${rawToken}&userId=${req.params.id}`;
 
-                        const subject = '🔐 Security Alert: Your ZUNO Password has been Reset';
+                        const subject = 'Security alert: your ZUNO password was reset';
                         const message = `Hello ${user.displayName || user.username},\n\nYour ZUNO account password was reset by an administrator.\n\nClick the link below to set your own new password (link expires in 1 hour):\n\n${resetLink}\n\nIf you did not request this, please contact support immediately.\n\nBest regards,\nZUNO Administration`;
                         await sendCustomAdminEmail(user.email, user.displayName || user.username, subject, message);
                         console.log(`[Admin] Secure password reset link sent to ${user.email}`);
@@ -226,7 +236,8 @@ const getPendingVerifications = async (req, res) => {
       try {
             const users = await User.find({ 'verificationRequest.status': 'pending' })
                   .select('-password')
-                  .sort({ 'verificationRequest.requestedAt': 1 });
+                  .sort({ 'verificationRequest.requestedAt': 1 })
+                  .lean();
             res.json({ success: true, data: { users } });
       } catch (error) {
             res.status(500).json({ success: false, message: 'Failed to get verifications', error: error.message });
@@ -242,6 +253,12 @@ const handleVerification = async (req, res) => {
             const user = await User.findById(req.params.id).select('-password');
             if (!user) {
                   return res.status(404).json({ success: false, message: 'User not found' });
+            }
+            if (!['approve', 'reject'].includes(action)) {
+                  return res.status(400).json({ success: false, message: 'Invalid verification action' });
+            }
+            if (!user.verificationRequest) {
+                  user.verificationRequest = { status: 'none', reason: '' };
             }
             if (action === 'approve') {
                   user.isVerified = true;
@@ -279,7 +296,8 @@ const getAllContent = async (req, res) => {
                   .populate('creator', 'username displayName')
                   .sort({ createdAt: -1 })
                   .skip((page - 1) * limit)
-                  .limit(parseInt(limit));
+                  .limit(parseInt(limit))
+                  .lean();
 
             const total = await Content.countDocuments(query);
 
@@ -368,14 +386,16 @@ const getReports = async (req, res) => {
                   })
                   .sort({ createdAt: -1 })
                   .skip((page - 1) * limit)
-                  .limit(parseInt(limit));
+                  .limit(parseInt(limit))
+                  .lean();
 
             const total = await Interaction.countDocuments({ type: 'report' });
+            const normalizedReports = reports.map(mapReportForAdmin);
 
             res.json({
                   success: true,
                   data: {
-                        reports,
+                        reports: normalizedReports,
                         pagination: {
                               page: parseInt(page),
                               limit: parseInt(limit),
@@ -440,7 +460,7 @@ const handleReportAction = async (req, res) => {
 // @access  Admin
 const getConfigs = async (req, res) => {
       try {
-            const configs = await AdminConfig.find().sort({ category: 1, key: 1 });
+            const configs = await AdminConfig.find().sort({ category: 1, key: 1 }).lean();
             res.json({
                   success: true,
                   data: { configs }

@@ -9,6 +9,25 @@ const adminCache = { stats: null, users: null, verifications: null, contents: nu
 // Global event emitter for forces refreshing
 const refreshEvent = new EventTarget();
 
+const normalizeAdminReport = (report) => {
+  const targetId = report?.targetId || report?.content?._id || report?.content || null;
+  const targetLabel = report?.targetModel || (report?.content ? 'content' : 'unknown');
+  const reason = report?.reason || report?.reportReason || 'other';
+  const details = report?.details || report?.reportNote || '';
+  const reporter = report?.reporter || report?.user || null;
+  const creatorUsername = report?.content?.creator?.username || null;
+
+  return {
+    ...report,
+    targetId,
+    targetLabel,
+    reason,
+    details,
+    reporter,
+    creatorUsername,
+  };
+};
+
 /* ── Inject admin-specific CSS once ── */
 const AdminStyles = () => {
   useEffect(() => {
@@ -907,8 +926,9 @@ const ReportsManagement = ({ token }) => {
       const res = await fetch(`${API_URL}/admin/reports?limit=50`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       if (data.success) {
-        setReports(data.data.reports);
-        adminCache.reports = data.data.reports;
+        const nextReports = (data.data.reports || []).map(normalizeAdminReport);
+        setReports(nextReports);
+        adminCache.reports = nextReports;
       }
     } catch {/**/} finally { setLoading(false); }
   };
@@ -964,31 +984,34 @@ const ReportsManagement = ({ token }) => {
               </tr>
             </thead>
             <tbody>
-              {reports.map(r => (
-                <tr key={r._id}>
+              {reports.map((report) => (
+                <tr key={report._id}>
                   <td>
-                    <div style={{ fontWeight:600 }}>{r.targetModel}</div>
-                    <div style={{ fontSize:'.75rem', color:'#64748b', fontFamily:'monospace' }}>{r.targetId}</div>
+                    <div style={{ fontWeight:600, textTransform:'capitalize' }}>{report.targetLabel}</div>
+                    <div style={{ fontSize:'.75rem', color:'#64748b', fontFamily:'monospace' }}>{report.targetId || 'N/A'}</div>
+                    {report.creatorUsername ? (
+                      <div style={{ fontSize:'.75rem', color:'#475569' }}>Creator: @{report.creatorUsername}</div>
+                    ) : null}
                   </td>
                   <td>
                     <span className="admin-badge-role admin-badge-pending" style={{ textTransform:'capitalize' }}>
-                      {r.reason}
+                      {report.reason}
                     </span>
                   </td>
                   <td>
                     <p style={{ margin:0, fontSize:'.85rem', color:'#e2e8f0', maxWidth:'250px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-                      {r.details || 'No additional details provided.'}
+                      {report.details || 'No additional details provided.'}
                     </p>
                   </td>
                   <td style={{ color:'#94a3b8', fontSize:'.82rem' }}>
-                    @{r.reporter?.username || 'Unknown'}
+                    @{report.reporter?.username || 'Unknown'}
                   </td>
                   <td>
                     <div style={{ display:'flex', gap:'6px' }}>
-                      <button className="admin-btn admin-btn-sm admin-btn-ghost" onClick={() => handleAction(r._id, 'dismissed')} title="Dismiss Report">
+                      <button className="admin-btn admin-btn-sm admin-btn-ghost" onClick={() => handleAction(report._id, 'dismissed')} title="Dismiss Report">
                         Dismiss
                       </button>
-                      <button className="admin-btn admin-btn-sm admin-btn-danger" onClick={() => handleAction(r._id, 'removed')} title="Remove Content">
+                      <button className="admin-btn admin-btn-sm admin-btn-danger" onClick={() => handleAction(report._id, 'removed')} title="Remove Content">
                         Remove Content
                       </button>
                     </div>
