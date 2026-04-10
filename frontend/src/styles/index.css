@@ -4606,23 +4606,68 @@ video.chat-media-content {
    Profile Page
    ======================================== */
 
+.profile-page-shell {
+  --profile-avatar-size: 100px;
+  --profile-avatar-inner-size: 94px;
+}
+
+.profile-header-card {
+  overflow: hidden;
+}
+
+.profile-header-layout {
+  align-items: flex-start;
+}
+
+.profile-avatar-shell {
+  flex-shrink: 0;
+}
+
+.profile-avatar-image {
+  width: var(--profile-avatar-inner-size) !important;
+  height: var(--profile-avatar-inner-size) !important;
+}
+
+.profile-avatar-image span {
+  font-size: clamp(1.5rem, 4vw, 2.2rem) !important;
+}
+
+.profile-summary {
+  min-width: 0;
+}
+
+.profile-display-name {
+  line-height: 1.08;
+  word-break: break-word;
+}
+
+.profile-username-copy,
+.profile-bio-copy {
+  word-break: break-word;
+}
+
 .profile-stat-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(88px, max-content));
+  gap: 0.85rem 1rem;
   margin-bottom: 1rem;
   font-size: var(--font-size-sm);
+  align-items: stretch;
 }
 
 .profile-stat-button,
 .profile-stat-chip {
   display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.15rem;
   padding: 0;
   border: none;
   background: transparent;
   color: inherit;
+  text-align: left;
+  min-width: 80px;
 }
 
 .profile-stat-button {
@@ -4692,6 +4737,7 @@ video.chat-media-content {
 .profile-action-row .btn {
   flex: 1 1 180px;
   min-width: 0;
+  padding: 0.8rem 1rem;
 }
 
 .profile-action-label {
@@ -4700,6 +4746,12 @@ video.chat-media-content {
   justify-content: center;
   gap: 0.5rem;
   width: 100%;
+}
+
+.profile-action-label svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
 }
 
 .profile-tab-row {
@@ -4816,6 +4868,79 @@ video.chat-media-content {
 
 .profile-tip-icon {
   font-size: 1.2rem;
+  line-height: 1;
+}
+
+.profile-edit-card,
+.profile-quick-chat-card {
+  overflow: hidden;
+}
+
+.profile-edit-actions .btn {
+  flex: 1 1 180px;
+}
+
+.profile-modal-card {
+  width: min(400px, calc(100vw - 1.5rem));
+}
+
+.profile-modal-user-row {
+  min-width: 0;
+}
+
+.profile-modal-bio {
+  max-width: 100% !important;
+}
+
+.profile-modal-close-btn {
+  position: relative;
+  font-size: 0 !important;
+}
+
+.profile-modal-close-btn::before {
+  content: "\00D7";
+  font-size: 1rem;
+  line-height: 1;
+  color: currentColor;
+}
+
+.profile-avatar-frame > span {
+  font-size: 0 !important;
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(255, 255, 255, 0.35);
+  border-bottom-color: #ffffff;
+  border-radius: 50%;
+  display: inline-block;
+  box-sizing: border-box;
+  animation: rotation 1s linear infinite;
+}
+
+.profile-modal-card .text-center.py-lg > span {
+  font-size: 0 !important;
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(99, 102, 241, 0.18);
+  border-bottom-color: #6366f1;
+  border-radius: 50%;
+  display: inline-block;
+  box-sizing: border-box;
+  animation: rotation 1s linear infinite;
+}
+
+.profile-modal-user-row .text-blue-500 {
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0;
+  line-height: 1;
+}
+
+.profile-modal-user-row .text-blue-500::before {
+  content: "\2713";
+  font-size: 12px;
   line-height: 1;
 }
 
@@ -5472,6 +5597,11 @@ video.chat-media-content {
 }
 
 @media (max-width: 768px) {
+  .profile-page-shell {
+    --profile-avatar-size: 88px;
+    --profile-avatar-inner-size: 82px;
+  }
+
   .landing-nav,
   .landing-nav-actions {
     flex-direction: column;
@@ -5513,12 +5643,68 @@ video.chat-media-content {
   }
 
   .profile-stat-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.75rem;
+    width: 100%;
+  }
+
+  .profile-header-card {
+    padding: 1rem;
+  }
+
+  .profile-header-layout {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+
+  .profile-avatar-shell {
+    margin: 0 auto;
+  }
+
+  .profile-summary {
+    text-align: center;
+  }
+
+  .profile-display-name {
+    font-size: clamp(1.65rem, 7vw, 2.15rem);
+  }
+
+  .profile-username-copy,
+  .profile-bio-copy {
+    margin-inline: auto;
+  }
+
+  .profile-stat-button,
+  .profile-stat-chip {
+    width: 100%;
+    padding: 0.7rem 0.8rem;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.46);
+    border: 1px solid rgba(99, 102, 241, 0.12);
+  }
+
+  .profile-action-row .btn {
+    flex: 1 1 100%;
+    width: 100%;
+    padding: 0.85rem 1rem;
+    font-size: 0.95rem;
+  }
+
+  .profile-tab-row {
+    max-width: none;
+    width: 100%;
+    padding-bottom: 0.25rem;
+    overflow-x: auto;
   }
 
   .profile-manage-head,
   .profile-tip-box {
     flex-direction: column;
+  }
+
+  .profile-manage-card {
+    padding: 0.9rem;
   }
 
   .profile-manage-grid {
@@ -5527,6 +5713,44 @@ video.chat-media-content {
 
   .profile-inline-actions {
     flex-direction: column;
+  }
+
+  .profile-edit-actions {
+    flex-direction: column;
+  }
+
+  .profile-quick-chat-card {
+    padding: 1rem !important;
+  }
+
+  .profile-quick-chat-head {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .profile-quick-chat-head h2 {
+    font-size: 1.35rem;
+    line-height: 1.2;
+  }
+
+  .profile-quick-chat-copy {
+    font-size: 0.95rem !important;
+  }
+
+  .profile-quick-chat-input {
+    min-height: 140px;
+    padding: 14px !important;
+    font-size: 1rem !important;
+  }
+
+  .profile-quick-chat-submit {
+    padding: 14px !important;
+    font-size: 1rem !important;
+  }
+
+  .profile-avatar-play-btn {
+    opacity: 1 !important;
+    background: rgba(0, 0, 0, 0.16) !important;
   }
 
   .logo-copy small,
@@ -5667,6 +5891,42 @@ video.chat-media-content {
 }
 
 @media (max-width: 480px) {
+  .profile-page-shell {
+    --profile-avatar-size: 80px;
+    --profile-avatar-inner-size: 74px;
+  }
+
+  .profile-header-card {
+    padding: 0.9rem;
+    border-radius: 18px;
+  }
+
+  .profile-avatar-edit-trigger {
+    width: 24px !important;
+    height: 24px !important;
+  }
+
+  .profile-avatar-song-badge {
+    width: 20px !important;
+    height: 20px !important;
+    border-width: 1.5px !important;
+  }
+
+  .profile-action-label {
+    gap: 0.4rem;
+    font-size: 0.92rem;
+  }
+
+  .profile-action-label svg {
+    width: 13px;
+    height: 13px;
+  }
+
+  .profile-stat-button,
+  .profile-stat-chip {
+    padding: 0.65rem 0.7rem;
+  }
+
   .profile-manage-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -5690,9 +5950,48 @@ video.chat-media-content {
   .profile-manage-button strong {
     font-size: 0.88rem;
   }
+
+  .profile-edit-card {
+    padding: 1rem;
+  }
+
+  .profile-shortcut-grid .feature-card {
+    padding: 1rem !important;
+  }
+
+  .profile-music-bar {
+    width: 100%;
+    padding: 8px 12px 8px 8px !important;
+    gap: 10px !important;
+  }
+
+  .profile-modal-card {
+    width: min(calc(100vw - 1rem), 380px);
+    max-height: 75vh !important;
+    padding: 0.95rem;
+  }
+
+  .profile-modal-user-row {
+    gap: 0.65rem;
+  }
+
+  .profile-modal-user-row .avatar {
+    width: 38px;
+    height: 38px;
+  }
+
+  .profile-modal-bio {
+    max-width: none !important;
+    white-space: normal !important;
+    line-height: 1.35;
+  }
 }
 
 @media (max-width: 360px) {
+  .profile-stat-row {
+    grid-template-columns: 1fr;
+  }
+
   .profile-manage-grid {
     grid-template-columns: 1fr;
   }

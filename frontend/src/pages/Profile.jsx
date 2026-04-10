@@ -565,20 +565,20 @@ const Profile = () => {
 
       return (
             <>
-                  <div className="container" style={{ paddingTop: 'var(--space-xl)', paddingBottom: 'var(--space-2xl)' }}>
+                  <div className="container profile-page-shell" style={{ paddingTop: 'var(--space-xl)', paddingBottom: 'var(--space-2xl)' }}>
                         <div className="profile-page animate-fadeIn">
 
                               {/* Profile Header Card */}
-                              <div className="card mb-xl" style={{
+                              <div className="card mb-xl profile-header-card" style={{
                                     background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.05) 100%)',
                                     borderColor: 'rgba(99, 102, 241, 0.2)'
                               }}>
-                                    <div className="flex items-center gap-xl flex-wrap">
+                                    <div className="flex items-center gap-xl flex-wrap profile-header-layout">
 
                                           {/* Avatar with Upload */}
-                                          <div style={{ position: 'relative' }}>
+                                          <div className="profile-avatar-shell" style={{ position: 'relative' }}>
                                                 <div
-                                                      className="avatar avatar-xl"
+                                                      className="avatar avatar-xl profile-avatar-frame"
                                                       onClick={() => profileUser.avatar ? setShowPhotoModal(true) : null}
                                                       style={{
                                                             cursor: profileUser.avatar ? 'pointer' : 'default',
@@ -587,8 +587,8 @@ const Profile = () => {
                                                             position: 'relative',
                                                             overflow: 'hidden',
                                                             borderRadius: '50%',
-                                                            width: '100px',
-                                                            height: '100px',
+                                                            width: 'var(--profile-avatar-size, 100px)',
+                                                            height: 'var(--profile-avatar-size, 100px)',
                                                             display: 'flex',
                                                             alignItems: 'center',
                                                             justifyContent: 'center',
@@ -601,7 +601,8 @@ const Profile = () => {
                                                       ) : (
                                                             <UserAvatar
                                                                   user={profileUser}
-                                                                  size={94}
+                                                                  size="var(--profile-avatar-inner-size, 94px)"
+                                                                  className="profile-avatar-image"
                                                                   style={{ border: 'none' }}
                                                             />
                                                       )}
@@ -626,13 +627,13 @@ const Profile = () => {
                                                                         alignItems: 'center',
                                                                         justifyContent: 'center',
                                                                         color: 'white',
-                                                                        fontSize: '24px',
+                                                                        fontSize: '20px',
                                                                         borderRadius: '50%',
                                                                         opacity: (isMusicPlayingGlobal && currentTrack?.trackId === profileUser.profileSong.trackId) ? 1 : 0,
                                                                         transition: 'opacity 0.2s',
                                                                         cursor: 'pointer'
                                                                   }}
-                                                                  className="avatar-play-btn"
+                                                                  className="avatar-play-btn profile-avatar-play-btn"
                                                                   onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
                                                                   onMouseLeave={(e) => {
                                                                         if (!(isMusicPlayingGlobal && currentTrack?.trackId === profileUser.profileSong.trackId)) {
@@ -654,12 +655,13 @@ const Profile = () => {
                                                 {isOwnProfile && (
                                                       <div
                                                             onClick={handlePhotoClick}
+                                                            className="profile-avatar-edit-trigger"
                                                             style={{
                                                                   position: 'absolute',
                                                                   bottom: '0',
                                                                   right: '0',
-                                                                  width: '32px',
-                                                                  height: '32px',
+                                                                  width: '28px',
+                                                                  height: '28px',
                                                                   background: 'var(--gradient-primary)',
                                                                   borderRadius: '50%',
                                                                   display: 'flex',
@@ -671,7 +673,7 @@ const Profile = () => {
                                                                   zIndex: 10
                                                             }}
                                                       >
-                                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                                                   <path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h2.1l1.1-1.6h4.6L15.4 6h2.1A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5Z" />
                                                                   <circle cx="12" cy="12.5" r="3.4" />
                                                             </svg>
@@ -681,24 +683,25 @@ const Profile = () => {
                                                 {/* Smaller music indicator badge */}
                                                 {profileUser.profileSong && (
                                                       <div
+                                                            className="profile-avatar-song-badge"
                                                             style={{
                                                                   position: 'absolute',
                                                                   top: '0',
                                                                   right: '0',
-                                                                  width: '28px',
-                                                                  height: '28px',
+                                                                  width: '24px',
+                                                                  height: '24px',
                                                                   background: '#1DB954', // Spotify green
                                                                   borderRadius: '50%',
                                                                   display: 'flex',
                                                                   alignItems: 'center',
                                                                   justifyContent: 'center',
                                                                   boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-                                                                  fontSize: '14px',
+                                                                  fontSize: '12px',
                                                                   zIndex: 5,
                                                                   border: '2px solid white'
                                                             }}
                                                       >
-                                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                                                                   <path d="M16 4v9.2A3.8 3.8 0 1 1 14 10V6.2l6-1.5v7.5a3.8 3.8 0 1 1-2-3.3V4Z" />
                                                             </svg>
                                                       </div>
@@ -707,11 +710,11 @@ const Profile = () => {
                                           </div>
 
                                           {/* User Info */}
-                                          <div className="flex-1">
-                                                <h1 className="text-3xl font-bold mb-xs">
+                                          <div className="flex-1 profile-summary">
+                                                <h1 className="text-3xl font-bold mb-xs profile-display-name">
                                                       {profileUser.displayName || profileUser.username}
                                                 </h1>
-                                                <p className="text-muted text-lg mb-md">@{profileUser.username}</p>
+                                                <p className="text-muted text-lg mb-md profile-username-copy">@{profileUser.username}</p>
 
                                                 {/* Stats: Followers/Following */}
                                                 <div className="profile-stat-row">
@@ -753,7 +756,7 @@ const Profile = () => {
                                                 </div>
 
                                                 {profileUser.bio && (
-                                                      <p className="text-secondary mt-sm" style={{ maxWidth: '500px' }}>{profileUser.bio}</p>
+                                                      <p className="text-secondary mt-sm profile-bio-copy" style={{ maxWidth: '500px' }}>{profileUser.bio}</p>
                                                 )}
 
                                                 <div className="profile-badge-row mt-lg">
@@ -787,7 +790,7 @@ const Profile = () => {
                                                 `}</style>
                                                 {profileUser.profileSong && profileUser.profileSong.name ? (
                                                       <div
-                                                            className="mt-lg animate-fadeInUp magic-music-bar"
+                                                            className="mt-lg animate-fadeInUp magic-music-bar profile-music-bar"
                                                             style={{
                                                                   position: 'relative',
                                                                   background: (isMusicPlayingGlobal && currentTrack?.trackId === profileUser.profileSong.trackId) 
@@ -988,7 +991,7 @@ const Profile = () => {
                                                             <span>Loading...</span>
                                                       ) : followRequested ? (
                                                             <span className="profile-action-label">
-                                                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                                                         <circle cx="12" cy="12" r="9" />
                                                                         <path d="M12 7v5l3 2" />
                                                                   </svg>
@@ -996,12 +999,12 @@ const Profile = () => {
                                                             </span>
                                                       ) : isFollowing ? (
                                                             <span className="profile-action-label">
-                                                                  <CheckIcon size={16} />
+                                                                  <CheckIcon size={14} />
                                                                   Following
                                                             </span>
                                                       ) : (
                                                             <span className="profile-action-label">
-                                                                  <UserPlusIcon size={16} />
+                                                                  <UserPlusIcon size={14} />
                                                                   Follow
                                                             </span>
                                                       )}
@@ -1017,7 +1020,7 @@ const Profile = () => {
                                                       className={`btn ${activeTab === 'chat' ? 'btn-primary' : 'btn-secondary'}`}
                                                 >
                                                       <span className="profile-action-label">
-                                                            <MessageIcon size={16} />
+                                                            <MessageIcon size={14} />
                                                             Message
                                                       </span>
                                                 </button>
@@ -1031,7 +1034,7 @@ const Profile = () => {
                                                             'Loading...'
                                                       ) : (
                                                             <span className="profile-action-label">
-                                                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                                                         <circle cx="12" cy="12" r="9" />
                                                                         <path d="M8.5 8.5l7 7" />
                                                                   </svg>
@@ -1142,9 +1145,9 @@ const Profile = () => {
                         )}
 
                         {editing && isOwnProfile && (
-                              <div id="profile-edit-section" className="card mb-xl animate-fadeInUp">
+                              <div id="profile-edit-section" className="card mb-xl animate-fadeInUp profile-edit-card">
                                     <h2 className="text-xl font-semibold mb-lg flex items-center gap-sm">Edit Profile</h2>
-                                    <div className="grid grid-cols-2 gap-lg">
+                                    <div className="grid grid-cols-2 gap-lg profile-edit-grid">
                                           <div className="input-group">
                                                 <label className="input-label">Display Name</label>
                                                 <input type="text" className="input" value={editData.displayName} onChange={(e) => setEditData(prev => ({ ...prev, displayName: e.target.value }))} placeholder="Your display name" />
@@ -1176,7 +1179,7 @@ const Profile = () => {
                                                 inputId="spotify-search-input"
                                           />
                                     </div>
-                                    <div className="flex gap-md mt-xl">
+                                    <div className="flex gap-md mt-xl profile-edit-actions">
                                           <button onClick={handleSaveProfile} className="btn btn-primary">Save Changes</button>
                                           <button onClick={() => setEditing(false)} className="btn btn-ghost">Cancel</button>
                                     </div>
@@ -1184,15 +1187,15 @@ const Profile = () => {
                         )}
 
                         {activeTab === 'chat' && !isOwnProfile && (
-                              <div id="chat-tab-section" className="card animate-fadeInUp mb-xl" style={{ border: '2px solid rgba(99, 102, 241, 0.3)', padding: '24px' }}>
-                                    <div className="flex items-center gap-sm mb-lg">
+                              <div id="chat-tab-section" className="card animate-fadeInUp mb-xl profile-quick-chat-card" style={{ border: '2px solid rgba(99, 102, 241, 0.3)', padding: '24px' }}>
+                                    <div className="flex items-center gap-sm mb-lg profile-quick-chat-head">
                                           <div style={{ fontSize: '1.1rem', fontWeight: 700 }}>DM</div>
                                           <h2 className="text-2xl font-bold">Quick Message to {profileUser.displayName || profileUser.username}</h2>
                                     </div>
-                                    <p className="text-muted mb-lg" style={{ fontSize: '1.05rem' }}>Send a professional direct message instantly. It will appear immediately in their inbox.</p>
+                                    <p className="text-muted mb-lg profile-quick-chat-copy" style={{ fontSize: '1.05rem' }}>Send a professional direct message instantly. It will appear immediately in their inbox.</p>
                                     <form onSubmit={handleQuickSend} className="flex flex-col gap-md">
                                           <textarea 
-                                                className="input" 
+                                                className="input profile-quick-chat-input" 
                                                 rows={5} 
                                                 value={quickChatText} 
                                                 onChange={(e) => setQuickChatText(e.target.value)} 
@@ -1208,7 +1211,7 @@ const Profile = () => {
                                           <button 
                                                 type="submit" 
                                                 disabled={sendingQuickChat || !quickChatText.trim()}
-                                                className="btn btn-primary w-full"
+                                                className="btn btn-primary w-full profile-quick-chat-submit"
                                                 style={{ padding: '16px', fontSize: '1.2rem', fontWeight: 700, boxShadow: '0 4px 15px rgba(99, 102, 241, 0.3)' }}
                                           >
                                                 {sendingQuickChat ? 'Sending...' : 'Send Message Now'}
@@ -1335,7 +1338,7 @@ const Profile = () => {
                                     </div>
 
                                     {isOwnProfile && (
-                                          <div className="grid grid-cols-3 gap-md mb-lg mt-xl">
+                                          <div className="grid grid-cols-3 gap-md mb-lg mt-xl profile-shortcut-grid">
                                                 <button onClick={() => navigate('/upload')} className="feature-card animate-fadeInUp stagger-1" style={{ padding: 'var(--space-lg)' }}>
                                                       <div style={{ fontSize: '1rem', marginBottom: 'var(--space-sm)', fontWeight: 700 }}>New</div>
                                                       <div className="font-semibold">Upload</div>
@@ -1426,7 +1429,7 @@ const Profile = () => {
                                           >
                                                 <button
                                                       onClick={() => setShowPhotoModal(false)}
-                                                      className="btn btn-ghost"
+                                                      className="btn btn-ghost profile-modal-close-btn"
                                                       style={{
                                                             position: 'absolute',
                                                             top: '-40px',
@@ -1478,7 +1481,7 @@ const Profile = () => {
                                           onClick={() => setShowFollowersModal(false)}
                                     >
                                           <div
-                                                className="modal-content card animate-fadeIn"
+                                                className="modal-content card animate-fadeIn profile-modal-card"
                                                 style={{
                                                       maxWidth: '400px',
                                                       width: '90%',
@@ -1491,7 +1494,7 @@ const Profile = () => {
                                                       <h3 className="text-lg font-bold">Followers</h3>
                                                       <button
                                                             onClick={() => setShowFollowersModal(false)}
-                                                            className="btn btn-ghost btn-sm"
+                                                            className="btn btn-ghost btn-sm profile-modal-close-btn"
                                                             style={{ padding: '4px 8px' }}
                                                       >✕</button>
                                                 </div>
@@ -1504,7 +1507,7 @@ const Profile = () => {
                                                             {followersList.map(follower => (
                                                                   <div
                                                                         key={follower._id}
-                                                                        className="flex items-center gap-md p-sm"
+                                                                        className="flex items-center gap-md p-sm profile-modal-user-row"
                                                                         style={{
                                                                               background: 'rgba(99, 102, 241, 0.05)',
                                                                               borderRadius: 'var(--radius-md)',
@@ -1526,7 +1529,7 @@ const Profile = () => {
                                                                               <div className="font-semibold text-sm">{follower.displayName || follower.username}</div>
                                                                               <div className="text-xs text-gray-500">@{follower.username}</div>
                                                                               {follower.bio && (
-                                                                                    <div className="text-xs text-gray-400 mt-xs" style={{
+                                                                                    <div className="text-xs text-gray-400 mt-xs profile-modal-bio" style={{
                                                                                           overflow: 'hidden',
                                                                                           textOverflow: 'ellipsis',
                                                                                           whiteSpace: 'nowrap',
@@ -1569,7 +1572,7 @@ const Profile = () => {
                                           onClick={() => setShowFollowingModal(false)}
                                     >
                                           <div
-                                                className="modal-content card animate-fadeIn"
+                                                className="modal-content card animate-fadeIn profile-modal-card"
                                                 style={{
                                                       maxWidth: '400px',
                                                       width: '90%',
@@ -1582,7 +1585,7 @@ const Profile = () => {
                                                       <h3 className="text-lg font-bold">Following</h3>
                                                       <button
                                                             onClick={() => setShowFollowingModal(false)}
-                                                            className="btn btn-ghost btn-sm"
+                                                            className="btn btn-ghost btn-sm profile-modal-close-btn"
                                                             style={{ padding: '4px 8px' }}
                                                       >✕</button>
                                                 </div>
@@ -1595,7 +1598,7 @@ const Profile = () => {
                                                             {followingList.map(following => (
                                                                   <div
                                                                         key={following._id}
-                                                                        className="flex items-center gap-md p-sm"
+                                                                        className="flex items-center gap-md p-sm profile-modal-user-row"
                                                                         style={{
                                                                               background: 'rgba(99, 102, 241, 0.05)',
                                                                               borderRadius: 'var(--radius-md)',
@@ -1617,7 +1620,7 @@ const Profile = () => {
                                                                               <div className="font-semibold text-sm">{following.displayName || following.username}</div>
                                                                               <div className="text-xs text-gray-500">@{following.username}</div>
                                                                               {following.bio && (
-                                                                                    <div className="text-xs text-gray-400 mt-xs" style={{
+                                                                                    <div className="text-xs text-gray-400 mt-xs profile-modal-bio" style={{
                                                                                           overflow: 'hidden',
                                                                                           textOverflow: 'ellipsis',
                                                                                           whiteSpace: 'nowrap',
