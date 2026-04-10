@@ -16,11 +16,11 @@ const INTERESTS = [
 ];
 
 const FEED_MODES = [
-      { id: 'learning', label: '📚 Learning' },
-      { id: 'calm', label: '🧘 Calm' },
-      { id: 'video', label: '🎬 Video' },
-      { id: 'reading', label: '📖 Reading' },
-      { id: 'problem-solving', label: '💡 Problem Solving' }
+      { id: 'learning', label: 'Learning' },
+      { id: 'calm', label: 'Calm' },
+      { id: 'video', label: 'Video' },
+      { id: 'reading', label: 'Reading' },
+      { id: 'problem-solving', label: 'Problem Solving' }
 ];
 
 const Profile = () => {
@@ -241,12 +241,12 @@ const Profile = () => {
                         console.log('Followers loaded:', data.data.followers?.length || 0);
                   } else {
                         console.error('Failed to fetch followers:', data.message);
-                        setMessage('⚠️ Failed to load followers');
+                        setMessage('Failed to load followers.');
                         setTimeout(() => setMessage(''), 3000);
                   }
             } catch (error) {
                   console.error('Error fetching followers:', error);
-                  setMessage('⚠️ Could not connect to server');
+                  setMessage('Could not connect to server.');
                   setTimeout(() => setMessage(''), 3000);
             } finally {
                   setModalLoading(false);
@@ -272,12 +272,12 @@ const Profile = () => {
                         console.log('Following loaded:', data.data.following?.length || 0);
                   } else {
                         console.error('Failed to fetch following:', data.message);
-                        setMessage('⚠️ Failed to load following list');
+                        setMessage('Failed to load following list.');
                         setTimeout(() => setMessage(''), 3000);
                   }
             } catch (error) {
                   console.error('Error fetching following:', error);
-                  setMessage('⚠️ Could not connect to server');
+                  setMessage('Could not connect to server.');
                   setTimeout(() => setMessage(''), 3000);
             } finally {
                   setModalLoading(false);
@@ -306,7 +306,7 @@ const Profile = () => {
       const handleFollow = async () => {
             if (!token || !profileUser) return;
             if (isBlocked) {
-                  setMessage('⚠️ Please unblock this user first');
+                  setMessage('Please unblock this user first.');
                   setTimeout(() => setMessage(''), 3000);
                   return;
             }
@@ -355,13 +355,13 @@ const Profile = () => {
                   const data = await res.json();
                   if (data.success) {
                         setQuickChatText('');
-                        setMessage('✅ Message sent successfully!');
+                        setMessage('Message sent successfully.');
                         setTimeout(() => setMessage(''), 3000);
                   } else {
-                        setMessage('⚠️ ' + data.message);
+                        setMessage('Error: ' + data.message);
                   }
             } catch (err) {
-                  setMessage('⚠️ Failed to send message');
+                  setMessage('Failed to send message.');
             } finally {
                   setSendingQuickChat(false);
             }
@@ -392,7 +392,7 @@ const Profile = () => {
                         setMessage(res.message);
                         setTimeout(() => setMessage(''), 3000);
                   } else {
-                        setMessage('⚠️ ' + res.message);
+                        setMessage('Error: ' + res.message);
                         setTimeout(() => setMessage(''), 3000);
                   }
             } catch (error) {
@@ -413,11 +413,11 @@ const Profile = () => {
             if (!file) return;
 
             if (!file.type.startsWith('image/')) {
-                  setMessage('⚠️ Please select an image file');
+                  setMessage('Please select an image file.');
                   return;
             }
             if (file.size > 5 * 1024 * 1024) {
-                  setMessage('⚠️ Image must be less than 5MB');
+                  setMessage('Image must be less than 5MB.');
                   return;
             }
 
@@ -435,15 +435,15 @@ const Profile = () => {
                         if (result.success) {
                               setEditData(prev => ({ ...prev, avatar: avatarUrl }));
                               setProfileUser(prev => ({ ...prev, avatar: avatarUrl }));
-                              setMessage('✅ Profile photo updated!');
+                              setMessage('Profile photo updated.');
                         } else {
-                              setMessage('⚠️ Failed to update photo');
+                              setMessage('Failed to update photo.');
                         }
                         setUploadingPhoto(false);
                   };
                   reader.readAsDataURL(file);
             } catch (error) {
-                  setMessage('⚠️ Failed to upload photo');
+                  setMessage('Failed to upload photo.');
                   setUploadingPhoto(false);
             }
       };
@@ -455,7 +455,7 @@ const Profile = () => {
             const result = await updateProfile(dataToSave);
             
             if (result.success) {
-                  setMessage('✅ Profile updated successfully!');
+                  setMessage('Profile updated successfully.');
                   
                   // Clear strict caches immediately to ensure refreshing displays the new song
                   const targetUsername = user?.username;
@@ -477,7 +477,7 @@ const Profile = () => {
                   // Fetch freshly to be 100% sure the profileSong populates properly in the UI
                   refreshProfile(user?.username);
             } else {
-                  setMessage('⚠️ ' + result.message);
+                  setMessage('Error: ' + result.message);
             }
       };
 
@@ -501,10 +501,10 @@ const Profile = () => {
                         body: JSON.stringify({ reason: 'Public figure / notable account' })
                   });
                   const data = await res.json();
-                  setVerificationReqMsg(data.message || (data.success ? '✅ Request submitted!' : '⚠️ Failed'));
+                  setVerificationReqMsg(data.message || (data.success ? 'Request submitted.' : 'Request failed.'));
                   setTimeout(() => setVerificationReqMsg(''), 5000);
             } catch {
-                  setVerificationReqMsg('⚠️ Network error. Please try again.');
+                  setVerificationReqMsg('Network error. Please try again.');
             } finally {
                   setVerificationReqLoading(false);
             }
@@ -520,7 +520,7 @@ const Profile = () => {
             return (
                   <div className="container" style={{ paddingTop: 'var(--space-2xl)' }}>
                         <div className="empty-state animate-fadeIn">
-                              <div className="empty-state-icon">🔒</div>
+                              <div className="empty-state-icon">Auth</div>
                               <h2 className="text-xl font-semibold mb-md">Login to view your profile</h2>
                               <button onClick={() => navigate('/login')} className="btn btn-primary">
                                     Login
@@ -544,7 +544,7 @@ const Profile = () => {
             return (
                   <div className="container" style={{ paddingTop: 'var(--space-2xl)' }}>
                         <div className="empty-state animate-fadeIn">
-                              <div className="empty-state-icon">🔍</div>
+                              <div className="empty-state-icon">User</div>
                               <h2 className="text-xl font-semibold mb-md">User not found</h2>
                         </div>
                   </div>
@@ -629,12 +629,12 @@ const Profile = () => {
                                                                   }}
                                                             >
                                                                   {(isMusicPlayingGlobal && currentTrack?.trackId === profileUser.profileSong.trackId) ? (
-                                                                        <div className="flex gap-[3px] items-center h-5">
-                                                                              <div className="w-[4px] bg-white h-full animate-pulse" style={{ animationDelay: '0ms' }}></div>
-                                                                              <div className="w-[4px] bg-white h-2/3 animate-pulse" style={{ animationDelay: '150ms' }}></div>
-                                                                              <div className="w-[4px] bg-white h-full animate-pulse" style={{ animationDelay: '300ms' }}></div>
+                                                                        <div style={{ display: 'flex', gap: '3px', alignItems: 'center', height: '20px' }}>
+                                                                              <div style={{ width: '4px', height: '100%', background: '#fff', animation: 'pulse 1.2s ease-in-out infinite', animationDelay: '0ms' }} />
+                                                                              <div style={{ width: '4px', height: '66%', background: '#fff', animation: 'pulse 1.2s ease-in-out infinite', animationDelay: '150ms' }} />
+                                                                              <div style={{ width: '4px', height: '100%', background: '#fff', animation: 'pulse 1.2s ease-in-out infinite', animationDelay: '300ms' }} />
                                                                         </div>
-                                                                  ) : '▶️'}
+                                                                  ) : 'Play'}
                                                             </button>
                                                       )}
                                                 </div>
@@ -659,7 +659,10 @@ const Profile = () => {
                                                                   zIndex: 10
                                                             }}
                                                       >
-                                                            📷
+                                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                                  <path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h2.1l1.1-1.6h4.6L15.4 6h2.1A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5Z" />
+                                                                  <circle cx="12" cy="12.5" r="3.4" />
+                                                            </svg>
                                                       </div>
                                                 )}
 
@@ -683,7 +686,9 @@ const Profile = () => {
                                                                   border: '2px solid white'
                                                             }}
                                                       >
-                                                            🎶
+                                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                                                  <path d="M16 4v9.2A3.8 3.8 0 1 1 14 10V6.2l6-1.5v7.5a3.8 3.8 0 1 1-2-3.3V4Z" />
+                                                            </svg>
                                                       </div>
                                                 )}
                                                 <input ref={fileInputRef} type="file" accept="image/*" onChange={handlePhotoChange} style={{ display: 'none' }} />
@@ -697,40 +702,40 @@ const Profile = () => {
                                                 <p className="text-muted text-lg mb-md">@{profileUser.username}</p>
 
                                                 {/* Stats: Followers/Following */}
-                                                <div className="flex gap-lg mb-md text-sm">
-                                                      <div
-                                                            className="flex items-center gap-xs cursor-pointer hover:opacity-80 transition-opacity"
+                                                <div className="profile-stat-row">
+                                                      <button
+                                                            type="button"
+                                                            className="profile-stat-button"
                                                             onClick={fetchFollowers}
-                                                            style={{ cursor: 'pointer' }}
                                                       >
                                                             <span className="font-bold text-lg" style={{ color: 'var(--color-text-primary)' }}>{profileUser.followersCount || 0}</span>
-                                                            <span style={{ color: 'var(--color-text-secondary)' }}>Followers</span>
-                                                      </div>
-                                                      <div
-                                                            className="flex items-center gap-xs cursor-pointer hover:opacity-80 transition-opacity"
+                                                            <span className="profile-stat-label">Followers</span>
+                                                      </button>
+                                                      <button
+                                                            type="button"
+                                                            className="profile-stat-button"
                                                             onClick={fetchFollowing}
-                                                            style={{ cursor: 'pointer' }}
                                                       >
                                                             <span className="font-bold text-lg" style={{ color: 'var(--color-text-primary)' }}>{profileUser.followingCount || 0}</span>
-                                                            <span style={{ color: 'var(--color-text-secondary)' }}>Following</span>
-                                                      </div>
-                                                      <div
-                                                            className="flex items-center gap-xs cursor-pointer hover:opacity-80 transition-opacity"
+                                                            <span className="profile-stat-label">Following</span>
+                                                      </button>
+                                                      <button
+                                                            type="button"
+                                                            className="profile-stat-button"
                                                             onClick={() => {
                                                                   const postsSection = document.getElementById('posts-section');
                                                                   if (postsSection) {
                                                                         postsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
                                                                   }
                                                             }}
-                                                            style={{ cursor: 'pointer' }}
                                                       >
                                                             <span className="font-bold text-lg" style={{ color: 'var(--color-text-primary)' }}>{userPosts.length || 0}</span>
-                                                            <span style={{ color: 'var(--color-text-secondary)' }}>Posts</span>
-                                                      </div>
+                                                            <span className="profile-stat-label">Posts</span>
+                                                      </button>
                                                       {isOwnProfile && totalViews > 0 && (
-                                                            <div className="flex items-center gap-xs">
-                                                                  <span className="font-bold text-gray-900 text-lg">{totalViews}</span>
-                                                                  <span className="text-gray-500">👁 Views</span>
+                                                            <div className="profile-stat-chip">
+                                                                  <span className="profile-stat-value">{totalViews}</span>
+                                                                  <span className="profile-stat-label">Views</span>
                                                             </div>
                                                       )}
                                                 </div>
@@ -739,31 +744,25 @@ const Profile = () => {
                                                       <p className="text-secondary mt-sm" style={{ maxWidth: '500px' }}>{profileUser.bio}</p>
                                                 )}
 
-                                                <div className="flex gap-sm mt-lg flex-wrap" style={{ alignItems: 'center' }}>
+                                                <div className="profile-badge-row mt-lg">
                                                       <span className="tag tag-primary" style={{ fontSize: 'var(--font-size-sm)' }}>
-                                                            {profileUser.role === 'admin' ? '👑 Admin' :
-                                                                  profileUser.role === 'creator' ? '✨ Creator' :
-                                                                        profileUser.role === 'mentor' ? '🎓 Mentor' : '👤 User'}
+                                                            {profileUser.role === 'admin' ? 'Admin' :
+                                                                  profileUser.role === 'creator' ? 'Creator' :
+                                                                        profileUser.role === 'mentor' ? 'Mentor' : 'User'}
                                                       </span>
                                                       {profileUser.isVerified && (
-                                                            <span style={{
-                                                                  display: 'inline-flex', alignItems: 'center', gap: '4px',
-                                                                  background: 'linear-gradient(135deg,rgba(59,130,246,.15),rgba(99,102,241,.15))',
-                                                                  border: '1px solid rgba(59,130,246,.4)', borderRadius: '99px',
-                                                                  padding: '3px 12px', fontSize: '.82rem', fontWeight: 800,
-                                                                  color: '#3b82f6', boxShadow: '0 0 14px rgba(59,130,246,.25)'
-                                                            }}>
-                                                                  ✓ Verified
+                                                            <span className="profile-verified-badge">
+                                                                  Verified
                                                             </span>
                                                       )}
                                                       {isOwnProfile && !profileUser.isVerified && profileUser.verificationRequest?.status === 'pending' && (
-                                                            <span style={{ background:'rgba(245,158,11,.12)', border:'1px solid rgba(245,158,11,.3)', borderRadius:'99px', padding:'3px 10px', fontSize:'.75rem', color:'#f59e0b', fontWeight:700 }}>
-                                                                  ⏳ Verification Pending
+                                                            <span className="profile-status-badge pending">
+                                                                  Verification Pending
                                                             </span>
                                                       )}
                                                       {isOwnProfile && !profileUser.isVerified && profileUser.verificationRequest?.status === 'rejected' && (
-                                                            <span style={{ background:'rgba(239,68,68,.1)', border:'1px solid rgba(239,68,68,.2)', borderRadius:'99px', padding:'3px 10px', fontSize:'.75rem', color:'#ef4444', fontWeight:700 }}>
-                                                                  ✗ Verification Rejected
+                                                            <span className="profile-status-badge rejected">
+                                                                  Verification Rejected
                                                             </span>
                                                       )}
                                                 </div>
@@ -859,7 +858,7 @@ const Profile = () => {
                                                                   onMouseOver={(e) => e.currentTarget.style.opacity = 1}
                                                                   onMouseOut={(e) => e.currentTarget.style.opacity = 0}
                                                                   >
-                                                                        {(isMusicPlayingGlobal && currentTrack?.trackId === profileUser.profileSong.trackId) ? '⏸️' : '▶️'}
+                                                                        {(isMusicPlayingGlobal && currentTrack?.trackId === profileUser.profileSong.trackId) ? 'Pause' : 'Play'}
                                                                   </div>
                                                             </div>
 
@@ -876,13 +875,13 @@ const Profile = () => {
                                                             
                                                             {/* Animated Music Bars */}
                                                             {(isMusicPlayingGlobal && currentTrack?.trackId === profileUser.profileSong.trackId) ? (
-                                                                  <div className="flex gap-[3px] items-center h-4 ml-2 mr-1">
-                                                                        <div className="w-[3px] rounded-full bg-indigo-500" style={{ animation: 'magicMusicBar 0.8s ease-in-out infinite alternate', animationDelay: '0ms' }}></div>
-                                                                        <div className="w-[3px] rounded-full bg-purple-500" style={{ animation: 'magicMusicBar 0.8s ease-in-out infinite alternate', animationDelay: '200ms' }}></div>
-                                                                        <div className="w-[3px] rounded-full bg-pink-500" style={{ animation: 'magicMusicBar 0.8s ease-in-out infinite alternate', animationDelay: '400ms' }}></div>
+                                                                  <div style={{ display: 'flex', gap: '3px', alignItems: 'center', height: '16px', marginLeft: '8px', marginRight: '4px' }}>
+                                                                        <div style={{ width: '3px', borderRadius: '999px', background: '#6366f1', animation: 'magicMusicBar 0.8s ease-in-out infinite alternate', animationDelay: '0ms' }} />
+                                                                        <div style={{ width: '3px', borderRadius: '999px', background: '#8b5cf6', animation: 'magicMusicBar 0.8s ease-in-out infinite alternate', animationDelay: '200ms' }} />
+                                                                        <div style={{ width: '3px', borderRadius: '999px', background: '#ec4899', animation: 'magicMusicBar 0.8s ease-in-out infinite alternate', animationDelay: '400ms' }} />
                                                                   </div>
                                                             ) : isOwnProfile && (
-                                                                  <div className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-2 py-1 rounded-full ml-2 shadow-sm border border-indigo-100">EDIT</div>
+                                                                  <div style={{ fontSize: '10px', fontWeight: 700, color: '#4338ca', background: '#eef2ff', padding: '0.25rem 0.5rem', borderRadius: '999px', marginLeft: '8px', boxShadow: 'var(--shadow-sm)', border: '1px solid #c7d2fe' }}>EDIT</div>
                                                             )}
                                                       </div>
                                                 ) : isOwnProfile && (
@@ -912,7 +911,7 @@ const Profile = () => {
                                                                   }, 100);
                                                             }}
                                                       >
-                                                            <span>🎵 Add Music to Profile</span>
+                                                            <span>Add Music to Profile</span>
                                                       </div>
                                                 )}
                                           </div>
@@ -920,30 +919,30 @@ const Profile = () => {
 
                                     {/* Action Buttons */}
                                     {isOwnProfile ? (
-                                          <div className="flex gap-md flex-wrap w-full mt-sm">
+                                          <div className="profile-action-row">
                                                 <button
                                                       onClick={() => setEditing(!editing)}
-                                                      className={`btn ${editing ? 'btn-ghost' : 'btn-secondary'} flex-1 min-w-[120px]`}
+                                                      className={`btn ${editing ? 'btn-ghost' : 'btn-secondary'}`}
                                                 >
-                                                      {editing ? '❌ Cancel' : '✏️ Edit Profile'}
+                                                      {editing ? 'Cancel' : 'Edit Profile'}
                                                 </button>
                                                 <button
                                                       onClick={() => navigate('/messages')}
-                                                      className="btn btn-secondary flex-1 min-w-[120px]"
+                                                      className="btn btn-secondary"
                                                       style={{ position: 'relative' }}
                                                 >
                                                       Messages
                                                 </button>
                                                 <button
                                                       onClick={() => navigate('/settings')}
-                                                      className="btn btn-secondary flex-1 min-w-[120px]"
+                                                      className="btn btn-secondary"
                                                 >
-                                                      ⚙️ Settings
+                                                      Settings
                                                 </button>
                                                 {profileUser?.role === 'admin' && (
                                                       <button
                                                             onClick={() => navigate('/admin')}
-                                                            className="btn btn-primary flex-1 min-w-[140px]"
+                                                            className="btn btn-primary"
                                                       >
                                                             Admin Panel
                                                       </button>
@@ -953,7 +952,7 @@ const Profile = () => {
                                                       <button
                                                             onClick={handleRequestVerification}
                                                             disabled={verificationReqLoading}
-                                                            className="btn btn-ghost flex-1 min-w-[140px]"
+                                                            className="btn btn-ghost"
                                                             style={{
                                                                   background: 'linear-gradient(135deg,rgba(59,130,246,.1),rgba(99,102,241,.1))',
                                                                   border: '1px solid rgba(59,130,246,.3)',
@@ -961,22 +960,22 @@ const Profile = () => {
                                                                   transition: 'all .2s'
                                                             }}
                                                       >
-                                                            {verificationReqLoading ? '⏳ Sending...' : '✓ Request Verification'}
+                                                            {verificationReqLoading ? 'Sending...' : 'Request Verification'}
                                                       </button>
                                                 )}
                                           </div>
                                     ) : isAuthenticated && (
                                           <>
-                                                <div className="flex gap-md flex-wrap w-full mt-sm">
+                                                <div className="profile-action-row">
                                                 <button
                                                       onClick={handleFollow}
                                                       disabled={followLoading}
-                                                      className={`btn ${(isFollowing || followRequested) ? 'btn-secondary' : 'btn-primary'} flex-1 min-w-[120px]`}
+                                                      className={`btn ${(isFollowing || followRequested) ? 'btn-secondary' : 'btn-primary'}`}
                                                 >
                                                       {followLoading ? (
                                                             <span>Loading...</span>
                                                       ) : followRequested ? (
-                                                            <span className="flex items-center justify-center gap-sm">
+                                                            <span className="profile-action-label">
                                                                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                                                         <circle cx="12" cy="12" r="9" />
                                                                         <path d="M12 7v5l3 2" />
@@ -984,12 +983,12 @@ const Profile = () => {
                                                                   Requested
                                                             </span>
                                                       ) : isFollowing ? (
-                                                            <span className="flex items-center justify-center gap-sm">
+                                                            <span className="profile-action-label">
                                                                   <CheckIcon size={16} />
                                                                   Following
                                                             </span>
                                                       ) : (
-                                                            <span className="flex items-center justify-center gap-sm">
+                                                            <span className="profile-action-label">
                                                                   <UserPlusIcon size={16} />
                                                                   Follow
                                                             </span>
@@ -1003,9 +1002,9 @@ const Profile = () => {
                                                                   if (chatSection) chatSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
                                                             }, 50);
                                                       }}
-                                                      className={`btn ${activeTab === 'chat' ? 'btn-primary' : 'btn-secondary'} flex-1 min-w-[120px]`}
+                                                      className={`btn ${activeTab === 'chat' ? 'btn-primary' : 'btn-secondary'}`}
                                                 >
-                                                      <span className="flex items-center justify-center gap-sm">
+                                                      <span className="profile-action-label">
                                                             <MessageIcon size={16} />
                                                             Message
                                                       </span>
@@ -1013,13 +1012,13 @@ const Profile = () => {
                                                 <button
                                                       onClick={handleBlockToggle}
                                                       disabled={blockLoading}
-                                                      className="btn btn-ghost text-red-500 hover:bg-red-50 flex-1 min-w-[120px]"
+                                                      className="btn btn-ghost text-red-500"
                                                       style={{ borderColor: 'rgba(239, 68, 68, 0.2)' }}
                                                 >
                                                       {blockLoading ? (
                                                             'Loading...'
                                                       ) : (
-                                                            <span className="flex items-center justify-center gap-sm">
+                                                            <span className="profile-action-label">
                                                                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                                                         <circle cx="12" cy="12" r="9" />
                                                                         <path d="M8.5 8.5l7 7" />
@@ -1029,58 +1028,20 @@ const Profile = () => {
                                                       )}
                                                 </button>
                                                 </div>
-
-                                                <div className="flex gap-md flex-wrap w-full mt-sm" style={{ display: 'none' }}>
-                                                <button
-                                                      onClick={handleFollow}
-                                                      disabled={followLoading}
-                                                      className={`btn ${(isFollowing || followRequested) ? 'btn-secondary' : 'btn-primary'} flex-1 min-w-[120px]`}
-                                                >
-                                                      {followLoading ? (
-                                                            <span style={{ fontSize: '16px' }}>⏳</span>
-                                                      ) : followRequested ? (
-                                                            'Requested'
-                                                      ) : isFollowing ? (
-                                                            '✓ Following'
-                                                      ) : (
-                                                            '+ Follow'
-                                                      )}
-                                                </button>
-                                                <button
-                                                      onClick={() => {
-                                                            setActiveTab('chat');
-                                                            setTimeout(() => {
-                                                                  const chatSection = document.getElementById('chat-tab-section');
-                                                                  if (chatSection) chatSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                                            }, 50);
-                                                      }}
-                                                      className={`btn ${activeTab === 'chat' ? 'btn-primary' : 'btn-secondary'} flex-1 min-w-[120px]`}
-                                                >
-                                                      💬 Message
-                                                </button>
-                                                <button
-                                                      onClick={handleBlockToggle}
-                                                      disabled={blockLoading}
-                                                      className="btn btn-ghost text-red-500 hover:bg-red-50 flex-1 min-w-[120px]"
-                                                      style={{ borderColor: 'rgba(239, 68, 68, 0.2)' }}
-                                                >
-                                                      {blockLoading ? '⏳' : isBlocked ? '🔓 Unblock' : '🚫 Block'}
-                                                </button>
-                                                </div>
                                           </>
                                     )}
                               </div>
                         </div>
 
                         {/* Middle Tabs - now includes Chat for visitors */}
-                        <div className="mode-pills mb-xl animate-fadeIn" style={{ maxWidth: '600px' }}>
-                              {!isOwnProfile && <button className={`mode-pill ${activeTab === 'chat' ? 'active' : ''}`} onClick={() => setActiveTab('chat')}>💬 Chat</button>}
-                              <button className={`mode-pill ${activeTab === 'posts' || activeTab === 'profile' ? 'active' : ''}`} onClick={() => setActiveTab(isOwnProfile ? 'profile' : 'posts')}>📝 Posts</button>
+                        <div className="mode-pills profile-tab-row mb-xl animate-fadeIn">
+                              {!isOwnProfile && <button className={`mode-pill ${activeTab === 'chat' ? 'active' : ''}`} onClick={() => setActiveTab('chat')}>Chat</button>}
+                              <button className={`mode-pill ${activeTab === 'posts' || activeTab === 'profile' ? 'active' : ''}`} onClick={() => setActiveTab(isOwnProfile ? 'profile' : 'posts')}>Posts</button>
                               {isOwnProfile && (
                                     <>
-                                          <button className={`mode-pill ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>⚙️ Settings</button>
-                                          <button className={`mode-pill ${activeTab === 'stats' ? 'active' : ''}`} onClick={() => setActiveTab('stats')}>📊 Stats</button>
-                                          <button className={`mode-pill ${activeTab === 'games' ? 'active' : ''}`} onClick={() => setActiveTab('games')}>🏏 Games</button>
+                                          <button className={`mode-pill ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>Settings</button>
+                                          <button className={`mode-pill ${activeTab === 'stats' ? 'active' : ''}`} onClick={() => setActiveTab('stats')}>Stats</button>
+                                          <button className={`mode-pill ${activeTab === 'games' ? 'active' : ''}`} onClick={() => setActiveTab('games')}>Games</button>
                                     </>
                               )}
                         </div>
@@ -1088,8 +1049,8 @@ const Profile = () => {
                         {/* Verification request feedback */}
                         {verificationReqMsg && (
                               <div className="card p-md mb-lg animate-fadeIn" style={{
-                                    background: verificationReqMsg.includes('✅') ? 'rgba(59,130,246,.1)' : 'rgba(245,158,11,.1)',
-                                    borderColor: verificationReqMsg.includes('✅') ? 'rgba(59,130,246,.3)' : 'rgba(245,158,11,.3)'
+                                    background: verificationReqMsg.toLowerCase().includes('submitted') ? 'rgba(59,130,246,.1)' : 'rgba(245,158,11,.1)',
+                                    borderColor: verificationReqMsg.toLowerCase().includes('submitted') ? 'rgba(59,130,246,.3)' : 'rgba(245,158,11,.3)'
                               }}>
                                     <p>{verificationReqMsg}</p>
                               </div>
@@ -1097,8 +1058,8 @@ const Profile = () => {
 
                         {message && (
                               <div className="card p-md mb-lg animate-fadeIn" style={{
-                                    background: message.includes('✅') ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                                    borderColor: message.includes('✅') ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'
+                                    background: message.toLowerCase().includes('success') || message.toLowerCase().includes('updated') ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                                    borderColor: message.toLowerCase().includes('success') || message.toLowerCase().includes('updated') ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'
                               }}>
                                     <p>{message}</p>
                               </div>
@@ -1107,16 +1068,16 @@ const Profile = () => {
 
                         {false && isOwnProfile && (
                               <div className="mode-pills mb-xl" style={{ maxWidth: '500px' }}>
-                                    <button className={`mode-pill ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => setActiveTab('profile')}>👤 Profile</button>
-                                    <button className={`mode-pill ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>⚙️ Settings</button>
-                                    <button className={`mode-pill ${activeTab === 'stats' ? 'active' : ''}`} onClick={() => setActiveTab('stats')}>📊 Stats</button>
-                                    <button className={`mode-pill ${activeTab === 'games' ? 'active' : ''}`} onClick={() => setActiveTab('games')}>🏏 Games</button>
+                                    <button className={`mode-pill ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => setActiveTab('profile')}>Profile</button>
+                                    <button className={`mode-pill ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>Settings</button>
+                                    <button className={`mode-pill ${activeTab === 'stats' ? 'active' : ''}`} onClick={() => setActiveTab('stats')}>Stats</button>
+                                    <button className={`mode-pill ${activeTab === 'games' ? 'active' : ''}`} onClick={() => setActiveTab('games')}>Games</button>
                               </div>
                         )}
 
                         {editing && isOwnProfile && (
                               <div className="card mb-xl animate-fadeInUp">
-                                    <h2 className="text-xl font-semibold mb-lg flex items-center gap-sm">✏️ Edit Profile</h2>
+                                    <h2 className="text-xl font-semibold mb-lg flex items-center gap-sm">Edit Profile</h2>
                                     <div className="grid grid-cols-2 gap-lg">
                                           <div className="input-group">
                                                 <label className="input-label">Display Name</label>
@@ -1150,7 +1111,7 @@ const Profile = () => {
                                           />
                                     </div>
                                     <div className="flex gap-md mt-xl">
-                                          <button onClick={handleSaveProfile} className="btn btn-primary">💾 Save Changes</button>
+                                          <button onClick={handleSaveProfile} className="btn btn-primary">Save Changes</button>
                                           <button onClick={() => setEditing(false)} className="btn btn-ghost">Cancel</button>
                                     </div>
                               </div>
@@ -1159,7 +1120,7 @@ const Profile = () => {
                         {activeTab === 'chat' && !isOwnProfile && (
                               <div id="chat-tab-section" className="card animate-fadeInUp mb-xl" style={{ border: '2px solid rgba(99, 102, 241, 0.3)', padding: '24px' }}>
                                     <div className="flex items-center gap-sm mb-lg">
-                                          <div style={{ fontSize: '1.8rem' }}>💬</div>
+                                          <div style={{ fontSize: '1.1rem', fontWeight: 700 }}>DM</div>
                                           <h2 className="text-2xl font-bold">Quick Message to {profileUser.displayName || profileUser.username}</h2>
                                     </div>
                                     <p className="text-muted mb-lg" style={{ fontSize: '1.05rem' }}>Send a professional direct message instantly. It will appear immediately in their inbox.</p>
@@ -1184,7 +1145,7 @@ const Profile = () => {
                                                 className="btn btn-primary w-full"
                                                 style={{ padding: '16px', fontSize: '1.2rem', fontWeight: 700, boxShadow: '0 4px 15px rgba(99, 102, 241, 0.3)' }}
                                           >
-                                                {sendingQuickChat ? '⏳ Sending...' : '✈️ Send Message Now'}
+                                                {sendingQuickChat ? 'Sending...' : 'Send Message Now'}
                                           </button>
                                           <button
                                                 type="button"
@@ -1195,8 +1156,8 @@ const Profile = () => {
                                                 Open Full Chat and Calling
                                           </button>
                                     </form>
-                                    <div className="mt-xl p-lg bg-indigo-50 border border-indigo-100 rounded-xl flex items-start gap-md text-sm text-indigo-700">
-                                          <span style={{ fontSize: '1.4rem' }}>💡</span>
+                                    <div className="profile-tip-box">
+                                          <span className="profile-tip-icon">Tip</span>
                                           <div>
                                                 <p style={{ fontWeight: 700, marginBottom: '4px' }}>Engagement Tip</p>
                                                 <p>For high-quality collaboration, voice/video calls, or sharing files, please visit the <strong>Full Messages</strong> section in the main menu.</p>
@@ -1209,7 +1170,7 @@ const Profile = () => {
                               <>
                                     {profileUser.interests && profileUser.interests.length > 0 && (
                                           <div className="card mb-lg animate-fadeInUp">
-                                                <h3 className="font-semibold mb-md flex items-center gap-sm">🎯 Interests</h3>
+                                                <h3 className="font-semibold mb-md flex items-center gap-sm">Interests</h3>
                                                 <div className="flex gap-sm flex-wrap">
                                                       {profileUser.interests.map(interest => (
                                                             <span key={interest} className="tag tag-primary">{interest}</span>
@@ -1223,7 +1184,7 @@ const Profile = () => {
                                           {postsError && (
                                                 <div className="card p-md mb-lg" style={{ background: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.3)', margin: '16px' }}>
                                                       <p className="text-center text-red-500">{postsError}</p>
-                                                      <button onClick={() => fetchUserPosts(profileUser.username)} className="btn btn-primary mt-sm mx-auto flex">🔄 Retry</button>
+                                                      <button onClick={() => fetchUserPosts(profileUser.username)} className="btn btn-primary mt-sm mx-auto flex">Retry</button>
                                                 </div>
                                           )}
 
@@ -1277,14 +1238,14 @@ const Profile = () => {
                                                                                     ) : (
                                                                                           <div style={{ width: '100%', height: '100%', background: gradient, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px' }}>
                                                                                                 <span style={{ fontSize: '11px', fontWeight: '700', color: 'white', textAlign: 'center', lineHeight: 1.3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical' }}>
-                                                                                                      {post.title || post.body || '📝'}
+                                                                                                      {post.title || post.body || 'Post'}
                                                                                                 </span>
                                                                                           </div>
                                                                                     )}
                                                                                     <div className="profile-post-thumb-overlay">
-                                                                                          <span style={{ fontSize: '22px', color: 'white', textShadow: '0 2px 6px rgba(0,0,0,0.5)' }}>{isVid ? '▶️' : '🔍'}</span>
+                                                                                          <span style={{ fontSize: '14px', fontWeight: 700, color: 'white', textShadow: '0 2px 6px rgba(0,0,0,0.5)' }}>{isVid ? 'PLAY' : 'OPEN'}</span>
                                                                                     </div>
-                                                                                    <div className="profile-post-type-badge">{isVid ? '🎬' : !hasMedia ? '📝' : ''}</div>
+                                                                                    <div className="profile-post-type-badge">{isVid ? 'VIDEO' : !hasMedia ? 'POST' : ''}</div>
                                                                               </div>
                                                                         );
                                                                   })}
@@ -1310,15 +1271,15 @@ const Profile = () => {
                                     {isOwnProfile && (
                                           <div className="grid grid-cols-3 gap-md mb-lg mt-xl">
                                                 <button onClick={() => navigate('/upload')} className="feature-card animate-fadeInUp stagger-1" style={{ padding: 'var(--space-lg)' }}>
-                                                      <div style={{ fontSize: '2rem', marginBottom: 'var(--space-sm)' }}>📤</div>
+                                                      <div style={{ fontSize: '1rem', marginBottom: 'var(--space-sm)', fontWeight: 700 }}>New</div>
                                                       <div className="font-semibold">Upload</div>
                                                 </button>
                                                 <button onClick={() => setEditing(true)} className="feature-card animate-fadeInUp stagger-2" style={{ padding: 'var(--space-lg)' }}>
-                                                      <div style={{ fontSize: '2rem', marginBottom: 'var(--space-sm)' }}>✏️</div>
+                                                      <div style={{ fontSize: '1rem', marginBottom: 'var(--space-sm)', fontWeight: 700 }}>Edit</div>
                                                       <div className="font-semibold">Edit Profile</div>
                                                 </button>
                                                 <button onClick={handlePhotoClick} className="feature-card animate-fadeInUp stagger-3" style={{ padding: 'var(--space-lg)' }}>
-                                                      <div style={{ fontSize: '2rem', marginBottom: 'var(--space-sm)' }}>📷</div>
+                                                      <div style={{ fontSize: '1rem', marginBottom: 'var(--space-sm)', fontWeight: 700 }}>Photo</div>
                                                       <div className="font-semibold">Change Photo</div>
                                                 </button>
                                           </div>
@@ -1328,36 +1289,36 @@ const Profile = () => {
 
                         {activeTab === 'settings' && isOwnProfile && (
                               <div className="card animate-fadeInUp">
-                                    <h3 className="text-lg font-semibold mb-lg">🧘 Wellness Settings</h3>
+                                    <h3 className="text-lg font-semibold mb-lg">Wellness Settings</h3>
                                     <div className="flex items-center gap-lg p-md mb-md" style={{ background: 'rgba(99, 102, 241, 0.1)', borderRadius: 'var(--radius-lg)' }}>
                                           <input type="checkbox" id="focusMode" checked={editData.focusModeEnabled} onChange={(e) => { setEditData(prev => ({ ...prev, focusModeEnabled: e.target.checked })); updateProfile({ focusModeEnabled: e.target.checked }); }} style={{ width: '24px', height: '24px', accentColor: 'var(--color-accent-primary)' }} />
-                                          <label htmlFor="focusMode" style={{ cursor: 'pointer', flex: 1 }}><div className="font-semibold">🧘 Focus Mode</div><p className="text-sm text-muted">Hide all counts and metrics for peaceful browsing</p></label>
+                                          <label htmlFor="focusMode" style={{ cursor: 'pointer', flex: 1 }}><div className="font-semibold">Focus Mode</div><p className="text-sm text-muted">Hide all counts and metrics for peaceful browsing</p></label>
                                     </div>
                                     <div className="input-group mt-lg">
-                                          <label className="input-label">⏰ Daily Usage Limit (minutes)</label>
+                                          <label className="input-label">Daily Usage Limit (minutes)</label>
                                           <input type="number" className="input" min="0" max="480" value={editData.dailyUsageLimit} onChange={(e) => { const value = parseInt(e.target.value) || 0; setEditData(prev => ({ ...prev, dailyUsageLimit: value })); }} placeholder="0 = unlimited" />
                                           <p className="text-xs text-muted mt-xs">Set 0 for unlimited.</p>
                                     </div>
-                                    <button onClick={handleSaveProfile} className="btn btn-primary mt-lg">💾 Save Settings</button>
+                                    <button onClick={handleSaveProfile} className="btn btn-primary mt-lg">Save Settings</button>
                                     <hr style={{ border: 'none', borderTop: '1px solid var(--color-border)', margin: 'var(--space-xl) 0' }} />
-                                    <button onClick={handleLogout} className="btn btn-ghost" style={{ color: '#ef4444' }}>🚪 Logout</button>
+                                    <button onClick={handleLogout} className="btn btn-ghost" style={{ color: '#ef4444' }}>Logout</button>
                               </div>
                         )}
 
                         {activeTab === 'stats' && isOwnProfile && user?.stats && (
                               <div className="animate-fadeInUp">
                                     <div className="grid grid-cols-3 gap-lg mb-lg">
-                                          <div className="stat-card"><div className="stat-value">{user.stats.contentCount || 0}</div><div className="stat-label">📝 Content Created</div></div>
-                                          <div className="stat-card"><div className="stat-value">{user.stats.helpfulReceived || 0}</div><div className="stat-label">👍 Helpful Received</div></div>
-                                          <div className="stat-card"><div className="stat-value">{user.stats.helpfulGiven || 0}</div><div className="stat-label">💚 Helpful Given</div></div>
+                                          <div className="stat-card"><div className="stat-value">{user.stats.contentCount || 0}</div><div className="stat-label">Content Created</div></div>
+                                          <div className="stat-card"><div className="stat-value">{user.stats.helpfulReceived || 0}</div><div className="stat-label">Helpful Received</div></div>
+                                          <div className="stat-card"><div className="stat-value">{user.stats.helpfulGiven || 0}</div><div className="stat-label">Helpful Given</div></div>
                                     </div>
-                                    <div className="card p-md" style={{ background: 'rgba(34, 197, 94, 0.1)', borderColor: 'rgba(34, 197, 94, 0.3)' }}><p className="text-sm" style={{ color: '#22c55e' }}>🔒 Your stats are private and only visible to you</p></div>
+                                    <div className="card p-md" style={{ background: 'rgba(34, 197, 94, 0.1)', borderColor: 'rgba(34, 197, 94, 0.3)' }}><p className="text-sm" style={{ color: '#22c55e' }}>Your stats are private and only visible to you.</p></div>
                               </div>
                         )}
 
                         {activeTab === 'games' && isOwnProfile && (
                               <div className="card animate-fadeInUp mb-xl">
-                                    <h3 className="text-lg font-semibold mb-lg text-center">🏆 Zuno Cricket</h3>
+                                    <h3 className="text-lg font-semibold mb-lg text-center">Zuno Cricket</h3>
                                     <CricketGame />
                               </div>
                         )}
@@ -1454,7 +1415,7 @@ const Profile = () => {
                                                 onClick={(e) => e.stopPropagation()}
                                           >
                                                 <div className="flex items-center justify-between mb-lg">
-                                                      <h3 className="text-lg font-bold">👥 Followers</h3>
+                                                      <h3 className="text-lg font-bold">Followers</h3>
                                                       <button
                                                             onClick={() => setShowFollowersModal(false)}
                                                             className="btn btn-ghost btn-sm"
@@ -1545,7 +1506,7 @@ const Profile = () => {
                                                 onClick={(e) => e.stopPropagation()}
                                           >
                                                 <div className="flex items-center justify-between mb-lg">
-                                                      <h3 className="text-lg font-bold">👤 Following</h3>
+                                                      <h3 className="text-lg font-bold">Following</h3>
                                                       <button
                                                             onClick={() => setShowFollowingModal(false)}
                                                             className="btn btn-ghost btn-sm"

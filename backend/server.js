@@ -38,7 +38,7 @@ app.use(helmet({
   contentSecurityPolicy: false // we manage CSP separately if needed
 }));
 
-// Strict CORS — only allow known origins
+// Strict CORS: only allow known origins
 const allowedOrigins = [
   'https://zunoworld.tech',
   'https://www.zunoworld.tech',
@@ -133,8 +133,8 @@ app.get('/', (req, res) => {
       <div class="container">
         <div class="logo">Z</div>
         <h1>ZUNO API Server</h1>
-        <p>Backend is running! ✅</p>
-        <a href="http://localhost:3000" class="btn">Open ZUNO Frontend →</a>
+        <p>Backend is running.</p>
+        <a href="http://localhost:3000" class="btn">Open ZUNO Frontend</a>
       </div>
     </body>
     </html>
@@ -175,8 +175,8 @@ const startServer = async () => {
     await connectDB();
 
     server.listen(PORT, () => {
-      console.log(`🚀 ZUNO Server running on port ${PORT}`);
-      console.log(`📍 Environment: ${process.env.NODE_ENV}`);
+      console.log(`ZUNO Server running on port ${PORT}`);
+      console.log(`Environment: ${process.env.NODE_ENV}`);
       // Start the Render Keep-Alive job
       keepAlive();
     });

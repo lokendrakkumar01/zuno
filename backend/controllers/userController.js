@@ -173,7 +173,7 @@ const toggleFocusMode = async (req, res) => {
             res.json({
                   success: true,
                   message: user.focusModeEnabled
-                        ? 'Focus mode enabled. Enjoy peaceful browsing! 🧘'
+                        ? 'Focus mode enabled. Enjoy peaceful browsing.'
                         : 'Focus mode disabled.',
                   data: { focusModeEnabled: user.focusModeEnabled }
             });
@@ -717,7 +717,7 @@ const requestVerification = async (req, res) => {
                   requestedAt: new Date()
             };
             await user.save();
-            res.json({ success: true, message: 'Verification request submitted! Admin will review it soon. ✅' });
+            res.json({ success: true, message: 'Verification request submitted. Admin will review it soon.' });
       } catch (error) {
             res.status(500).json({ success: false, message: 'Failed to submit request', error: error.message });
       }
