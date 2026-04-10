@@ -29,6 +29,17 @@ const normalizeLiveKitUrl = (value) => {
       return trimmed;
 };
 
+const ACTIVE_STREAMS_CACHE_KEY = 'zuno_live_streams_cache';
+
+const readJsonCache = (key, fallback) => {
+      try {
+            const cached = localStorage.getItem(key);
+            return cached ? JSON.parse(cached) : fallback;
+      } catch {
+            return fallback;
+      }
+};
+
 const ReactionsManager = memo(({ socket }) => {
       const [reactions, setReactions] = useState([]);
 
@@ -78,8 +89,8 @@ const LiveStream = () => {
       const [commentText, setCommentText] = useState('');
       const [viewerCount, setViewerCount] = useState(0);
       const [isLive, setIsLive] = useState(false);
-      const [activeStreams, setActiveStreams] = useState([]);
-      const [loadingStreams, setLoadingStreams] = useState(true);
+      const [activeStreams, setActiveStreams] = useState(() => readJsonCache(ACTIVE_STREAMS_CACHE_KEY, []));
+      const [loadingStreams, setLoadingStreams] = useState(() => readJsonCache(ACTIVE_STREAMS_CACHE_KEY, []).length === 0);
       const [streamError, setStreamError] = useState('');
       const [isStarting, setIsStarting] = useState(false);
       const [slowModeEnabled, setSlowModeEnabled] = useState(false);
@@ -98,14 +109,25 @@ const LiveStream = () => {
       const loadActiveStreams = useCallback(async () => {
             if (isHostMode || isViewMode) return;
 
-            setLoadingStreams(true);
+            const cachedStreams = readJsonCache(ACTIVE_STREAMS_CACHE_KEY, []);
+            if (cachedStreams.length === 0) {
+                  setLoadingStreams(true);
+            }
 
             try {
                   const res = await fetch(`${API_URL}/livestream/active`);
                   const data = await res.json();
-                  setActiveStreams(data.success ? data.data.streams || [] : []);
+                  const nextStreams = data.success ? data.data.streams || [] : [];
+                  setActiveStreams(nextStreams);
+                  try {
+                        localStorage.setItem(ACTIVE_STREAMS_CACHE_KEY, JSON.stringify(nextStreams));
+                  } catch {
+                        // Cache writes are optional.
+                  }
             } catch {
-                  setActiveStreams([]);
+                  if (cachedStreams.length === 0) {
+                        setActiveStreams([]);
+                  }
             } finally {
                   setLoadingStreams(false);
             }
@@ -124,6 +146,15 @@ const LiveStream = () => {
             if (!isViewMode || !hostId) return undefined;
 
             let ignore = false;
+            const streamInfoCacheKey = `zuno_live_stream_${hostId}`;
+            const cachedStreamInfo = readJsonCache(streamInfoCacheKey, null);
+
+            if (cachedStreamInfo) {
+                  setStreamInfo(cachedStreamInfo);
+                  setStreamTitle(cachedStreamInfo?.title || '');
+                  setStreamDescription(cachedStreamInfo?.description || '');
+                  setViewerCount(cachedStreamInfo?.viewerCount || 0);
+            }
 
             const loadStreamInfo = async () => {
                   try {
@@ -136,10 +167,15 @@ const LiveStream = () => {
                               setStreamTitle(nextStream?.title || '');
                               setStreamDescription(nextStream?.description || '');
                               setViewerCount(nextStream?.viewerCount || 0);
+                              try {
+                                    localStorage.setItem(streamInfoCacheKey, JSON.stringify(nextStream));
+                              } catch {
+                                    // Cache writes are optional.
+                              }
                         }
                   } catch {
                         if (!ignore) {
-                              setStreamInfo(null);
+                              setStreamInfo(cachedStreamInfo || null);
                         }
                   }
             };
@@ -451,6 +487,22 @@ const LiveStream = () => {
             });
       };
 
+      const retryStreamConnection = async () => {
+            setStreamError('');
+
+            if (!isViewMode) return;
+
+            try {
+                  await reconnectLiveAccess();
+                  if (socket && user && hostId) {
+                        socket.emit('joinStream', { hostId, viewerId: user._id });
+                        setIsLive(true);
+                  }
+            } catch (error) {
+                  setStreamError(error.message || 'Could not reconnect to the stream.');
+            }
+      };
+
       if (!hostId) {
             return (
                   <div className="live-dashboard-page">
@@ -653,7 +705,14 @@ const LiveStream = () => {
                         {streamError && (
                               <div className="live-loading-overlay">
                                     <h3>{streamError}</h3>
-                                    <button type="button" className="btn btn-secondary" onClick={() => navigate('/live')}>Back to Streams</button>
+                                    <div className="live-setup-actions">
+                                          {isViewMode && (
+                                                <button type="button" className="btn btn-primary" onClick={retryStreamConnection}>
+                                                      Retry Stream
+                                                </button>
+                                          )}
+                                          <button type="button" className="btn btn-secondary" onClick={() => navigate('/live')}>Back to Streams</button>
+                                    </div>
                               </div>
                         )}
 

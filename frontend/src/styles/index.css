@@ -4733,11 +4733,12 @@ video.chat-media-content {
   border-radius: var(--radius-lg);
   background: rgba(var(--color-bg-primary-rgb), 0.92);
   color: var(--color-text-primary);
-  padding: 1rem;
+  padding: 0.9rem;
   text-align: left;
   display: grid;
-  gap: 0.35rem;
-  min-height: 104px;
+  gap: 0.3rem;
+  align-content: start;
+  min-height: 88px;
   cursor: pointer;
   transition: transform var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
@@ -4748,11 +4749,33 @@ video.chat-media-content {
   box-shadow: var(--shadow-md);
 }
 
-.profile-manage-button strong {
-  font-size: 1rem;
+.profile-manage-button-top {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
 }
 
-.profile-manage-button span {
+.profile-manage-icon {
+  min-width: 40px;
+  height: 32px;
+  padding: 0 0.65rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(99, 102, 241, 0.12);
+  color: #4338ca;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.profile-manage-button strong {
+  font-size: 0.96rem;
+  line-height: 1.2;
+}
+
+.profile-manage-button > span {
   font-size: 0.84rem;
   color: var(--color-text-secondary);
   line-height: 1.45;
@@ -4761,6 +4784,10 @@ video.chat-media-content {
 .profile-manage-button--primary {
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.16), rgba(168, 85, 247, 0.12));
   border-color: rgba(99, 102, 241, 0.3);
+}
+
+.profile-manage-button--primary .profile-manage-icon {
+  background: rgba(99, 102, 241, 0.2);
 }
 
 .profile-inline-actions {
@@ -5627,10 +5654,6 @@ video.chat-media-content {
     grid-auto-columns: minmax(160px, 1fr);
   }
 
-  .profile-manage-grid {
-    grid-template-columns: 1fr;
-  }
-
   .messages-modal-actions,
   .live-setup-actions,
   .live-chat-form {
@@ -5640,5 +5663,37 @@ video.chat-media-content {
 
   .live-video-topbar {
     flex-direction: column;
+  }
+}
+
+@media (max-width: 480px) {
+  .profile-manage-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .profile-manage-button {
+    min-height: 76px;
+    padding: 0.75rem;
+  }
+
+  .profile-manage-button > span:last-child {
+    display: none;
+  }
+
+  .profile-manage-icon {
+    min-width: 34px;
+    height: 28px;
+    padding: 0 0.5rem;
+    font-size: 0.62rem;
+  }
+
+  .profile-manage-button strong {
+    font-size: 0.88rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .profile-manage-grid {
+    grid-template-columns: 1fr;
   }
 }

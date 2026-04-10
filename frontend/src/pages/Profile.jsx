@@ -1064,21 +1064,33 @@ const Profile = () => {
 
                                                 <div className="profile-manage-grid">
                                                       <button type="button" className="profile-manage-button" onClick={() => navigate('/messages')}>
-                                                            <strong>Messages</strong>
-                                                            <span>Open inbox, chats and calls</span>
+                                                            <div className="profile-manage-button-top">
+                                                                  <span className="profile-manage-icon">Chat</span>
+                                                                  <strong>Messages</strong>
+                                                            </div>
+                                                            <span>Open inbox fast</span>
                                                       </button>
                                                       <button type="button" className="profile-manage-button" onClick={() => navigate('/settings')}>
-                                                            <strong>Settings</strong>
-                                                            <span>Privacy, notifications and account controls</span>
+                                                            <div className="profile-manage-button-top">
+                                                                  <span className="profile-manage-icon">Set</span>
+                                                                  <strong>Settings</strong>
+                                                            </div>
+                                                            <span>Privacy and controls</span>
                                                       </button>
                                                       <button type="button" className="profile-manage-button" onClick={openProfileEditor}>
-                                                            <strong>Edit Profile</strong>
-                                                            <span>Update bio, interests and profile song</span>
+                                                            <div className="profile-manage-button-top">
+                                                                  <span className="profile-manage-icon">Edit</span>
+                                                                  <strong>Edit Profile</strong>
+                                                            </div>
+                                                            <span>Bio and profile info</span>
                                                       </button>
                                                       {canAccessAdminPanel && (
                                                             <button type="button" className="profile-manage-button profile-manage-button--primary" onClick={() => navigate('/admin')}>
-                                                                  <strong>Admin Panel</strong>
-                                                                  <span>Moderation, verifications and platform controls</span>
+                                                                  <div className="profile-manage-button-top">
+                                                                        <span className="profile-manage-icon">ADM</span>
+                                                                        <strong>Admin Panel</strong>
+                                                                  </div>
+                                                                  <span>Moderation tools</span>
                                                             </button>
                                                       )}
                                                 </div>

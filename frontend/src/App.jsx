@@ -10,32 +10,32 @@ import SplashScreen from './components/SplashScreen';
 import Layout from './components/Layout/Layout';
 
 // Lazy load all heavy page components
-const Landing = React.lazy(() => import('./pages/Landing'));
-const Home = React.lazy(() => import('./pages/Home'));
-const Login = React.lazy(() => import('./pages/Auth/Login'));
-const Register = React.lazy(() => import('./pages/Auth/Register'));
-const Upload = React.lazy(() => import('./pages/Upload/Upload'));
-const Profile = React.lazy(() => import('./pages/Profile'));
-const ContentView = React.lazy(() => import('./pages/ContentView'));
-const AdminDashboard = React.lazy(() => import('./pages/Admin/AdminDashboard'));
-const Settings = React.lazy(() => import('./pages/Settings/Settings'));
-const Appearance = React.lazy(() => import('./pages/Settings/Appearance'));
-const Privacy = React.lazy(() => import('./pages/Settings/Privacy'));
-const Language = React.lazy(() => import('./pages/Settings/Language'));
-const Notifications = React.lazy(() => import('./pages/Settings/Notifications'));
-const TimeManagement = React.lazy(() => import('./pages/Settings/TimeManagement'));
-const PasswordSecurity = React.lazy(() => import('./pages/Settings/PasswordSecurity'));
-const CloseFriends = React.lazy(() => import('./pages/Settings/CloseFriends'));
-const Activity = React.lazy(() => import('./pages/Settings/Activity'));
-const ScheduledContent = React.lazy(() => import('./pages/Settings/ScheduledContent'));
-const Insights = React.lazy(() => import('./pages/Settings/Insights'));
-const Search = React.lazy(() => import('./pages/Search/Search'));
-const SavedContent = React.lazy(() => import('./pages/SavedContent'));
-const Messages = React.lazy(() => import('./pages/Messages/Messages'));
-const Chat = React.lazy(() => import('./pages/Messages/Chat'));
-const GroupChat = React.lazy(() => import('./pages/Messages/GroupChat'));
-const LiveStream = React.lazy(() => import('./pages/LiveStream'));
-const Status = React.lazy(() => import('./pages/Status'));
+const Landing = React.lazy(loadLanding);
+const Home = React.lazy(loadHome);
+const Login = React.lazy(loadLogin);
+const Register = React.lazy(loadRegister);
+const Upload = React.lazy(loadUpload);
+const Profile = React.lazy(loadProfile);
+const ContentView = React.lazy(loadContentView);
+const AdminDashboard = React.lazy(loadAdminDashboard);
+const Settings = React.lazy(loadSettings);
+const Appearance = React.lazy(loadAppearance);
+const Privacy = React.lazy(loadPrivacy);
+const Language = React.lazy(loadLanguage);
+const Notifications = React.lazy(loadNotifications);
+const TimeManagement = React.lazy(loadTimeManagement);
+const PasswordSecurity = React.lazy(loadPasswordSecurity);
+const CloseFriends = React.lazy(loadCloseFriends);
+const Activity = React.lazy(loadActivity);
+const ScheduledContent = React.lazy(loadScheduledContent);
+const Insights = React.lazy(loadInsights);
+const Search = React.lazy(loadSearch);
+const SavedContent = React.lazy(loadSavedContent);
+const Messages = React.lazy(loadMessages);
+const Chat = React.lazy(loadChat);
+const GroupChat = React.lazy(loadGroupChat);
+const LiveStream = React.lazy(loadLiveStream);
+const Status = React.lazy(loadStatus);
 
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -43,11 +43,38 @@ import GlobalNotification from './components/GlobalNotification';
 import CallOverlay from './components/CallOverlay';
 import GroupCallOverlay from './components/GroupCallOverlay';
 import ErrorBoundary from './components/ErrorBoundary';
-import { API_BASE_URL } from './config';
+import { API_BASE_URL, API_URL } from './config';
+
+function loadLanding() { return import('./pages/Landing'); }
+function loadHome() { return import('./pages/Home'); }
+function loadLogin() { return import('./pages/Auth/Login'); }
+function loadRegister() { return import('./pages/Auth/Register'); }
+function loadUpload() { return import('./pages/Upload/Upload'); }
+function loadProfile() { return import('./pages/Profile'); }
+function loadContentView() { return import('./pages/ContentView'); }
+function loadAdminDashboard() { return import('./pages/Admin/AdminDashboard'); }
+function loadSettings() { return import('./pages/Settings/Settings'); }
+function loadAppearance() { return import('./pages/Settings/Appearance'); }
+function loadPrivacy() { return import('./pages/Settings/Privacy'); }
+function loadLanguage() { return import('./pages/Settings/Language'); }
+function loadNotifications() { return import('./pages/Settings/Notifications'); }
+function loadTimeManagement() { return import('./pages/Settings/TimeManagement'); }
+function loadPasswordSecurity() { return import('./pages/Settings/PasswordSecurity'); }
+function loadCloseFriends() { return import('./pages/Settings/CloseFriends'); }
+function loadActivity() { return import('./pages/Settings/Activity'); }
+function loadScheduledContent() { return import('./pages/Settings/ScheduledContent'); }
+function loadInsights() { return import('./pages/Settings/Insights'); }
+function loadSearch() { return import('./pages/Search/Search'); }
+function loadSavedContent() { return import('./pages/SavedContent'); }
+function loadMessages() { return import('./pages/Messages/Messages'); }
+function loadChat() { return import('./pages/Messages/Chat'); }
+function loadGroupChat() { return import('./pages/Messages/GroupChat'); }
+function loadLiveStream() { return import('./pages/LiveStream'); }
+function loadStatus() { return import('./pages/Status'); }
 
 // Main App Router Component (inside AuthProvider)
 function AppRouter() {
-      const { isAuthenticated, loading, user } = useAuth();
+      const { isAuthenticated, loading, user, token } = useAuth();
       const [showSplash, setShowSplash] = useState(() => {
             const shown = localStorage.getItem('zuno_splash_shown');
             const time = localStorage.getItem('zuno_splash_time');
@@ -72,9 +99,65 @@ function AppRouter() {
 
       useEffect(() => {
             if (isAuthenticated && user?.role === 'admin') {
-                  import('./pages/Admin/AdminDashboard');
+                  loadAdminDashboard();
             }
       }, [isAuthenticated, user?.role]);
+
+      useEffect(() => {
+            if (!isAuthenticated || !user?._id) return undefined;
+
+            const scheduleIdle = typeof window !== 'undefined' && 'requestIdleCallback' in window
+                  ? window.requestIdleCallback.bind(window)
+                  : (callback) => window.setTimeout(callback, 900);
+            const cancelIdle = typeof window !== 'undefined' && 'cancelIdleCallback' in window
+                  ? window.cancelIdleCallback.bind(window)
+                  : window.clearTimeout.bind(window);
+
+            const jobId = scheduleIdle(async () => {
+                  await Promise.allSettled([
+                        loadProfile(),
+                        loadSettings(),
+                        loadMessages(),
+                        loadChat(),
+                        loadLiveStream(),
+                        user?.role === 'admin' ? loadAdminDashboard() : Promise.resolve()
+                  ]);
+
+                  if (!token) return;
+
+                  try {
+                        const [conversationsRes, streamsRes] = await Promise.all([
+                              fetch(`${API_URL}/messages/conversations`, {
+                                    headers: { Authorization: `Bearer ${token}` }
+                              }),
+                              fetch(`${API_URL}/livestream/active`)
+                        ]);
+
+                        const [conversationsData, streamsData] = await Promise.all([
+                              conversationsRes.json().catch(() => null),
+                              streamsRes.json().catch(() => null)
+                        ]);
+
+                        if (conversationsData?.success) {
+                              localStorage.setItem(
+                                    `zuno_conversations_cache_${user._id}`,
+                                    JSON.stringify(conversationsData.data.conversations || [])
+                              );
+                        }
+
+                        if (streamsData?.success) {
+                              localStorage.setItem(
+                                    'zuno_live_streams_cache',
+                                    JSON.stringify(streamsData.data.streams || [])
+                              );
+                        }
+                  } catch {
+                        // Warmup is best-effort only.
+                  }
+            });
+
+            return () => cancelIdle(jobId);
+      }, [isAuthenticated, token, user?._id, user?.role]);
 
       const handleSplashComplete = () => {
             // Mark splash as shown

@@ -9,22 +9,31 @@ const Messages = () => {
       const { token, isAuthenticated, user } = useAuth();
       const { onlineUsers, socket } = useSocketContext();
       const navigate = useNavigate();
+      const conversationsCacheKey = `zuno_conversations_cache_${user?._id}`;
+      const notesCacheKey = `zuno_notes_cache_${user?._id}`;
 
       const [conversations, setConversations] = useState(() => {
             try {
-                  const cached = localStorage.getItem(`zuno_conversations_cache_${user?._id}`);
+                  const cached = localStorage.getItem(conversationsCacheKey);
                   return cached ? JSON.parse(cached) : [];
             } catch {
                   return [];
             }
       });
-      const [loading, setLoading] = useState(() => !localStorage.getItem(`zuno_conversations_cache_${user?._id}`));
+      const [loading, setLoading] = useState(() => !localStorage.getItem(conversationsCacheKey));
       const [silentRefreshing, setSilentRefreshing] = useState(false);
       const [searchQuery, setSearchQuery] = useState('');
       const [searchResults, setSearchResults] = useState([]);
       const [searching, setSearching] = useState(false);
 
-      const [notes, setNotes] = useState([]);
+      const [notes, setNotes] = useState(() => {
+            try {
+                  const cached = localStorage.getItem(notesCacheKey);
+                  return cached ? JSON.parse(cached) : [];
+            } catch {
+                  return [];
+            }
+      });
       const [showNoteModal, setShowNoteModal] = useState(false);
       const [noteText, setNoteText] = useState('');
       const [viewingNote, setViewingNote] = useState(null);
@@ -41,7 +50,7 @@ const Messages = () => {
       const groupSearchAbortRef = useRef(null);
 
       const fetchConversations = useCallback(async () => {
-            const cacheKey = `zuno_conversations_cache_${user?._id}`;
+            const cacheKey = conversationsCacheKey;
             const hasCached = !!localStorage.getItem(cacheKey);
 
             if (!hasCached) setLoading(true);
@@ -66,7 +75,7 @@ const Messages = () => {
                   setLoading(false);
                   setSilentRefreshing(false);
             }
-      }, [token, user?._id]);
+      }, [conversationsCacheKey, token]);
 
       const fetchNotes = useCallback(async () => {
             try {
@@ -75,12 +84,18 @@ const Messages = () => {
                   });
                   const data = await res.json();
                   if (data.success) {
-                        setNotes(data.data.notes || []);
+                        const nextNotes = data.data.notes || [];
+                        setNotes(nextNotes);
+                        try {
+                              localStorage.setItem(notesCacheKey, JSON.stringify(nextNotes));
+                        } catch {
+                              // Cache writes are optional.
+                        }
                   }
             } catch (err) {
                   console.error('Failed to fetch notes:', err);
             }
-      }, [token]);
+      }, [notesCacheKey, token]);
 
       const debouncedRefetch = useCallback(() => {
             if (refetchTimerRef.current) {
