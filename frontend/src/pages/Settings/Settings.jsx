@@ -12,6 +12,7 @@ const Settings = () => {
       const navigate = useNavigate();
       const [loading, setLoading] = useState(false);
       const [message, setMessage] = useState('');
+      const isAdmin = user?.role === 'admin';
 
       // Modal states
       const [showActivity, setShowActivity] = useState(false);
@@ -131,6 +132,15 @@ const Settings = () => {
                               subtitle="Manage your creator features"
                               onClick={() => setShowCreatorTools(true)}
                         />
+
+                        {isAdmin && (
+                              <SettingsOption
+                                    icon="AD"
+                                    label="Admin panel"
+                                    subtitle="Open moderation, verifications and platform controls"
+                                    onClick={() => navigate('/admin')}
+                              />
+                        )}
 
                         {/* Who Can See Your Content Section */}
                         <SectionTitle title={t('whoCanSeeContent')} />

@@ -86,6 +86,7 @@ const Profile = () => {
       const [totalViews, setTotalViews] = useState(0);
 
       const isOwnProfile = !username || (user && user.username === username);
+      const canAccessAdminPanel = isOwnProfile && profileUser?.role === 'admin';
 
       // Refresh profile when page becomes visible (for dynamic updates)
       useEffect(() => {
@@ -287,6 +288,17 @@ const Profile = () => {
       // Handle delete content from profile
       const handleDeleteContent = (contentId) => {
             setUserPosts(prev => prev.filter(post => post._id !== contentId));
+      };
+
+      const openProfileEditor = () => {
+            setActiveTab('profile');
+            setEditing(true);
+            setTimeout(() => {
+                  const editSection = document.getElementById('profile-edit-section');
+                  if (editSection) {
+                        editSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }
+            }, 120);
       };
 
       // Check if current user follows or blocks this profile
@@ -921,7 +933,7 @@ const Profile = () => {
                                     {isOwnProfile ? (
                                           <div className="profile-action-row">
                                                 <button
-                                                      onClick={() => setEditing(!editing)}
+                                                      onClick={() => editing ? setEditing(false) : openProfileEditor()}
                                                       className={`btn ${editing ? 'btn-ghost' : 'btn-secondary'}`}
                                                 >
                                                       {editing ? 'Cancel' : 'Edit Profile'}
@@ -939,7 +951,7 @@ const Profile = () => {
                                                 >
                                                       Settings
                                                 </button>
-                                                {profileUser?.role === 'admin' && (
+                                                {canAccessAdminPanel && (
                                                       <button
                                                             onClick={() => navigate('/admin')}
                                                             className="btn btn-primary"
@@ -1030,6 +1042,48 @@ const Profile = () => {
                                                 </div>
                                           </>
                                     )}
+
+                                    {isOwnProfile && (
+                                          <div className="profile-manage-card">
+                                                <div className="profile-manage-head">
+                                                      <div>
+                                                            <h3 className="font-semibold">Manage your profile</h3>
+                                                            <p className="text-sm text-muted">Mobile par messages, settings, profile editing, aur admin tools ko yahin se quickly open karo.</p>
+                                                      </div>
+                                                      <span
+                                                            className="profile-status-badge pending"
+                                                            style={{
+                                                                  background: 'rgba(99, 102, 241, 0.12)',
+                                                                  borderColor: 'rgba(99, 102, 241, 0.24)',
+                                                                  color: '#4338ca'
+                                                            }}
+                                                      >
+                                                            Mobile ready
+                                                      </span>
+                                                </div>
+
+                                                <div className="profile-manage-grid">
+                                                      <button type="button" className="profile-manage-button" onClick={() => navigate('/messages')}>
+                                                            <strong>Messages</strong>
+                                                            <span>Open inbox, chats and calls</span>
+                                                      </button>
+                                                      <button type="button" className="profile-manage-button" onClick={() => navigate('/settings')}>
+                                                            <strong>Settings</strong>
+                                                            <span>Privacy, notifications and account controls</span>
+                                                      </button>
+                                                      <button type="button" className="profile-manage-button" onClick={openProfileEditor}>
+                                                            <strong>Edit Profile</strong>
+                                                            <span>Update bio, interests and profile song</span>
+                                                      </button>
+                                                      {canAccessAdminPanel && (
+                                                            <button type="button" className="profile-manage-button profile-manage-button--primary" onClick={() => navigate('/admin')}>
+                                                                  <strong>Admin Panel</strong>
+                                                                  <span>Moderation, verifications and platform controls</span>
+                                                            </button>
+                                                      )}
+                                                </div>
+                                          </div>
+                                    )}
                               </div>
                         </div>
 
@@ -1076,7 +1130,7 @@ const Profile = () => {
                         )}
 
                         {editing && isOwnProfile && (
-                              <div className="card mb-xl animate-fadeInUp">
+                              <div id="profile-edit-section" className="card mb-xl animate-fadeInUp">
                                     <h2 className="text-xl font-semibold mb-lg flex items-center gap-sm">Edit Profile</h2>
                                     <div className="grid grid-cols-2 gap-lg">
                                           <div className="input-group">
@@ -1298,6 +1352,13 @@ const Profile = () => {
                                           <label className="input-label">Daily Usage Limit (minutes)</label>
                                           <input type="number" className="input" min="0" max="480" value={editData.dailyUsageLimit} onChange={(e) => { const value = parseInt(e.target.value) || 0; setEditData(prev => ({ ...prev, dailyUsageLimit: value })); }} placeholder="0 = unlimited" />
                                           <p className="text-xs text-muted mt-xs">Set 0 for unlimited.</p>
+                                    </div>
+                                    <div className="profile-inline-actions">
+                                          <button type="button" onClick={() => navigate('/messages')} className="btn btn-secondary">Open Messages</button>
+                                          <button type="button" onClick={() => navigate('/settings')} className="btn btn-secondary">Full Settings</button>
+                                          {canAccessAdminPanel && (
+                                                <button type="button" onClick={() => navigate('/admin')} className="btn btn-primary">Open Admin Panel</button>
+                                          )}
                                     </div>
                                     <button onClick={handleSaveProfile} className="btn btn-primary mt-lg">Save Settings</button>
                                     <hr style={{ border: 'none', borderTop: '1px solid var(--color-border)', margin: 'var(--space-xl) 0' }} />
