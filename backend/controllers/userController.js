@@ -2,6 +2,13 @@ const User = require('../models/User');
 const { getReceiverSocketId, io } = require('../socket/socket');
 const { sendProfileUpdateEmail } = require('../config/emailService');
 
+const buildUploadedFileUrl = (file) => {
+      if (!file) return '';
+      if (file.path && /^https?:\/\//i.test(file.path)) return file.path;
+      if (file.filename) return `/uploads/${file.filename}`;
+      return '';
+};
+
 // @desc    Get user profile by MongoDB ID
 // @route   GET /api/users/id/:id
 // @access  Private
@@ -95,6 +102,53 @@ const updateProfile = async (req, res) => {
             res.status(500).json({
                   success: false,
                   message: 'Failed to update profile',
+                  error: error.message
+            });
+      }
+};
+
+// @desc    Upload user profile avatar
+// @route   POST /api/users/profile/avatar
+// @access  Private
+const uploadProfileAvatar = async (req, res) => {
+      try {
+            if (!req.file) {
+                  return res.status(400).json({
+                        success: false,
+                        message: 'Avatar file is required'
+                  });
+            }
+
+            if (req.file.mimetype && !req.file.mimetype.startsWith('image/')) {
+                  return res.status(400).json({
+                        success: false,
+                        message: 'Only image files are allowed for profile photos'
+                  });
+            }
+
+            const avatar = buildUploadedFileUrl(req.file);
+            if (!avatar) {
+                  return res.status(400).json({
+                        success: false,
+                        message: 'Could not process the uploaded avatar'
+                  });
+            }
+
+            const user = await User.findByIdAndUpdate(
+                  req.user.id,
+                  { avatar },
+                  { new: true, runValidators: true }
+            );
+
+            res.json({
+                  success: true,
+                  message: 'Profile photo updated successfully',
+                  data: { user: user.getAuthProfile() }
+            });
+      } catch (error) {
+            res.status(500).json({
+                  success: false,
+                  message: 'Failed to upload profile photo',
                   error: error.message
             });
       }
@@ -727,6 +781,7 @@ module.exports = {
       getUserById,
       getUserProfile,
       updateProfile,
+      uploadProfileAvatar,
       updateInterests,
       updateFeedPreferences,
       toggleFocusMode,

@@ -7,7 +7,8 @@ import SpotifySearch from '../components/Music/SpotifySearch';
 import { useMusic } from '../context/MusicContext';
 import UserAvatar from '../components/User/UserAvatar';
 import CricketGame from '../components/Games/CricketGame';
-import { CheckIcon, MessageIcon, UserPlusIcon } from '../components/Icons/ActionIcons';
+import { BlockIcon, CheckIcon, ClockIcon, EditIcon, MessageIcon, SettingsIcon, UserPlusIcon } from '../components/Icons/ActionIcons';
+import { resolveAssetUrl } from '../utils/media';
 
 const INTERESTS = [
       'learning', 'technology', 'creativity', 'health',
@@ -25,7 +26,7 @@ const FEED_MODES = [
 
 const Profile = () => {
       const { username } = useParams();
-      const { user, token, isAuthenticated, updateProfile, logout, blockUser, unblockUser, updateFollowState } = useAuth();
+      const { user, token, isAuthenticated, updateProfile, uploadAvatar, logout, blockUser, unblockUser, updateFollowState } = useAuth();
       const navigate = useNavigate();
       const fileInputRef = useRef(null);
       const { playTrack, stopTrack, currentTrack, isPlaying: isMusicPlayingGlobal } = useMusic();
@@ -437,26 +438,21 @@ const Profile = () => {
             setMessage('');
 
             try {
-                  const formData = new FormData();
-                  formData.append('avatar', file);
+                  const result = await uploadAvatar(file);
+                  const nextAvatar = result.data?.user?.avatar;
 
-                  const reader = new FileReader();
-                  reader.onloadend = async () => {
-                        const avatarUrl = reader.result;
-                        const result = await updateProfile({ avatar: avatarUrl });
-                        if (result.success) {
-                              setEditData(prev => ({ ...prev, avatar: avatarUrl }));
-                              setProfileUser(prev => ({ ...prev, avatar: avatarUrl }));
-                              setMessage('Profile photo updated.');
-                        } else {
-                              setMessage('Failed to update photo.');
-                        }
-                        setUploadingPhoto(false);
-                  };
-                  reader.readAsDataURL(file);
+                  if (result.success && nextAvatar) {
+                        setEditData(prev => ({ ...prev, avatar: nextAvatar }));
+                        setProfileUser(prev => ({ ...prev, avatar: nextAvatar }));
+                        setMessage('Profile photo updated.');
+                  } else {
+                        setMessage(result.message || 'Failed to update photo.');
+                  }
             } catch (error) {
                   setMessage('Failed to upload photo.');
+            } finally {
                   setUploadingPhoto(false);
+                  if (e.target) e.target.value = '';
             }
       };
 
@@ -939,20 +935,29 @@ const Profile = () => {
                                                       onClick={() => editing ? setEditing(false) : openProfileEditor()}
                                                       className={`btn ${editing ? 'btn-ghost' : 'btn-secondary'}`}
                                                 >
-                                                      {editing ? 'Cancel' : 'Edit Profile'}
+                                                      <span className="profile-action-label">
+                                                            <EditIcon size={16} />
+                                                            {editing ? 'Cancel' : 'Edit Profile'}
+                                                      </span>
                                                 </button>
                                                 <button
                                                       onClick={() => navigate('/messages')}
                                                       className="btn btn-secondary"
                                                       style={{ position: 'relative' }}
                                                 >
-                                                      Messages
+                                                      <span className="profile-action-label">
+                                                            <MessageIcon size={16} />
+                                                            Messages
+                                                      </span>
                                                 </button>
                                                 <button
                                                       onClick={() => navigate('/settings')}
                                                       className="btn btn-secondary"
                                                 >
-                                                      Settings
+                                                      <span className="profile-action-label">
+                                                            <SettingsIcon size={16} />
+                                                            Settings
+                                                      </span>
                                                 </button>
                                                 {canAccessAdminPanel && (
                                                       <button
@@ -991,10 +996,7 @@ const Profile = () => {
                                                             <span>Loading...</span>
                                                       ) : followRequested ? (
                                                             <span className="profile-action-label">
-                                                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                                        <circle cx="12" cy="12" r="9" />
-                                                                        <path d="M12 7v5l3 2" />
-                                                                  </svg>
+                                                                  <ClockIcon size={14} />
                                                                   Requested
                                                             </span>
                                                       ) : isFollowing ? (
@@ -1034,10 +1036,7 @@ const Profile = () => {
                                                             'Loading...'
                                                       ) : (
                                                             <span className="profile-action-label">
-                                                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                                        <circle cx="12" cy="12" r="9" />
-                                                                        <path d="M8.5 8.5l7 7" />
-                                                                  </svg>
+                                                                  <BlockIcon size={14} />
                                                                   {isBlocked ? 'Unblock' : 'Block'}
                                                             </span>
                                                       )}
@@ -1393,7 +1392,7 @@ const Profile = () => {
                                                       }}
                                                 >✕</button>
                                                 <img
-                                                      src={profileUser.avatar}
+                                                      src={resolveAssetUrl(profileUser.avatar)}
                                                       alt="Profile"
                                                       style={{
                                                             maxWidth: '100%',
@@ -1467,7 +1466,7 @@ const Profile = () => {
                                                                   >
                                                                         <div className="avatar avatar-md" style={{ overflow: 'hidden' }}>
                                                                               {follower.avatar ? (
-                                                                                    <img src={follower.avatar} alt={follower.displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                                                    <img src={resolveAssetUrl(follower.avatar)} alt={follower.displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                                                               ) : (
                                                                                     <span>{follower.displayName?.charAt(0) || follower.username?.charAt(0) || 'U'}</span>
                                                                               )}
@@ -1558,7 +1557,7 @@ const Profile = () => {
                                                                   >
                                                                         <div className="avatar avatar-md" style={{ overflow: 'hidden' }}>
                                                                               {following.avatar ? (
-                                                                                    <img src={following.avatar} alt={following.displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                                                    <img src={resolveAssetUrl(following.avatar)} alt={following.displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                                                               ) : (
                                                                                     <span>{following.displayName?.charAt(0) || following.username?.charAt(0) || 'U'}</span>
                                                                               )}

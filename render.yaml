@@ -18,6 +18,12 @@ services:
         value: 30d
       - key: NODE_ENV
         value: production
+      - key: CLIENT_URL
+        value: https://zunoworld.tech
+      - key: ADMIN_URL
+        value: https://zuno-admin.onrender.com
+      - key: CORS_ORIGINS
+        sync: false
       - key: GOOGLE_CLIENT_ID
         sync: false
       # ⚠️ DO NOT add Cloudinary secrets here. Set them in Render dashboard → Environment.
@@ -48,8 +54,6 @@ services:
         sync: false
       - key: EMAIL_PASS
         sync: false
-      - key: CLIENT_URL
-        value: https://zunoworld.tech
 
   # Frontend Static Site
   - type: web
@@ -67,7 +71,13 @@ services:
         name: Cache-Control
         value: public, max-age=0, must-revalidate
     envVars:
+      - key: VITE_API_BASE_URL
+        value: https://zuno-backend-bevi.onrender.com
       - key: VITE_API_URL
         value: https://zuno-backend-bevi.onrender.com
+      - key: VITE_APP_URL
+        value: https://zunoworld.tech
+      - key: VITE_STREAM_POLL_INTERVAL_MS
+        value: 10000
       - key: VITE_GOOGLE_CLIENT_ID
         sync: false

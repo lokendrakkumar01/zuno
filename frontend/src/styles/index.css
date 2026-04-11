@@ -931,6 +931,7 @@ video {
   transition: all var(--transition-fast);
   padding: var(--space-xs) var(--space-sm);
   border-radius: var(--radius-md);
+  min-height: 36px;
 }
 
 .interaction-btn:hover {
@@ -944,6 +945,14 @@ video {
 
 .interaction-btn.active.helpful {
   color: var(--color-accent-helpful);
+}
+
+.interaction-btn svg,
+.comment-send-btn svg,
+.comment-delete-btn svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
 }
 
 .feature-card:active {
@@ -4087,6 +4096,12 @@ video.chat-media-content {
   max-width: min(240px, 22vw);
 }
 
+.shell-profile-btn img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .shell-profile-copy {
   display: flex;
   flex-direction: column;
@@ -4738,6 +4753,7 @@ video.chat-media-content {
   flex: 1 1 180px;
   min-width: 0;
   padding: 0.8rem 1rem;
+  min-height: 48px;
 }
 
 .profile-action-label {
@@ -4749,8 +4765,8 @@ video.chat-media-content {
 }
 
 .profile-action-label svg {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
 }
 

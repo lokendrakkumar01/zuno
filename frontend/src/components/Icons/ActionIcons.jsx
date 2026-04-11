@@ -64,6 +64,42 @@ export const CheckIcon = createIcon(() => (
       <path d="m5 12.5 4.2 4.2L19 7" />
 ));
 
+export const EditIcon = createIcon(() => (
+      <>
+            <path d="M12 20h8" />
+            <path d="m16.5 3.5 4 4L7 21l-4 1 1-4Z" />
+      </>
+));
+
+export const DownloadIcon = createIcon(() => (
+      <>
+            <path d="M12 3v12" />
+            <path d="m7 10 5 5 5-5" />
+            <path d="M5 21h14" />
+      </>
+));
+
+export const ClockIcon = createIcon(() => (
+      <>
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 7v5l3 2" />
+      </>
+));
+
+export const SettingsIcon = createIcon(() => (
+      <>
+            <path d="M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z" />
+            <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a1.2 1.2 0 1 1-1.7 1.7l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9v.3a1.2 1.2 0 0 1-2.4 0v-.2a1 1 0 0 0-.7-1 1 1 0 0 0-1.1.2l-.1.1a1.2 1.2 0 1 1-1.7-1.7l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6h-.2a1.2 1.2 0 1 1 0-2.4h.2a1 1 0 0 0 1-.7 1 1 0 0 0-.2-1.1l-.1-.1a1.2 1.2 0 1 1 1.7-1.7l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V5.2a1.2 1.2 0 1 1 2.4 0v.2a1 1 0 0 0 .7 1 1 1 0 0 0 1.1-.2l.1-.1a1.2 1.2 0 1 1 1.7 1.7l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6h.3a1.2 1.2 0 0 1 0 2.4h-.2a1 1 0 0 0-1 .7Z" />
+      </>
+));
+
+export const BlockIcon = createIcon(() => (
+      <>
+            <circle cx="12" cy="12" r="9" />
+            <path d="m8.5 8.5 7 7" />
+      </>
+));
+
 export const UserPlusIcon = createIcon(() => (
       <>
             <path d="M15.5 19.5v-1.2a3.8 3.8 0 0 0-3.8-3.8H7.8A3.8 3.8 0 0 0 4 18.3v1.2" />

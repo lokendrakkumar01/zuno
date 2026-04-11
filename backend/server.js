@@ -6,6 +6,7 @@ const path = require('path');
 require('dotenv').config();
 
 const connectDB = require('./config/db');
+const { isOriginAllowed } = require('./config/appConfig');
 const { apiLimiter, uploadLimiter, messageLimiter } = require('./middleware/rateLimit');
 const errorHandler = require('./middleware/errorMiddleware');
 const mongoose = require('mongoose');
@@ -38,31 +39,11 @@ app.use(helmet({
   contentSecurityPolicy: false // we manage CSP separately if needed
 }));
 
-// Strict CORS: only allow known origins
-const allowedOrigins = [
-  'https://zunoworld.tech',
-  'https://www.zunoworld.tech',
-  'https://zuno-frontend.onrender.com',
-  'https://zuno-admin.onrender.com',
-  'http://localhost:3000',
-  'https://localhost:3000',
-  'http://localhost:5173',
-  'https://localhost:5173',
-  'http://localhost:5174',
-  'https://localhost:5174',
-  'http://localhost:4173',
-  'https://localhost:4173',
-  'http://localhost:4174',
-  'https://localhost:4174',
-  'http://localhost:3001',
-  'https://localhost:3001',
-];
-
 const corsOptions = {
   origin: (origin, callback) => {
     // Allow no-origin requests (mobile apps, Capacitor, curl, health checks)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin) || /\.onrender\.com$/.test(origin)) {
+    if (isOriginAllowed(origin)) {
       return callback(null, true);
     }
     console.warn(`[CORS] Blocked request from origin: ${origin}`);
@@ -134,7 +115,7 @@ app.get('/', (req, res) => {
         <div class="logo">Z</div>
         <h1>ZUNO API Server</h1>
         <p>Backend is running.</p>
-        <a href="http://localhost:3000" class="btn">Open ZUNO Frontend</a>
+        <a href="${process.env.CLIENT_URL || 'https://zunoworld.tech'}" class="btn">Open ZUNO Frontend</a>
       </div>
     </body>
     </html>

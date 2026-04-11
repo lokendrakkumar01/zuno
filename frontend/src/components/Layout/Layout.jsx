@@ -7,6 +7,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useSocketContext } from '../../context/SocketContext';
 import { useTheme } from '../../context/ThemeContext';
 import { API_URL } from '../../config';
+import { resolveAssetUrl } from '../../utils/media';
 
 const navItems = [
       {
@@ -139,7 +140,7 @@ const Layout = () => {
       );
 
       const profileAvatar = user?.avatar ? (
-            <img src={user.avatar} alt={profileLabel} />
+            <img src={resolveAssetUrl(user.avatar)} alt={profileLabel} />
       ) : (
             <span>{(user?.displayName?.charAt(0) || user?.username?.charAt(0) || 'U').toUpperCase()}</span>
       );

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { API_URL } from '../../config';
 import { SendIcon, TrashIcon } from '../Icons/ActionIcons';
+import { resolveAssetUrl } from '../../utils/media';
 
 const CommentSection = ({ contentId, onCountChange }) => {
       const { token, user: currentUser } = useAuth();
@@ -93,7 +94,7 @@ const CommentSection = ({ contentId, onCountChange }) => {
                         <form onSubmit={handleSubmit} className="comment-composer">
                               <div className="avatar avatar-sm">
                                     {currentUser?.avatar ? (
-                                          <img src={currentUser.avatar} alt={currentUser.displayName} />
+                                          <img src={resolveAssetUrl(currentUser.avatar)} alt={currentUser.displayName} />
                                     ) : (
                                           currentUser?.displayName?.charAt(0).toUpperCase() || 'U'
                                     )}
@@ -133,7 +134,7 @@ const CommentSection = ({ contentId, onCountChange }) => {
                                           <Link to={`/u/${comment.user.username}`}>
                                                 <div className="avatar avatar-sm">
                                                       {comment.user.avatar ? (
-                                                            <img src={comment.user.avatar} alt={comment.user.displayName} />
+                                                            <img src={resolveAssetUrl(comment.user.avatar)} alt={comment.user.displayName} />
                                                       ) : (
                                                             comment.user.displayName?.charAt(0).toUpperCase() || 'U'
                                                       )}

@@ -2,10 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useMusic } from '../context/MusicContext';
-import { API_URL, API_BASE_URL } from '../config';
+import { API_URL } from '../config';
 import CommentSection from '../components/Content/CommentSection';
-import { BookmarkIcon, CheckIcon, CommentIcon, HeartIcon, ShareIcon } from '../components/Icons/ActionIcons';
+import { BookmarkIcon, CheckIcon, CommentIcon, DownloadIcon, EditIcon, HeartIcon, ShareIcon } from '../components/Icons/ActionIcons';
 import { resolveAssetUrl } from '../utils/media';
+import { shareContentLink } from '../utils/shareContent';
 
 // Separate component for media items to avoid React hooks violation
 const MediaItem = ({ m, content }) => {
@@ -250,30 +251,20 @@ const ContentView = () => {
             setShareBusy(true);
 
             try {
-                  const res = await fetch(`${API_URL}/content/${id}/share`, {
-                        method: 'POST'
+                  const result = await shareContentLink({
+                        contentId: id,
+                        title: content.title || content.body,
+                        token
                   });
-                  const data = await res.json();
-                  const shareUrl = data.data?.shareUrl || `${window.location.origin}/content/${id}`;
 
-                  updateContentState((prev) => ({
-                        ...prev,
-                        metrics: {
-                              ...(prev.metrics || {}),
-                              shareCount: data.data?.shareCount ?? prev.metrics?.shareCount ?? 0
-                        }
-                  }));
-
-                  if (navigator.share) {
-                        await navigator.share({
-                              title: content.title || 'ZUNO content',
-                              text: content.body?.slice(0, 120) || 'Check this out on ZUNO.',
-                              url: shareUrl
-                        });
-                  } else if (navigator.clipboard?.writeText) {
-                        await navigator.clipboard.writeText(shareUrl);
-                  } else {
-                        window.open(shareUrl, '_blank', 'noopener,noreferrer');
+                  if (result.success && result.shareCount !== null) {
+                        updateContentState((prev) => ({
+                              ...prev,
+                              metrics: {
+                                    ...(prev.metrics || {}),
+                                    shareCount: result.shareCount ?? prev.metrics?.shareCount ?? 0
+                              }
+                        }));
                   }
             } catch (error) {
                   console.error('Failed to share content:', error);
@@ -287,7 +278,7 @@ const ContentView = () => {
 
             try {
                   const media = content.media[0];
-                  const url = media.url?.startsWith('http') ? media.url : `${API_BASE_URL}${media.url}`;
+                  const url = resolveAssetUrl(media.url);
                   const filename = `zuno-${content._id}.${media.type === 'video' ? 'mp4' : 'jpg'}`;
                   const res = await fetch(url);
                   const blob = await res.blob();
@@ -390,10 +381,7 @@ const ContentView = () => {
                                                       className={`btn ${editingContent ? 'btn-primary' : 'btn-secondary'} btn-sm flex items-center gap-sm`}
                                                       onClick={() => setEditingContent((prev) => !prev)}
                                                 >
-                                                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                            <path d="M12 20h9" />
-                                                            <path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4Z" />
-                                                      </svg>
+                                                      <EditIcon size={16} />
                                                       <span>{editingContent ? 'Close editor' : 'Edit content'}</span>
                                                 </button>
                                           )}
@@ -600,10 +588,7 @@ const ContentView = () => {
                                                             className="btn btn-ghost w-full flex items-center justify-center gap-sm"
                                                             onClick={() => setEditingContent((prev) => !prev)}
                                                       >
-                                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                                  <path d="M12 20h9" />
-                                                                  <path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4Z" />
-                                                            </svg>
+                                                            <EditIcon size={18} />
                                                             {editingContent ? 'Hide editor' : 'Edit title and description'}
                                                       </button>
                                                 )}
@@ -612,11 +597,7 @@ const ContentView = () => {
                                                             className="btn btn-ghost w-full flex items-center justify-center gap-sm text-indigo-600 border border-indigo-100"
                                                             onClick={handleDownloadMedia}
                                                       >
-                                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                                  <path d="M12 3v12" />
-                                                                  <path d="m7 10 5 5 5-5" />
-                                                                  <path d="M5 21h14" />
-                                                            </svg>
+                                                            <DownloadIcon size={18} />
                                                             Download Media
                                                       </button>
                                                 )}

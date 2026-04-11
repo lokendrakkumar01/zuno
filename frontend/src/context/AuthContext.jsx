@@ -286,6 +286,32 @@ export const AuthProvider = ({ children }) => {
             }
       };
 
+      const uploadAvatar = async (file) => {
+            try {
+                  const formData = new FormData();
+                  formData.append('avatar', file);
+
+                  const res = await fetch(`${API_URL}/users/profile/avatar`, {
+                        method: 'POST',
+                        headers: {
+                              'Authorization': `Bearer ${token}`
+                        },
+                        body: formData
+                  });
+                  const data = await res.json();
+
+                  if (data.success) {
+                        setUser(data.data.user);
+                        localStorage.setItem('zuno_user', JSON.stringify(data.data.user));
+                        return { success: true, message: data.message, data: data.data };
+                  }
+
+                  return { success: false, message: data.message || 'Failed to upload profile photo.' };
+            } catch (error) {
+                  return { success: false, message: 'Failed to upload profile photo.' };
+            }
+      };
+
       const blockUser = async (userId) => {
             try {
                   const res = await fetch(`${API_URL}/users/${userId}/block`, {
@@ -352,6 +378,7 @@ export const AuthProvider = ({ children }) => {
             register,
             logout,
             updateProfile,
+            uploadAvatar,
             blockUser,
             unblockUser,
             updateFollowState

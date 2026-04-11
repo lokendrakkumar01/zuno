@@ -4,6 +4,7 @@ const {
       getUserById,
       getUserProfile,
       updateProfile,
+      uploadProfileAvatar,
       updateInterests,
       updateFeedPreferences,
       toggleFocusMode,
@@ -26,6 +27,7 @@ const {
 } = require('../controllers/userController');
 
 const { protect } = require('../middleware/auth');
+const { uploadImage } = require('../middleware/upload');
 
 // Get user by MongoDB ID (used by Chat component for fast lookup)
 router.get('/id/:id', protect, getUserById);
@@ -41,6 +43,7 @@ router.delete('/close-friends/:id', protect, removeCloseFriend);
 // Protected routes
 router.get('/requests/pending', protect, getFollowRequests);
 router.put('/profile', protect, updateProfile);
+router.post('/profile/avatar', protect, uploadImage.single('avatar'), uploadProfileAvatar);
 router.put('/interests', protect, updateInterests);
 router.put('/feed-preferences', protect, updateFeedPreferences);
 router.put('/focus-mode', protect, toggleFocusMode);

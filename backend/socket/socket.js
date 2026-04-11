@@ -3,33 +3,15 @@ const http = require("http");
 const express = require("express");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const { isOriginAllowed } = require("../config/appConfig");
 
 const app = express();
 const server = http.createServer(app);
 
-const allowedOrigins = [
-  'https://zunoworld.tech',
-  'https://www.zunoworld.tech',
-  'https://zuno-frontend.onrender.com',
-  'https://zuno-admin.onrender.com',
-  'http://localhost:3000',
-  'https://localhost:3000',
-  'http://localhost:5173',
-  'https://localhost:5173',
-  'http://localhost:5174',
-  'https://localhost:5174',
-  'http://localhost:4173',
-  'https://localhost:4173',
-  'http://localhost:4174',
-  'https://localhost:4174',
-  'http://localhost:3001',
-  'https://localhost:3001',
-];
-
 const io = new Server(server, {
   cors: {
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin) || /\.onrender\.com$/.test(origin)) {
+      if (isOriginAllowed(origin)) {
         return callback(null, true);
       }
       return callback(new Error(`Socket CORS: origin ${origin} not allowed`), false);

@@ -2,7 +2,8 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSocketContext } from '../context/SocketContext';
-import { API_URL } from '../config';
+import { API_URL, STREAM_POLL_INTERVAL_MS } from '../config';
+import { resolveAssetUrl } from '../utils/media';
 
 const REACTION_OPTIONS = ['❤', '😂', '👏', '🔥'];
 const ACTIVE_STREAMS_CACHE_KEY = 'zuno_live_streams_cache';
@@ -126,7 +127,7 @@ const LiveStream = () => {
             if (isHostMode || isViewMode) return undefined;
 
             loadActiveStreams();
-            const intervalId = window.setInterval(loadActiveStreams, 10000);
+            const intervalId = window.setInterval(loadActiveStreams, STREAM_POLL_INTERVAL_MS);
             return () => window.clearInterval(intervalId);
       }, [isHostMode, isViewMode, loadActiveStreams]);
 
@@ -469,7 +470,7 @@ const LiveStream = () => {
                                                       <div className="live-stream-card-body">
                                                             <div className="live-stream-host">
                                                                   {stream.hostAvatar ? (
-                                                                        <img src={stream.hostAvatar} alt={stream.hostDisplayName} />
+                                                                        <img src={resolveAssetUrl(stream.hostAvatar)} alt={stream.hostDisplayName} />
                                                                   ) : (
                                                                         <span>{stream.hostDisplayName?.charAt(0) || 'Z'}</span>
                                                                   )}
@@ -652,7 +653,7 @@ const LiveStream = () => {
                                     comments.map((comment, index) => (
                                           <div key={`${comment.timestamp || index}-${index}`} className="live-chat-item">
                                                 {comment.avatar ? (
-                                                      <img src={comment.avatar} alt={comment.username} />
+                                                      <img src={resolveAssetUrl(comment.avatar)} alt={comment.username} />
                                                 ) : (
                                                       <span className="live-chat-avatar-fallback">{comment.username?.charAt(0) || 'Z'}</span>
                                                 )}
