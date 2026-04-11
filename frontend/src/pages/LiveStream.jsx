@@ -1,34 +1,10 @@
-import { useState, useEffect, useRef, useCallback, memo } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import {
-      LiveKitRoom,
-      VideoConference
-} from '@livekit/components-react';
-import '@livekit/components-styles';
 import { useAuth } from '../context/AuthContext';
 import { useSocketContext } from '../context/SocketContext';
 import { API_URL } from '../config';
 
-const REACTION_OPTIONS = ['❤️', '😂', '👏', '🔥'];
-
-const normalizeLiveKitUrl = (value) => {
-      if (!value) {
-            return null;
-      }
-
-      const trimmed = value.trim().replace(/\/+$/, '');
-
-      if (trimmed.startsWith('https://')) {
-            return `wss://${trimmed.slice('https://'.length)}`;
-      }
-
-      if (trimmed.startsWith('http://')) {
-            return `ws://${trimmed.slice('http://'.length)}`;
-      }
-
-      return trimmed;
-};
-
+const REACTION_OPTIONS = ['❤', '😂', '👏', '🔥'];
 const ACTIVE_STREAMS_CACHE_KEY = 'zuno_live_streams_cache';
 
 const readJsonCache = (key, fallback) => {
@@ -38,6 +14,18 @@ const readJsonCache = (key, fallback) => {
       } catch {
             return fallback;
       }
+};
+
+const CopyField = ({ label, value, onCopy, secret = false }) => {
+      const maskedValue = secret ? `${value.slice(0, 6)}...${value.slice(-4)}` : value;
+
+      return (
+            <div className="live-copy-card">
+                  <span>{label}</span>
+                  <code>{maskedValue}</code>
+                  <button type="button" onClick={() => onCopy(value)}>Copy</button>
+            </div>
+      );
 };
 
 const ReactionsManager = memo(({ socket }) => {
@@ -60,10 +48,7 @@ const ReactionsManager = memo(({ socket }) => {
             };
 
             socket.on('newStreamComment', handleComment);
-
-            return () => {
-                  socket.off('newStreamComment', handleComment);
-            };
+            return () => socket.off('newStreamComment', handleComment);
       }, [socket]);
 
       return reactions.map((reaction) => (
@@ -75,9 +60,9 @@ const ReactionsManager = memo(({ socket }) => {
 
 const LiveStream = () => {
       const { hostId } = useParams();
+      const navigate = useNavigate();
       const { user, token } = useAuth();
       const { socket, isConnected } = useSocketContext();
-      const navigate = useNavigate();
 
       const isHostMode = hostId === 'host';
       const isViewMode = Boolean(hostId && hostId !== 'host');
@@ -85,6 +70,7 @@ const LiveStream = () => {
       const [streamTitle, setStreamTitle] = useState('');
       const [streamDescription, setStreamDescription] = useState('');
       const [streamInfo, setStreamInfo] = useState(null);
+      const [sessionData, setSessionData] = useState(null);
       const [comments, setComments] = useState([]);
       const [commentText, setCommentText] = useState('');
       const [viewerCount, setViewerCount] = useState(0);
@@ -94,17 +80,24 @@ const LiveStream = () => {
       const [streamError, setStreamError] = useState('');
       const [isStarting, setIsStarting] = useState(false);
       const [slowModeEnabled, setSlowModeEnabled] = useState(false);
-
-      const [lkToken, setLkToken] = useState(null);
-      const [lkUrl, setLkUrl] = useState(null);
-      const [lkRoomName, setLkRoomName] = useState(null);
+      const [copyFeedback, setCopyFeedback] = useState('');
 
       const commentsEndRef = useRef(null);
-      const tokenRetryRef = useRef(0);
 
       useEffect(() => {
             commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, [comments]);
+
+      const copyToClipboard = useCallback(async (value) => {
+            try {
+                  await navigator.clipboard.writeText(value);
+                  setCopyFeedback('Copied');
+            } catch {
+                  setCopyFeedback('Copy failed');
+            }
+
+            window.setTimeout(() => setCopyFeedback(''), 1500);
+      }, []);
 
       const loadActiveStreams = useCallback(async () => {
             if (isHostMode || isViewMode) return;
@@ -119,11 +112,7 @@ const LiveStream = () => {
                   const data = await res.json();
                   const nextStreams = data.success ? data.data.streams || [] : [];
                   setActiveStreams(nextStreams);
-                  try {
-                        localStorage.setItem(ACTIVE_STREAMS_CACHE_KEY, JSON.stringify(nextStreams));
-                  } catch {
-                        // Cache writes are optional.
-                  }
+                  localStorage.setItem(ACTIVE_STREAMS_CACHE_KEY, JSON.stringify(nextStreams));
             } catch {
                   if (cachedStreams.length === 0) {
                         setActiveStreams([]);
@@ -137,17 +126,16 @@ const LiveStream = () => {
             if (isHostMode || isViewMode) return undefined;
 
             loadActiveStreams();
-            const interval = setInterval(loadActiveStreams, 10000);
-
-            return () => clearInterval(interval);
+            const intervalId = window.setInterval(loadActiveStreams, 10000);
+            return () => window.clearInterval(intervalId);
       }, [isHostMode, isViewMode, loadActiveStreams]);
 
       useEffect(() => {
             if (!isViewMode || !hostId) return undefined;
 
             let ignore = false;
-            const streamInfoCacheKey = `zuno_live_stream_${hostId}`;
-            const cachedStreamInfo = readJsonCache(streamInfoCacheKey, null);
+            const cacheKey = `zuno_live_stream_${hostId}`;
+            const cachedStreamInfo = readJsonCache(cacheKey, null);
 
             if (cachedStreamInfo) {
                   setStreamInfo(cachedStreamInfo);
@@ -167,11 +155,7 @@ const LiveStream = () => {
                               setStreamTitle(nextStream?.title || '');
                               setStreamDescription(nextStream?.description || '');
                               setViewerCount(nextStream?.viewerCount || 0);
-                              try {
-                                    localStorage.setItem(streamInfoCacheKey, JSON.stringify(nextStream));
-                              } catch {
-                                    // Cache writes are optional.
-                              }
+                              localStorage.setItem(cacheKey, JSON.stringify(nextStream));
                         }
                   } catch {
                         if (!ignore) {
@@ -181,11 +165,34 @@ const LiveStream = () => {
             };
 
             loadStreamInfo();
-
             return () => {
                   ignore = true;
             };
       }, [hostId, isViewMode]);
+
+      const requestStreamSession = useCallback(async ({ isHost, title, description, targetHostId }) => {
+            const res = await fetch(`${API_URL}/livestream/session`, {
+                  method: 'POST',
+                  headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`
+                  },
+                  cache: 'no-store',
+                  body: JSON.stringify({
+                        isHost,
+                        title,
+                        description,
+                        hostId: targetHostId
+                  })
+            });
+
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                  throw new Error(data.message || 'Failed to prepare stream session.');
+            }
+
+            return data.data;
+      }, [token]);
 
       useEffect(() => {
             if (!socket) return undefined;
@@ -195,134 +202,54 @@ const LiveStream = () => {
                         loadActiveStreams();
                   }
             };
-            const handleStreamEndedRefresh = () => {
+
+            const handleStreamEnded = ({ hostId: endedHostId } = {}) => {
                   if (!isHostMode && !isViewMode) {
                         loadActiveStreams();
                   }
+
+                  if (
+                        (isViewMode && String(endedHostId) === String(hostId))
+                        || (isHostMode && String(endedHostId) === String(user?._id))
+                  ) {
+                        setIsLive(false);
+                        setStreamError('This stream has ended.');
+                  }
             };
+
             const handleViewerJoined = ({ viewerCount: nextViewerCount }) => setViewerCount(nextViewerCount || 0);
             const handleViewerLeft = ({ viewerCount: nextViewerCount }) => setViewerCount(nextViewerCount || 0);
             const handleNewComment = (data) => {
                   if (data.comment?.startsWith('REACTION:')) return;
                   setComments((prev) => [...prev.slice(-199), data]);
             };
-            const handleStreamEnded = () => {
-                  setIsLive(false);
-                  setStreamError('This stream has ended.');
-                  setLkToken(null);
-                  setLkUrl(null);
-                  setLkRoomName(null);
-            };
             const handleStreamNotFound = () => setStreamError('Stream not found or already offline.');
             const handleStreamJoined = (payload) => {
                   setViewerCount(payload.viewerCount || 0);
                   setSlowModeEnabled(Boolean(payload.slowMode));
             };
-            const handleSlowModeUpdated = (payload) => {
-                  setSlowModeEnabled(Boolean(payload.enabled));
-            };
+            const handleSlowModeUpdated = (payload) => setSlowModeEnabled(Boolean(payload.enabled));
 
             socket.on('streamStarted', handleStreamStarted);
-            socket.on('streamEnded', handleStreamEndedRefresh);
+            socket.on('streamEnded', handleStreamEnded);
             socket.on('viewerJoined', handleViewerJoined);
             socket.on('viewerLeft', handleViewerLeft);
             socket.on('newStreamComment', handleNewComment);
-            socket.on('streamEnded', handleStreamEnded);
             socket.on('streamNotFound', handleStreamNotFound);
             socket.on('streamJoined', handleStreamJoined);
             socket.on('slowModeUpdated', handleSlowModeUpdated);
 
             return () => {
                   socket.off('streamStarted', handleStreamStarted);
-                  socket.off('streamEnded', handleStreamEndedRefresh);
+                  socket.off('streamEnded', handleStreamEnded);
                   socket.off('viewerJoined', handleViewerJoined);
                   socket.off('viewerLeft', handleViewerLeft);
                   socket.off('newStreamComment', handleNewComment);
-                  socket.off('streamEnded', handleStreamEnded);
                   socket.off('streamNotFound', handleStreamNotFound);
                   socket.off('streamJoined', handleStreamJoined);
                   socket.off('slowModeUpdated', handleSlowModeUpdated);
             };
-      }, [isHostMode, isViewMode, loadActiveStreams, socket]);
-
-      const requestLiveAccess = useCallback(async ({ isHost, roomName, title, description }) => {
-            const res = await fetch(`${API_URL}/livestream/token`, {
-                  method: 'POST',
-                  headers: {
-                        'Content-Type': 'application/json',
-                        Authorization: `Bearer ${token}`
-                  },
-                  cache: 'no-store',
-                  body: JSON.stringify({
-                        isHost,
-                        roomName,
-                        title,
-                        description
-                  })
-            });
-            const data = await res.json();
-
-            if (!data.success) {
-                  throw new Error(data.message || 'Failed to get stream token');
-            }
-
-            const roomUrl = normalizeLiveKitUrl(data.data.wsUrl);
-            if (!roomUrl) {
-                  throw new Error('Live room URL is missing on the server.');
-            }
-
-            return {
-                  token: data.data.token,
-                  roomName: data.data.roomName || roomName,
-                  roomUrl
-            };
-      }, [token]);
-
-      const reconnectLiveAccess = useCallback(async () => {
-            if (!user) {
-                  return false;
-            }
-
-            const fallbackRoomName = lkRoomName
-                  || streamInfo?.roomId
-                  || streamInfo?.id
-                  || (isHostMode ? `stream_${user._id}` : `stream_${hostId}`);
-
-            const access = await requestLiveAccess({
-                  isHost: isHostMode,
-                  roomName: isHostMode ? undefined : fallbackRoomName,
-                  title: isHostMode ? (streamTitle || `${user.displayName || user.username}'s Live`) : undefined,
-                  description: isHostMode ? streamDescription : undefined
-            });
-
-            setLkToken(access.token);
-            setLkUrl(access.roomUrl);
-            setLkRoomName(access.roomName);
-            setStreamError('');
-            return true;
-      }, [hostId, isHostMode, lkRoomName, requestLiveAccess, streamDescription, streamInfo, streamTitle, user]);
-
-      const handleRoomError = useCallback((message) => {
-            if (/invalid token/i.test(message) && tokenRetryRef.current < 1) {
-                  tokenRetryRef.current += 1;
-                  setStreamError('Refreshing secure stream access...');
-                  reconnectLiveAccess().catch(() => {
-                        setStreamError(message);
-                  });
-                  return;
-            }
-
-            setStreamError(message);
-      }, [reconnectLiveAccess]);
-
-      const warmupLocalMedia = useCallback(async () => {
-            if (!navigator?.mediaDevices?.getUserMedia) {
-                  return;
-            }
-
-            const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            mediaStream.getTracks().forEach((track) => track.stop());
-      }, []);
+      }, [hostId, isHostMode, isViewMode, loadActiveStreams, socket, user?._id]);
 
       const startStream = useCallback(async () => {
             if (!user || !socket) return;
@@ -335,53 +262,31 @@ const LiveStream = () => {
                         throw new Error('Realtime connection is still getting ready. Please wait a moment and try again.');
                   }
 
-                  await warmupLocalMedia();
+                  const title = streamTitle.trim() || `${user.displayName || user.username}'s Live`;
+                  const description = streamDescription.trim();
+                  const data = await requestStreamSession({ isHost: true, title, description });
 
-                  const title = streamTitle || `${user.displayName || user.username}'s Live`;
-                  const access = await requestLiveAccess({
-                        isHost: true,
-                        title,
-                        description: streamDescription
-                  });
-                  const roomName = access.roomName;
-                  const nextInfo = {
-                        hostId: user._id,
-                        roomId: roomName,
-                        hostUsername: user.username,
-                        hostDisplayName: user.displayName || user.username,
-                        hostAvatar: user.avatar,
-                        title,
-                        description: streamDescription
-                  };
-
-                  setStreamInfo(nextInfo);
-                  setStreamTitle(nextInfo.title);
-                  setLkToken(access.token);
-                  setLkUrl(access.roomUrl);
-                  setLkRoomName(roomName);
+                  setSessionData(data);
+                  setStreamInfo(data.stream);
+                  setStreamTitle(data.stream?.title || title);
+                  setStreamDescription(data.stream?.description || description);
                   setIsLive(true);
                   setComments([]);
                   setViewerCount(0);
                   setSlowModeEnabled(false);
-                  tokenRetryRef.current = 0;
 
                   socket.emit('startStream', {
                         hostId: user._id,
-                        title: nextInfo.title,
-                        description: streamDescription,
-                        roomId: roomName
+                        title: data.stream?.title || title,
+                        description: data.stream?.description || description,
+                        roomId: data.roomId
                   });
             } catch (error) {
-                  const permissionBlocked = error?.name === 'NotAllowedError' || error?.name === 'PermissionDeniedError';
-                  setStreamError(
-                        permissionBlocked
-                              ? 'Camera and microphone permission blocked. Allow access in the browser and try again.'
-                              : (error.message || 'Could not start the stream.')
-                  );
+                  setStreamError(error.message || 'Could not start the stream.');
             } finally {
                   setIsStarting(false);
             }
-      }, [isConnected, requestLiveAccess, socket, streamDescription, streamTitle, user, warmupLocalMedia]);
+      }, [isConnected, requestStreamSession, socket, streamDescription, streamTitle, user]);
 
       const endStream = useCallback(async () => {
             if (!user || !socket) return;
@@ -398,10 +303,8 @@ const LiveStream = () => {
             }
 
             setIsLive(false);
-            setLkToken(null);
-            setLkUrl(null);
-            setLkRoomName(null);
-            tokenRetryRef.current = 0;
+            setSessionData(null);
+            setStreamInfo(null);
             navigate('/live');
       }, [navigate, socket, token, user]);
 
@@ -413,29 +316,28 @@ const LiveStream = () => {
 
             const joinStream = async (attempt = 1) => {
                   try {
-                        const roomName = streamInfo?.roomId || streamInfo?.id || `stream_${hostId}`;
-                        const access = await requestLiveAccess({
+                        const data = await requestStreamSession({
                               isHost: false,
-                              roomName
+                              targetHostId: hostId
                         });
 
                         if (ignore) return;
 
-                        setLkToken(access.token);
-                        setLkUrl(access.roomUrl);
-                        setLkRoomName(access.roomName || roomName);
+                        setSessionData(data);
+                        setStreamInfo(data.stream);
+                        setStreamTitle(data.stream?.title || '');
+                        setStreamDescription(data.stream?.description || '');
+                        setViewerCount(data.stream?.viewerCount || 0);
                         setIsLive(true);
                         setStreamError('');
-                        tokenRetryRef.current = 0;
+
                         socket.emit('joinStream', { hostId, viewerId: user._id });
                   } catch (error) {
                         if (ignore) return;
 
                         if (attempt < 3) {
                               setStreamError('Preparing the live room...');
-                              retryTimer = window.setTimeout(() => {
-                                    joinStream(attempt + 1);
-                              }, 1400);
+                              retryTimer = window.setTimeout(() => joinStream(attempt + 1), 1400);
                               return;
                         }
 
@@ -452,11 +354,11 @@ const LiveStream = () => {
                   }
                   socket.emit('leaveStreamView', { hostId, viewerId: user._id });
             };
-      }, [hostId, isViewMode, requestLiveAccess, socket, streamInfo, user]);
+      }, [hostId, isViewMode, requestStreamSession, socket, user]);
 
       const sendComment = (event) => {
             event.preventDefault();
-            if (!commentText.trim() || !socket) return;
+            if (!commentText.trim() || !socket || !isLive) return;
             if (slowModeEnabled && !isHostMode) return;
 
             socket.emit('streamComment', {
@@ -471,13 +373,13 @@ const LiveStream = () => {
 
       const toggleSlowMode = () => {
             if (!socket || !isHostMode) return;
-            const nextSlowMode = !slowModeEnabled;
-            setSlowModeEnabled(nextSlowMode);
-            socket.emit('setSlowMode', { enabled: nextSlowMode });
+            const nextValue = !slowModeEnabled;
+            setSlowModeEnabled(nextValue);
+            socket.emit('setSlowMode', { enabled: nextValue });
       };
 
       const sendReaction = (emoji) => {
-            if (!socket) return;
+            if (!socket || !isLive) return;
 
             socket.emit('streamComment', {
                   hostId: isHostMode ? user?._id : hostId,
@@ -488,16 +390,18 @@ const LiveStream = () => {
       };
 
       const retryStreamConnection = async () => {
-            setStreamError('');
-
-            if (!isViewMode) return;
+            if (!isViewMode || !user || !socket) return;
 
             try {
-                  await reconnectLiveAccess();
-                  if (socket && user && hostId) {
-                        socket.emit('joinStream', { hostId, viewerId: user._id });
-                        setIsLive(true);
-                  }
+                  setStreamError('');
+                  const data = await requestStreamSession({
+                        isHost: false,
+                        targetHostId: hostId
+                  });
+                  setSessionData(data);
+                  setStreamInfo(data.stream);
+                  setIsLive(true);
+                  socket.emit('joinStream', { hostId, viewerId: user._id });
             } catch (error) {
                   setStreamError(error.message || 'Could not reconnect to the stream.');
             }
@@ -509,18 +413,15 @@ const LiveStream = () => {
                         <div className="container live-dashboard-shell">
                               <section className="live-dashboard-hero">
                                     <div>
-                                          <span className="home-kicker">Stable streaming</span>
-                                          <h1>Live rooms that open fast and stay focused</h1>
-                                          <p>
-                                                Real-time comments, quick join flow, and a cleaner watch layout for both desktop and mobile.
-                                          </p>
+                                          <span className="home-kicker">Cloudinary live streaming</span>
+                                          <h1>Broadcast with RTMP and watch through the Cloudinary player</h1>
+                                          <p>Hosts get encoder details instantly, viewers join the embedded player, and chat stays realtime through sockets.</p>
                                     </div>
-
-                                    {user && (
+                                    {user ? (
                                           <button type="button" onClick={() => navigate('/live/host')} className="btn btn-primary">
-                                                Go Live
+                                                Start Live Setup
                                           </button>
-                                    )}
+                                    ) : null}
                               </section>
 
                               <section className="live-dashboard-strip">
@@ -529,8 +430,8 @@ const LiveStream = () => {
                                           <strong>{activeStreams.length}</strong>
                                     </div>
                                     <div className="live-summary-card">
-                                          <span>Experience</span>
-                                          <strong>Low-lag</strong>
+                                          <span>Streaming</span>
+                                          <strong>Cloudinary</strong>
                                     </div>
                                     <div className="live-summary-card">
                                           <span>Chat</span>
@@ -546,12 +447,12 @@ const LiveStream = () => {
                               ) : activeStreams.length === 0 ? (
                                     <div className="live-empty-card">
                                           <h3>No live streams right now</h3>
-                                          <p>Start the next session and bring your audience in instantly.</p>
-                                          {user && (
+                                          <p>Set up the next Cloudinary stream and bring your audience in with one player link.</p>
+                                          {user ? (
                                                 <button type="button" className="btn btn-secondary" onClick={() => navigate('/live/host')}>
-                                                      Start Stream
+                                                      Open Host Setup
                                                 </button>
-                                          )}
+                                          ) : null}
                                     </div>
                               ) : (
                                     <div className="live-stream-grid">
@@ -606,33 +507,24 @@ const LiveStream = () => {
       }
 
       const liveHeading = streamTitle || streamInfo?.title || (isHostMode ? 'My live stream' : 'Live stream');
+      const playbackUrl = sessionData?.playback?.playerUrl || '';
+      const hlsUrl = sessionData?.playback?.hlsUrl || '';
+      const hlsPublicId = sessionData?.playback?.hlsPublicId || '';
+      const broadcast = sessionData?.broadcast;
 
       return (
             <div className="livestream-layout">
                   <div className="livestream-video-area">
-                        {lkToken && lkUrl ? (
-                              <LiveKitRoom
-                                    connect={Boolean(lkToken && lkUrl)}
-                                    video={isHostMode ? { resolution: { width: 1280, height: 720, frameRate: 24 } } : false}
-                                    audio={isHostMode ? { echoCancellation: true, noiseSuppression: true } : false}
-                                    token={lkToken}
-                                    serverUrl={lkUrl}
-                                    data-lk-theme="default"
-                                    style={{ width: '100%', height: '100%' }}
-                                    onError={(error) => handleRoomError(error.message || 'Live room connection failed.')}
-                                    onMediaDeviceFailure={(_, kind) => {
-                                          const label = kind === 'videoinput' ? 'camera' : 'microphone';
-                                          handleRoomError(`Could not access your ${label}. Check browser permission and device availability.`);
-                                    }}
-                                    onDisconnected={() => {
-                                          if (isViewMode) {
-                                                setIsLive(false);
-                                                setStreamError('Disconnected from the stream.');
-                                          }
-                                    }}
-                              >
-                                    <VideoConference />
-                              </LiveKitRoom>
+                        {playbackUrl ? (
+                              <div className="live-player-shell">
+                                    <iframe
+                                          title={liveHeading}
+                                          src={playbackUrl}
+                                          className="live-player-frame"
+                                          allow="autoplay; fullscreen; picture-in-picture"
+                                          allowFullScreen
+                                    />
+                              </div>
                         ) : null}
 
                         <div className="live-video-overlay">
@@ -640,8 +532,8 @@ const LiveStream = () => {
                                     <div>
                                           <span className="live-badge">LIVE</span>
                                           <h2>{liveHeading}</h2>
-                                          <p>{streamDescription || streamInfo?.description || 'Realtime chat, streaming and stable room controls.'}</p>
-                                          {lkRoomName ? <small className="live-room-label">Room: {lkRoomName}</small> : null}
+                                          <p>{streamDescription || streamInfo?.description || 'Cloudinary-powered playback with realtime audience chat.'}</p>
+                                          {streamInfo?.roomId ? <small className="live-room-label">Room: {streamInfo.roomId}</small> : null}
                                     </div>
 
                                     <div className="live-topbar-actions">
@@ -660,13 +552,12 @@ const LiveStream = () => {
                               </div>
                         </div>
 
-                        {isHostMode && !isLive && (
+                        {isHostMode && !isLive ? (
                               <div className="live-setup-shell">
                                     <div className="live-setup-card">
                                           <span className="home-kicker">Creator setup</span>
-                                          <h2>Start a polished stream</h2>
-                                          <p>Pick a clear title, optionally add context, and launch into a room built for fast join and stable response.</p>
-
+                                          <h2>Prepare your Cloudinary live session</h2>
+                                          <p>Start the session here, then paste the RTMP URL and stream key into OBS or Streamlabs to begin broadcasting.</p>
                                           <input
                                                 type="text"
                                                 className="input"
@@ -674,7 +565,6 @@ const LiveStream = () => {
                                                 value={streamTitle}
                                                 onChange={(event) => setStreamTitle(event.target.value)}
                                           />
-
                                           <textarea
                                                 className="input"
                                                 placeholder="What are you streaming about?"
@@ -682,39 +572,37 @@ const LiveStream = () => {
                                                 onChange={(event) => setStreamDescription(event.target.value)}
                                                 rows={3}
                                           />
-
-                                          {streamError && <p className="live-error-text">{streamError}</p>}
-
+                                          {streamError ? <p className="live-error-text">{streamError}</p> : null}
                                           <div className="live-setup-actions">
                                                 <button type="button" className="btn btn-primary" onClick={startStream} disabled={isStarting}>
-                                                      {isStarting ? 'Starting...' : 'Go Live'}
+                                                      {isStarting ? 'Preparing...' : 'Start Session'}
                                                 </button>
                                                 <button type="button" className="btn btn-secondary" onClick={() => navigate('/live')}>Cancel</button>
                                           </div>
                                     </div>
                               </div>
-                        )}
+                        ) : null}
 
-                        {isViewMode && !isLive && !streamError && (
+                        {isViewMode && !isLive && !streamError ? (
                               <div className="live-loading-overlay">
                                     <div className="loader mb-md" />
                                     <p>Connecting to stream...</p>
                               </div>
-                        )}
+                        ) : null}
 
-                        {streamError && (
+                        {streamError ? (
                               <div className="live-loading-overlay">
                                     <h3>{streamError}</h3>
                                     <div className="live-setup-actions">
-                                          {isViewMode && (
+                                          {isViewMode ? (
                                                 <button type="button" className="btn btn-primary" onClick={retryStreamConnection}>
                                                       Retry Stream
                                                 </button>
-                                          )}
+                                          ) : null}
                                           <button type="button" className="btn btn-secondary" onClick={() => navigate('/live')}>Back to Streams</button>
                                     </div>
                               </div>
-                        )}
+                        ) : null}
 
                         <ReactionsManager socket={socket} />
                   </div>
@@ -725,7 +613,7 @@ const LiveStream = () => {
                                     <strong>Live chat</strong>
                                     <small>{slowModeEnabled ? `${viewerCount} online • slow mode` : `${viewerCount} online`}</small>
                               </div>
-                              {user && isLive && (
+                              {user && isLive ? (
                                     <div className="live-reaction-row">
                                           {REACTION_OPTIONS.map((emoji) => (
                                                 <button key={emoji} type="button" onClick={() => sendReaction(emoji)}>
@@ -733,8 +621,29 @@ const LiveStream = () => {
                                                 </button>
                                           ))}
                                     </div>
-                              )}
+                              ) : null}
                         </div>
+
+                        {isHostMode && isLive && broadcast ? (
+                              <div className="live-host-panel">
+                                    <div className="live-host-panel-head">
+                                          <div>
+                                                <strong>Cloudinary encoder setup</strong>
+                                                <p>Use these values in OBS or Streamlabs, then keep this page open for chat and moderation.</p>
+                                          </div>
+                                          {copyFeedback ? <span className="live-copy-feedback">{copyFeedback}</span> : null}
+                                    </div>
+
+                                    <div className="live-copy-grid">
+                                          <CopyField label="RTMP URL" value={broadcast.rtmpUrl} onCopy={copyToClipboard} />
+                                          <CopyField label="Stream Key" value={broadcast.streamKey} onCopy={copyToClipboard} secret />
+                                          <CopyField label="Ingest URL" value={broadcast.ingestUrl} onCopy={copyToClipboard} />
+                                          <CopyField label="Player Link" value={playbackUrl} onCopy={copyToClipboard} />
+                                          <CopyField label="HLS URL" value={hlsUrl} onCopy={copyToClipboard} />
+                                          <CopyField label="HLS Public ID" value={hlsPublicId} onCopy={copyToClipboard} />
+                                    </div>
+                              </div>
+                        ) : null}
 
                         <div className="live-chat-list">
                               {comments.length === 0 ? (
@@ -757,22 +666,16 @@ const LiveStream = () => {
                               <div ref={commentsEndRef} />
                         </div>
 
-                        {user ? (
-                              <form onSubmit={sendComment} className="live-chat-form">
-                                    <input
-                                          type="text"
-                                          value={commentText}
-                                          onChange={(event) => setCommentText(event.target.value)}
-                                          placeholder={slowModeEnabled && !isHostMode ? 'Host enabled slow mode for chat.' : 'Say something helpful...'}
-                                          disabled={slowModeEnabled && !isHostMode}
-                                    />
-                                    <button type="submit" disabled={slowModeEnabled && !isHostMode}>Send</button>
-                              </form>
-                        ) : (
-                              <div className="live-chat-login-note">
-                                    <p>Log in to comment or send reactions.</p>
-                              </div>
-                        )}
+                        <form onSubmit={sendComment} className="live-chat-form">
+                              <input
+                                    type="text"
+                                    value={commentText}
+                                    onChange={(event) => setCommentText(event.target.value)}
+                                    placeholder={slowModeEnabled && !isHostMode ? 'Host enabled slow mode for chat.' : 'Say something helpful...'}
+                                    disabled={!isLive || (slowModeEnabled && !isHostMode)}
+                              />
+                              <button type="submit" disabled={!isLive || (slowModeEnabled && !isHostMode)}>Send</button>
+                        </form>
                   </aside>
             </div>
       );

@@ -41,12 +41,6 @@ services:
         sync: false
       - key: CLOUDINARY_STREAM_PLAYER_URL
         sync: false
-      - key: LIVEKIT_URL
-        sync: false
-      - key: LIVEKIT_API_KEY
-        sync: false
-      - key: LIVEKIT_API_SECRET
-        sync: false
       # Email service
       - key: EMAIL_USER
         sync: false

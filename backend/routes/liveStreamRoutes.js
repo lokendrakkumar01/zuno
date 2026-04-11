@@ -7,6 +7,13 @@ const {
   pruneExpiredStreams,
   isStreamJoinable
 } = require('../socket/socket');
+const { getCloudinaryStreamSession } = require('../controllers/cloudinaryStreamController');
+
+const findConflictingStream = (hostId) => Array.from(activeStreams.values()).find((stream) => (
+  stream
+  && stream.hostId !== hostId
+  && isStreamJoinable(stream)
+));
 
 // Start a new live stream (legacy helper kept for backwards compatibility).
 router.post('/start', protect, (req, res) => {
@@ -15,6 +22,14 @@ router.post('/start', protect, (req, res) => {
   const username = req.user.username;
   const avatar = req.user.avatar;
   const displayName = req.user.displayName || username;
+  const conflictingStream = findConflictingStream(userId);
+
+  if (conflictingStream) {
+    return res.status(409).json({
+      success: false,
+      message: `${conflictingStream.hostDisplayName || conflictingStream.hostUsername || 'Another creator'} is already live. End that stream before starting a new Cloudinary session.`
+    });
+  }
 
   const existing = activeStreams.get(userId);
   if (existing) activeStreams.delete(userId);
@@ -32,21 +47,21 @@ router.post('/start', protect, (req, res) => {
     startedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     viewerCount: 0,
+    roomId: `stream_${userId}`,
     viewers: existing2.viewers || new Set(),
     viewerSockets: existing2.viewerSockets || new Map(),
     bannedViewers: existing2.bannedViewers || new Set(),
-    liveKitProvisioned: false,
-    cloudinaryProvisioned: false,
+    cloudinaryProvisioned: true,
+    cloudinaryProvisionedAt: new Date().toISOString(),
     streamProvider: 'cloudinary'
   });
 
   res.json({ success: true, data: { stream: serializeStream(activeStreams.get(userId)) } });
 });
 
-const { getLiveKitToken } = require('../controllers/liveKitController');
-
 // Build Cloudinary playback/ingest config for host and viewers.
-router.post('/token', protect, getLiveKitToken);
+router.post('/session', protect, getCloudinaryStreamSession);
+router.post('/token', protect, getCloudinaryStreamSession);
 
 // Get all active streams — filter out zombie entries with no hostSocketId (socket never connected)
 router.get('/active', (req, res) => {

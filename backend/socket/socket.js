@@ -77,7 +77,7 @@ const pendingStreamDisconnects = new Map(); // {hostUserId: timeoutId}
 const DIRECT_CALL_DISCONNECT_GRACE_MS = 12000;
 const STREAM_SLOW_MODE_COOLDOWN_MS = 5000;
 const STREAM_HOST_DISCONNECT_GRACE_MS = 15000;
-const STREAM_PROVISION_TTL_MS = 2 * 60 * 1000;
+const STREAM_SESSION_TTL_MS = 3 * 60 * 60 * 1000;
 
 const normalizeId = (value) => value?.toString?.() || null;
 const nowIso = () => new Date().toISOString();
@@ -153,17 +153,18 @@ const serializeStream = (stream) => ({
   viewerCount: stream.viewers ? stream.viewers.size : (stream.viewerCount || 0),
   slowMode: !!stream.slowMode,
   pinnedComment: stream.pinnedComment || null,
-  liveKitProvisioned: !!stream.liveKitProvisioned
+  cloudinaryProvisioned: !!stream.cloudinaryProvisioned,
+  streamProvider: stream.streamProvider || 'cloudinary'
 });
 
 const isStreamJoinable = (stream) => {
   if (!stream) return false;
   if (stream.hostSocketId) return true;
-  if (!stream.liveKitProvisioned) return false;
+  if (!stream.cloudinaryProvisioned) return false;
 
-  const referenceTime = stream.liveKitProvisionedAt || stream.updatedAt || stream.startedAt;
+  const referenceTime = stream.cloudinaryProvisionedAt || stream.updatedAt || stream.startedAt;
   if (!referenceTime) return false;
-  return Date.now() - new Date(referenceTime).getTime() < STREAM_PROVISION_TTL_MS;
+  return Date.now() - new Date(referenceTime).getTime() < STREAM_SESSION_TTL_MS;
 };
 
 const pruneExpiredStreams = () => {
@@ -312,8 +313,9 @@ io.on("connection", (socket) => {
       const roomId = hostedStream.roomId || hostedStream.id || `stream_${userId}`;
       hostedStream.roomId = roomId;
       hostedStream.hostSocketId = socket.id;
-      hostedStream.liveKitProvisioned = true;
-      hostedStream.liveKitProvisionedAt = hostedStream.liveKitProvisionedAt || nowIso();
+      hostedStream.cloudinaryProvisioned = true;
+      hostedStream.cloudinaryProvisionedAt = hostedStream.cloudinaryProvisionedAt || nowIso();
+      hostedStream.streamProvider = hostedStream.streamProvider || 'cloudinary';
       touchStream(hostedStream);
       socket.join(roomId);
     }
@@ -434,12 +436,13 @@ io.on("connection", (socket) => {
       bannedViewers: existingStream.bannedViewers || new Set(),
       slowMode: existingStream.slowMode || false,
       pinnedComment: existingStream.pinnedComment || null,
-      liveKitProvisioned: existingStream.liveKitProvisioned || false,
-      liveKitProvisionedAt: existingStream.liveKitProvisionedAt || null,
+      cloudinaryProvisioned: true,
+      cloudinaryProvisionedAt: existingStream.cloudinaryProvisionedAt || nowIso(),
+      streamProvider: 'cloudinary',
       startedAt: existingStream.startedAt || nowIso(),
       updatedAt: nowIso()
     });
-    io.emit("streamStarted", { hostId: userId, title: data.title, roomId });
+    io.emit("streamStarted", { hostId: userId, title: data.title, roomId, streamProvider: 'cloudinary' });
     console.log(`[Stream] Started by ${userId} — room: ${roomId}`);
   });
 
@@ -474,10 +477,6 @@ io.on("connection", (socket) => {
       slowMode: stream.slowMode,
       pinnedComment: stream.pinnedComment
     });
-
-    if (stream.hostSocketId) {
-      io.to(stream.hostSocketId).emit("initPeerWithViewer", { viewerId: userId, viewerSocketId: socket.id });
-    }
   });
 
   socket.on("streamSignal", (data) => {

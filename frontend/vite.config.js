@@ -16,17 +16,6 @@ export default defineConfig(({ command }) => ({
                         manualChunks(id) {
                               if (!id.includes('node_modules')) return;
 
-                              if (
-                                    id.includes('@livekit/components-react') ||
-                                    id.includes('@livekit/core')
-                              ) {
-                                    return 'livekit-ui';
-                              }
-
-                              if (id.includes('livekit-client')) {
-                                    return 'livekit-core';
-                              }
-
                               if (id.includes('framer-motion')) {
                                     return 'motion';
                               }
