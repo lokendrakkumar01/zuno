@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { API_URL, API_BASE_URL } from '../../config';
+import { API_URL } from '../../config';
 import {
       BookmarkIcon,
       CheckIcon,
@@ -10,9 +10,15 @@ import {
       ShareIcon
 } from '../Icons/ActionIcons';
 import { shareContentLink } from '../../utils/shareContent';
+import { getInitials, resolveAssetUrl } from '../../utils/media';
 
-const buildMediaUrl = (url) =>
-      url ? (url.startsWith('http') ? url : `${API_BASE_URL}${url}`) : '';
+const buildMediaUrl = (url) => resolveAssetUrl(url);
+
+const getTextPreview = (content) => {
+      const source = (content.title || content.body || '').trim();
+      if (!source) return 'Open this post to view the full content.';
+      return source.length > 160 ? `${source.slice(0, 157)}...` : source;
+};
 
 const normalizeContentState = (content) => ({
       ...content,
@@ -44,9 +50,15 @@ const ContentCard = ({ content, onSaveChange }) => {
             [contentState.contentType]
       );
 
-      const mediaUrl = buildMediaUrl(contentState.media?.[0]?.url);
+      const primaryMedia = contentState.media?.[0] || null;
+      const mediaUrl = buildMediaUrl(primaryMedia?.url);
+      const hasMedia = Boolean(mediaUrl);
       const isHelpful = contentState.viewerState?.isHelpful;
       const isSaved = contentState.viewerState?.isSaved;
+      const creatorName = contentState.creator?.displayName || contentState.creator?.username || 'ZUNO';
+      const cardTitle = contentState.title?.trim()
+            || (contentState.contentType === 'post' ? getTextPreview(contentState) : 'Untitled post');
+      const cardText = contentState.body?.trim() || 'Open this post to view the full content.';
 
       const updateContentState = (updater) => {
             setContentState((prev) => normalizeContentState(
@@ -154,9 +166,9 @@ const ContentCard = ({ content, onSaveChange }) => {
                               <Link to={`/u/${contentState.creator?.username}`} onClick={(e) => e.stopPropagation()}>
                                     <div className="avatar avatar-sm">
                                           {contentState.creator?.avatar ? (
-                                                <img src={contentState.creator.avatar} alt={contentState.creator.username} />
+                                                <img src={resolveAssetUrl(contentState.creator.avatar)} alt={contentState.creator.username} />
                                           ) : (
-                                                contentState.creator?.username?.charAt(0).toUpperCase()
+                                                getInitials(creatorName)
                                           )}
                                     </div>
                               </Link>
@@ -178,10 +190,38 @@ const ContentCard = ({ content, onSaveChange }) => {
 
                   <Link to={`/content/${contentState._id}`} className="content-card-media-link">
                         <div className="content-card-media">
-                              {isVideo ? (
+                              {hasMedia && isVideo ? (
                                     <video src={mediaUrl} muted playsInline loop preload="metadata" />
+                              ) : hasMedia ? (
+                                    <img src={mediaUrl} alt={contentState.title || 'ZUNO content'} loading="lazy" />
                               ) : (
-                                    <img src={mediaUrl || 'https://via.placeholder.com/400'} alt={contentState.title || 'ZUNO content'} loading="lazy" />
+                                    <div
+                                          className="content-card-text-preview"
+                                          style={{
+                                                minHeight: '220px',
+                                                padding: '1.5rem',
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                justifyContent: 'space-between',
+                                                background: 'linear-gradient(140deg, rgba(15,23,42,0.96), rgba(79,70,229,0.88))',
+                                                color: 'white'
+                                          }}
+                                    >
+                                          <span className="content-card-purpose-chip" style={{ position: 'static', alignSelf: 'flex-start' }}>
+                                                {contentState.contentType === 'post' ? 'Text post' : contentState.contentType}
+                                          </span>
+                                          <div>
+                                                <h3 style={{ margin: 0, fontSize: '1.25rem', lineHeight: 1.35 }}>
+                                                      {cardTitle}
+                                                </h3>
+                                                <p style={{ margin: '0.85rem 0 0', opacity: 0.9, lineHeight: 1.6 }}>
+                                                      {cardText}
+                                                </p>
+                                          </div>
+                                          <small style={{ opacity: 0.7 }}>
+                                                {creatorName}
+                                          </small>
+                                    </div>
                               )}
                               {contentState.purpose ? (
                                     <div className="content-card-purpose-chip">{contentState.purpose}</div>
@@ -191,9 +231,9 @@ const ContentCard = ({ content, onSaveChange }) => {
 
                   <div className="content-card-body">
                         <h3 className="content-card-title">
-                              <Link to={`/content/${contentState._id}`}>{contentState.title || 'Untitled post'}</Link>
+                              <Link to={`/content/${contentState._id}`}>{cardTitle}</Link>
                         </h3>
-                        <p className="content-card-text line-clamp-2">{contentState.body || 'Open this post to view the full content.'}</p>
+                        <p className="content-card-text line-clamp-2">{cardText}</p>
                   </div>
 
                   <div className="content-card-footer">

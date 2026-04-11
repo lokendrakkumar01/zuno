@@ -1,3 +1,5 @@
+import { getInitials, resolveAssetUrl } from '../../utils/media';
+
 /**
  * UserAvatar — Auto-generated Snapchat-style gradient avatar
  * Shows user photo if available, else generates a colorful gradient
@@ -51,9 +53,9 @@ const UserAvatar = ({
   onClick,
   border,
 }) => {
-  const avatarUrl = src || user?.avatar;
+  const avatarUrl = resolveAssetUrl(src || user?.avatar);
   const displayName = name || user?.displayName || user?.username || '?';
-  const initial = displayName.charAt(0).toUpperCase();
+  const initial = getInitials(displayName);
   const gradient = getGradient(displayName);
   const px = typeof size === 'number' ? `${size}px` : size;
   const fontSize = typeof size === 'number' ? `${Math.round(size * 0.42)}px` : '16px';

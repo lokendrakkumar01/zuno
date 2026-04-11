@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useMusic } from '../../context/MusicContext';
 import { useAuth } from '../../context/AuthContext';
-import { API_BASE_URL, API_URL } from '../../config';
+import { API_URL } from '../../config';
+import { resolveAssetUrl } from '../../utils/media';
 
 const StoryViewer = ({ group, onClose }) => {
       const { user, token, isAuthenticated } = useAuth();
@@ -21,6 +22,13 @@ const StoryViewer = ({ group, onClose }) => {
       const videoRef = useRef(null);
 
       const isOwner = user?._id === group.creator._id;
+
+      useEffect(() => {
+            setLocalStories([...(group.stories || [])]);
+            setCurrentIndex(0);
+            setProgress(0);
+            setIsPaused(false);
+      }, [group]);
 
       // Reset state for new story
       useEffect(() => {
@@ -103,7 +111,7 @@ const StoryViewer = ({ group, onClose }) => {
       };
 
       const handleShare = async () => {
-            const shareUrl = `${window.location.origin}/status/${group.creator.username}`;
+            const shareUrl = `${window.location.origin}/status?viewStory=${group.creator._id}`;
             if (navigator.share) {
                   try {
                         await navigator.share({
@@ -176,9 +184,7 @@ const StoryViewer = ({ group, onClose }) => {
       };
 
       const getMediaUrl = (url) => {
-            if (!url) return '';
-            if (url?.startsWith('http')) return url;
-            return `${API_BASE_URL}${url}`;
+            return resolveAssetUrl(url);
       };
 
       // Calculate time ago
@@ -299,7 +305,7 @@ const StoryViewer = ({ group, onClose }) => {
                                     background: 'linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)'
                               }}>
                                     <img
-                                          src={group.creator.avatar || 'https://via.placeholder.com/40'}
+                                          src={resolveAssetUrl(group.creator.avatar) || 'https://via.placeholder.com/40'}
                                           alt={group.creator.displayName}
                                           style={{
                                                 width: '100%',
@@ -607,7 +613,7 @@ const StoryViewer = ({ group, onClose }) => {
                                                       {currentStory.metrics.viewedBy.map(vUser => (
                                                             <div key={vUser._id} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                                                   <img
-                                                                        src={vUser.avatar || 'https://via.placeholder.com/32'}
+                                                                        src={resolveAssetUrl(vUser.avatar) || 'https://via.placeholder.com/32'}
                                                                         alt={vUser.username}
                                                                         style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }}
                                                                   />

@@ -37,8 +37,10 @@ services:
         sync: false
       - key: CLOUDINARY_STREAM_HLS_URL
         sync: false
+      # Optional when it can be derived from HLS URL
       - key: CLOUDINARY_STREAM_HLS_PUBLIC_ID
         sync: false
+      # Optional when cloud name + HLS public id are available
       - key: CLOUDINARY_STREAM_PLAYER_URL
         sync: false
       # Email service

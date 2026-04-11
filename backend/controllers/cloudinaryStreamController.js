@@ -9,20 +9,40 @@ const sanitizeValue = (value = '') => String(value || '').replace(/['"]+/g, '').
 
 const buildRoomId = (hostId) => `stream_${hostId}`;
 
+const deriveHlsPublicId = (hlsUrl = '') => {
+  const normalizedUrl = sanitizeValue(hlsUrl);
+  if (!normalizedUrl) return '';
+
+  const match = normalizedUrl.match(/\/video\/live\/(.+?)\.m3u8(?:\?|$)/i);
+  return match?.[1] || '';
+};
+
+const buildPlayerUrl = ({ cloudName, hlsPublicId }) => {
+  if (!cloudName || !hlsPublicId) return '';
+
+  const params = new URLSearchParams({
+    cloud_name: cloudName,
+    public_id: hlsPublicId,
+    profile: 'cld-live-streaming',
+  });
+
+  return `https://player.cloudinary.com/embed/?${params.toString()}`;
+};
+
 const getCloudinaryStreamConfig = () => {
   const cloudName = sanitizeValue(process.env.CLOUDINARY_STREAM_CLOUD_NAME || process.env.CLOUDINARY_CLOUD_NAME);
   const streamKey = sanitizeValue(process.env.CLOUDINARY_STREAM_KEY);
   const rtmpUrl = sanitizeValue(process.env.CLOUDINARY_STREAM_RTMP_URL);
   const hlsUrl = sanitizeValue(process.env.CLOUDINARY_STREAM_HLS_URL);
-  const hlsPublicId = sanitizeValue(process.env.CLOUDINARY_STREAM_HLS_PUBLIC_ID);
-  const playerUrl = sanitizeValue(process.env.CLOUDINARY_STREAM_PLAYER_URL);
+  const hlsPublicId = sanitizeValue(process.env.CLOUDINARY_STREAM_HLS_PUBLIC_ID) || deriveHlsPublicId(hlsUrl);
+  const playerUrl = sanitizeValue(process.env.CLOUDINARY_STREAM_PLAYER_URL) || buildPlayerUrl({ cloudName, hlsPublicId });
 
   const missing = {
     cloudName: !cloudName,
     streamKey: !streamKey,
     rtmpUrl: !rtmpUrl,
     hlsUrl: !hlsUrl,
-    hlsPublicId: !hlsPublicId,
+    hlsPublicId: !hlsPublicId && !playerUrl,
     playerUrl: !playerUrl,
   };
 

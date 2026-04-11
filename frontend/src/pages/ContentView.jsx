@@ -5,12 +5,13 @@ import { useMusic } from '../context/MusicContext';
 import { API_URL, API_BASE_URL } from '../config';
 import CommentSection from '../components/Content/CommentSection';
 import { BookmarkIcon, CheckIcon, CommentIcon, HeartIcon, ShareIcon } from '../components/Icons/ActionIcons';
+import { resolveAssetUrl } from '../utils/media';
 
 // Separate component for media items to avoid React hooks violation
 const MediaItem = ({ m, content }) => {
       const [loaded, setLoaded] = useState(false);
       const [error, setError] = useState(false);
-      const mediaUrl = m.url?.startsWith('http') ? m.url : `${API_BASE_URL}${m.url || ''}`;
+      const mediaUrl = resolveAssetUrl(m.url || '');
 
       return (
             <div className="relative bg-gray-100" style={{ minHeight: '200px' }}>
@@ -367,7 +368,7 @@ const ContentView = () => {
                                     <div className="flex items-center gap-md">
                                           <Link to={`/u/${content.creator?.username}`}>
                                                 <div className="avatar avatar-md">
-                                                      {content.creator?.avatar ? <img src={content.creator.avatar} alt="" /> : content.creator?.username?.charAt(0).toUpperCase()}
+                                                      {content.creator?.avatar ? <img src={resolveAssetUrl(content.creator.avatar)} alt="" /> : content.creator?.username?.charAt(0).toUpperCase()}
                                                 </div>
                                           </Link>
                                           <div>
@@ -525,7 +526,7 @@ const ContentView = () => {
                                                 {moreContent.map(item => (
                                                       <Link key={item._id} to={`/content/${item._id}`} className="card p-md hover:scale-[1.02] transition-transform flex gap-md">
                                                             <div style={{ width: '80px', height: '80px', borderRadius: '12px', background: 'var(--gradient-primary)', flexShrink: 0, overflow: 'hidden' }}>
-                                                                  {item.media?.[0]?.url && <img src={item.media[0].url.startsWith('http') ? item.media[0].url : `${API_BASE_URL}${item.media[0].url}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                                                                        {item.media?.[0]?.url && <img src={resolveAssetUrl(item.media[0].url)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
                                                             </div>
                                                             <div>
                                                                   <h4 className="font-bold mb-1 truncate max-w-[200px]">{item.title || 'Post'}</h4>
@@ -550,7 +551,7 @@ const ContentView = () => {
                                           <div className="flex flex-col items-center text-center">
                                                 <Link to={`/u/${content.creator?.username}`}>
                                                       <div className="avatar avatar-2xl mb-md" style={{ border: '4px solid rgba(255,255,255,0.1)', boxShadow: '0 10px 20px rgba(0,0,0,0.3)' }}>
-                                                            {content.creator?.avatar ? <img src={content.creator.avatar} alt="" /> : content.creator?.username?.charAt(0).toUpperCase()}
+                                                            {content.creator?.avatar ? <img src={resolveAssetUrl(content.creator.avatar)} alt="" /> : content.creator?.username?.charAt(0).toUpperCase()}
                                                       </div>
                                                 </Link>
                                                 <h3 className="text-xl font-bold mb-1">{content.creator?.displayName || content.creator?.username}</h3>

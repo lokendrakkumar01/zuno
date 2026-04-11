@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config';
 import { formatDistanceToNow } from 'date-fns';
 import StoryViewer from '../components/Story/StoryViewer';
+import { resolveAssetUrl } from '../utils/media';
 
 const Status = () => {
       const { user, token, isAuthenticated } = useAuth();
@@ -11,6 +12,7 @@ const Status = () => {
       const [searchParams] = useSearchParams();
       const cacheKey = user?._id ? `zuno_stories_cache_${user._id}` : 'zuno_stories_cache_guest';
       const refreshMarker = searchParams.get('refresh');
+      const sharedStoryCreatorId = searchParams.get('viewStory');
       // Initialize from cache for instant display
       const [storyGroups, setStoryGroups] = useState(() => {
             try {
@@ -95,6 +97,17 @@ const Status = () => {
             }
       }, [selectedGroup, storyGroups]);
 
+      useEffect(() => {
+            if (!sharedStoryCreatorId || storyGroups.length === 0) {
+                  return;
+            }
+
+            const matchingGroup = storyGroups.find((group) => group.creator._id === sharedStoryCreatorId);
+            if (matchingGroup) {
+                  setSelectedGroup(matchingGroup);
+            }
+      }, [sharedStoryCreatorId, storyGroups]);
+
       // Filter groups by searchTerm
       const filteredGroups = storyGroups.filter(group => {
             const name = (group.creator.displayName || group.creator.username || '').toLowerCase();
@@ -167,7 +180,7 @@ const Status = () => {
                                     <div style={{ width: '64px', height: '64px', borderRadius: '50%', padding: '4px', background: myStories ? 'linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)' : 'var(--color-border-light)' }}>
                                           <div style={{ width: '100%', height: '100%', borderRadius: '50%', border: '2px solid var(--color-bg-primary)', overflow: 'hidden', background: 'var(--color-bg-primary)' }}>
                                                 <img
-                                                      src={user?.avatar || 'https://via.placeholder.com/64'}
+                                                      src={resolveAssetUrl(user?.avatar) || 'https://via.placeholder.com/64'}
                                                       alt="My Status"
                                                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                                 />
@@ -206,7 +219,7 @@ const Status = () => {
                                                 <div style={{ width: '64px', height: '64px', borderRadius: '50%', padding: '4px', background: 'linear-gradient(45deg, #25D366, #128C7E)' }}>
                                                       <div style={{ width: '100%', height: '100%', borderRadius: '50%', border: '2px solid var(--color-bg-primary)', overflow: 'hidden', background: 'var(--color-bg-primary)' }}>
                                                             <img
-                                                                  src={group.creator.avatar || 'https://via.placeholder.com/64'}
+                                                                  src={resolveAssetUrl(group.creator.avatar) || 'https://via.placeholder.com/64'}
                                                                   alt={group.creator.displayName}
                                                                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                                             />
