@@ -25,6 +25,12 @@ Optional:
 - `EMAIL_USER`
 - `EMAIL_PASS`
 
+Cloudinary live note:
+
+- `CLOUDINARY_STREAM_RTMP_URL` is the ingest URL, not the HLS playback URL.
+- `CLOUDINARY_STREAM_HLS_URL` should be the `.m3u8` playback URL from your Cloudinary live stream.
+- Cloudinary idle timeout is configured in the Cloudinary stream/channel settings, not in Render env vars.
+
 ## Frontend service
 
 Required:
