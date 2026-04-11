@@ -6,6 +6,8 @@ const {
 } = require('../socket/socket');
 
 const sanitizeValue = (value = '') => String(value || '').replace(/['"]+/g, '').trim();
+const PLAYBACK_STATUS_CACHE_TTL_MS = 5000;
+const playbackStatusCache = new Map();
 
 const buildRoomId = (hostId) => `stream_${hostId}`;
 
@@ -119,6 +121,67 @@ const buildResponsePayload = ({ stream, config, isHost }) => ({
     : {}),
 });
 
+const isPlaybackManifestReady = (manifest = '') => {
+  const text = String(manifest || '').trim();
+  if (!text) return false;
+  if (!text.includes('#EXTM3U')) return false;
+  if (/stream not started/i.test(text)) return false;
+  return true;
+};
+
+const probePlaybackStatus = async ({ hostId, config }) => {
+  const cacheKey = `${hostId}:${config.hlsUrl}`;
+  const cached = playbackStatusCache.get(cacheKey);
+
+  if (cached && (Date.now() - cached.checkedAt) < PLAYBACK_STATUS_CACHE_TTL_MS) {
+    return cached.result;
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 4500);
+
+  try {
+    const response = await fetch(config.hlsUrl, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/vnd.apple.mpegurl,text/plain;q=0.9,*/*;q=0.8',
+        'Cache-Control': 'no-cache',
+      },
+      signal: controller.signal,
+    });
+
+    const manifest = response.ok ? await response.text() : '';
+    const result = {
+      active: response.ok && isPlaybackManifestReady(manifest),
+      statusCode: response.status || 0,
+      checkedAt: new Date().toISOString(),
+    };
+
+    playbackStatusCache.set(cacheKey, {
+      checkedAt: Date.now(),
+      result,
+    });
+
+    return result;
+  } catch (error) {
+    const result = {
+      active: false,
+      statusCode: 0,
+      checkedAt: new Date().toISOString(),
+      error: error.name === 'AbortError' ? 'timeout' : 'unreachable',
+    };
+
+    playbackStatusCache.set(cacheKey, {
+      checkedAt: Date.now(),
+      result,
+    });
+
+    return result;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
 const getCloudinaryStreamSession = async (req, res) => {
   try {
     const { isHost, title, description, hostId } = req.body || {};
@@ -189,7 +252,62 @@ const getCloudinaryStreamSession = async (req, res) => {
   }
 };
 
+const getCloudinaryPlaybackStatus = async (req, res) => {
+  try {
+    const { hostId } = req.params;
+    const normalizedHostId = String(hostId || '').trim();
+
+    if (!normalizedHostId) {
+      return res.status(400).json({
+        success: false,
+        message: 'hostId is required.',
+      });
+    }
+
+    pruneExpiredStreams();
+    const targetStream = activeStreams.get(normalizedHostId);
+
+    if (!isStreamJoinable(targetStream)) {
+      return res.status(404).json({
+        success: false,
+        message: 'Stream not found or has ended.',
+      });
+    }
+
+    const config = getCloudinaryStreamConfig();
+    if (!config.isConfigured) {
+      return res.status(500).json({
+        success: false,
+        message: 'Cloudinary live streaming configuration is missing on the server.',
+      });
+    }
+
+    const playback = await probePlaybackStatus({ hostId: normalizedHostId, config });
+
+    return res.json({
+      success: true,
+      data: {
+        hostId: normalizedHostId,
+        roomId: targetStream.roomId || targetStream.id,
+        playback: {
+          ...playback,
+          playerUrl: config.playerUrl,
+          hlsUrl: config.hlsUrl,
+          hlsPublicId: config.hlsPublicId,
+        },
+      },
+    });
+  } catch (error) {
+    console.error('[Cloudinary Stream] Failed to get playback status:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to read playback status.',
+    });
+  }
+};
+
 module.exports = {
   getCloudinaryStreamConfig,
   getCloudinaryStreamSession,
+  getCloudinaryPlaybackStatus,
 };

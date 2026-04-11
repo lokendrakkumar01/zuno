@@ -126,16 +126,25 @@ function AppRouter() {
                   if (!token) return;
 
                   try {
-                        const [conversationsRes, streamsRes] = await Promise.all([
+                        const feedUrl = new URL(`${API_URL}/feed`);
+                        feedUrl.searchParams.set('mode', 'all');
+                        feedUrl.searchParams.set('page', '1');
+                        feedUrl.searchParams.set('limit', '12');
+
+                        const [conversationsRes, streamsRes, feedRes] = await Promise.all([
                               fetch(`${API_URL}/messages/conversations`, {
                                     headers: { Authorization: `Bearer ${token}` }
                               }),
-                              fetch(`${API_URL}/livestream/active`)
+                              fetch(`${API_URL}/livestream/active`),
+                              fetch(feedUrl.toString(), {
+                                    headers: { Authorization: `Bearer ${token}` }
+                              })
                         ]);
 
-                        const [conversationsData, streamsData] = await Promise.all([
+                        const [conversationsData, streamsData, feedData] = await Promise.all([
                               conversationsRes.json().catch(() => null),
-                              streamsRes.json().catch(() => null)
+                              streamsRes.json().catch(() => null),
+                              feedRes.json().catch(() => null)
                         ]);
 
                         if (conversationsData?.success) {
@@ -149,6 +158,13 @@ function AppRouter() {
                               localStorage.setItem(
                                     'zuno_live_streams_cache',
                                     JSON.stringify(streamsData.data.streams || [])
+                              );
+                        }
+
+                        if (feedData?.success) {
+                              localStorage.setItem(
+                                    'zuno_feedCache_all',
+                                    JSON.stringify(feedData.data.contents || [])
                               );
                         }
                   } catch {

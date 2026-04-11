@@ -7,7 +7,7 @@ const {
   pruneExpiredStreams,
   isStreamJoinable
 } = require('../socket/socket');
-const { getCloudinaryStreamSession } = require('../controllers/cloudinaryStreamController');
+const { getCloudinaryPlaybackStatus, getCloudinaryStreamSession } = require('../controllers/cloudinaryStreamController');
 
 const findConflictingStream = (hostId) => Array.from(activeStreams.values()).find((stream) => (
   stream
@@ -62,6 +62,7 @@ router.post('/start', protect, (req, res) => {
 // Build Cloudinary playback/ingest config for host and viewers.
 router.post('/session', protect, getCloudinaryStreamSession);
 router.post('/token', protect, getCloudinaryStreamSession);
+router.get('/status/:hostId', getCloudinaryPlaybackStatus);
 
 // Get all active streams — filter out zombie entries with no hostSocketId (socket never connected)
 router.get('/active', (req, res) => {

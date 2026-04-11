@@ -5,6 +5,9 @@ import ContentCard from '../components/Content/ContentCard';
 import StoryBar from '../components/Story/StoryBar';
 import { API_URL } from '../config';
 
+const PRIMARY_FEED_TIMEOUT_MS = 12000;
+const WAKE_FEED_TIMEOUT_MS = 20000;
+
 const FEED_MODES = [
       { id: 'all', label: 'All', desc: 'A fast mix of current conversations, posts and videos.' },
       { id: 'learning', label: 'Learning', desc: 'Tutorials, skill building and explainers.' },
@@ -99,11 +102,11 @@ const Home = () => {
                   let data;
 
                   try {
-                        data = await attemptFetch(20000);
+                        data = await attemptFetch(PRIMARY_FEED_TIMEOUT_MS);
                   } catch (firstErr) {
                         if (firstErr.name === 'AbortError') {
                               setError('__waking_up__');
-                              data = await attemptFetch(45000);
+                              data = await attemptFetch(WAKE_FEED_TIMEOUT_MS);
                         } else {
                               throw firstErr;
                         }

@@ -7,6 +7,7 @@ import { resolveAssetUrl } from '../utils/media';
 
 const REACTION_OPTIONS = ['❤', '😂', '👏', '🔥'];
 const ACTIVE_STREAMS_CACHE_KEY = 'zuno_live_streams_cache';
+const PLAYBACK_STATUS_POLL_MS = 5000;
 
 const readJsonCache = (key, fallback) => {
       try {
@@ -82,6 +83,9 @@ const LiveStream = () => {
       const [isStarting, setIsStarting] = useState(false);
       const [slowModeEnabled, setSlowModeEnabled] = useState(false);
       const [copyFeedback, setCopyFeedback] = useState('');
+      const [playbackReady, setPlaybackReady] = useState(false);
+      const [checkingPlayback, setCheckingPlayback] = useState(false);
+      const [playbackHint, setPlaybackHint] = useState('');
 
       const commentsEndRef = useRef(null);
 
@@ -99,6 +103,50 @@ const LiveStream = () => {
 
             window.setTimeout(() => setCopyFeedback(''), 1500);
       }, []);
+
+      const checkPlaybackStatus = useCallback(async (targetHostId) => {
+            if (!targetHostId) return false;
+
+            try {
+                  setCheckingPlayback(true);
+                  const res = await fetch(`${API_URL}/livestream/status/${targetHostId}`, {
+                        cache: 'no-store'
+                  });
+                  const data = await res.json();
+
+                  if (!data.success) {
+                        setPlaybackReady(false);
+                        if (res.status === 404) {
+                              setStreamError('This stream is offline right now.');
+                        }
+                        return false;
+                  }
+
+                  const ready = Boolean(data.data?.playback?.active);
+                  setPlaybackReady(ready);
+                  if (ready) {
+                        setStreamError('');
+                  }
+                  setPlaybackHint(
+                        ready
+                              ? ''
+                              : (isHostMode
+                                    ? 'Session is ready. Start streaming in OBS or Streamlabs using the RTMP URL and stream key.'
+                                    : 'Waiting for the broadcaster to start sending video to Cloudinary.')
+                  );
+                  return ready;
+            } catch {
+                  setPlaybackReady(false);
+                  setPlaybackHint(
+                        isHostMode
+                              ? 'Checking Cloudinary playback status...'
+                              : 'Checking whether the live video is available...'
+                  );
+                  return false;
+            } finally {
+                  setCheckingPlayback(false);
+            }
+      }, [isHostMode]);
 
       const loadActiveStreams = useCallback(async () => {
             if (isHostMode || isViewMode) return;
@@ -214,6 +262,8 @@ const LiveStream = () => {
                         || (isHostMode && String(endedHostId) === String(user?._id))
                   ) {
                         setIsLive(false);
+                        setPlaybackReady(false);
+                        setPlaybackHint('');
                         setStreamError('This stream has ended.');
                   }
             };
@@ -258,6 +308,8 @@ const LiveStream = () => {
             try {
                   setIsStarting(true);
                   setStreamError('');
+                  setPlaybackReady(false);
+                  setPlaybackHint('Preparing Cloudinary session...');
 
                   if (!isConnected) {
                         throw new Error('Realtime connection is still getting ready. Please wait a moment and try again.');
@@ -275,6 +327,7 @@ const LiveStream = () => {
                   setComments([]);
                   setViewerCount(0);
                   setSlowModeEnabled(false);
+                  setPlaybackHint('Session ready. Start streaming in OBS or Streamlabs now.');
 
                   socket.emit('startStream', {
                         hostId: user._id,
@@ -304,6 +357,8 @@ const LiveStream = () => {
             }
 
             setIsLive(false);
+            setPlaybackReady(false);
+            setPlaybackHint('');
             setSessionData(null);
             setStreamInfo(null);
             navigate('/live');
@@ -330,6 +385,8 @@ const LiveStream = () => {
                         setStreamDescription(data.stream?.description || '');
                         setViewerCount(data.stream?.viewerCount || 0);
                         setIsLive(true);
+                        setPlaybackReady(false);
+                        setPlaybackHint('Waiting for the broadcaster to start sending video.');
                         setStreamError('');
 
                         socket.emit('joinStream', { hostId, viewerId: user._id });
@@ -356,6 +413,18 @@ const LiveStream = () => {
                   socket.emit('leaveStreamView', { hostId, viewerId: user._id });
             };
       }, [hostId, isViewMode, requestStreamSession, socket, user]);
+
+      useEffect(() => {
+            const playbackHostId = isHostMode ? user?._id : hostId;
+            if (!isLive || !playbackHostId) return undefined;
+
+            checkPlaybackStatus(playbackHostId);
+            const intervalId = window.setInterval(() => {
+                  checkPlaybackStatus(playbackHostId);
+            }, PLAYBACK_STATUS_POLL_MS);
+
+            return () => window.clearInterval(intervalId);
+      }, [checkPlaybackStatus, hostId, isHostMode, isLive, user?._id]);
 
       const sendComment = (event) => {
             event.preventDefault();
@@ -402,6 +471,8 @@ const LiveStream = () => {
                   setSessionData(data);
                   setStreamInfo(data.stream);
                   setIsLive(true);
+                  setPlaybackReady(false);
+                  setPlaybackHint('Waiting for the broadcaster to start sending video.');
                   socket.emit('joinStream', { hostId, viewerId: user._id });
             } catch (error) {
                   setStreamError(error.message || 'Could not reconnect to the stream.');
@@ -512,11 +583,12 @@ const LiveStream = () => {
       const hlsUrl = sessionData?.playback?.hlsUrl || '';
       const hlsPublicId = sessionData?.playback?.hlsPublicId || '';
       const broadcast = sessionData?.broadcast;
+      const waitingForPlayback = isLive && !playbackReady && !streamError;
 
       return (
             <div className="livestream-layout">
                   <div className="livestream-video-area">
-                        {playbackUrl ? (
+                        {playbackUrl && playbackReady ? (
                               <div className="live-player-shell">
                                     <iframe
                                           title={liveHeading}
@@ -531,7 +603,7 @@ const LiveStream = () => {
                         <div className="live-video-overlay">
                               <div className="live-video-topbar">
                                     <div>
-                                          <span className="live-badge">LIVE</span>
+                                          <span className="live-badge">{playbackReady ? 'LIVE' : 'PREPARING'}</span>
                                           <h2>{liveHeading}</h2>
                                           <p>{streamDescription || streamInfo?.description || 'Cloudinary-powered playback with realtime audience chat.'}</p>
                                           {streamInfo?.roomId ? <small className="live-room-label">Room: {streamInfo.roomId}</small> : null}
@@ -591,6 +663,19 @@ const LiveStream = () => {
                               </div>
                         ) : null}
 
+                        {waitingForPlayback ? (
+                              <div className="live-loading-overlay">
+                                    <div className="loader mb-md" />
+                                    <h3>{isHostMode ? 'Stream session is ready' : 'Waiting for live video'}</h3>
+                                    <p style={{ maxWidth: '42ch', textAlign: 'center' }}>
+                                          {playbackHint || (isHostMode
+                                                ? 'Open OBS or Streamlabs and start streaming with the RTMP URL and stream key shown on the right.'
+                                                : 'The room is open, but the broadcaster has not started sending the stream yet.')}
+                                    </p>
+                                    {checkingPlayback ? <small>Checking Cloudinary playback...</small> : null}
+                              </div>
+                        ) : null}
+
                         {streamError ? (
                               <div className="live-loading-overlay">
                                     <h3>{streamError}</h3>
@@ -630,7 +715,7 @@ const LiveStream = () => {
                                     <div className="live-host-panel-head">
                                           <div>
                                                 <strong>Cloudinary encoder setup</strong>
-                                                <p>Use these values in OBS or Streamlabs, then keep this page open for chat and moderation.</p>
+                                                <p>Use these values in OBS or Streamlabs. Video appears automatically here once Cloudinary receives the feed.</p>
                                           </div>
                                           {copyFeedback ? <span className="live-copy-feedback">{copyFeedback}</span> : null}
                                     </div>
