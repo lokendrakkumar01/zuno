@@ -18,18 +18,33 @@ export default defineConfig(({ command }) => ({
                         manualChunks(id) {
                               if (!id.includes('node_modules')) return;
 
-                              if (id.includes('livekit')) {
-                                    return 'livekit';
+                              if (
+                                    id.includes('@livekit/components-react') ||
+                                    id.includes('@livekit/core')
+                              ) {
+                                    return 'livekit-ui';
+                              }
+
+                              if (id.includes('livekit-client')) {
+                                    return 'livekit-core';
                               }
 
                               if (id.includes('framer-motion')) {
                                     return 'motion';
                               }
 
+                              if (
+                                    id.includes('react-toastify') ||
+                                    id.includes('date-fns')
+                              ) {
+                                    return 'ui-utils';
+                              }
+
                               return 'vendor';
                         }
                   }
-            }
+            },
+            chunkSizeWarningLimit: 650
       },
       server: {
             port: 3000,
