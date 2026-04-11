@@ -5,6 +5,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import zunoLogo from '../../assets/zuno-logo.png';
 
 const Login = () => {
+      const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim();
       const [email, setEmail] = useState('');
       const [password, setPassword] = useState('');
       const [showPassword, setShowPassword] = useState(false);
@@ -13,8 +14,10 @@ const Login = () => {
       const [wakingUp, setWakingUp] = useState(false);
       const [retryInfo, setRetryInfo] = useState(null); // { attempt, maxRetries, retryIn }
       const [countdown, setCountdown] = useState(0);
+      const [googleBusy, setGoogleBusy] = useState(false);
       const countdownRef = useRef(null);
-      const { login } = useAuth();
+      const googleButtonRef = useRef(null);
+      const { login, googleLogin } = useAuth();
       const { t } = useLanguage();
       const navigate = useNavigate();
 
@@ -25,6 +28,71 @@ const Login = () => {
             }
             return () => clearTimeout(countdownRef.current);
       }, [countdown]);
+
+      useEffect(() => {
+            if (!googleClientId || !googleButtonRef.current) return undefined;
+
+            let cancelled = false;
+            const scriptId = 'google-identity-services';
+
+            const renderGoogleButton = () => {
+                  if (cancelled || !window.google?.accounts?.id || !googleButtonRef.current) return;
+
+                  window.google.accounts.id.initialize({
+                        client_id: googleClientId,
+                        callback: async ({ credential }) => {
+                              if (!credential) {
+                                    setError('Google login failed. Missing credential.');
+                                    return;
+                              }
+
+                              setGoogleBusy(true);
+                              setError('');
+                              const result = await googleLogin(credential);
+                              setGoogleBusy(false);
+
+                              if (result.success) {
+                                    navigate('/');
+                              } else {
+                                    setError(result.message || 'Google login failed.');
+                              }
+                        }
+                  });
+
+                  googleButtonRef.current.innerHTML = '';
+                  window.google.accounts.id.renderButton(googleButtonRef.current, {
+                        type: 'standard',
+                        theme: 'outline',
+                        size: 'large',
+                        text: 'continue_with',
+                        shape: 'pill',
+                        width: 320
+                  });
+            };
+
+            const existingScript = document.getElementById(scriptId);
+            if (existingScript) {
+                  renderGoogleButton();
+                  return () => {
+                        cancelled = true;
+                  };
+            }
+
+            const script = document.createElement('script');
+            script.id = scriptId;
+            script.src = 'https://accounts.google.com/gsi/client';
+            script.async = true;
+            script.defer = true;
+            script.onload = renderGoogleButton;
+            script.onerror = () => {
+                  if (!cancelled) setError('Google sign-in script failed to load.');
+            };
+            document.head.appendChild(script);
+
+            return () => {
+                  cancelled = true;
+            };
+      }, [googleClientId, googleLogin, navigate]);
 
       const handleSubmit = async (e) => {
             e.preventDefault();
@@ -205,12 +273,32 @@ const Login = () => {
                               <button
                                     type="submit"
                                     className="btn btn-primary btn-lg animate-fadeInUp stagger-4"
-                                    disabled={loading}
+                                    disabled={loading || googleBusy}
                                     style={{ width: '100%', marginTop: 'var(--space-md)' }}
                               >
                                     {getButtonLabel()}
                               </button>
                         </form>
+
+                        {googleClientId && (
+                              <>
+                                    <div className="auth-divider mt-lg mb-lg animate-fadeIn">
+                                          <span>or continue with</span>
+                                    </div>
+
+                                    <div
+                                          ref={googleButtonRef}
+                                          className="animate-fadeInUp"
+                                          style={{
+                                                display: 'flex',
+                                                justifyContent: 'center',
+                                                minHeight: '44px',
+                                                opacity: googleBusy ? 0.6 : 1,
+                                                pointerEvents: googleBusy ? 'none' : 'auto'
+                                          }}
+                                    />
+                              </>
+                        )}
 
                         <div className="auth-divider mt-xl mb-lg animate-fadeIn">
                               <span>{t('newToZuno')}</span>

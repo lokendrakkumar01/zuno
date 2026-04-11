@@ -1,3 +1,4 @@
+const { AccessToken } = require('livekit-server-sdk');
 const { activeStreams, pruneExpiredStreams, isStreamJoinable } = require('../socket/socket');
 
 const sanitizeValue = (value = '') => String(value || '').replace(/['"]+/g, '').trim();
@@ -12,54 +13,42 @@ const sanitizeRoomName = (value, fallback) => {
     return normalized || fallback;
 };
 
-const buildPlayerLink = ({ cloudName, hlsPublicId, playerLink }) => {
-    if (playerLink) {
-        return playerLink;
-    }
-
-    if (!cloudName || !hlsPublicId) {
-        return '';
-    }
-
-    return `https://player.cloudinary.com/embed/?cloud_name=${encodeURIComponent(cloudName)}&public_id=${encodeURIComponent(hlsPublicId)}&profile=cld-live-streaming`;
-};
-
-const getCloudinaryStreamConfig = () => {
-    const cloudName = sanitizeValue(process.env.CLOUDINARY_STREAM_CLOUD_NAME || process.env.CLOUDINARY_CLOUD_NAME);
-    const streamKey = sanitizeValue(process.env.CLOUDINARY_STREAM_KEY);
-    const rtmpUrl = sanitizeValue(process.env.CLOUDINARY_STREAM_RTMP_URL || 'rtmp://live.cloudinary.com/streams');
-    const hlsUrl = sanitizeValue(process.env.CLOUDINARY_STREAM_HLS_URL);
-    const hlsPublicId = sanitizeValue(process.env.CLOUDINARY_STREAM_HLS_PUBLIC_ID);
-    const playerLink = buildPlayerLink({
-        cloudName,
-        hlsPublicId,
-        playerLink: sanitizeValue(process.env.CLOUDINARY_STREAM_PLAYER_URL)
-    });
-
-    const playbackReady = Boolean(hlsUrl && hlsPublicId && playerLink);
-    const ingestReady = Boolean(rtmpUrl && streamKey);
+const getLiveKitConfig = () => {
+    const wsUrl = sanitizeValue(process.env.LIVEKIT_URL);
+    const apiKey = sanitizeValue(process.env.LIVEKIT_API_KEY);
+    const apiSecret = sanitizeValue(process.env.LIVEKIT_API_SECRET);
 
     return {
-        isConfigured: playbackReady && ingestReady,
+        isConfigured: Boolean(wsUrl && apiKey && apiSecret),
         missing: {
-            cloudName: !cloudName,
-            streamKey: !streamKey,
-            rtmpUrl: !rtmpUrl,
-            hlsUrl: !hlsUrl,
-            hlsPublicId: !hlsPublicId,
-            playerLink: !playerLink
+            wsUrl: !wsUrl,
+            apiKey: !apiKey,
+            apiSecret: !apiSecret,
         },
-        playback: {
-            cloudName,
-            hlsUrl,
-            hlsPublicId,
-            playerLink
-        },
-        hostIngest: {
-            rtmpUrl,
-            streamKey
-        }
+        wsUrl,
+        apiKey,
+        apiSecret,
     };
+};
+
+const buildParticipantIdentity = ({ userId, isHost }) => `${isHost ? 'host' : 'viewer'}_${userId}`;
+
+const buildAccessToken = ({ config, roomName, user, isHost }) => {
+    const token = new AccessToken(config.apiKey, config.apiSecret, {
+        identity: buildParticipantIdentity({ userId: user._id.toString(), isHost }),
+        name: user.displayName || user.username,
+        ttl: '2h',
+    });
+
+    token.addGrant({
+        room: roomName,
+        roomJoin: true,
+        canPublish: Boolean(isHost),
+        canSubscribe: true,
+        canPublishData: true,
+    });
+
+    return token.toJwt();
 };
 
 const upsertHostedStream = ({ existingStream, user, roomName, title, description, requestTime }) => {
@@ -83,25 +72,24 @@ const upsertHostedStream = ({ existingStream, user, roomName, title, description
         slowMode: existingStream.slowMode || false,
         pinnedComment: existingStream.pinnedComment || null,
         liveKitProvisioned: true,
-        cloudinaryProvisioned: true,
-        streamProvider: 'cloudinary',
-        liveKitProvisionedAt: existingStream.liveKitProvisionedAt || requestTime
+        cloudinaryProvisioned: false,
+        streamProvider: 'livekit',
+        liveKitProvisionedAt: existingStream.liveKitProvisionedAt || requestTime,
     });
 };
 
-// Legacy route name retained for compatibility, but the provider is now Cloudinary.
 const getLiveKitToken = async (req, res) => {
     try {
         let { roomName, isHost, title, description, hostId } = req.body;
         const userId = req.user._id.toString();
         const requestTime = new Date().toISOString();
-        const config = getCloudinaryStreamConfig();
+        const config = getLiveKitConfig();
 
         if (!config.isConfigured) {
-            console.error('[Cloudinary Stream] Missing stream environment variables:', config.missing);
+            console.error('[LiveKit] Missing environment variables:', config.missing);
             return res.status(500).json({
                 success: false,
-                message: 'Cloudinary streaming configuration is missing on the server.'
+                message: 'LiveKit streaming configuration is missing on the server.'
             });
         }
 
@@ -150,18 +138,25 @@ const getLiveKitToken = async (req, res) => {
             });
         }
 
+        const jwt = await buildAccessToken({
+            config,
+            roomName,
+            user: req.user,
+            isHost: Boolean(isHost),
+        });
+
         res.json({
             success: true,
             data: {
+                token: jwt,
+                wsUrl: config.wsUrl,
                 roomName,
                 hostId: isHost ? userId : targetStream?.hostId,
-                streamProvider: 'cloudinary',
-                playback: config.playback,
-                hostIngest: isHost ? config.hostIngest : undefined
+                streamProvider: 'livekit',
             }
         });
     } catch (error) {
-        console.error('[Cloudinary Stream] Error building stream access:', error);
+        console.error('[LiveKit] Error building stream access:', error);
         res.status(500).json({ success: false, message: 'Failed to prepare stream access' });
     }
 };

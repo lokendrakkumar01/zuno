@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const User = require('../models/User');
 const { sendLoginEmail } = require('../config/emailService');
 
@@ -17,6 +18,64 @@ const handleAuthError = (res, message, error) => {
             success: false,
             message
       });
+};
+
+const normalizeEmail = (value = '') => String(value || '').trim().toLowerCase();
+
+const slugifyUsername = (value = '') => (
+      String(value || '')
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '')
+            .slice(0, 24)
+);
+
+const buildGoogleUsername = async ({ email, name }) => {
+      const emailBase = normalizeEmail(email).split('@')[0];
+      const preferredBase = slugifyUsername(name) || slugifyUsername(emailBase) || 'zuno_user';
+      let candidate = preferredBase.slice(0, 24) || 'zuno_user';
+      let suffix = 0;
+
+      while (true) {
+            const existingUser = await User.findOne({ username: candidate }).select('_id');
+            if (!existingUser) {
+                  return candidate;
+            }
+
+            suffix += 1;
+            const suffixValue = `_${suffix}`;
+            const trimmedBase = preferredBase.slice(0, Math.max(3, 24 - suffixValue.length)) || 'zuno_user';
+            candidate = `${trimmedBase}${suffixValue}`;
+      }
+};
+
+const verifyGoogleCredential = async (credential) => {
+      const googleClientId = process.env.GOOGLE_CLIENT_ID;
+      if (!googleClientId) {
+            throw new Error('GOOGLE_CLIENT_ID is missing on the server');
+      }
+
+      const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
+      if (!response.ok) {
+            throw new Error('Google token verification failed');
+      }
+
+      const profile = await response.json();
+      if (profile.aud !== googleClientId) {
+            throw new Error('Google client ID mismatch');
+      }
+
+      if (profile.email_verified !== 'true') {
+            throw new Error('Google account email is not verified');
+      }
+
+      return {
+            googleId: profile.sub,
+            email: normalizeEmail(profile.email),
+            displayName: profile.name || profile.email,
+            avatar: profile.picture || '',
+      };
 };
 
 // @desc    Register new user
@@ -127,6 +186,95 @@ const login = async (req, res) => {
       }
 };
 
+// @desc    Login/register with Google
+// @route   POST /api/auth/google
+// @access  Public
+const googleLogin = async (req, res) => {
+      try {
+            const credential = String(req.body?.credential || '').trim();
+            if (!credential) {
+                  return res.status(400).json({
+                        success: false,
+                        message: 'Google credential is required'
+                  });
+            }
+
+            const googleProfile = await verifyGoogleCredential(credential);
+
+            let user = await User.findOne({
+                  $or: [
+                        { googleId: googleProfile.googleId },
+                        { email: googleProfile.email }
+                  ]
+            });
+
+            if (user) {
+                  if (!user.isActive) {
+                        return res.status(401).json({
+                              success: false,
+                              message: 'Account is deactivated. Please contact support.'
+                        });
+                  }
+
+                  let shouldSave = false;
+                  if (!user.googleId) {
+                        user.googleId = googleProfile.googleId;
+                        shouldSave = true;
+                  }
+                  if (!user.avatar && googleProfile.avatar) {
+                        user.avatar = googleProfile.avatar;
+                        shouldSave = true;
+                  }
+                  if (!user.displayName && googleProfile.displayName) {
+                        user.displayName = googleProfile.displayName;
+                        shouldSave = true;
+                  }
+
+                  if (shouldSave) {
+                        await user.save();
+                  }
+            } else {
+                  const username = await buildGoogleUsername({
+                        email: googleProfile.email,
+                        name: googleProfile.displayName
+                  });
+
+                  user = await User.create({
+                        username,
+                        email: googleProfile.email,
+                        displayName: googleProfile.displayName || username,
+                        avatar: googleProfile.avatar,
+                        googleId: googleProfile.googleId,
+                        password: crypto.randomBytes(24).toString('hex'),
+                        language: 'both'
+                  });
+            }
+
+            const token = generateToken(user._id);
+            res.json({
+                  success: true,
+                  message: 'Welcome to ZUNO!',
+                  data: {
+                        user: user.getAuthProfile(),
+                        token
+                  }
+            });
+      } catch (error) {
+            const message = error?.message || 'Google login failed';
+            if (
+                  message.includes('credential is required')
+                  || message.includes('missing on the server')
+                  || message.includes('verification failed')
+                  || message.includes('client ID mismatch')
+                  || message.includes('not verified')
+            ) {
+                  return res.status(400).json({ success: false, message });
+            }
+
+            return handleAuthError(res, 'Google login failed', error);
+      }
+};
+
 // @desc    Get current user
 // @route   GET /api/auth/me
 // @access  Private
@@ -219,7 +367,6 @@ const resetPassword = async (req, res) => {
                   return res.status(400).json({ success: false, message: 'Password must be at least 8 characters' });
             }
 
-            const crypto = require('crypto');
             const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
 
             const user = await User.findOne({
@@ -246,6 +393,7 @@ const resetPassword = async (req, res) => {
 module.exports = {
       register,
       login,
+      googleLogin,
       getMe,
       logout,
       changePassword,

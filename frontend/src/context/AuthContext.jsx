@@ -168,6 +168,39 @@ export const AuthProvider = ({ children }) => {
             return { success: false, message: 'Login failed after multiple attempts. Please try again.' };
       };
 
+      const googleLogin = async (credential) => {
+            try {
+                  const res = await fetchWithTimeout(`${API_URL}/auth/google`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ credential })
+                  }, 30000);
+
+                  if (!res.ok) {
+                        return {
+                              success: false,
+                              message: await getApiErrorMessage(res, 'Google login failed.')
+                        };
+                  }
+
+                  const data = await res.json();
+                  if (data.success) {
+                        setUser(data.data.user);
+                        setToken(data.data.token);
+                        localStorage.setItem('zuno_token', data.data.token);
+                        localStorage.setItem('zuno_user', JSON.stringify(data.data.user));
+                        return { success: true, message: data.message || 'Logged in with Google.' };
+                  }
+
+                  return { success: false, message: data.message || 'Google login failed.' };
+            } catch (error) {
+                  return {
+                        success: false,
+                        message: 'Google login failed. Please try again.'
+                  };
+            }
+      };
+
       const register = async (userData, onRetry = null) => {
             const MAX_RETRIES = 3;
             const RETRY_DELAYS = [5000, 10000, 20000];
@@ -315,6 +348,7 @@ export const AuthProvider = ({ children }) => {
             loading,
             isAuthenticated: !!user,
             login,
+            googleLogin,
             register,
             logout,
             updateProfile,

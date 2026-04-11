@@ -18,6 +18,8 @@ services:
         value: 30d
       - key: NODE_ENV
         value: production
+      - key: GOOGLE_CLIENT_ID
+        sync: false
       # ⚠️ DO NOT add Cloudinary secrets here. Set them in Render dashboard → Environment.
       # Required: CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET
       - key: CLOUDINARY_CLOUD_NAME
@@ -38,6 +40,12 @@ services:
       - key: CLOUDINARY_STREAM_HLS_PUBLIC_ID
         sync: false
       - key: CLOUDINARY_STREAM_PLAYER_URL
+        sync: false
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
         sync: false
       # Email service
       - key: EMAIL_USER
@@ -65,3 +73,5 @@ services:
     envVars:
       - key: VITE_API_URL
         value: https://zuno-backend-bevi.onrender.com
+      - key: VITE_GOOGLE_CLIENT_ID
+        sync: false
