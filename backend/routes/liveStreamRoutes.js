@@ -8,7 +8,7 @@ const {
   isStreamJoinable
 } = require('../socket/socket');
 
-// Start a new live stream (Legacy route - can be removed eventually, but left for backwards compat during rolling deploy)
+// Start a new live stream (legacy helper kept for backwards compatibility).
 router.post('/start', protect, (req, res) => {
   const { title, description } = req.body;
   const userId = req.user._id.toString();
@@ -35,7 +35,9 @@ router.post('/start', protect, (req, res) => {
     viewers: existing2.viewers || new Set(),
     viewerSockets: existing2.viewerSockets || new Map(),
     bannedViewers: existing2.bannedViewers || new Set(),
-    liveKitProvisioned: false
+    liveKitProvisioned: false,
+    cloudinaryProvisioned: false,
+    streamProvider: 'cloudinary'
   });
 
   res.json({ success: true, data: { stream: serializeStream(activeStreams.get(userId)) } });
@@ -43,7 +45,7 @@ router.post('/start', protect, (req, res) => {
 
 const { getLiveKitToken } = require('../controllers/liveKitController');
 
-// Generate LiveKit token for SFU streaming (replaces /start)
+// Build Cloudinary playback/ingest config for host and viewers.
 router.post('/token', protect, getLiveKitToken);
 
 // Get all active streams — filter out zombie entries with no hostSocketId (socket never connected)

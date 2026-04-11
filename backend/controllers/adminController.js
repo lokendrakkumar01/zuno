@@ -634,6 +634,9 @@ module.exports = {
       getConfigs,
       updateConfig,
       initializeConfigs,
-      sendBroadcast
+      sendBroadcast,
+      _private: {
+            mapReportForAdmin
+      }
 };
 

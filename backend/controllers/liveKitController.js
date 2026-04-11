@@ -1,23 +1,6 @@
-const { AccessToken } = require('livekit-server-sdk');
 const { activeStreams, pruneExpiredStreams, isStreamJoinable } = require('../socket/socket');
 
-const normalizeLiveKitUrl = (value = '') => {
-    const trimmed = value.replace(/['"]+/g, '').trim().replace(/\/+$/, '');
-
-    if (!trimmed) {
-        return '';
-    }
-
-    if (trimmed.startsWith('https://')) {
-        return `wss://${trimmed.slice('https://'.length)}`;
-    }
-
-    if (trimmed.startsWith('http://')) {
-        return `ws://${trimmed.slice('http://'.length)}`;
-    }
-
-    return trimmed;
-};
+const sanitizeValue = (value = '') => String(value || '').replace(/['"]+/g, '').trim();
 
 const sanitizeRoomName = (value, fallback) => {
     const normalized = String(value || fallback || '')
@@ -29,45 +12,121 @@ const sanitizeRoomName = (value, fallback) => {
     return normalized || fallback;
 };
 
-// Generate an access token for LiveKit
-// Used by both host (creating stream) and viewers (joining stream)
+const buildPlayerLink = ({ cloudName, hlsPublicId, playerLink }) => {
+    if (playerLink) {
+        return playerLink;
+    }
+
+    if (!cloudName || !hlsPublicId) {
+        return '';
+    }
+
+    return `https://player.cloudinary.com/embed/?cloud_name=${encodeURIComponent(cloudName)}&public_id=${encodeURIComponent(hlsPublicId)}&profile=cld-live-streaming`;
+};
+
+const getCloudinaryStreamConfig = () => {
+    const cloudName = sanitizeValue(process.env.CLOUDINARY_STREAM_CLOUD_NAME || process.env.CLOUDINARY_CLOUD_NAME);
+    const streamKey = sanitizeValue(process.env.CLOUDINARY_STREAM_KEY);
+    const rtmpUrl = sanitizeValue(process.env.CLOUDINARY_STREAM_RTMP_URL || 'rtmp://live.cloudinary.com/streams');
+    const hlsUrl = sanitizeValue(process.env.CLOUDINARY_STREAM_HLS_URL);
+    const hlsPublicId = sanitizeValue(process.env.CLOUDINARY_STREAM_HLS_PUBLIC_ID);
+    const playerLink = buildPlayerLink({
+        cloudName,
+        hlsPublicId,
+        playerLink: sanitizeValue(process.env.CLOUDINARY_STREAM_PLAYER_URL)
+    });
+
+    const playbackReady = Boolean(hlsUrl && hlsPublicId && playerLink);
+    const ingestReady = Boolean(rtmpUrl && streamKey);
+
+    return {
+        isConfigured: playbackReady && ingestReady,
+        missing: {
+            cloudName: !cloudName,
+            streamKey: !streamKey,
+            rtmpUrl: !rtmpUrl,
+            hlsUrl: !hlsUrl,
+            hlsPublicId: !hlsPublicId,
+            playerLink: !playerLink
+        },
+        playback: {
+            cloudName,
+            hlsUrl,
+            hlsPublicId,
+            playerLink
+        },
+        hostIngest: {
+            rtmpUrl,
+            streamKey
+        }
+    };
+};
+
+const upsertHostedStream = ({ existingStream, user, roomName, title, description, requestTime }) => {
+    activeStreams.set(user._id.toString(), {
+        ...existingStream,
+        id: roomName,
+        roomId: roomName,
+        hostId: user._id.toString(),
+        hostUsername: user.username,
+        hostAvatar: user.avatar || '',
+        hostDisplayName: user.displayName || user.username,
+        title: title || `${user.displayName || user.username}'s Live Stream`,
+        description: description || existingStream.description || '',
+        startedAt: existingStream.startedAt || requestTime,
+        updatedAt: requestTime,
+        viewerCount: existingStream.viewers ? existingStream.viewers.size : 0,
+        hostSocketId: existingStream.hostSocketId || null,
+        viewers: existingStream.viewers || new Set(),
+        viewerSockets: existingStream.viewerSockets || new Map(),
+        bannedViewers: existingStream.bannedViewers || new Set(),
+        slowMode: existingStream.slowMode || false,
+        pinnedComment: existingStream.pinnedComment || null,
+        liveKitProvisioned: true,
+        cloudinaryProvisioned: true,
+        streamProvider: 'cloudinary',
+        liveKitProvisionedAt: existingStream.liveKitProvisionedAt || requestTime
+    });
+};
+
+// Legacy route name retained for compatibility, but the provider is now Cloudinary.
 const getLiveKitToken = async (req, res) => {
     try {
-        let { roomName, isHost, title } = req.body;
+        let { roomName, isHost, title, description, hostId } = req.body;
         const userId = req.user._id.toString();
-        const username = req.user.username;
-        const displayName = req.user.displayName || username;
-        const avatar = req.user.avatar || '';
         const requestTime = new Date().toISOString();
+        const config = getCloudinaryStreamConfig();
 
-        // If the API keys aren't set in environment, throw an error
-        let apiKey = process.env.LIVEKIT_API_KEY?.replace(/['"]+/g, '');
-        let apiSecret = process.env.LIVEKIT_API_SECRET?.replace(/['"]+/g, '');
-        let wsUrl = normalizeLiveKitUrl(process.env.LIVEKIT_URL);
-
-        if (!apiKey || !apiSecret || !wsUrl) {
-            console.error('[LiveKit] Missing API keys or URL in environment');
-            return res.status(500).json({ success: false, message: 'LiveKit configuration missing on server.' });
+        if (!config.isConfigured) {
+            console.error('[Cloudinary Stream] Missing stream environment variables:', config.missing);
+            return res.status(500).json({
+                success: false,
+                message: 'Cloudinary streaming configuration is missing on the server.'
+            });
         }
 
-        // Host must define their own room Name
         const fallbackRoomName = `stream_${userId}`;
         if (isHost && !roomName) {
             roomName = fallbackRoomName;
         }
-        
-        if (!roomName) {
-             return res.status(400).json({ success: false, message: 'roomName is required for viewers.' });
+
+        if (!roomName && !hostId) {
+            return res.status(400).json({ success: false, message: 'roomName or hostId is required for viewers.' });
         }
 
-        roomName = sanitizeRoomName(roomName, fallbackRoomName);
         pruneExpiredStreams();
 
+        let targetStream = null;
+
         if (!isHost) {
-            const targetStream = Array.from(activeStreams.values()).find((stream) => {
+            targetStream = Array.from(activeStreams.values()).find((stream) => {
                 if (!stream) return false;
                 const candidateRoomId = stream.roomId || stream.id;
-                return candidateRoomId === roomName || stream.id === roomName;
+                return (
+                    candidateRoomId === roomName
+                    || stream.id === roomName
+                    || stream.hostId === hostId
+                );
             });
 
             if (!targetStream || !isStreamJoinable(targetStream)) {
@@ -75,76 +134,35 @@ const getLiveKitToken = async (req, res) => {
             }
 
             roomName = targetStream.roomId || targetStream.id || roomName;
+        } else {
+            roomName = sanitizeRoomName(roomName, fallbackRoomName);
         }
 
-        // Generate the token
-        const participantName = displayName;
-        const at = new AccessToken(apiKey, apiSecret, {
-            identity: userId,
-            name: participantName,
-            ttl: '6h'
-        });
-
-        at.metadata = JSON.stringify({
-            userId,
-            username,
-            displayName,
-            avatar,
-            role: isHost ? 'host' : 'viewer'
-        });
-
-        // Add Grants
-        at.addGrant({
-            roomJoin: true,
-            room: roomName,
-            canPublish: isHost ? true : false,
-            canPublishData: true,
-            canSubscribe: true,
-            roomCreate: !!isHost,
-            roomAdmin: !!isHost
-        });
-
-        const token = await at.toJwt();
-
-        // If host, pre-register stream metadata. Socket lifecycle will finalize live presence.
         if (isHost) {
             const existingStream = activeStreams.get(userId) || {};
-
-            activeStreams.set(userId, {
-                ...existingStream,
-                id: roomName,
-                roomId: roomName,
-                hostId: userId,
-                hostUsername: username,
-                hostAvatar: avatar,
-                hostDisplayName: displayName,
-                title: title || `${displayName}'s Live Stream`,
-                description: req.body.description || existingStream.description || '',
-                startedAt: existingStream.startedAt || new Date().toISOString(),
-                updatedAt: requestTime,
-                viewerCount: existingStream.viewers ? existingStream.viewers.size : 0,
-                hostSocketId: existingStream.hostSocketId || null,
-                viewers: existingStream.viewers || new Set(),
-                viewerSockets: existingStream.viewerSockets || new Map(),
-                bannedViewers: existingStream.bannedViewers || new Set(),
-                slowMode: existingStream.slowMode || false,
-                pinnedComment: existingStream.pinnedComment || null,
-                liveKitProvisioned: true,
-                liveKitProvisionedAt: existingStream.liveKitProvisionedAt || requestTime
+            upsertHostedStream({
+                existingStream,
+                user: req.user,
+                roomName,
+                title,
+                description,
+                requestTime
             });
         }
 
         res.json({
             success: true,
             data: {
-                token,
                 roomName,
-                wsUrl // The frontend needs this URL to connect
+                hostId: isHost ? userId : targetStream?.hostId,
+                streamProvider: 'cloudinary',
+                playback: config.playback,
+                hostIngest: isHost ? config.hostIngest : undefined
             }
         });
     } catch (error) {
-        console.error('[LiveKit] Error generating token:', error);
-        res.status(500).json({ success: false, message: 'Failed to generate access token' });
+        console.error('[Cloudinary Stream] Error building stream access:', error);
+        res.status(500).json({ success: false, message: 'Failed to prepare stream access' });
     }
 };
 

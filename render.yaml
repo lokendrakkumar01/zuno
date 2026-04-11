@@ -26,12 +26,18 @@ services:
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
-      # LiveKit SFU for scalable live streaming
-      - key: LIVEKIT_API_KEY
+      # Cloudinary Live Streaming
+      - key: CLOUDINARY_STREAM_CLOUD_NAME
         sync: false
-      - key: LIVEKIT_API_SECRET
+      - key: CLOUDINARY_STREAM_KEY
         sync: false
-      - key: LIVEKIT_URL
+      - key: CLOUDINARY_STREAM_RTMP_URL
+        sync: false
+      - key: CLOUDINARY_STREAM_HLS_URL
+        sync: false
+      - key: CLOUDINARY_STREAM_HLS_PUBLIC_ID
+        sync: false
+      - key: CLOUDINARY_STREAM_PLAYER_URL
         sync: false
       # Email service
       - key: EMAIL_USER
