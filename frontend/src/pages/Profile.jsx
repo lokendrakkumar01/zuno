@@ -6,6 +6,7 @@ import SpotifySearch from '../components/Music/SpotifySearch';
 import { useMusic } from '../context/MusicContext';
 import UserAvatar from '../components/User/UserAvatar';
 import CricketGame from '../components/Games/CricketGame';
+import NotificationPanel from '../components/Profile/NotificationPanel';
 import { BlockIcon, CheckIcon, ClockIcon, EditIcon, MessageIcon, SettingsIcon, UserPlusIcon } from '../components/Icons/ActionIcons';
 import { resolveAssetUrl } from '../utils/media';
 import { readStoredAuthUser } from '../utils/session';
@@ -1186,6 +1187,7 @@ const Profile = () => {
                               <button className={`mode-pill ${activeTab === 'posts' || activeTab === 'profile' ? 'active' : ''}`} onClick={() => setActiveTab(isOwnProfile ? 'profile' : 'posts')}>Posts</button>
                               {isOwnProfile && (
                                     <>
+                                          <button className={`mode-pill ${activeTab === 'notifications' ? 'active' : ''}`} onClick={() => setActiveTab('notifications')}>Notifications</button>
                                           <button className={`mode-pill ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>Settings</button>
                                           <button className={`mode-pill ${activeTab === 'stats' ? 'active' : ''}`} onClick={() => setActiveTab('stats')}>Stats</button>
                                           <button className={`mode-pill ${activeTab === 'games' ? 'active' : ''}`} onClick={() => setActiveTab('games')}>Games</button>
@@ -1414,7 +1416,11 @@ const Profile = () => {
                                                       <div style={{ fontSize: '1rem', marginBottom: 'var(--space-sm)', fontWeight: 700 }}>Edit</div>
                                                       <div className="font-semibold">Edit Profile</div>
                                                 </button>
-                                                <button onClick={openMusicEditor} className="feature-card animate-fadeInUp stagger-3" style={{ padding: 'var(--space-lg)' }}>
+                                                <button onClick={() => setActiveTab('notifications')} className="feature-card animate-fadeInUp stagger-3" style={{ padding: 'var(--space-lg)' }}>
+                                                      <div style={{ fontSize: '1rem', marginBottom: 'var(--space-sm)', fontWeight: 700 }}>Inbox</div>
+                                                      <div className="font-semibold">Notifications</div>
+                                                </button>
+                                                <button onClick={openMusicEditor} className="feature-card animate-fadeInUp stagger-4" style={{ padding: 'var(--space-lg)' }}>
                                                       <div style={{ fontSize: '1rem', marginBottom: 'var(--space-sm)', fontWeight: 700 }}>Music</div>
                                                       <div className="font-semibold">{profileUser?.profileSong?.name ? 'Change Song' : 'Add Song'}</div>
                                                 </button>
@@ -1446,6 +1452,10 @@ const Profile = () => {
                                     <hr style={{ border: 'none', borderTop: '1px solid var(--color-border)', margin: 'var(--space-xl) 0' }} />
                                     <button onClick={handleLogout} className="btn btn-ghost" style={{ color: '#ef4444' }}>Logout</button>
                               </div>
+                        )}
+
+                        {activeTab === 'notifications' && isOwnProfile && (
+                              <NotificationPanel onProfileRefresh={() => refreshProfile(sessionUser?.username || targetUsername)} />
                         )}
 
                         {activeTab === 'stats' && isOwnProfile && user?.stats && (

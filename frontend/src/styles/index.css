@@ -5024,6 +5024,137 @@ video.chat-media-content {
   line-height: 1;
 }
 
+.notification-panel {
+  display: grid;
+  gap: 1rem;
+}
+
+.notification-panel-head,
+.notification-section-head,
+.notification-card,
+.notification-card-main,
+.notification-request-actions,
+.notification-panel-actions {
+  display: flex;
+  align-items: center;
+}
+
+.notification-panel-head,
+.notification-section-head {
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.notification-panel-head h2,
+.notification-section-head strong {
+  margin: 0;
+}
+
+.notification-panel-head p {
+  margin: 0.35rem 0 0;
+  color: var(--color-text-secondary);
+}
+
+.notification-panel-actions {
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.notification-inline-banner {
+  padding: 0.85rem 1rem;
+  border-radius: 16px;
+  background: rgba(249, 115, 22, 0.12);
+  border: 1px solid rgba(249, 115, 22, 0.24);
+  color: #c2410c;
+}
+
+.notification-section {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.notification-request-list,
+.notification-list,
+.notification-skeleton-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.notification-card {
+  width: 100%;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.95rem 1rem;
+  border-radius: 20px;
+  border: 1px solid var(--color-border);
+  background: rgba(var(--color-bg-primary-rgb), 0.92);
+  text-align: left;
+  color: inherit;
+}
+
+.notification-card.unread {
+  border-color: rgba(59, 130, 246, 0.25);
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(14, 165, 233, 0.04));
+}
+
+.notification-card--request {
+  align-items: flex-start;
+}
+
+.notification-card-copy {
+  min-width: 0;
+  display: grid;
+  gap: 0.28rem;
+}
+
+.notification-card-copy strong,
+.notification-card-copy p,
+.notification-card-copy span {
+  overflow-wrap: anywhere;
+}
+
+.notification-card-copy p,
+.notification-card-copy span {
+  margin: 0;
+}
+
+.notification-card-copy p {
+  color: var(--color-text-secondary);
+}
+
+.notification-card-copy span {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+}
+
+.notification-card-topline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.notification-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #2563eb;
+  flex-shrink: 0;
+}
+
+.notification-request-actions {
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.notification-skeleton-row {
+  height: 86px;
+  border-radius: 22px;
+  background: linear-gradient(90deg, rgba(148, 163, 184, 0.18) 0%, rgba(226, 232, 240, 0.6) 50%, rgba(148, 163, 184, 0.18) 100%);
+  background-size: 220% 100%;
+  animation: shimmer 1.3s linear infinite;
+}
+
 /* ========================================
    Messages Refresh
    ======================================== */
@@ -6289,6 +6420,24 @@ video.chat-media-content {
 
   .profile-inline-actions {
     flex-direction: column;
+  }
+
+  .notification-panel-head,
+  .notification-card,
+  .notification-card-main,
+  .notification-request-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .notification-panel-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .notification-panel-actions .btn,
+  .notification-request-actions .btn {
+    width: 100%;
   }
 
   .profile-edit-actions {

@@ -5,6 +5,7 @@ const {
       decorateContentsForViewer,
       decorateContentForViewer
 } = require('../utils/contentPresentation');
+const { createNotification } = require('../utils/notificationService');
 
 const hasId = (idList, id) =>
       Array.isArray(idList) && idList.some((entry) => entry?.toString() === id?.toString());
@@ -339,21 +340,19 @@ const markHelpful = async (req, res) => {
 
             // Notify creator that someone marked their content as helpful
             if (shouldNotifyHelpful && previousType !== 'helpful') {
-                  const { getReceiverSocketId, io } = require('../socket/socket');
-                  const receiverSocketId = getReceiverSocketId(content.creator.toString());
-                  if (receiverSocketId && content.creator.toString() !== req.user.id) {
-                        io.to(receiverSocketId).emit("newInteraction", {
-                              type: 'helpful',
-                              contentId: content._id,
-                              title: content.title,
-                              sender: {
-                                    _id: req.user.id,
-                                    username: req.user.username,
-                                    displayName: req.user.displayName,
-                                    avatar: req.user.avatar
-                              }
-                        });
-                  }
+                  await createNotification({
+                        recipientId: content.creator,
+                        actor: req.user,
+                        type: 'helpful',
+                        title: 'Helpful feedback received',
+                        body: `${req.user.displayName || req.user.username} marked "${content.title || 'your post'}" as helpful.`,
+                        entityType: 'content',
+                        entityId: content._id,
+                        metadata: {
+                              username: req.user.username,
+                              contentTitle: content.title || ''
+                        }
+                  });
             }
 
             // Update creator's helpful received stat

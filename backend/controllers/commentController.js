@@ -1,5 +1,6 @@
 const Comment = require('../models/Comment');
 const Content = require('../models/Content');
+const { createNotification } = require('../utils/notificationService');
 
 // @desc    Add a comment
 // @route   POST /api/comments/:contentId
@@ -34,16 +35,19 @@ const addComment = async (req, res) => {
 
             const populatedComment = await Comment.findById(comment._id).populate('user', 'username displayName avatar');
 
-            // Notify content creator about new comment
-            const { getReceiverSocketId, io } = require('../socket/socket');
-            const receiverSocketId = getReceiverSocketId(content.creator.toString());
-            if (receiverSocketId && content.creator.toString() !== req.user.id) {
-                  io.to(receiverSocketId).emit("newComment", {
-                        contentId: content._id,
-                        comment: populatedComment,
-                        contentTitle: content.title
-                  });
-            }
+            await createNotification({
+                  recipientId: content.creator,
+                  actor: populatedComment.user,
+                  type: 'comment',
+                  title: 'New comment on your post',
+                  body: `${populatedComment.user.displayName || populatedComment.user.username} commented on "${content.title || 'your post'}".`,
+                  entityType: 'content',
+                  entityId: content._id,
+                  metadata: {
+                        username: populatedComment.user.username,
+                        contentTitle: content.title || ''
+                  }
+            });
 
             res.status(201).json({
                   success: true,

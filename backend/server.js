@@ -22,6 +22,7 @@ const messageRoutes = require('./routes/messageRoutes');
 const spotifyRoutes = require('./routes/spotifyRoutes');
 const noteRoutes = require('./routes/noteRoutes');
 const liveStreamRoutes = require('./routes/liveStreamRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 const { app, server } = require('./socket/socket');
 
 // Middleware
@@ -93,6 +94,7 @@ app.use('/api/messages', messageLimiter, messageRoutes); // 60 messages/min per 
 app.use('/api/notes', noteRoutes);
 app.use('/api/livestream', liveStreamRoutes);
 app.use('/api/spotify', spotifyRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Root route - API Welcome
 app.get('/', (req, res) => {

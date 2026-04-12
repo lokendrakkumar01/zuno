@@ -1,6 +1,6 @@
 const User = require('../models/User');
-const { getReceiverSocketId, io } = require('../socket/socket');
 const { sendProfileUpdateEmail } = require('../config/emailService');
+const { createNotification } = require('../utils/notificationService');
 
 const PUBLIC_PROFILE_SELECT = [
       'username',
@@ -370,18 +370,18 @@ const followUser = async (req, res) => {
             if (userToFollow.isPrivate) {
                   await userToFollow.updateOne({ $push: { followRequests: req.user.id } });
 
-                  // Notify the private user about a new follow request
-                  const receiverSocketId = getReceiverSocketId(req.params.id);
-                  if (receiverSocketId) {
-                        io.to(receiverSocketId).emit("newFollowRequest", {
-                              sender: {
-                                    _id: req.user.id,
-                                    username: currentUser.username,
-                                    displayName: currentUser.displayName,
-                                    avatar: currentUser.avatar
-                              }
-                        });
-                  }
+                  await createNotification({
+                        recipientId: req.params.id,
+                        actor: currentUser,
+                        type: 'follow_request',
+                        title: 'New follow request',
+                        body: `${currentUser.displayName || currentUser.username} wants to follow you.`,
+                        entityType: 'request',
+                        entityId: currentUser._id,
+                        metadata: {
+                              username: currentUser.username
+                        }
+                  });
 
                   return res.json({
                         success: true,
@@ -400,18 +400,18 @@ const followUser = async (req, res) => {
                         userToFollow.updateOne({ $push: { followers: req.user.id } })
                   ]);
 
-                  // Notify the user about a new follower
-                  const receiverSocketId = getReceiverSocketId(req.params.id);
-                  if (receiverSocketId) {
-                        io.to(receiverSocketId).emit("newFollow", {
-                              sender: {
-                                    _id: req.user.id,
-                                    username: currentUser.username,
-                                    displayName: currentUser.displayName,
-                                    avatar: currentUser.avatar
-                              }
-                        });
-                  }
+                  await createNotification({
+                        recipientId: req.params.id,
+                        actor: currentUser,
+                        type: 'follow',
+                        title: 'New follower',
+                        body: `${currentUser.displayName || currentUser.username} started following you.`,
+                        entityType: 'user',
+                        entityId: currentUser._id,
+                        metadata: {
+                              username: currentUser.username
+                        }
+                  });
 
                   return res.json({
                         success: true,
@@ -452,6 +452,20 @@ const unfollowUser = async (req, res) => {
                         currentUser.updateOne({ $pull: { following: req.params.id } }),
                         userToUnfollow.updateOne({ $pull: { followers: req.user.id } })
                   ]);
+
+                  await createNotification({
+                        recipientId: req.params.id,
+                        actor: currentUser,
+                        type: 'unfollow',
+                        title: 'Follower removed',
+                        body: `${currentUser.displayName || currentUser.username} unfollowed you.`,
+                        entityType: 'user',
+                        entityId: currentUser._id,
+                        metadata: {
+                              username: currentUser.username
+                        }
+                  });
+
                   res.json({
                         success: true,
                         message: "User unfollowed",
@@ -465,6 +479,20 @@ const unfollowUser = async (req, res) => {
             } else if (userToUnfollow.followRequests.includes(req.user.id)) {
                   // Check if there was a pending request and remove it
                   await userToUnfollow.updateOne({ $pull: { followRequests: req.user.id } });
+
+                  await createNotification({
+                        recipientId: req.params.id,
+                        actor: currentUser,
+                        type: 'unfollow',
+                        title: 'Follow request cancelled',
+                        body: `${currentUser.displayName || currentUser.username} cancelled the follow request.`,
+                        entityType: 'request',
+                        entityId: currentUser._id,
+                        metadata: {
+                              username: currentUser.username
+                        }
+                  });
+
                   res.json({
                         success: true,
                         message: "Follow request cancelled",
@@ -506,19 +534,18 @@ const acceptFollowRequest = async (req, res) => {
             });
             await userToAccept.updateOne({ $push: { following: req.user.id } });
 
-            // Notify user that their request was accepted
-            const { getReceiverSocketId, io } = require('../socket/socket');
-            const receiverSocketId = getReceiverSocketId(req.params.id);
-            if (receiverSocketId) {
-                  io.to(receiverSocketId).emit("followAccepted", {
-                        sender: {
-                              _id: req.user.id,
-                              username: currentUser.username,
-                              displayName: currentUser.displayName,
-                              avatar: currentUser.avatar
-                        }
-                  });
-            }
+            await createNotification({
+                  recipientId: req.params.id,
+                  actor: currentUser,
+                  type: 'follow_request_accepted',
+                  title: 'Follow request accepted',
+                  body: `${currentUser.displayName || currentUser.username} accepted your follow request.`,
+                  entityType: 'user',
+                  entityId: currentUser._id,
+                  metadata: {
+                        username: currentUser.username
+                  }
+            });
 
             res.json({ success: true, message: "Request accepted" });
       } catch (error) {
@@ -532,11 +559,27 @@ const acceptFollowRequest = async (req, res) => {
 const rejectFollowRequest = async (req, res) => {
       try {
             const currentUser = await User.findById(req.user.id);
+            const requester = await User.findById(req.params.id).select('username displayName avatar');
             if (!currentUser.followRequests.includes(req.params.id)) {
                   return res.status(400).json({ success: false, message: "No request from this user" });
             }
 
             await currentUser.updateOne({ $pull: { followRequests: req.params.id } });
+
+            if (requester) {
+                  await createNotification({
+                        recipientId: requester._id,
+                        actor: currentUser,
+                        type: 'follow_request_rejected',
+                        title: 'Follow request declined',
+                        body: `${currentUser.displayName || currentUser.username} declined your follow request.`,
+                        entityType: 'user',
+                        entityId: currentUser._id,
+                        metadata: {
+                              username: currentUser.username
+                        }
+                  });
+            }
 
             res.json({ success: true, message: "Request rejected" });
       } catch (error) {

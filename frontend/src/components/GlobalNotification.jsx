@@ -72,7 +72,7 @@ const GlobalNotification = () => {
       }, [notificationSettings.pushNotifications]);
 
       useEffect(() => {
-            if (!socket || !user?._id) return;
+            if (!socket || !user?._id) return undefined;
 
             const showNativeNotification = (title, body, tag, onClick) => {
                   if (!notificationSettings.pushNotifications) return;
@@ -110,7 +110,7 @@ const GlobalNotification = () => {
                               <strong style={{ display: 'block' }}>{senderName}</strong>
                               <span style={{ fontSize: '0.9em', opacity: 0.9 }}>{textPreview}</span>
                         </div>,
-                        { position: 'top-right', autoClose: 4000, icon: '💬', toastId: `msg-${newMessage._id || senderId}` }
+                        { position: 'top-right', autoClose: 4000, icon: 'DM', toastId: `msg-${newMessage._id || senderId}` }
                   );
 
                   showNativeNotification(
@@ -180,7 +180,7 @@ const GlobalNotification = () => {
                               autoClose: 45000,
                               closeOnClick: false,
                               closeButton: false,
-                              icon: data.callType === 'video' ? '📹' : '📞',
+                              icon: data.callType === 'video' ? 'Video' : 'Call',
                               toastId: 'incoming-call'
                         }
                   );
@@ -203,73 +203,51 @@ const GlobalNotification = () => {
                   callToastId.current = null;
             };
 
-            const handleNewFollow = (data) => {
-                  if (!shouldAllow('followsNotifications')) return;
-                  if (isThrottled(`follow:${data.sender?._id || data.sender?.username}`)) return;
+            const handleProfileNotification = (notification) => {
+                  const typeToSettingKey = {
+                        comment: 'commentsNotifications',
+                        helpful: 'likesNotifications',
+                        follow: 'followsNotifications',
+                        unfollow: 'followsNotifications',
+                        follow_request: 'followsNotifications',
+                        follow_request_accepted: 'followsNotifications',
+                        follow_request_rejected: 'followsNotifications'
+                  };
 
-                  playNotificationSound();
-                  toast.success(
-                        <div onClick={() => navigate(`/u/${data.sender.username}`)} style={{ cursor: 'pointer' }}>
-                              <strong>New Follower</strong>
-                              <p style={{ fontSize: '0.85em' }}>{data.sender.displayName || data.sender.username} followed you</p>
-                        </div>,
-                        { position: 'top-right', autoClose: 5000, icon: '👤' }
-                  );
-            };
+                  const settingKey = typeToSettingKey[notification.type] || 'pushNotifications';
+                  if (!shouldAllow(settingKey)) return;
+                  if (isThrottled(`notification:${notification._id || notification.type}:${notification.createdAt || ''}`)) return;
 
-            const handleNewFollowRequest = (data) => {
-                  if (!shouldAllow('followsNotifications')) return;
-                  if (isThrottled(`follow-request:${data.sender?._id || data.sender?.username}`)) return;
-
-                  playNotificationSound();
-                  toast.info(
-                        <div onClick={() => navigate('/settings/notifications')} style={{ cursor: 'pointer' }}>
-                              <strong>Follow Request</strong>
-                              <p style={{ fontSize: '0.85em' }}>{data.sender.displayName || data.sender.username} wants to follow you</p>
-                        </div>,
-                        { position: 'top-right', autoClose: 5000, icon: '🔒' }
-                  );
-            };
-
-            const handleFollowAccepted = (data) => {
-                  if (!shouldAllow('followsNotifications')) return;
-                  if (isThrottled(`follow-accepted:${data.sender?._id || data.sender?.username}`)) return;
-
-                  playNotificationSound();
-                  toast.success(
-                        <div onClick={() => navigate(`/u/${data.sender.username}`)} style={{ cursor: 'pointer' }}>
-                              <strong>Request Accepted</strong>
-                              <p style={{ fontSize: '0.85em' }}>{data.sender.displayName || data.sender.username} accepted your follow request</p>
-                        </div>,
-                        { position: 'top-right', autoClose: 5000, icon: '✅' }
-                  );
-            };
-
-            const handleNewInteraction = (data) => {
-                  if (!shouldAllow('likesNotifications')) return;
-                  if (isThrottled(`interaction:${data.contentId}:${data.sender?._id || data.sender?.username}`)) return;
-
-                  playNotificationSound();
-                  toast.success(
-                        <div onClick={() => navigate(`/content/${data.contentId}`)} style={{ cursor: 'pointer' }}>
-                              <strong>Post feedback</strong>
-                              <p style={{ fontSize: '0.85em' }}>{data.sender.displayName || data.sender.username} marked your post "{data.title}" as helpful</p>
-                        </div>,
-                        { position: 'top-right', autoClose: 5000, icon: '💎' }
-                  );
-            };
-
-            const handleNewComment = (data) => {
-                  if (!shouldAllow('commentsNotifications')) return;
-                  if (isThrottled(`comment:${data.comment?._id || data.contentId}`)) return;
+                  const actorName = notification.actor?.displayName || notification.actor?.username || 'Someone';
+                  const iconByType = {
+                        comment: 'Comment',
+                        helpful: 'Like',
+                        follow: 'Follow',
+                        unfollow: 'Unfollow',
+                        follow_request: 'Request',
+                        follow_request_accepted: 'Accepted',
+                        follow_request_rejected: 'Declined'
+                  };
 
                   playNotificationSound();
                   toast.info(
-                        <div onClick={() => navigate(`/content/${data.contentId}`)} style={{ cursor: 'pointer' }}>
-                              <strong>New Comment</strong>
-                              <p style={{ fontSize: '0.85em' }}>{data.comment.user.displayName || data.comment.user.username} commented on "{data.contentTitle}"</p>
+                        <div onClick={() => navigate(notification.actionUrl || '/profile')} style={{ cursor: 'pointer' }}>
+                              <strong>{notification.title}</strong>
+                              <p style={{ fontSize: '0.85em' }}>{notification.body || `${actorName} sent an update.`}</p>
                         </div>,
-                        { position: 'top-right', autoClose: 5000, icon: '💬' }
+                        {
+                              position: 'top-right',
+                              autoClose: 5000,
+                              icon: iconByType[notification.type] || 'Alert',
+                              toastId: `notification-${notification._id || notification.type}`
+                        }
+                  );
+
+                  showNativeNotification(
+                        notification.title,
+                        notification.body || `${actorName} sent an update.`,
+                        `zuno-notification-${notification.type}`,
+                        () => navigate(notification.actionUrl || '/profile')
                   );
             };
 
@@ -279,10 +257,10 @@ const GlobalNotification = () => {
 
                   playNotificationSound();
 
-                  let icon = '📢';
-                  if (data.type === 'success') icon = '✅';
-                  if (data.type === 'warning') icon = '⚠️';
-                  if (data.type === 'error') icon = '🚨';
+                  let icon = 'Broadcast';
+                  if (data.type === 'success') icon = 'Done';
+                  if (data.type === 'warning') icon = 'Warn';
+                  if (data.type === 'error') icon = 'Error';
 
                   toast(
                         <div style={{ padding: '4px' }}>
@@ -309,7 +287,7 @@ const GlobalNotification = () => {
                               <strong style={{ color: '#ef4444' }}>Live Stream Started</strong>
                               <p style={{ fontSize: '0.85em', marginTop: '4px' }}>{data.title || 'Tap to join the stream'}</p>
                         </div>,
-                        { position: 'top-center', autoClose: 8000, icon: '📡' }
+                        { position: 'top-center', autoClose: 8000, icon: 'Live' }
                   );
             };
 
@@ -317,11 +295,7 @@ const GlobalNotification = () => {
             socket.on('callUser', handleIncomingCall);
             socket.on('callCancelled', handleCallCancelled);
             socket.on('callEnded', handleCallEnded);
-            socket.on('newFollow', handleNewFollow);
-            socket.on('newFollowRequest', handleNewFollowRequest);
-            socket.on('followAccepted', handleFollowAccepted);
-            socket.on('newInteraction', handleNewInteraction);
-            socket.on('newComment', handleNewComment);
+            socket.on('notification:new', handleProfileNotification);
             socket.on('globalBroadcast', handleGlobalBroadcast);
             socket.on('streamStarted', handleStreamStarted);
 
@@ -330,11 +304,7 @@ const GlobalNotification = () => {
                   socket.off('callUser', handleIncomingCall);
                   socket.off('callCancelled', handleCallCancelled);
                   socket.off('callEnded', handleCallEnded);
-                  socket.off('newFollow', handleNewFollow);
-                  socket.off('newFollowRequest', handleNewFollowRequest);
-                  socket.off('followAccepted', handleFollowAccepted);
-                  socket.off('newInteraction', handleNewInteraction);
-                  socket.off('newComment', handleNewComment);
+                  socket.off('notification:new', handleProfileNotification);
                   socket.off('globalBroadcast', handleGlobalBroadcast);
                   socket.off('streamStarted', handleStreamStarted);
             };
