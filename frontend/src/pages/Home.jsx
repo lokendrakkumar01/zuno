@@ -4,9 +4,10 @@ import { useAuth } from '../context/AuthContext';
 import ContentCard from '../components/Content/ContentCard';
 import StoryBar from '../components/Story/StoryBar';
 import { API_URL } from '../config';
+import { fetchWithTimeout } from '../utils/fetchWithTimeout';
 
-const PRIMARY_FEED_TIMEOUT_MS = 18000;
-const WAKE_FEED_TIMEOUT_MS = 35000;
+const PRIMARY_FEED_TIMEOUT_MS = 22000;
+const WAKE_FEED_TIMEOUT_MS = 50000;
 
 const FEED_MODES = [
       { id: 'all', label: 'All', desc: 'A fast mix of current conversations, posts and videos.' },
@@ -19,57 +20,52 @@ const FEED_MODES = [
 
 const FALLBACK_TOPICS = ['learning', 'technology', 'creativity', 'business', 'problem-solving'];
 
+const readFeedCache = (key) => {
+      try {
+            const raw = localStorage.getItem(key);
+            if (!raw) return [];
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed : [];
+      } catch {
+            return [];
+      }
+};
+
 const Home = () => {
       const { token, user } = useAuth();
       const [searchParams, setSearchParams] = useSearchParams();
       const topicParam = searchParams.get('topic') || '';
       const [mode, setMode] = useState('all');
 
-      const [contents, setContents] = useState(() => {
-            try {
-                  const cached = localStorage.getItem('zuno_feedCache_all');
-                  return cached ? JSON.parse(cached) : [];
-            } catch {
-                  return [];
-            }
-      });
+      const [contents, setContents] = useState(() => readFeedCache('zuno_feedCache_all'));
       const [silentRefreshing, setSilentRefreshing] = useState(false);
       const [error, setError] = useState(null);
       const [page, setPage] = useState(1);
       const [hasMore, setHasMore] = useState(true);
 
-      const activeRequestRef = useRef(null);
+      const feedRequestGenRef = useRef(0);
 
       const wakeBackend = async () => {
             try {
-                  await fetch(`${API_URL}/ping`, {
-                        cache: 'no-store'
-                  });
+                  await fetch(`${API_URL}/ping`, { cache: 'no-store' });
             } catch {
-                  // Best-effort wake request only.
+                  // Best-effort wake only.
             }
       };
 
       const fetchFeed = async (currentMode, currentPage, append = false, currentTopic = topicParam) => {
+            const myGen = ++feedRequestGenRef.current;
             let hasCachedContent = false;
 
-            if (activeRequestRef.current) {
-                  activeRequestRef.current.abort();
-            }
-
             if (currentPage === 1 && !append) {
-                  try {
-                        const cacheKey = currentTopic ? `zuno_feedCache_${currentMode}_${currentTopic}` : `zuno_feedCache_${currentMode}`;
-                        const cached = localStorage.getItem(cacheKey);
-                        if (cached) {
-                              const parsedCache = JSON.parse(cached);
-                              if (parsedCache.length > 0) {
-                                    setContents(parsedCache);
-                                    hasCachedContent = true;
-                              }
-                        }
-                  } catch {
-                        // Ignore cache parse issues and continue with network fetch.
+                  const modeKey = currentTopic ? `zuno_feedCache_${currentMode}_${currentTopic}` : `zuno_feedCache_${currentMode}`;
+                  let fromCache = readFeedCache(modeKey);
+                  if (fromCache.length === 0 && currentMode !== 'all') {
+                        fromCache = readFeedCache('zuno_feedCache_all');
+                  }
+                  if (fromCache.length > 0) {
+                        setContents(fromCache);
+                        hasCachedContent = true;
                   }
 
                   setSilentRefreshing(true);
@@ -78,52 +74,51 @@ const Home = () => {
                   hasCachedContent = contents.length > 0;
             }
 
-            const attemptFetch = async (timeoutMs) => {
-                  const controller = new AbortController();
-                  activeRequestRef.current = controller;
-                  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-                  try {
-                        const headers = token ? { Authorization: `Bearer ${token}` } : {};
-                        const url = new URL(`${API_URL}/feed`);
-                        url.searchParams.append('mode', currentMode);
-                        url.searchParams.append('page', currentPage);
-                        url.searchParams.append('limit', 12);
-
-                        if (currentTopic) {
-                              url.searchParams.append('topic', currentTopic);
-                        }
-
-                        const res = await fetch(url.toString(), { headers, signal: controller.signal });
-                        clearTimeout(timeoutId);
-
-                        if (!res.ok) {
-                              throw new Error(`HTTP ${res.status}`);
-                        }
-
-                        return await res.json();
-                  } catch (err) {
-                        clearTimeout(timeoutId);
-                        throw err;
+            const buildUrl = () => {
+                  const url = new URL(`${API_URL}/feed`);
+                  url.searchParams.append('mode', currentMode);
+                  url.searchParams.append('page', currentPage);
+                  url.searchParams.append('limit', 12);
+                  if (currentTopic) {
+                        url.searchParams.append('topic', currentTopic);
                   }
+                  return url.toString();
+            };
+
+            const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+            const attemptFetch = async (timeoutMs) => {
+                  return fetchWithTimeout(buildUrl(), { headers }, timeoutMs);
             };
 
             try {
-                  let data;
+                  let res;
 
                   try {
-                        data = await attemptFetch(PRIMARY_FEED_TIMEOUT_MS);
+                        res = await attemptFetch(PRIMARY_FEED_TIMEOUT_MS);
                   } catch (firstErr) {
-                        if (firstErr.name === 'AbortError') {
-                              setError('__waking_up__');
-                              await wakeBackend();
-                              data = await attemptFetch(WAKE_FEED_TIMEOUT_MS);
-                        } else {
+                        if (firstErr?.name !== 'AbortError') {
                               throw firstErr;
                         }
+                        if (myGen !== feedRequestGenRef.current) {
+                              return;
+                        }
+                        setError('__waking_up__');
+                        await wakeBackend();
+                        res = await attemptFetch(WAKE_FEED_TIMEOUT_MS);
                   }
 
-                  if (activeRequestRef.current?.signal?.aborted) {
+                  if (myGen !== feedRequestGenRef.current) {
+                        return;
+                  }
+
+                  if (!res.ok) {
+                        throw new Error(`HTTP ${res.status}`);
+                  }
+
+                  const data = await res.json();
+
+                  if (myGen !== feedRequestGenRef.current) {
                         return;
                   }
 
@@ -143,7 +138,7 @@ const Home = () => {
                                     const cacheKey = currentTopic ? `zuno_feedCache_${currentMode}_${currentTopic}` : `zuno_feedCache_${currentMode}`;
                                     localStorage.setItem(cacheKey, JSON.stringify(newContents));
                               } catch {
-                                    // Cache writes are best-effort only.
+                                    // best-effort
                               }
                         }
 
@@ -153,15 +148,19 @@ const Home = () => {
                         throw new Error(data?.message || 'Failed to load');
                   }
             } catch (err) {
-                  if (err.name !== 'AbortError') {
-                        console.error('Feed fetch failed:', err);
-                        if (!hasCachedContent) {
-                              setError(err.name === 'AbortError' ? 'timeout' : 'network');
-                        }
+                  if (myGen !== feedRequestGenRef.current) {
+                        return;
+                  }
+                  console.error('Feed fetch failed:', err);
+                  if (!hasCachedContent) {
+                        setError(err?.name === 'AbortError' ? 'timeout' : 'network');
+                  } else {
+                        setError(null);
                   }
             } finally {
-                  activeRequestRef.current = null;
-                  setSilentRefreshing(false);
+                  if (myGen === feedRequestGenRef.current) {
+                        setSilentRefreshing(false);
+                  }
             }
       };
 
@@ -170,9 +169,7 @@ const Home = () => {
             fetchFeed(mode, 1, false, topicParam);
 
             return () => {
-                  if (activeRequestRef.current) {
-                        activeRequestRef.current.abort();
-                  }
+                  feedRequestGenRef.current += 1;
             };
       }, [mode, token, topicParam]);
 
@@ -286,14 +283,24 @@ const Home = () => {
                                     <div className="text-center py-xl">
                                           <div className="loader mb-md" />
                                           <h3 className="text-lg">Preparing your feed...</h3>
-                                          <p className="text-secondary">We are reconnecting to the backend and loading the latest posts.</p>
+                                          <p className="text-secondary">The server may be waking up — loading the latest posts.</p>
                                     </div>
                               )}
 
-                              {error === 'network' && contents.length === 0 && (
+                              {(error === 'network' || error === 'timeout') && contents.length === 0 && (
                                     <div className="text-center py-xl">
-                                          <p className="text-secondary mb-md">Unable to connect to the server.</p>
-                                          <button onClick={() => fetchFeed(mode, 1, false, topicParam)} className="btn btn-primary">Try Again</button>
+                                          <p className="text-secondary mb-md">
+                                                {error === 'timeout'
+                                                      ? 'The feed is taking longer than usual.'
+                                                      : 'Unable to reach the server right now.'}
+                                          </p>
+                                          <button
+                                                type="button"
+                                                onClick={() => fetchFeed(mode, 1, false, topicParam)}
+                                                className="btn btn-primary"
+                                          >
+                                                Try again
+                                          </button>
                                     </div>
                               )}
 
@@ -316,7 +323,7 @@ const Home = () => {
 
                               {hasMore && contents.length > 0 && (
                                     <div className="text-center mt-3xl">
-                                          <button onClick={loadMore} disabled={silentRefreshing} className="btn btn-secondary">
+                                          <button type="button" onClick={loadMore} disabled={silentRefreshing} className="btn btn-secondary">
                                                 {silentRefreshing ? 'Loading...' : 'Load More'}
                                           </button>
                                     </div>

@@ -316,7 +316,11 @@ const getCreatorFeed = async (req, res) => {
             };
 
             // Only show public/published content if viewer is NOT the creator
-            if (!req.user || req.user._id?.toString() !== creator._id.toString()) {
+            const viewerId = req.user ? (req.user._id || req.user.id) : null;
+            const isViewingSelf = Boolean(
+                  viewerId && creator._id && String(viewerId) === String(creator._id)
+            );
+            if (!req.user || !isViewingSelf) {
                   query.visibility = 'public';
                   query.status = 'published';
             }

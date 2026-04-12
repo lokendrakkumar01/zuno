@@ -12,6 +12,9 @@ import { resolveAssetUrl } from '../utils/media';
 import { getUserHandle, readStoredAuthUser } from '../utils/session';
 import { fetchWithTimeout, DEFAULT_REQUEST_TIMEOUT_MS } from '../utils/fetchWithTimeout';
 
+const POSTS_FETCH_PRIMARY_MS = 22000;
+const POSTS_FETCH_WAKE_MS = 50000;
+
 const INTERESTS = [
       'learning', 'technology', 'creativity', 'health',
       'business', 'science', 'arts', 'lifestyle',
@@ -176,27 +179,38 @@ const Profile = () => {
       const fetchUserPosts = useCallback(async (uname, signal) => {
             setPostsError('');
 
+            const encodedUname = encodeURIComponent(uname);
+            const url = `${API_URL}/feed/creator/${encodedUname}`;
+            const baseOpts = { headers: token ? { Authorization: `Bearer ${token}` } : {} };
+            if (signal) {
+                  baseOpts.signal = signal;
+            }
+
             try {
-                  const headers = token ? { Authorization: `Bearer ${token}` } : {};
-                  const encodedUname = encodeURIComponent(uname);
                   let res;
 
                   try {
-                        res = await fetch(`${API_URL}/feed/creator/${encodedUname}`, {
-                              headers,
-                              signal
-                        });
+                        res = await fetchWithTimeout(url, { ...baseOpts }, POSTS_FETCH_PRIMARY_MS);
                   } catch (error) {
-                        if (error.name === 'AbortError') {
-                              await wakeBackend();
+                        if (error?.name === 'AbortError' && signal?.aborted) {
+                              throw error;
                         }
-                        throw error;
+                        if (error?.name === 'AbortError') {
+                              await wakeBackend();
+                              res = await fetchWithTimeout(url, { ...baseOpts }, POSTS_FETCH_WAKE_MS);
+                        } else {
+                              throw error;
+                        }
                   }
 
                   const data = await res.json().catch(() => null);
 
                   if (!res.ok || !data?.success) {
-                        setPostsError('Failed to load posts.');
+                        setPostsError(data?.message || 'Failed to load posts.');
+                        const cachedPosts = readCachedValue(buildPostsCacheKey(uname), []);
+                        if (Array.isArray(cachedPosts) && cachedPosts.length > 0) {
+                              setUserPosts(cachedPosts);
+                        }
                         return [];
                   }
 
@@ -212,18 +226,24 @@ const Profile = () => {
                   const safePosts = Array.isArray(posts) ? posts : [];
                   setUserPosts(safePosts);
                   writeCachedValue(buildPostsCacheKey(uname), safePosts);
+                  setPostsError('');
                   return safePosts;
             } catch (error) {
                   const cachedPosts = readCachedValue(buildPostsCacheKey(uname), []);
                   const hasCachedPosts = Array.isArray(cachedPosts) && cachedPosts.length > 0;
 
-                  if (error.name !== 'AbortError') {
-                        console.error('Failed to fetch user posts:', error);
-                  } else {
-                        setPostsError(hasCachedPosts
-                              ? 'Showing saved posts while the latest content loads.'
-                              : 'Latest posts are still loading. Try refresh in a few seconds.');
+                  if (error?.name === 'AbortError' && signal?.aborted) {
+                        setUserPosts(Array.isArray(cachedPosts) ? cachedPosts : []);
+                        return Array.isArray(cachedPosts) ? cachedPosts : [];
                   }
+
+                  if (error?.name !== 'AbortError') {
+                        console.error('Failed to fetch user posts:', error);
+                  }
+
+                  setPostsError(hasCachedPosts
+                        ? 'Showing saved posts — reconnecting for latest.'
+                        : 'Could not load posts. Try again.');
 
                   setUserPosts(Array.isArray(cachedPosts) ? cachedPosts : []);
                   return Array.isArray(cachedPosts) ? cachedPosts : [];
@@ -259,7 +279,9 @@ const Profile = () => {
       useEffect(() => {
             if (!targetUsername) {
                   setProfileUser(sessionUser || null);
-                  setUserPosts([]);
+                  if (!sessionUser) {
+                        setUserPosts([]);
+                  }
                   setPostsError('');
                   setLoading(Boolean(isOwnProfile && token && authLoading));
 
