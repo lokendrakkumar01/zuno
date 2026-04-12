@@ -1,146 +1,221 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { API_URL } from '../../config';
 import { useAuth } from '../../context/AuthContext';
 
-const SpotifySearch = ({ onSelect, selectedTrack, inputId }) => {
+const SpotifySearch = ({
+      onSelect,
+      selectedTrack,
+      inputId,
+      title = 'Add Music',
+      helperText = 'Search a song, preview it, then attach it to your profile.',
+      placeholder = 'Search for a song or artist...',
+      emptyLabel = 'Type at least 3 letters to search music.',
+      compact = false
+}) => {
       const [query, setQuery] = useState('');
       const [results, setResults] = useState([]);
       const [loading, setLoading] = useState(false);
       const [error, setError] = useState('');
+      const [hasTyped, setHasTyped] = useState(false);
+      const [previewTrackId, setPreviewTrackId] = useState('');
       const { token } = useAuth();
+      const previewAudioRef = useRef(null);
 
       useEffect(() => {
-            const delayDebounceFn = setTimeout(() => {
-                  if (query.length > 2) {
-                        searchTracks();
-                  } else {
-                        setResults([]);
-                  }
-            }, 500);
+            if (selectedTrack?.name && !hasTyped) {
+                  setQuery(`${selectedTrack.name} - ${selectedTrack.artist || ''}`.trim());
+            }
+      }, [hasTyped, selectedTrack]);
 
-            return () => clearTimeout(delayDebounceFn);
-      }, [query]);
+      useEffect(() => {
+            if (!token) {
+                  setLoading(false);
+                  setResults([]);
+                  setError('Login required to search music.');
+                  return undefined;
+            }
 
-      const searchTracks = async () => {
+            const trimmedQuery = query.trim();
+            if (trimmedQuery.length < 3) {
+                  setLoading(false);
+                  setResults([]);
+                  setError('');
+                  return undefined;
+            }
+
+            const controller = new AbortController();
+            const timeoutId = window.setTimeout(() => {
+                  searchTracks(trimmedQuery, controller.signal);
+            }, 350);
+
+            return () => {
+                  controller.abort();
+                  window.clearTimeout(timeoutId);
+            };
+      }, [query, token]);
+
+      useEffect(() => () => {
+            if (previewAudioRef.current) {
+                  previewAudioRef.current.pause();
+                  previewAudioRef.current.src = '';
+            }
+      }, []);
+
+      const searchTracks = async (nextQuery, signal) => {
             setLoading(true);
             setError('');
+
             try {
-                  const res = await fetch(`${API_URL}/spotify/search?q=${encodeURIComponent(query)}`, {
-                        headers: { 'Authorization': `Bearer ${token}` }
+                  const res = await fetch(`${API_URL}/spotify/search?q=${encodeURIComponent(nextQuery)}`, {
+                        headers: { Authorization: `Bearer ${token}` },
+                        signal
                   });
                   const data = await res.json();
+
                   if (data.success) {
-                        setResults(data.data.tracks);
+                        setResults(data.data?.tracks || []);
                   } else {
-                        setError(data.message || 'Failed to search');
+                        setResults([]);
+                        setError(data.message || 'Failed to search music.');
                   }
             } catch (err) {
-                  setError('Connection error');
+                  if (err.name !== 'AbortError') {
+                        setResults([]);
+                        setError('Connection error while searching music.');
+                  }
+            } finally {
+                  setLoading(false);
             }
-            setLoading(false);
+      };
+
+      const togglePreview = async (track) => {
+            if (!track?.previewUrl) return;
+
+            if (!previewAudioRef.current) {
+                  previewAudioRef.current = new Audio();
+            }
+
+            const audio = previewAudioRef.current;
+
+            if (previewTrackId === track.trackId && !audio.paused) {
+                  audio.pause();
+                  setPreviewTrackId('');
+                  return;
+            }
+
+            try {
+                  audio.pause();
+                  audio.src = track.previewUrl;
+                  audio.currentTime = 0;
+                  await audio.play();
+                  setPreviewTrackId(track.trackId);
+                  audio.onended = () => setPreviewTrackId('');
+            } catch {
+                  setPreviewTrackId('');
+                  setError('Preview could not be played on this device.');
+            }
+      };
+
+      const handleSelect = (track) => {
+            onSelect(track);
+            setHasTyped(Boolean(track));
+            setQuery(track?.name ? `${track.name} - ${track.artist || ''}`.trim() : '');
+            setResults([]);
       };
 
       return (
-            <div className="spotify-search-container">
+            <div className={`spotify-search-container ${compact ? 'spotify-search-compact' : ''}`}>
                   <div className="input-group mb-md">
-                        <label className="input-label" htmlFor={inputId}>🎵 Add Music (Spotify)</label>
-                        <div style={{ position: 'relative' }}>
+                        <label className="input-label spotify-search-label" htmlFor={inputId}>{title}</label>
+                        <p className="spotify-search-helper">{helperText}</p>
+                        <div className="spotify-search-input-shell">
+                              <span className="spotify-search-input-icon">Music</span>
                               <input
                                     id={inputId}
                                     type="text"
-                                    className="input"
-                                    placeholder="Search for a song or artist..."
+                                    className="input spotify-search-input"
+                                    placeholder={placeholder}
                                     value={query}
-                                    onChange={(e) => setQuery(e.target.value)}
-                                    style={{ paddingLeft: '2.5rem' }}
+                                    autoComplete="off"
+                                    onChange={(event) => {
+                                          setHasTyped(true);
+                                          setQuery(event.target.value);
+                                    }}
                               />
-                              <span style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)' }}>🔍</span>
                         </div>
                   </div>
 
-                  {loading && <div className="text-sm text-muted mb-sm animate-pulse">Searching Spotify...</div>}
-                  {error && <div className="text-sm text-red-500 mb-sm">{error}</div>}
-
-                  {selectedTrack && (
-                        <div className="card p-sm mb-md flex items-center gap-sm bg-primary/5 border-primary/20 relative">
-                              <div style={{ position: 'relative', flexShrink: 0 }}>
-                                    <img src={selectedTrack.albumArt} alt="" style={{ width: '48px', height: '48px', borderRadius: '4px' }} />
-                                    {selectedTrack.previewUrl && (
+                  {selectedTrack ? (
+                        <div className="spotify-selected-track">
+                              <div className="spotify-selected-art">
+                                    <img src={selectedTrack.albumArt} alt={selectedTrack.name} />
+                                    {selectedTrack.previewUrl ? (
                                           <button
-                                                className="absolute inset-0 flex items-center justify-center bg-black/30 text-white rounded-4px"
-                                                onClick={() => {
-                                                      const audio = document.getElementById('selected-track-audio');
-                                                      if (audio.paused) {
-                                                            audio.play();
-                                                      } else {
-                                                            audio.pause();
-                                                      }
-                                                }}
+                                                type="button"
+                                                className="spotify-preview-btn"
+                                                onClick={() => togglePreview(selectedTrack)}
                                           >
-                                                🎵
+                                                {previewTrackId === selectedTrack.trackId ? 'Pause' : 'Preview'}
                                           </button>
-                                    )}
+                                    ) : null}
                               </div>
-                              <div className="flex-1 min-w-0">
-                                    <div className="font-semibold text-sm truncate">{selectedTrack.name}</div>
-                                    <div className="text-xs text-muted truncate">{selectedTrack.artist}</div>
+                              <div className="spotify-selected-copy">
+                                    <span className="spotify-selected-kicker">Selected track</span>
+                                    <strong>{selectedTrack.name}</strong>
+                                    <span>{selectedTrack.artist}</span>
                               </div>
-                              {selectedTrack.previewUrl && (
-                                    <audio
-                                          id="selected-track-audio"
-                                          src={selectedTrack.previewUrl}
-                                          autoPlay
-                                          loop
-                                    />
-                              )}
                               <button
-                                    onClick={() => onSelect(null)}
-                                    className="btn btn-sm btn-secondary"
-                                    style={{ padding: '4px 8px', zIndex: 10 }}
+                                    type="button"
+                                    onClick={() => handleSelect(null)}
+                                    className="btn btn-secondary btn-sm spotify-clear-btn"
                               >
-                                    ✕
+                                    Remove
                               </button>
                         </div>
-                  )}
+                  ) : null}
 
-                  {!selectedTrack && results.length > 0 && (
-                        <div className="card max-h-60 overflow-y-auto mb-md" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
-                              {results.map(track => (
-                                    <div
-                                          key={track.trackId}
-                                          className="p-sm flex items-center gap-sm hover:bg-gray-50 cursor-pointer border-b last:border-0 group"
-                                          onClick={() => {
-                                                onSelect(track);
-                                                setResults([]);
-                                                setQuery('');
-                                          }}
-                                    >
-                                          <div style={{ position: 'relative', flexShrink: 0 }}>
-                                                <img src={track.albumArt} alt="" style={{ width: '44px', height: '44px', borderRadius: '6px' }} />
-                                                {track.previewUrl && (
-                                                      <button
-                                                            className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity rounded-6px text-white"
-                                                            onClick={(e) => {
-                                                                  e.stopPropagation();
-                                                                  const audio = new Audio(track.previewUrl);
-                                                                  audio.play();
-                                                                  // Stop after 5 seconds for preview
-                                                                  setTimeout(() => audio.pause(), 5000);
-                                                            }}
-                                                      >
-                                                            ▶️
-                                                      </button>
-                                                )}
-                                          </div>
-                                          <div className="flex-1 min-w-0">
-                                                <div className="font-semibold text-sm truncate">{track.name}</div>
-                                                <div className="text-xs text-muted truncate">{track.artist}</div>
-                                          </div>
-                                          <div className="text-primary opacity-0 group-hover:opacity-100 transition-opacity text-xs font-bold">Select</div>
-                                    </div>
-                              ))}
-                        </div>
-                  )}
+                  <div className="spotify-results-shell">
+                        {loading ? <div className="text-sm text-muted mb-sm animate-pulse">Searching music...</div> : null}
+                        {error ? <div className="text-sm text-red-500 mb-sm">{error}</div> : null}
+
+                        {!loading && !error && results.length === 0 ? (
+                              <div className="spotify-empty-state">
+                                    {hasTyped && query.trim().length >= 3 ? 'No songs found for this search.' : emptyLabel}
+                              </div>
+                        ) : null}
+
+                        {results.length > 0 ? (
+                              <div className="spotify-results-list">
+                                    {results.map((track) => (
+                                          <button
+                                                key={track.trackId}
+                                                type="button"
+                                                className={`spotify-result-card ${selectedTrack?.trackId === track.trackId ? 'active' : ''}`}
+                                                onClick={() => handleSelect(track)}
+                                          >
+                                                <img src={track.albumArt} alt={track.name} className="spotify-result-art" />
+                                                <div className="spotify-result-copy">
+                                                      <strong>{track.name}</strong>
+                                                      <span>{track.artist}</span>
+                                                      <small>{track.previewUrl ? 'Preview available' : 'No preview clip'}</small>
+                                                </div>
+                                                <span
+                                                      className={`spotify-result-preview ${track.previewUrl ? '' : 'spotify-result-preview-disabled'}`}
+                                                      onClick={(event) => {
+                                                            if (!track.previewUrl) return;
+                                                            event.stopPropagation();
+                                                            togglePreview(track);
+                                                      }}
+                                                >
+                                                      {track.previewUrl
+                                                            ? (previewTrackId === track.trackId ? 'Pause' : 'Play')
+                                                            : 'Select'}
+                                                </span>
+                                          </button>
+                                    ))}
+                              </div>
+                        ) : null}
+                  </div>
             </div>
       );
 };

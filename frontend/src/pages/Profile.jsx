@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config';
-import ContentCard from '../components/Content/ContentCard';
 import SpotifySearch from '../components/Music/SpotifySearch';
 import { useMusic } from '../context/MusicContext';
 import UserAvatar from '../components/User/UserAvatar';
@@ -69,7 +68,6 @@ const Profile = () => {
       const [followLoading, setFollowLoading] = useState(false);
       const [blockLoading, setBlockLoading] = useState(false);
       const [showPhotoModal, setShowPhotoModal] = useState(false);
-      const [openPostIdx, setOpenPostIdx] = useState(null);
       const [verificationReqMsg, setVerificationReqMsg] = useState('');
       const [verificationReqLoading, setVerificationReqLoading] = useState(false);
       const [quickChatText, setQuickChatText] = useState('');
@@ -286,11 +284,6 @@ const Profile = () => {
             }
       };
 
-      // Handle delete content from profile
-      const handleDeleteContent = (contentId) => {
-            setUserPosts(prev => prev.filter(post => post._id !== contentId));
-      };
-
       const openProfileEditor = () => {
             setActiveTab('profile');
             setEditing(true);
@@ -300,6 +293,16 @@ const Profile = () => {
                         editSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
                   }
             }, 120);
+      };
+
+      const openMusicEditor = () => {
+            openProfileEditor();
+            setTimeout(() => {
+                  const musicSection = document.getElementById('spotify-search-wrapper');
+                  if (musicSection) {
+                        musicSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }
+            }, 220);
       };
 
       // Check if current user follows or blocks this profile
@@ -458,8 +461,16 @@ const Profile = () => {
 
       const handleSaveProfile = async () => {
             setMessage('');
-            // Ensure profileSong mapping retains necessary fields from editData
-            const dataToSave = { ...editData };
+            const dataToSave = {
+                  ...editData,
+                  profileSong: editData.profileSong ? {
+                        trackId: editData.profileSong.trackId,
+                        name: editData.profileSong.name,
+                        artist: editData.profileSong.artist,
+                        albumArt: editData.profileSong.albumArt,
+                        previewUrl: editData.profileSong.previewUrl
+                  } : null
+            };
             const result = await updateProfile(dataToSave);
             
             if (result.success) {
@@ -1123,6 +1134,8 @@ const Profile = () => {
                                                 selectedTrack={editData.profileSong}
                                                 onSelect={(track) => setEditData(prev => ({ ...prev, profileSong: track }))}
                                                 inputId="spotify-search-input"
+                                                title="Profile Music"
+                                                helperText="Choose a track that appears on your profile and can be previewed from your avatar."
                                           />
                                     </div>
                                     <div className="flex gap-md mt-xl profile-edit-actions">
@@ -1239,7 +1252,7 @@ const Profile = () => {
                                                                         const gradient = GRADIENTS[idx % GRADIENTS.length];
 
                                                                         return (
-                                                                              <div key={post._id} className="profile-post-thumb" onClick={() => setOpenPostIdx(idx)}>
+                                                                              <div key={post._id} className="profile-post-thumb" onClick={() => navigate(`/content/${post._id}`)}>
                                                                                     {hasMedia ? (
                                                                                           isVid ? (
                                                                                                 resolvedThumb ? (
@@ -1265,19 +1278,6 @@ const Profile = () => {
                                                                         );
                                                                   })}
                                                             </div>
-
-                                                            {/* ContentCard fullscreen modal for selected thumbnail */}
-                                                            {openPostIdx !== null && (
-                                                                  <div style={{ position: 'fixed', inset: 0, zIndex: 200000, pointerEvents: 'auto' }}>
-                                                                        <ContentCard
-                                                                              key={userPosts[openPostIdx]._id}
-                                                                              content={userPosts[openPostIdx]}
-                                                                              onDelete={handleDeleteContent}
-                                                                              autoOpenFullscreen={true}
-                                                                              onCloseFullscreen={() => setOpenPostIdx(null)}
-                                                                        />
-                                                                  </div>
-                                                            )}
                                                       </>
                                                 );
                                           })()}
@@ -1289,13 +1289,13 @@ const Profile = () => {
                                                       <div style={{ fontSize: '1rem', marginBottom: 'var(--space-sm)', fontWeight: 700 }}>New</div>
                                                       <div className="font-semibold">Upload</div>
                                                 </button>
-                                                <button onClick={() => setEditing(true)} className="feature-card animate-fadeInUp stagger-2" style={{ padding: 'var(--space-lg)' }}>
+                                                <button onClick={openProfileEditor} className="feature-card animate-fadeInUp stagger-2" style={{ padding: 'var(--space-lg)' }}>
                                                       <div style={{ fontSize: '1rem', marginBottom: 'var(--space-sm)', fontWeight: 700 }}>Edit</div>
                                                       <div className="font-semibold">Edit Profile</div>
                                                 </button>
-                                                <button onClick={handlePhotoClick} className="feature-card animate-fadeInUp stagger-3" style={{ padding: 'var(--space-lg)' }}>
-                                                      <div style={{ fontSize: '1rem', marginBottom: 'var(--space-sm)', fontWeight: 700 }}>Photo</div>
-                                                      <div className="font-semibold">Change Photo</div>
+                                                <button onClick={openMusicEditor} className="feature-card animate-fadeInUp stagger-3" style={{ padding: 'var(--space-lg)' }}>
+                                                      <div style={{ fontSize: '1rem', marginBottom: 'var(--space-sm)', fontWeight: 700 }}>Music</div>
+                                                      <div className="font-semibold">{profileUser?.profileSong?.name ? 'Change Song' : 'Add Song'}</div>
                                                 </button>
                                           </div>
                                     )}

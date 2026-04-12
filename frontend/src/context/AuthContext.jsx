@@ -278,7 +278,7 @@ export const AuthProvider = ({ children }) => {
                   if (data.success) {
                         setUser(data.data.user);
                         localStorage.setItem('zuno_user', JSON.stringify(data.data.user));
-                        return { success: true, message: data.message };
+                        return { success: true, message: data.message, data: data.data };
                   }
                   return { success: false, message: data.message };
             } catch (error) {

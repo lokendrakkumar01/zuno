@@ -366,6 +366,12 @@ const LiveStream = () => {
 
       useEffect(() => {
             if (!isViewMode || !socket || !user || !hostId) return undefined;
+            if (!isConnected) {
+                  setIsLive(false);
+                  setPlaybackReady(false);
+                  setPlaybackHint('Connecting to live chat and stream room...');
+                  return undefined;
+            }
 
             let ignore = false;
             let retryTimer = null;
@@ -412,7 +418,7 @@ const LiveStream = () => {
                   }
                   socket.emit('leaveStreamView', { hostId, viewerId: user._id });
             };
-      }, [hostId, isViewMode, requestStreamSession, socket, user]);
+      }, [hostId, isConnected, isViewMode, requestStreamSession, socket, user]);
 
       useEffect(() => {
             const playbackHostId = isHostMode ? user?._id : hostId;
@@ -461,6 +467,10 @@ const LiveStream = () => {
 
       const retryStreamConnection = async () => {
             if (!isViewMode || !user || !socket) return;
+            if (!isConnected) {
+                  setStreamError('Realtime connection is still getting ready. Please try again in a moment.');
+                  return;
+            }
 
             try {
                   setStreamError('');
@@ -659,7 +669,7 @@ const LiveStream = () => {
                         {isViewMode && !isLive && !streamError ? (
                               <div className="live-loading-overlay">
                                     <div className="loader mb-md" />
-                                    <p>Connecting to stream...</p>
+                                    <p>{isConnected ? 'Connecting to stream...' : 'Connecting to realtime service...'}</p>
                               </div>
                         ) : null}
 

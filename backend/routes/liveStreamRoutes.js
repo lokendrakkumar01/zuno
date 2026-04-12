@@ -13,6 +13,10 @@ const findConflictingStream = (hostId) => Array.from(activeStreams.values()).fin
   stream
   && stream.hostId !== hostId
   && isStreamJoinable(stream)
+  && (
+    Boolean(stream.hostSocketId)
+    || (stream.viewers && stream.viewers.size > 0)
+  )
 ));
 
 // Start a new live stream (legacy helper kept for backwards compatibility).
@@ -68,7 +72,7 @@ router.get('/status/:hostId', getCloudinaryPlaybackStatus);
 router.get('/active', (req, res) => {
   pruneExpiredStreams();
   const streams = Array.from(activeStreams.values())
-    .filter(isStreamJoinable)
+    .filter((stream) => isStreamJoinable(stream) && Boolean(stream.hostSocketId))
     .map(serializeStream);
   res.json({ success: true, data: { streams } });
 });

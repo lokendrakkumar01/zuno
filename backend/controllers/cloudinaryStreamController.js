@@ -7,6 +7,7 @@ const {
 
 const sanitizeValue = (value = '') => String(value || '').replace(/['"]+/g, '').trim();
 const PLAYBACK_STATUS_CACHE_TTL_MS = 5000;
+const STREAM_BLOCK_GRACE_MS = 90 * 1000;
 const playbackStatusCache = new Map();
 
 const buildRoomId = (hostId) => `stream_${hostId}`;
@@ -60,12 +61,33 @@ const getCloudinaryStreamConfig = () => {
   };
 };
 
+const isBlockingStream = (stream) => {
+  if (!stream || !isStreamJoinable(stream)) {
+    return false;
+  }
+
+  if (stream.hostSocketId) {
+    return true;
+  }
+
+  if (stream.viewers?.size > 0) {
+    return true;
+  }
+
+  const referenceTime = stream.updatedAt || stream.cloudinaryProvisionedAt || stream.startedAt;
+  if (!referenceTime) {
+    return false;
+  }
+
+  return Date.now() - new Date(referenceTime).getTime() < STREAM_BLOCK_GRACE_MS;
+};
+
 const findAnotherActiveStream = (currentHostId) => Array.from(activeStreams.values()).find((stream) => {
   if (!stream || stream.hostId === currentHostId) {
     return false;
   }
 
-  return isStreamJoinable(stream);
+  return isBlockingStream(stream);
 });
 
 const upsertHostedStream = ({ existingStream, user, title, description, requestTime }) => {
