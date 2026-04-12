@@ -25,6 +25,12 @@ const FEED_MODES = [
 
 const buildProfileCacheKey = (username = '') => `zuno_profile_cache_${username}`;
 const buildPostsCacheKey = (username = '') => `zuno_posts_cache_${username}`;
+const normalizeIdentity = (value = '') => (
+      decodeURIComponent(String(value))
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, '')
+);
 
 const readCachedValue = (key, fallback) => {
       if (!key) return fallback;
@@ -70,8 +76,12 @@ const Profile = () => {
       const navigate = useNavigate();
       const fileInputRef = useRef(null);
       const { playTrack, stopTrack, currentTrack, isPlaying: isMusicPlayingGlobal } = useMusic();
-      const targetUsername = username || user?.username || '';
-      const isOwnProfile = !username || (user && user.username === username);
+      const routeIdentity = normalizeIdentity(username);
+      const isCanonicalOwnRoute = Boolean(
+            user && routeIdentity && [user.username, user.displayName].some((value) => normalizeIdentity(value) === routeIdentity)
+      );
+      const isOwnProfile = !username || isCanonicalOwnRoute;
+      const targetUsername = isOwnProfile ? (user?.username || username || '') : (username || '');
       const profileCacheKey = targetUsername ? buildProfileCacheKey(targetUsername) : '';
       const postsCacheKey = targetUsername ? buildPostsCacheKey(targetUsername) : '';
 
@@ -630,8 +640,12 @@ const Profile = () => {
       if (loading && !profileUser) {
             return (
                   <div className="container" style={{ paddingTop: 'var(--space-2xl)' }}>
-                        <div className="empty-state">
-                              {/* Silent loading */}
+                        <div className="empty-state animate-fadeIn" style={{ minHeight: '40vh' }}>
+                              <div className="loader" style={{ margin: '0 auto 1rem' }} />
+                              <h2 className="text-xl font-semibold mb-sm">Loading profile</h2>
+                              <p className="text-secondary">
+                                    We are opening {targetUsername ? `@${targetUsername}` : 'this profile'} and pulling the latest posts.
+                              </p>
                         </div>
                   </div>
             );

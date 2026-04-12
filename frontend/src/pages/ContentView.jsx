@@ -332,8 +332,10 @@ const ContentView = () => {
 
       if (loading) {
             return (
-                  <div className="empty-state">
-                        {/* Silent loading */}
+                  <div className="empty-state animate-fadeIn" style={{ minHeight: '40vh' }}>
+                        <div className="loader" style={{ margin: '0 auto 1rem' }} />
+                        <h2 className="text-xl font-semibold mb-sm">Loading content</h2>
+                        <p className="text-secondary">Opening the post and preparing comments, media, and creator details.</p>
                   </div>
             );
       }
