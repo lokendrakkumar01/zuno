@@ -15,8 +15,7 @@ const PUBLIC_PROFILE_SELECT = [
       'following',
       'profileSong',
       'stats',
-      'createdAt',
-      'blockedUsers'
+      'createdAt'
 ].join(' ');
 
 const PRIVATE_PROFILE_SELECT = [
@@ -29,7 +28,8 @@ const PRIVATE_PROFILE_SELECT = [
       'notificationSettings',
       'preferredContentTypes',
       'isPrivate',
-      'profileVisibility'
+      'profileVisibility',
+      'blockedUsers'
 ].join(' ');
 
 const buildPublicProfilePayload = (user) => {
@@ -599,13 +599,21 @@ const unblockUser = async (req, res) => {
                   return res.status(404).json({ success: false, message: "Current user not found" });
             }
 
-            if (!currentUser.blockedUsers.includes(userIdToUnblock)) {
+            if (!currentUser.blockedUsers.some((id) => id?.toString() === userIdToUnblock)) {
                   return res.status(400).json({ success: false, message: "User is not blocked" });
             }
 
-            await currentUser.updateOne({ $pull: { blockedUsers: userIdToUnblock } });
+            const updatedUser = await User.findByIdAndUpdate(
+                  req.user.id,
+                  { $pull: { blockedUsers: userIdToUnblock } },
+                  { new: true, runValidators: true }
+            );
 
-            res.json({ success: true, message: "User unblocked successfully" });
+            res.json({
+                  success: true,
+                  message: "User unblocked successfully",
+                  data: { user: updatedUser.getAuthProfile() }
+            });
       } catch (error) {
             res.status(500).json({ success: false, message: "Failed to unblock user", error: error.message });
       }
@@ -851,26 +859,30 @@ const blockUser = async (req, res) => {
             const currentUser = await User.findById(req.user.id);
             const userToBlock = await User.findById(userIdToBlock);
 
+            if (!currentUser) {
+                  return res.status(404).json({ success: false, message: "Current user not found" });
+            }
+
             if (!userToBlock) {
                   return res.status(404).json({ success: false, message: "User not found" });
             }
 
-            if (currentUser.blockedUsers.includes(userIdToBlock)) {
+            if (currentUser.blockedUsers.some((id) => id?.toString() === userIdToBlock)) {
                   return res.status(400).json({ success: false, message: "User is already blocked" });
             }
 
             // Block user and clean up social connections
-            await currentUser.updateOne({
-                  $push: { blockedUsers: userIdToBlock },
+            const updatedCurrentUserPromise = User.findByIdAndUpdate(req.user.id, {
+                  $addToSet: { blockedUsers: userIdToBlock },
                   $pull: {
                         following: userIdToBlock,
                         followers: userIdToBlock,
                         closeFriends: userIdToBlock
                   }
-            });
+            }, { new: true, runValidators: true });
 
             // Also remove the blocker from the blocked user's lists
-            await userToBlock.updateOne({
+            const updateBlockedUserPromise = userToBlock.updateOne({
                   $pull: {
                         following: req.user.id,
                         followers: req.user.id,
@@ -878,7 +890,16 @@ const blockUser = async (req, res) => {
                   }
             });
 
-            res.json({ success: true, message: "User blocked successfully" });
+            const [updatedCurrentUser] = await Promise.all([
+                  updatedCurrentUserPromise,
+                  updateBlockedUserPromise
+            ]);
+
+            res.json({
+                  success: true,
+                  message: "User blocked successfully",
+                  data: { user: updatedCurrentUser.getAuthProfile() }
+            });
       } catch (error) {
             res.status(500).json({ success: false, message: "Failed to block user", error: error.message });
       }

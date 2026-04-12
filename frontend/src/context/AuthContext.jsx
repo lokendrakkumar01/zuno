@@ -7,11 +7,16 @@ import {
       readStoredAuthUser,
       readStoredToken
 } from '../utils/session';
+import { startKeepAlive, stopKeepAlive } from '../utils/keepAlive';
 
 const AuthContext = createContext(null);
 const AUTH_REFRESH_TIMEOUT_MS = 8000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 30000;
+const AUTH_RETRY_DELAYS = [5000, 10000, 20000];
 
-const fetchWithTimeout = async (url, options = {}, timeout = 30000) => {
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const fetchWithTimeout = async (url, options = {}, timeout = DEFAULT_REQUEST_TIMEOUT_MS) => {
       const controller = new AbortController();
       const id = setTimeout(() => controller.abort(), timeout);
 
@@ -47,8 +52,16 @@ const getApiErrorMessage = async (res, fallbackMessage) => {
       return data?.message || detailedMessage || fallbackMessage;
 };
 
+const isRetriableNetworkError = (error) => (
+      error?.name === 'AbortError'
+      || error?.message === 'Failed to fetch'
+      || error?.message?.includes('network')
+      || error?.message?.includes('timeout')
+      || error?.message?.includes('HTTP 5')
+);
+
 export const AuthProvider = ({ children }) => {
-      const [user, setUser] = useState(() => readStoredAuthUser());
+      const [user, setUser] = useState(null);
       const [token, setToken] = useState(() => readStoredToken());
       const [loading, setLoading] = useState(() => Boolean(readStoredToken()));
 
@@ -62,6 +75,7 @@ export const AuthProvider = ({ children }) => {
       };
 
       const logout = () => {
+            stopKeepAlive();
             setUser(null);
             setToken(null);
             clearStoredSession();
@@ -72,13 +86,9 @@ export const AuthProvider = ({ children }) => {
 
             const checkAuth = async () => {
                   if (!token) {
+                        setUser(null);
                         setLoading(false);
                         return;
-                  }
-
-                  const cachedUser = readStoredAuthUser();
-                  if (cachedUser) {
-                        setUser(cachedUser);
                   }
 
                   setLoading(true);
@@ -87,19 +97,25 @@ export const AuthProvider = ({ children }) => {
                         const res = await fetchWithTimeout(`${API_URL}/auth/me`, {
                               headers: { Authorization: `Bearer ${token}` }
                         }, AUTH_REFRESH_TIMEOUT_MS);
-                        const data = await res.json();
+                        const data = await res.json().catch(() => null);
 
                         if (ignore) return;
 
-                        if (data.success) {
+                        if (res.ok && data?.success && data?.data?.user) {
                               setUser(data.data.user);
                               persistStoredAuthUser(data.data.user);
                         } else if (res.status === 401) {
                               logout();
+                        } else {
+                              throw new Error(data?.message || `Auth check failed with status ${res.status}`);
                         }
                   } catch (error) {
                         if (!ignore) {
                               console.error('Auth check failed (server may be starting):', error);
+                              const cachedUser = readStoredAuthUser();
+                              if (cachedUser) {
+                                    setUser(cachedUser);
+                              }
                         }
                   } finally {
                         if (!ignore) {
@@ -115,10 +131,18 @@ export const AuthProvider = ({ children }) => {
             };
       }, [token]);
 
+      useEffect(() => {
+            if (token && user) {
+                  startKeepAlive();
+                  return () => stopKeepAlive();
+            }
+
+            stopKeepAlive();
+            return undefined;
+      }, [token, user]);
+
       const login = async (email, password, onRetry = null) => {
             const MAX_RETRIES = 3;
-            const RETRY_DELAYS = [5000, 10000, 20000];
-            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
             const attemptLogin = async (timeoutMs = 25000) => {
                   const res = await fetchWithTimeout(`${API_URL}/auth/login`, {
@@ -154,14 +178,10 @@ export const AuthProvider = ({ children }) => {
                               message: data.message || 'Invalid email or password.'
                         };
                   } catch (error) {
-                        const isNetworkError = error.name === 'AbortError'
-                              || error.message === 'Failed to fetch'
-                              || error.message?.includes('network')
-                              || error.message?.includes('timeout')
-                              || error.message?.includes('HTTP 5');
+                        const isNetworkError = isRetriableNetworkError(error);
 
                         if (isNetworkError && attempt < MAX_RETRIES) {
-                              const retryDelay = RETRY_DELAYS[attempt - 1] || 15000;
+                              const retryDelay = AUTH_RETRY_DELAYS[attempt - 1] || 15000;
                               if (onRetry) {
                                     onRetry({
                                           attempt,
@@ -191,40 +211,66 @@ export const AuthProvider = ({ children }) => {
             return { success: false, message: 'Login failed after multiple attempts. Please try again.' };
       };
 
-      const googleLogin = async (credential) => {
-            try {
-                  const res = await fetchWithTimeout(`${API_URL}/auth/google`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ credential })
-                  }, 30000);
+      const googleLogin = async (credential, onRetry = null) => {
+            const MAX_RETRIES = 3;
 
-                  if (!res.ok) {
+            for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
+                  try {
+                        const res = await fetchWithTimeout(`${API_URL}/auth/google`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ credential })
+                        }, DEFAULT_REQUEST_TIMEOUT_MS);
+
+                        if (!res.ok && res.status !== 400 && res.status !== 401 && res.status !== 422) {
+                              throw new Error(`HTTP ${res.status}`);
+                        }
+
+                        if (!res.ok) {
+                              return {
+                                    success: false,
+                                    message: await getApiErrorMessage(res, 'Google login failed.')
+                              };
+                        }
+
+                        const data = await res.json();
+                        if (data.success) {
+                              applyAuthenticatedSession(data.data.user, data.data.token);
+                              return { success: true, message: data.message || 'Logged in with Google.' };
+                        }
+
+                        return { success: false, message: data.message || 'Google login failed.' };
+                  } catch (error) {
+                        const isNetworkError = isRetriableNetworkError(error);
+
+                        if (isNetworkError && attempt < MAX_RETRIES) {
+                              const retryDelay = AUTH_RETRY_DELAYS[attempt - 1] || 15000;
+                              if (onRetry) {
+                                    onRetry({
+                                          attempt,
+                                          maxRetries: MAX_RETRIES,
+                                          retryIn: Math.round(retryDelay / 1000)
+                                    });
+                              }
+                              await sleep(retryDelay);
+                              continue;
+                        }
+
                         return {
                               success: false,
-                              message: await getApiErrorMessage(res, 'Google login failed.')
+                              status: isNetworkError ? 'waking_up' : 'error',
+                              message: isNetworkError
+                                    ? 'Server is waking up. Please wait 30 seconds and try again.'
+                                    : 'Google login failed. Please try again.'
                         };
                   }
-
-                  const data = await res.json();
-                  if (data.success) {
-                        applyAuthenticatedSession(data.data.user, data.data.token);
-                        return { success: true, message: data.message || 'Logged in with Google.' };
-                  }
-
-                  return { success: false, message: data.message || 'Google login failed.' };
-            } catch {
-                  return {
-                        success: false,
-                        message: 'Google login failed. Please try again.'
-                  };
             }
+
+            return { success: false, message: 'Google login failed after multiple attempts. Please try again.' };
       };
 
       const register = async (userData, onRetry = null) => {
             const MAX_RETRIES = 3;
-            const RETRY_DELAYS = [5000, 10000, 20000];
-            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
             for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
                   try {
@@ -249,13 +295,10 @@ export const AuthProvider = ({ children }) => {
 
                         return { success: false, message: data.message || 'Registration failed.' };
                   } catch (error) {
-                        const isNetworkError = error.name === 'AbortError'
-                              || error.message === 'Failed to fetch'
-                              || error.message?.includes('network')
-                              || error.message?.includes('timeout');
+                        const isNetworkError = isRetriableNetworkError(error);
 
                         if (isNetworkError && attempt < MAX_RETRIES) {
-                              const retryDelay = RETRY_DELAYS[attempt - 1] || 15000;
+                              const retryDelay = AUTH_RETRY_DELAYS[attempt - 1] || 15000;
                               if (onRetry) {
                                     onRetry({
                                           attempt,
@@ -282,14 +325,14 @@ export const AuthProvider = ({ children }) => {
 
       const updateProfile = async (userData) => {
             try {
-                  const res = await fetch(`${API_URL}/users/profile`, {
+                  const res = await fetchWithTimeout(`${API_URL}/users/profile`, {
                         method: 'PUT',
                         headers: {
                               'Content-Type': 'application/json',
                               Authorization: `Bearer ${token}`
                         },
                         body: JSON.stringify(userData)
-                  });
+                  }, DEFAULT_REQUEST_TIMEOUT_MS);
                   const data = await res.json();
 
                   if (data.success) {
@@ -297,7 +340,7 @@ export const AuthProvider = ({ children }) => {
                         return { success: true, message: data.message, data: data.data };
                   }
 
-                  return { success: false, message: data.message };
+                  return { success: false, message: data.message || 'Failed to update profile.' };
             } catch {
                   return { success: false, message: 'Failed to update profile' };
             }
@@ -308,13 +351,13 @@ export const AuthProvider = ({ children }) => {
                   const formData = new FormData();
                   formData.append('avatar', file);
 
-                  const res = await fetch(`${API_URL}/users/profile/avatar`, {
+                  const res = await fetchWithTimeout(`${API_URL}/users/profile/avatar`, {
                         method: 'POST',
                         headers: {
                               Authorization: `Bearer ${token}`
                         },
                         body: formData
-                  });
+                  }, DEFAULT_REQUEST_TIMEOUT_MS);
                   const data = await res.json();
 
                   if (data.success) {
@@ -330,18 +373,16 @@ export const AuthProvider = ({ children }) => {
 
       const blockUser = async (userId) => {
             try {
-                  const res = await fetch(`${API_URL}/users/${userId}/block`, {
+                  const res = await fetchWithTimeout(`${API_URL}/users/${userId}/block`, {
                         method: 'POST',
                         headers: { Authorization: `Bearer ${token}` }
-                  });
+                  }, DEFAULT_REQUEST_TIMEOUT_MS);
                   const data = await res.json();
 
                   if (data.success) {
-                        const updatedUser = {
-                              ...user,
-                              blockedUsers: [...(user?.blockedUsers || []), userId]
-                        };
-                        applyAuthenticatedSession(updatedUser);
+                        if (data.data?.user) {
+                              applyAuthenticatedSession(data.data.user);
+                        }
                         return { success: true, message: data.message };
                   }
 
@@ -353,18 +394,16 @@ export const AuthProvider = ({ children }) => {
 
       const unblockUser = async (userId) => {
             try {
-                  const res = await fetch(`${API_URL}/users/${userId}/unblock`, {
+                  const res = await fetchWithTimeout(`${API_URL}/users/${userId}/unblock`, {
                         method: 'POST',
                         headers: { Authorization: `Bearer ${token}` }
-                  });
+                  }, DEFAULT_REQUEST_TIMEOUT_MS);
                   const data = await res.json();
 
                   if (data.success) {
-                        const updatedUser = {
-                              ...user,
-                              blockedUsers: (user?.blockedUsers || []).filter((id) => id !== userId)
-                        };
-                        applyAuthenticatedSession(updatedUser);
+                        if (data.data?.user) {
+                              applyAuthenticatedSession(data.data.user);
+                        }
                         return { success: true, message: data.message };
                   }
 
@@ -377,9 +416,11 @@ export const AuthProvider = ({ children }) => {
       const updateFollowState = (targetUserId, isFollowing) => {
             if (!user) return;
 
+            const currentFollowing = user.following || [];
+            const alreadyFollowing = currentFollowing.some((id) => id?.toString() === targetUserId?.toString());
             const nextFollowing = isFollowing
-                  ? [...(user.following || []), targetUserId]
-                  : (user.following || []).filter((id) => id !== targetUserId);
+                  ? (alreadyFollowing ? currentFollowing : [...currentFollowing, targetUserId])
+                  : currentFollowing.filter((id) => id?.toString() !== targetUserId?.toString());
 
             applyAuthenticatedSession({
                   ...user,
@@ -391,7 +432,7 @@ export const AuthProvider = ({ children }) => {
             user,
             token,
             loading,
-            isAuthenticated: !!(token || user),
+            isAuthenticated: !!(token && user),
             login,
             googleLogin,
             register,

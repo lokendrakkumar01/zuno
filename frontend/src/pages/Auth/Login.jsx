@@ -48,12 +48,25 @@ const Login = () => {
 
                               setGoogleBusy(true);
                               setError('');
-                              const result = await googleLogin(credential);
+                              setWakingUp(false);
+                              setRetryInfo(null);
+                              setCountdown(0);
+                              const result = await googleLogin(credential, (info) => {
+                                    setWakingUp(true);
+                                    setRetryInfo(info);
+                                    setCountdown(info.retryIn);
+                                    setError(`â³ Server is waking up... Auto-retrying (${info.attempt}/${info.maxRetries})`);
+                              });
                               setGoogleBusy(false);
 
                               if (result.success) {
                                     navigate('/');
                               } else {
+                                    if (result.status === 'waking_up') {
+                                          setWakingUp(true);
+                                    } else {
+                                          setWakingUp(false);
+                                    }
                                     setError(result.message || 'Google login failed.');
                               }
                         }

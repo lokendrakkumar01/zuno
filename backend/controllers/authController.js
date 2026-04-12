@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const { OAuth2Client } = require('google-auth-library');
 const User = require('../models/User');
 const { sendLoginEmail } = require('../config/emailService');
 
@@ -34,20 +35,17 @@ const slugifyUsername = (value = '') => (
 const buildGoogleUsername = async ({ email, name }) => {
       const emailBase = normalizeEmail(email).split('@')[0];
       const preferredBase = slugifyUsername(name) || slugifyUsername(emailBase) || 'zuno_user';
-      let candidate = preferredBase.slice(0, 24) || 'zuno_user';
-      let suffix = 0;
-
-      while (true) {
+      for (let suffix = 0; suffix <= 100; suffix += 1) {
+            const suffixValue = suffix === 0 ? '' : `_${suffix}`;
+            const trimmedBase = preferredBase.slice(0, Math.max(3, 24 - suffixValue.length)) || 'zuno_user';
+            const candidate = `${trimmedBase}${suffixValue}`;
             const existingUser = await User.findOne({ username: candidate }).select('_id');
             if (!existingUser) {
                   return candidate;
             }
-
-            suffix += 1;
-            const suffixValue = `_${suffix}`;
-            const trimmedBase = preferredBase.slice(0, Math.max(3, 24 - suffixValue.length)) || 'zuno_user';
-            candidate = `${trimmedBase}${suffixValue}`;
       }
+
+      throw new Error('Could not generate unique username');
 };
 
 const verifyGoogleCredential = async (credential) => {
@@ -56,17 +54,24 @@ const verifyGoogleCredential = async (credential) => {
             throw new Error('GOOGLE_CLIENT_ID is missing on the server');
       }
 
-      const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
-      if (!response.ok) {
+      const client = new OAuth2Client(googleClientId);
+      let ticket;
+
+      try {
+            ticket = await client.verifyIdToken({
+                  idToken: credential,
+                  audience: googleClientId
+            });
+      } catch {
             throw new Error('Google token verification failed');
       }
 
-      const profile = await response.json();
-      if (profile.aud !== googleClientId) {
-            throw new Error('Google client ID mismatch');
+      const profile = ticket.getPayload();
+      if (!profile?.sub || !profile?.email) {
+            throw new Error('Google token verification failed');
       }
 
-      if (profile.email_verified !== 'true') {
+      if (!profile.email_verified) {
             throw new Error('Google account email is not verified');
       }
 
@@ -239,14 +244,50 @@ const googleLogin = async (req, res) => {
                         name: googleProfile.displayName
                   });
 
-                  user = await User.create({
-                        username,
-                        email: googleProfile.email,
-                        displayName: googleProfile.displayName || username,
-                        avatar: googleProfile.avatar,
-                        googleId: googleProfile.googleId,
-                        password: crypto.randomBytes(24).toString('hex'),
-                        language: 'both'
+                  try {
+                        user = await User.create({
+                              username,
+                              email: googleProfile.email,
+                              displayName: googleProfile.displayName || username,
+                              avatar: googleProfile.avatar,
+                              googleId: googleProfile.googleId,
+                              password: crypto.randomBytes(24).toString('hex'),
+                              language: 'both'
+                        });
+                  } catch (error) {
+                        if (error?.code !== 11000) {
+                              throw error;
+                        }
+
+                        user = await User.findOne({ email: googleProfile.email });
+                        if (!user) {
+                              throw error;
+                        }
+
+                        let shouldSave = false;
+                        if (!user.googleId) {
+                              user.googleId = googleProfile.googleId;
+                              shouldSave = true;
+                        }
+                        if (!user.avatar && googleProfile.avatar) {
+                              user.avatar = googleProfile.avatar;
+                              shouldSave = true;
+                        }
+                        if (!user.displayName && googleProfile.displayName) {
+                              user.displayName = googleProfile.displayName;
+                              shouldSave = true;
+                        }
+
+                        if (shouldSave) {
+                              await user.save();
+                        }
+                  }
+            }
+
+            if (!user.isActive) {
+                  return res.status(401).json({
+                        success: false,
+                        message: 'Account is deactivated. Please contact support.'
                   });
             }
 
@@ -320,6 +361,13 @@ const changePassword = async (req, res) => {
                   return res.status(400).json({
                         success: false,
                         message: 'Please provide current and new password'
+                  });
+            }
+
+            if (newPassword.length < 8) {
+                  return res.status(400).json({
+                        success: false,
+                        message: 'Password must be at least 8 characters'
                   });
             }
 
