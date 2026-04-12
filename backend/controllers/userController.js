@@ -2,6 +2,36 @@ const User = require('../models/User');
 const { getReceiverSocketId, io } = require('../socket/socket');
 const { sendProfileUpdateEmail } = require('../config/emailService');
 
+const PUBLIC_PROFILE_SELECT = [
+      'username',
+      'displayName',
+      'avatar',
+      'bio',
+      'role',
+      'interests',
+      'isVerified',
+      'verificationRequest',
+      'followers',
+      'following',
+      'profileSong',
+      'stats',
+      'createdAt',
+      'blockedUsers'
+].join(' ');
+
+const PRIVATE_PROFILE_SELECT = [
+      PUBLIC_PROFILE_SELECT,
+      'email',
+      'preferredFeedMode',
+      'focusModeEnabled',
+      'dailyUsageLimit',
+      'language',
+      'notificationSettings',
+      'preferredContentTypes',
+      'isPrivate',
+      'profileVisibility'
+].join(' ');
+
 const buildPublicProfilePayload = (user) => {
       if (!user) return null;
 
@@ -72,31 +102,7 @@ const getUserById = async (req, res) => {
 const getUserProfile = async (req, res) => {
       try {
             const user = await User.findOne({ username: req.params.username })
-                  .select([
-                        'username',
-                        'displayName',
-                        'avatar',
-                        'bio',
-                        'role',
-                        'interests',
-                        'isVerified',
-                        'verificationRequest',
-                        'followers',
-                        'following',
-                        'profileSong',
-                        'stats',
-                        'createdAt',
-                        'email',
-                        'preferredFeedMode',
-                        'focusModeEnabled',
-                        'dailyUsageLimit',
-                        'language',
-                        'notificationSettings',
-                        'blockedUsers',
-                        'preferredContentTypes',
-                        'isPrivate',
-                        'profileVisibility'
-                  ].join(' '))
+                  .select(req.user ? PRIVATE_PROFILE_SELECT : PUBLIC_PROFILE_SELECT)
                   .lean();
 
             if (!user) {
@@ -110,6 +116,23 @@ const getUserProfile = async (req, res) => {
                   req.user?._id && user._id && req.user._id.toString() === user._id.toString()
             );
 
+            if (!isOwnProfile && req.user) {
+                  const blockedByMe = req.user.blockedUsers || [];
+                  const isBlockedByMe = blockedByMe.some((id) => id?.toString() === user._id.toString());
+                  const hasBlockedMe = (user.blockedUsers || []).some((id) => id?.toString() === req.user.id.toString());
+
+                  if (isBlockedByMe || hasBlockedMe) {
+                        return res.status(404).json({
+                              success: false,
+                              message: 'User not found'
+                        });
+                  }
+            }
+
+            const responseUser = isOwnProfile
+                  ? buildAuthProfilePayload(user)
+                  : buildPublicProfilePayload(user);
+
             res.setHeader('Vary', 'Authorization');
             res.setHeader(
                   'Cache-Control',
@@ -119,9 +142,7 @@ const getUserProfile = async (req, res) => {
             res.json({
                   success: true,
                   data: {
-                        user: isOwnProfile
-                              ? buildAuthProfilePayload(user)
-                              : buildPublicProfilePayload(user)
+                        user: responseUser
                   }
             });
       } catch (error) {

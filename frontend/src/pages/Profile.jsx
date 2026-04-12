@@ -8,6 +8,7 @@ import UserAvatar from '../components/User/UserAvatar';
 import CricketGame from '../components/Games/CricketGame';
 import { BlockIcon, CheckIcon, ClockIcon, EditIcon, MessageIcon, SettingsIcon, UserPlusIcon } from '../components/Icons/ActionIcons';
 import { resolveAssetUrl } from '../utils/media';
+import { readStoredAuthUser } from '../utils/session';
 
 const INTERESTS = [
       'learning', 'technology', 'creativity', 'health',
@@ -76,17 +77,18 @@ const Profile = () => {
       const navigate = useNavigate();
       const fileInputRef = useRef(null);
       const { playTrack, stopTrack, currentTrack, isPlaying: isMusicPlayingGlobal } = useMusic();
+      const sessionUser = user || readStoredAuthUser();
       const routeIdentity = normalizeIdentity(username);
       const isCanonicalOwnRoute = Boolean(
-            user && routeIdentity && [user.username, user.displayName].some((value) => normalizeIdentity(value) === routeIdentity)
+            sessionUser && routeIdentity && [sessionUser.username, sessionUser.displayName].some((value) => normalizeIdentity(value) === routeIdentity)
       );
       const isOwnProfile = !username || isCanonicalOwnRoute;
-      const targetUsername = isOwnProfile ? (user?.username || username || '') : (username || '');
+      const targetUsername = isOwnProfile ? (sessionUser?.username || username || '') : (username || '');
       const profileCacheKey = targetUsername ? buildProfileCacheKey(targetUsername) : '';
       const postsCacheKey = targetUsername ? buildPostsCacheKey(targetUsername) : '';
 
       const [profileUser, setProfileUser] = useState(() => {
-            if (user && targetUsername === user.username) return user;
+            if (sessionUser && targetUsername === sessionUser.username) return sessionUser;
             return readCachedValue(profileCacheKey, null);
       });
       const [userPosts, setUserPosts] = useState(() => {
@@ -94,11 +96,12 @@ const Profile = () => {
             return readCachedValue(postsCacheKey, []);
       });
       const [loading, setLoading] = useState(() => {
-            if (user && targetUsername === user.username) return false;
+            if (sessionUser && targetUsername === sessionUser.username) return false;
+            if (isOwnProfile && !targetUsername) return Boolean(token);
             return !readCachedValue(profileCacheKey, null);
       });
       const [editing, setEditing] = useState(false);
-      const [editData, setEditData] = useState(() => (isOwnProfile && user ? getEditableProfile(user) : {}));
+      const [editData, setEditData] = useState(() => (isOwnProfile && sessionUser ? getEditableProfile(sessionUser) : {}));
       const [message, setMessage] = useState('');
       const [uploadingPhoto, setUploadingPhoto] = useState(false);
       const [activeTab, setActiveTab] = useState('profile');
@@ -215,8 +218,8 @@ const Profile = () => {
       useEffect(() => {
             if (!targetUsername) return;
 
-            const nextProfile = isOwnProfile && user
-                  ? user
+            const nextProfile = isOwnProfile && sessionUser
+                  ? sessionUser
                   : readCachedValue(profileCacheKey, null);
             const nextPosts = readCachedValue(postsCacheKey, []);
 
@@ -225,10 +228,10 @@ const Profile = () => {
             setLoading(!nextProfile);
             setPostsError('');
 
-            if (isOwnProfile && user) {
-                  setEditData(getEditableProfile(user));
+            if (isOwnProfile && sessionUser) {
+                  setEditData(getEditableProfile(sessionUser));
             }
-      }, [isOwnProfile, postsCacheKey, profileCacheKey, targetUsername, user]);
+      }, [isOwnProfile, postsCacheKey, profileCacheKey, sessionUser, targetUsername]);
 
       useEffect(() => {
             setTotalViews(getPostsViewCount(userPosts));
@@ -577,12 +580,12 @@ const Profile = () => {
                   } else {
                         setProfileUser(nextProfile);
                   }
-                  writeCachedValue(buildProfileCacheKey(user?.username || targetUsername), nextProfile);
+                  writeCachedValue(buildProfileCacheKey(sessionUser?.username || targetUsername), nextProfile);
 
                   setEditing(false);
 
                   // Fetch freshly to be 100% sure the profileSong populates properly in the UI
-                  refreshProfile(user?.username);
+                  refreshProfile(sessionUser?.username);
             } else {
                   setMessage('Error: ' + result.message);
             }
@@ -639,13 +642,39 @@ const Profile = () => {
 
       if (loading && !profileUser) {
             return (
+                  <div className="container profile-page-shell profile-skeleton-shell" style={{ paddingTop: 'var(--space-xl)', paddingBottom: 'var(--space-2xl)' }}>
+                        <div className="card profile-header-card animate-fadeInUp" style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                              <div className="profile-skeleton-line profile-skeleton-avatar" />
+                              <div className="profile-skeleton-stack">
+                                    <div className="profile-skeleton-line profile-skeleton-title" />
+                                    <div className="profile-skeleton-line profile-skeleton-subtitle" />
+                                    <div className="profile-skeleton-stat-row">
+                                          <div className="profile-skeleton-line profile-skeleton-stat" />
+                                          <div className="profile-skeleton-line profile-skeleton-stat" />
+                                          <div className="profile-skeleton-line profile-skeleton-stat" />
+                                    </div>
+                                    <div className="profile-skeleton-line profile-skeleton-bio" />
+                              </div>
+                        </div>
+
+                        <div className="card animate-fadeInUp" style={{ animationDelay: '0.06s', minHeight: '220px' }}>
+                              <div className="profile-skeleton-grid">
+                                    {Array.from({ length: 6 }).map((_, index) => (
+                                          <div key={index} className="profile-skeleton-line profile-skeleton-post" />
+                                    ))}
+                              </div>
+                        </div>
+                  </div>
+            );
+      }
+
+      if (!profileUser && isOwnProfile && token) {
+            return (
                   <div className="container" style={{ paddingTop: 'var(--space-2xl)' }}>
-                        <div className="empty-state animate-fadeIn" style={{ minHeight: '40vh' }}>
-                              <div className="loader" style={{ margin: '0 auto 1rem' }} />
-                              <h2 className="text-xl font-semibold mb-sm">Loading profile</h2>
-                              <p className="text-secondary">
-                                    We are opening {targetUsername ? `@${targetUsername}` : 'this profile'} and pulling the latest posts.
-                              </p>
+                        <div className="empty-state animate-fadeIn">
+                              <div className="empty-state-icon">Profile</div>
+                              <h2 className="text-xl font-semibold mb-md">Restoring your profile</h2>
+                              <p className="text-secondary">Your session is open. We are syncing your profile in the background.</p>
                         </div>
                   </div>
             );

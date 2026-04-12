@@ -35,6 +35,29 @@ const FEED_CONTENT_SELECT = [
       'liveData'
 ].join(' ');
 
+const buildCreatorSummary = (creator) => ({
+      _id: creator._id,
+      id: creator._id,
+      username: creator.username,
+      displayName: creator.displayName || creator.username,
+      avatar: creator.avatar || '',
+      bio: creator.bio || '',
+      role: creator.role,
+      interests: creator.interests || [],
+      isVerified: Boolean(creator.isVerified),
+      verificationRequest: creator.verificationRequest
+            ? {
+                  status: creator.verificationRequest.status,
+                  requestedAt: creator.verificationRequest.requestedAt
+            }
+            : null,
+      followersCount: Array.isArray(creator.followers) ? creator.followers.length : 0,
+      followingCount: Array.isArray(creator.following) ? creator.following.length : 0,
+      profileSong: creator.profileSong || null,
+      stats: creator.stats || {},
+      createdAt: creator.createdAt
+});
+
 const toPositiveInt = (value, fallback) => {
       const parsed = Number.parseInt(value, 10);
       return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -101,16 +124,17 @@ const getFeed = async (req, res) => {
 
             // If user is logged in, personalized filtering (including blocks)
             if (req.user) {
-                  const currentUser = await User.findById(req.user.id).select('blockedUsers').lean();
+                  const [currentUser, whoBlockedMe] = await Promise.all([
+                        User.findById(req.user.id).select('blockedUsers').lean(),
+                        User.find({ blockedUsers: req.user.id }).select('_id').lean()
+                  ]);
+
                   if (currentUser) {
                         const blockedByMe = currentUser.blockedUsers || [];
-                        
-                        // Optimized: Get IDs of users who blocked the current user
-                        const whoBlockedMe = await User.find({ blockedUsers: req.user.id }).select('_id').lean();
                         const blockedMeIds = whoBlockedMe.map(u => u._id);
-                        
+
                         const allBlockedIds = [...new Set([...blockedByMe, ...blockedMeIds])];
-                        
+
                         if (allBlockedIds.length > 0) {
                               query.creator = { $nin: allBlockedIds };
                         }
@@ -167,7 +191,7 @@ const getFeed = async (req, res) => {
             }
 
             // Standard caching for browser
-            res.setHeader('Cache-Control', 'public, max-age=60'); // 1 minute browser cache
+            res.setHeader('Cache-Control', req.user ? 'private, max-age=30' : 'public, max-age=60');
 
             res.json(responseData);
       } catch (error) {
@@ -246,7 +270,24 @@ const getCreatorFeed = async (req, res) => {
             const pageNum = toPositiveInt(page, 1);
             const limitNum = toPositiveInt(limit, 10);
 
-            const creator = await User.findOne({ username });
+            const creator = await User.findOne({ username })
+                  .select([
+                        'username',
+                        'displayName',
+                        'avatar',
+                        'bio',
+                        'role',
+                        'interests',
+                        'isVerified',
+                        'verificationRequest',
+                        'followers',
+                        'following',
+                        'profileSong',
+                        'stats',
+                        'createdAt',
+                        'blockedUsers'
+                  ].join(' '))
+                  .lean();
             if (!creator) {
                   return res.status(404).json({
                         success: false,
@@ -256,17 +297,15 @@ const getCreatorFeed = async (req, res) => {
 
             // Check if blocked (either direction)
             if (req.user) {
-                  const currentUser = await User.findById(req.user.id).select('blockedUsers');
-                  if (currentUser) {
-                        const isBlockedByMe = currentUser.blockedUsers.includes(creator._id);
-                        const hasBlockedMe = creator.blockedUsers && creator.blockedUsers.includes(req.user.id);
+                  const blockedByMe = req.user.blockedUsers || [];
+                  const isBlockedByMe = blockedByMe.some((id) => id?.toString() === creator._id.toString());
+                  const hasBlockedMe = (creator.blockedUsers || []).some((id) => id?.toString() === req.user.id.toString());
 
-                        if (isBlockedByMe || hasBlockedMe) {
-                              return res.status(404).json({
-                                    success: false,
-                                    message: 'User not found'
-                              });
-                        }
+                  if (isBlockedByMe || hasBlockedMe) {
+                        return res.status(404).json({
+                              success: false,
+                              message: 'User not found'
+                        });
                   }
             }
 
@@ -296,14 +335,13 @@ const getCreatorFeed = async (req, res) => {
 
             // No debug logs in production
 
-            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-            res.setHeader('Pragma', 'no-cache');
-            res.setHeader('Expires', '0');
+            const isOwnProfile = Boolean(req.user?._id && req.user._id.toString() === creator._id.toString());
+            res.setHeader('Cache-Control', isOwnProfile ? 'private, no-store' : 'public, max-age=30');
 
             res.json({
                   success: true,
                   data: {
-                        creator: creator.getPublicProfile(),
+                        creator: buildCreatorSummary(creator),
                         contents: decoratedContents,
                         pagination: {
                               page: pageNum,

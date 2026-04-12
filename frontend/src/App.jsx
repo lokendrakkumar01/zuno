@@ -74,7 +74,7 @@ function loadStatus() { return import('./pages/Status'); }
 
 // Main App Router Component (inside AuthProvider)
 function AppRouter() {
-      const { isAuthenticated, loading, user, token } = useAuth();
+      const { isAuthenticated, user, token } = useAuth();
       const [showSplash, setShowSplash] = useState(() => {
             const shown = localStorage.getItem('zuno_splash_shown');
             const time = localStorage.getItem('zuno_splash_time');
@@ -216,26 +216,6 @@ function AppRouter() {
       // Show splash screen
       if (showSplash) {
             return <SplashScreen onComplete={handleSplashComplete} />;
-      }
-
-      if (loading && token && !user) {
-            return (
-                  <div
-                        style={{
-                              minHeight: '100vh',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              padding: '2rem'
-                        }}
-                  >
-                        <div className="empty-state" style={{ maxWidth: '420px' }}>
-                              <div className="loader" style={{ margin: '0 auto 1rem' }} />
-                              <h2 className="text-xl font-semibold mb-sm">Opening your workspace</h2>
-                              <p className="text-secondary">We are restoring your session and loading your latest content.</p>
-                        </div>
-                  </div>
-            );
       }
 
       return (

@@ -1,101 +1,121 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { API_URL } from '../config';
+import {
+      clearStoredSession,
+      persistStoredAuthUser,
+      persistStoredSession,
+      readStoredAuthUser,
+      readStoredToken
+} from '../utils/session';
 
 const AuthContext = createContext(null);
+const AUTH_REFRESH_TIMEOUT_MS = 8000;
+
+const fetchWithTimeout = async (url, options = {}, timeout = 30000) => {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), timeout);
+
+      try {
+            const response = await fetch(url, {
+                  ...options,
+                  signal: controller.signal
+            });
+            clearTimeout(id);
+            return response;
+      } catch (error) {
+            clearTimeout(id);
+            throw error;
+      }
+};
+
+const getApiErrorMessage = async (res, fallbackMessage) => {
+      let data = null;
+
+      try {
+            data = await res.json();
+      } catch {
+            return fallbackMessage;
+      }
+
+      const fieldMessages = data?.fieldErrors
+            ? Object.values(data.fieldErrors)
+            : Array.isArray(data?.errors)
+                  ? data.errors.flatMap((entry) => Object.values(entry || {}))
+                  : [];
+
+      const detailedMessage = fieldMessages.filter(Boolean).join(' ');
+      return data?.message || detailedMessage || fallbackMessage;
+};
 
 export const AuthProvider = ({ children }) => {
-      // Load cached user from localStorage for instant startup
-      const [user, setUser] = useState(() => {
-            try {
-                  const cached = localStorage.getItem('zuno_user');
-                  return cached ? JSON.parse(cached) : null;
-            } catch {
-                  return null;
-            }
-      });
-      const [token, setToken] = useState(localStorage.getItem('zuno_token'));
-      const [loading, setLoading] = useState(() => {
-            // If we have a token and cached user, don't show initial loading
-            const hasToken = localStorage.getItem('zuno_token');
-            const hasUser = localStorage.getItem('zuno_user');
-            return !(hasToken && hasUser);
-      });
+      const [user, setUser] = useState(() => readStoredAuthUser());
+      const [token, setToken] = useState(() => readStoredToken());
+      const [loading, setLoading] = useState(false);
 
-      // Check auth on mount — but DON'T logout on failure (server might be cold)
+      const applyAuthenticatedSession = (nextUser, nextToken = token) => {
+            setUser(nextUser);
+            setToken(nextToken);
+            persistStoredSession({
+                  user: nextUser,
+                  token: nextToken
+            });
+      };
+
+      const logout = () => {
+            setUser(null);
+            setToken(null);
+            clearStoredSession();
+      };
+
       useEffect(() => {
+            let ignore = false;
+
             const checkAuth = async () => {
-                  if (token) {
-                        try {
-                              // Perform check in background
-                              const res = await fetch(`${API_URL}/auth/me`, {
-                                    headers: { 'Authorization': `Bearer ${token}` }
-                              });
-                              const data = await res.json();
-                              if (data.success) {
-                                    setUser(data.data.user);
-                                    // Update cached user data
-                                    localStorage.setItem('zuno_user', JSON.stringify(data.data.user));
-                              } else if (res.status === 401) {
-                                    // Token is truly invalid/expired — only then logout
-                                    logout();
-                              }
-                        } catch (error) {
+                  if (!token) {
+                        setLoading(false);
+                        return;
+                  }
+
+                  const cachedUser = readStoredAuthUser();
+                  if (cachedUser) {
+                        setUser(cachedUser);
+                  }
+
+                  // Keep startup non-blocking. Routes can open using the token while /me refreshes silently.
+                  setLoading(false);
+
+                  try {
+                        const res = await fetchWithTimeout(`${API_URL}/auth/me`, {
+                              headers: { Authorization: `Bearer ${token}` }
+                        }, AUTH_REFRESH_TIMEOUT_MS);
+                        const data = await res.json();
+
+                        if (ignore) return;
+
+                        if (data.success) {
+                              setUser(data.data.user);
+                              persistStoredAuthUser(data.data.user);
+                        } else if (res.status === 401) {
+                              logout();
+                        }
+                  } catch (error) {
+                        if (!ignore) {
                               console.error('Auth check failed (server may be starting):', error);
-                              // Keep cached user — don't logout on network errors
                         }
                   }
-                  // Even if check fails, we stop loading if we have cached data
-                  setLoading(false);
             };
 
-            if (user && token) {
-                  // If we already have cached data, stop loading immediately
-                  setLoading(false);
-                  // Still check in background to refresh data
-                  checkAuth();
-            } else {
-                  checkAuth();
-            }
+            checkAuth();
+
+            return () => {
+                  ignore = true;
+            };
       }, [token]);
-
-      const fetchWithTimeout = async (url, options = {}, timeout = 30000) => {
-            const controller = new AbortController();
-            const id = setTimeout(() => controller.abort(), timeout);
-            try {
-                  const response = await fetch(url, {
-                        ...options,
-                        signal: controller.signal
-                  });
-                  clearTimeout(id);
-                  return response;
-            } catch (error) {
-                  clearTimeout(id);
-                  throw error;
-            }
-      };
-
-      const getApiErrorMessage = async (res, fallbackMessage) => {
-            let data = null;
-
-            try {
-                  data = await res.json();
-            } catch {
-                  return fallbackMessage;
-            }
-
-            const fieldMessages = data?.fieldErrors
-                  ? Object.values(data.fieldErrors)
-                  : Array.isArray(data?.errors)
-                        ? data.errors.flatMap((entry) => Object.values(entry || {}))
-                        : [];
-
-            const detailedMessage = fieldMessages.filter(Boolean).join(' ');
-            return data?.message || detailedMessage || fallbackMessage;
-      };
 
       const login = async (email, password, onRetry = null) => {
             const MAX_RETRIES = 3;
-            const RETRY_DELAYS = [5000, 10000, 20000]; // Faster recovery
+            const RETRY_DELAYS = [5000, 10000, 20000];
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
             const attemptLogin = async (timeoutMs = 25000) => {
                   const res = await fetchWithTimeout(`${API_URL}/auth/login`, {
@@ -103,6 +123,7 @@ export const AuthProvider = ({ children }) => {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ email, password })
                   }, timeoutMs);
+
                   if (!res.ok && res.status !== 401 && res.status !== 400 && res.status !== 422) {
                         throw new Error(`HTTP ${res.status}`);
                   }
@@ -114,43 +135,41 @@ export const AuthProvider = ({ children }) => {
                         };
                   }
 
-                  return await res.json();
+                  return res.json();
             };
 
-            const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-            for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+            for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
                   try {
                         const data = await attemptLogin(25000);
                         if (data.success) {
-                              setUser(data.data.user);
-                              setToken(data.data.token);
-                              localStorage.setItem('zuno_token', data.data.token);
-                              localStorage.setItem('zuno_user', JSON.stringify(data.data.user));
+                              applyAuthenticatedSession(data.data.user, data.data.token);
                               return { success: true, message: data.message };
                         }
+
                         return {
                               success: false,
                               message: data.message || 'Invalid email or password.'
                         };
                   } catch (error) {
-                        const isNetworkError = error.name === 'AbortError' ||
-                              error.message === 'Failed to fetch' ||
-                              error.message?.includes('network') ||
-                              error.message?.includes('timeout') ||
-                              error.message?.includes('HTTP 5');
+                        const isNetworkError = error.name === 'AbortError'
+                              || error.message === 'Failed to fetch'
+                              || error.message?.includes('network')
+                              || error.message?.includes('timeout')
+                              || error.message?.includes('HTTP 5');
 
                         if (isNetworkError && attempt < MAX_RETRIES) {
                               const retryDelay = RETRY_DELAYS[attempt - 1] || 15000;
-                              // Notify UI about waking up and retry countdown
                               if (onRetry) {
-                                    onRetry({ attempt, maxRetries: MAX_RETRIES, retryIn: Math.round(retryDelay / 1000) });
+                                    onRetry({
+                                          attempt,
+                                          maxRetries: MAX_RETRIES,
+                                          retryIn: Math.round(retryDelay / 1000)
+                                    });
                               }
                               await sleep(retryDelay);
                               continue;
                         }
 
-                        // Final attempt failed or non-network error
                         if (isNetworkError) {
                               return {
                                     success: false,
@@ -165,6 +184,7 @@ export const AuthProvider = ({ children }) => {
                         };
                   }
             }
+
             return { success: false, message: 'Login failed after multiple attempts. Please try again.' };
       };
 
@@ -185,15 +205,12 @@ export const AuthProvider = ({ children }) => {
 
                   const data = await res.json();
                   if (data.success) {
-                        setUser(data.data.user);
-                        setToken(data.data.token);
-                        localStorage.setItem('zuno_token', data.data.token);
-                        localStorage.setItem('zuno_user', JSON.stringify(data.data.user));
+                        applyAuthenticatedSession(data.data.user, data.data.token);
                         return { success: true, message: data.message || 'Logged in with Google.' };
                   }
 
                   return { success: false, message: data.message || 'Google login failed.' };
-            } catch (error) {
+            } catch {
                   return {
                         success: false,
                         message: 'Google login failed. Please try again.'
@@ -204,9 +221,9 @@ export const AuthProvider = ({ children }) => {
       const register = async (userData, onRetry = null) => {
             const MAX_RETRIES = 3;
             const RETRY_DELAYS = [5000, 10000, 20000];
-            const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-            for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+            for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
                   try {
                         const res = await fetchWithTimeout(`${API_URL}/auth/register`, {
                               method: 'POST',
@@ -223,23 +240,25 @@ export const AuthProvider = ({ children }) => {
 
                         const data = await res.json();
                         if (data.success) {
-                              setUser(data.data.user);
-                              setToken(data.data.token);
-                              localStorage.setItem('zuno_token', data.data.token);
-                              localStorage.setItem('zuno_user', JSON.stringify(data.data.user));
+                              applyAuthenticatedSession(data.data.user, data.data.token);
                               return { success: true, message: data.message };
                         }
+
                         return { success: false, message: data.message || 'Registration failed.' };
                   } catch (error) {
-                        const isNetworkError = error.name === 'AbortError' ||
-                              error.message === 'Failed to fetch' ||
-                              error.message?.includes('network') ||
-                              error.message?.includes('timeout');
+                        const isNetworkError = error.name === 'AbortError'
+                              || error.message === 'Failed to fetch'
+                              || error.message?.includes('network')
+                              || error.message?.includes('timeout');
 
                         if (isNetworkError && attempt < MAX_RETRIES) {
                               const retryDelay = RETRY_DELAYS[attempt - 1] || 15000;
                               if (onRetry) {
-                                    onRetry({ attempt, maxRetries: MAX_RETRIES, retryIn: Math.round(retryDelay / 1000) });
+                                    onRetry({
+                                          attempt,
+                                          maxRetries: MAX_RETRIES,
+                                          retryIn: Math.round(retryDelay / 1000)
+                                    });
                               }
                               await sleep(retryDelay);
                               continue;
@@ -254,14 +273,8 @@ export const AuthProvider = ({ children }) => {
                         };
                   }
             }
-            return { success: false, message: 'Registration failed after multiple attempts. Please try again.' };
-      };
 
-      const logout = () => {
-            setUser(null);
-            setToken(null);
-            localStorage.removeItem('zuno_token');
-            localStorage.removeItem('zuno_user');
+            return { success: false, message: 'Registration failed after multiple attempts. Please try again.' };
       };
 
       const updateProfile = async (userData) => {
@@ -270,18 +283,19 @@ export const AuthProvider = ({ children }) => {
                         method: 'PUT',
                         headers: {
                               'Content-Type': 'application/json',
-                              'Authorization': `Bearer ${token}`
+                              Authorization: `Bearer ${token}`
                         },
                         body: JSON.stringify(userData)
                   });
                   const data = await res.json();
+
                   if (data.success) {
-                        setUser(data.data.user);
-                        localStorage.setItem('zuno_user', JSON.stringify(data.data.user));
+                        applyAuthenticatedSession(data.data.user);
                         return { success: true, message: data.message, data: data.data };
                   }
+
                   return { success: false, message: data.message };
-            } catch (error) {
+            } catch {
                   return { success: false, message: 'Failed to update profile' };
             }
       };
@@ -294,20 +308,19 @@ export const AuthProvider = ({ children }) => {
                   const res = await fetch(`${API_URL}/users/profile/avatar`, {
                         method: 'POST',
                         headers: {
-                              'Authorization': `Bearer ${token}`
+                              Authorization: `Bearer ${token}`
                         },
                         body: formData
                   });
                   const data = await res.json();
 
                   if (data.success) {
-                        setUser(data.data.user);
-                        localStorage.setItem('zuno_user', JSON.stringify(data.data.user));
+                        applyAuthenticatedSession(data.data.user);
                         return { success: true, message: data.message, data: data.data };
                   }
 
                   return { success: false, message: data.message || 'Failed to upload profile photo.' };
-            } catch (error) {
+            } catch {
                   return { success: false, message: 'Failed to upload profile photo.' };
             }
       };
@@ -316,20 +329,21 @@ export const AuthProvider = ({ children }) => {
             try {
                   const res = await fetch(`${API_URL}/users/${userId}/block`, {
                         method: 'POST',
-                        headers: { 'Authorization': `Bearer ${token}` }
+                        headers: { Authorization: `Bearer ${token}` }
                   });
                   const data = await res.json();
+
                   if (data.success) {
                         const updatedUser = {
                               ...user,
-                              blockedUsers: [...(user.blockedUsers || []), userId]
+                              blockedUsers: [...(user?.blockedUsers || []), userId]
                         };
-                        setUser(updatedUser);
-                        localStorage.setItem('zuno_user', JSON.stringify(updatedUser));
+                        applyAuthenticatedSession(updatedUser);
                         return { success: true, message: data.message };
                   }
+
                   return { success: false, message: data.message };
-            } catch (error) {
+            } catch {
                   return { success: false, message: 'Failed to block user' };
             }
       };
@@ -338,20 +352,21 @@ export const AuthProvider = ({ children }) => {
             try {
                   const res = await fetch(`${API_URL}/users/${userId}/unblock`, {
                         method: 'POST',
-                        headers: { 'Authorization': `Bearer ${token}` }
+                        headers: { Authorization: `Bearer ${token}` }
                   });
                   const data = await res.json();
+
                   if (data.success) {
                         const updatedUser = {
                               ...user,
-                              blockedUsers: (user.blockedUsers || []).filter(id => id !== userId)
+                              blockedUsers: (user?.blockedUsers || []).filter((id) => id !== userId)
                         };
-                        setUser(updatedUser);
-                        localStorage.setItem('zuno_user', JSON.stringify(updatedUser));
+                        applyAuthenticatedSession(updatedUser);
                         return { success: true, message: data.message };
                   }
+
                   return { success: false, message: data.message };
-            } catch (error) {
+            } catch {
                   return { success: false, message: 'Failed to unblock user' };
             }
       };
@@ -359,20 +374,21 @@ export const AuthProvider = ({ children }) => {
       const updateFollowState = (targetUserId, isFollowing) => {
             if (!user) return;
 
-            const newFollowing = isFollowing
+            const nextFollowing = isFollowing
                   ? [...(user.following || []), targetUserId]
-                  : (user.following || []).filter(id => id !== targetUserId);
+                  : (user.following || []).filter((id) => id !== targetUserId);
 
-            const updatedUser = { ...user, following: newFollowing };
-            setUser(updatedUser);
-            localStorage.setItem('zuno_user', JSON.stringify(updatedUser));
+            applyAuthenticatedSession({
+                  ...user,
+                  following: nextFollowing
+            });
       };
 
       const value = {
             user,
             token,
             loading,
-            isAuthenticated: !!user,
+            isAuthenticated: !!(token || user),
             login,
             googleLogin,
             register,

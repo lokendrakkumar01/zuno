@@ -165,9 +165,12 @@ const contentSchema = new mongoose.Schema({
 
 // Index for efficient feed queries
 contentSchema.index({ creator: 1, createdAt: -1 });
+contentSchema.index({ creator: 1, status: 1, visibility: 1, isApproved: 1, createdAt: -1 });
 contentSchema.index({ contentType: 1, status: 1, createdAt: -1 });
+contentSchema.index({ status: 1, visibility: 1, isApproved: 1, contentType: 1, createdAt: -1 });
 contentSchema.index({ topics: 1, status: 1, qualityScore: -1 });
 contentSchema.index({ purpose: 1, status: 1 });
+contentSchema.index({ status: 1, visibility: 1, isApproved: 1, purpose: 1, createdAt: -1 });
 contentSchema.index({ status: 1, visibility: 1, isApproved: 1, createdAt: -1, qualityScore: -1 });
 
 // TTL index to automatically remove expired content (stories/statuses)
