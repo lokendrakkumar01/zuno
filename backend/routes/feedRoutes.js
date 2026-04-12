@@ -7,30 +7,13 @@ const {
       searchContent,
       getActiveStories
 } = require('../controllers/feedController');
-const { protect } = require('../middleware/auth');
-
-// Optional auth middleware (works with or without auth)
-const optionalAuth = async (req, res, next) => {
-      const jwt = require('jsonwebtoken');
-      const User = require('../models/User');
-
-      if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-            try {
-                  const token = req.headers.authorization.split(' ')[1];
-                  const decoded = jwt.verify(token, process.env.JWT_SECRET);
-                  req.user = await User.findById(decoded.id).select('-password');
-            } catch (error) {
-                  // Continue without user (public access)
-            }
-      }
-      next();
-};
+const { optionalProtect } = require('../middleware/auth');
 
 // Public routes (with optional personalization if logged in)
-router.get('/', optionalAuth, getFeed);
-router.get('/stories', optionalAuth, getActiveStories);
-router.get('/search', optionalAuth, searchContent);
-router.get('/topic/:topic', optionalAuth, getFeedByTopic);
-router.get('/creator/:username', optionalAuth, getCreatorFeed);
+router.get('/', optionalProtect, getFeed);
+router.get('/stories', optionalProtect, getActiveStories);
+router.get('/search', optionalProtect, searchContent);
+router.get('/topic/:topic', optionalProtect, getFeedByTopic);
+router.get('/creator/:username', optionalProtect, getCreatorFeed);
 
 module.exports = router;

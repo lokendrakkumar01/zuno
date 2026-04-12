@@ -9,6 +9,37 @@ let feedCache = {
       ttl: 2 * 60 * 1000 // 2 minutes
 };
 
+const FEED_CONTENT_SELECT = [
+      'creator',
+      'contentType',
+      'title',
+      'body',
+      'media',
+      'purpose',
+      'topics',
+      'qualityScore',
+      'createdAt',
+      'updatedAt',
+      'expiresAt',
+      'silentMode',
+      'metrics.helpfulCount',
+      'metrics.notUsefulCount',
+      'metrics.viewCount',
+      'metrics.saveCount',
+      'metrics.shareCount',
+      'metrics.commentCount',
+      'music',
+      'backgroundColor',
+      'fontStyle',
+      'textAlign',
+      'liveData'
+].join(' ');
+
+const toPositiveInt = (value, fallback) => {
+      const parsed = Number.parseInt(value, 10);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
 // @desc    Get feed based on mode
 // @route   GET /api/feed
 // @access  Public/Private
@@ -21,9 +52,11 @@ const getFeed = async (req, res) => {
                   contentType,
                   topic
             } = req.query;
+            const pageNum = toPositiveInt(page, 1);
+            const limitNum = toPositiveInt(limit, 10);
 
             // Use cache for public 'all' mode on first page
-            const isPublicFirstPage = !req.user && mode === 'all' && page == 1 && !contentType && !topic;
+            const isPublicFirstPage = !req.user && mode === 'all' && pageNum === 1 && !contentType && !topic;
             if (isPublicFirstPage && feedCache.data && (Date.now() - feedCache.lastUpdated < feedCache.ttl)) {
                   return res.json(feedCache.data);
             }
@@ -87,13 +120,17 @@ const getFeed = async (req, res) => {
             // Sort options
             let sortOptions = { createdAt: -1, qualityScore: -1 };
 
-            // Fetch content with optimized population
-            const contents = await Content.find(query)
-                  .populate('creator', 'username displayName avatar role')
-                  .sort(sortOptions)
-                  .skip((page - 1) * limit)
-                  .limit(parseInt(limit))
-                  .lean();
+            // Fetch content and pagination data together so the first screen returns sooner.
+            const [contents, total] = await Promise.all([
+                  Content.find(query)
+                        .populate('creator', 'username displayName avatar role')
+                        .select(FEED_CONTENT_SELECT)
+                        .sort(sortOptions)
+                        .skip((pageNum - 1) * limitNum)
+                        .limit(limitNum)
+                        .lean(),
+                  Content.countDocuments(query)
+            ]);
             const decoratedContents = await decorateContentsForViewer(contents, req.user?.id);
 
             // Process content (silentMode check)
@@ -105,19 +142,17 @@ const getFeed = async (req, res) => {
                   return c;
             });
 
-            const total = await Content.countDocuments(query);
-
             const responseData = {
                   success: true,
                   data: {
                         contents: processedContents,
                         mode,
                         pagination: {
-                              page: parseInt(page),
-                              limit: parseInt(limit),
+                              page: pageNum,
+                              limit: limitNum,
                               total,
-                              pages: Math.ceil(total / limit),
-                              hasMore: page * limit < total
+                              pages: Math.ceil(total / limitNum),
+                              hasMore: pageNum * limitNum < total
                         }
                   }
             };
@@ -152,6 +187,8 @@ const getFeedByTopic = async (req, res) => {
       try {
             const { topic } = req.params;
             const { page = 1, limit = 10 } = req.query;
+            const pageNum = toPositiveInt(page, 1);
+            const limitNum = toPositiveInt(limit, 10);
 
             const query = {
                   status: 'published',
@@ -161,15 +198,17 @@ const getFeedByTopic = async (req, res) => {
                   contentType: { $nin: ['story', 'status', 'text-status'] }
             };
 
-            const contents = await Content.find(query)
-                  .populate('creator', 'username displayName avatar role')
-                  .sort({ qualityScore: -1, createdAt: -1 })
-                  .skip((page - 1) * limit)
-                  .limit(parseInt(limit))
-                  .lean();
+            const [contents, total] = await Promise.all([
+                  Content.find(query)
+                        .populate('creator', 'username displayName avatar role')
+                        .select(FEED_CONTENT_SELECT)
+                        .sort({ qualityScore: -1, createdAt: -1 })
+                        .skip((pageNum - 1) * limitNum)
+                        .limit(limitNum)
+                        .lean(),
+                  Content.countDocuments(query)
+            ]);
             const decoratedContents = await decorateContentsForViewer(contents, req.user?.id);
-
-            const total = await Content.countDocuments(query);
 
             res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
             res.setHeader('Pragma', 'no-cache');
@@ -181,10 +220,10 @@ const getFeedByTopic = async (req, res) => {
                         contents: decoratedContents,
                         topic,
                         pagination: {
-                              page: parseInt(page),
-                              limit: parseInt(limit),
+                              page: pageNum,
+                              limit: limitNum,
                               total,
-                              pages: Math.ceil(total / limit)
+                              pages: Math.ceil(total / limitNum)
                         }
                   }
             });
@@ -204,6 +243,8 @@ const getCreatorFeed = async (req, res) => {
       try {
             const { username } = req.params;
             const { page = 1, limit = 10 } = req.query;
+            const pageNum = toPositiveInt(page, 1);
+            const limitNum = toPositiveInt(limit, 10);
 
             const creator = await User.findOne({ username });
             if (!creator) {
@@ -241,16 +282,17 @@ const getCreatorFeed = async (req, res) => {
                   query.status = 'published';
             }
 
-            const contents = await Content.find(query)
-                  .populate('creator', 'username displayName avatar role')
-                  .select('creator contentType title body media purpose topics qualityScore createdAt expiresAt silentMode metrics')
-                  .sort({ createdAt: -1 })
-                  .skip((page - 1) * limit)
-                  .limit(parseInt(limit))
-                  .lean();
+            const [contents, total] = await Promise.all([
+                  Content.find(query)
+                        .populate('creator', 'username displayName avatar role')
+                        .select(FEED_CONTENT_SELECT)
+                        .sort({ createdAt: -1 })
+                        .skip((pageNum - 1) * limitNum)
+                        .limit(limitNum)
+                        .lean(),
+                  Content.countDocuments(query)
+            ]);
             const decoratedContents = await decorateContentsForViewer(contents, req.user?.id);
-
-            const total = await Content.countDocuments(query);
 
             // No debug logs in production
 
@@ -264,10 +306,10 @@ const getCreatorFeed = async (req, res) => {
                         creator: creator.getPublicProfile(),
                         contents: decoratedContents,
                         pagination: {
-                              page: parseInt(page),
-                              limit: parseInt(limit),
+                              page: pageNum,
+                              limit: limitNum,
                               total,
-                              pages: Math.ceil(total / limit)
+                              pages: Math.ceil(total / limitNum)
                         }
                   }
             });
@@ -286,6 +328,8 @@ const getCreatorFeed = async (req, res) => {
 const searchContent = async (req, res) => {
       try {
             const { q, page = 1, limit = 10 } = req.query;
+            const pageNum = toPositiveInt(page, 1);
+            const limitNum = toPositiveInt(limit, 10);
 
             if (!q || q.trim().length < 2) {
                   return res.status(400).json({
@@ -306,15 +350,17 @@ const searchContent = async (req, res) => {
                   ]
             };
 
-            const contents = await Content.find(query)
-                  .populate('creator', 'username displayName avatar role')
-                  .sort({ qualityScore: -1, createdAt: -1 })
-                  .skip((page - 1) * limit)
-                  .limit(parseInt(limit))
-                  .lean();
+            const [contents, total] = await Promise.all([
+                  Content.find(query)
+                        .populate('creator', 'username displayName avatar role')
+                        .select(FEED_CONTENT_SELECT)
+                        .sort({ qualityScore: -1, createdAt: -1 })
+                        .skip((pageNum - 1) * limitNum)
+                        .limit(limitNum)
+                        .lean(),
+                  Content.countDocuments(query)
+            ]);
             const decoratedContents = await decorateContentsForViewer(contents, req.user?.id);
-
-            const total = await Content.countDocuments(query);
 
             res.json({
                   success: true,
@@ -322,10 +368,10 @@ const searchContent = async (req, res) => {
                         contents: decoratedContents,
                         query: q,
                         pagination: {
-                              page: parseInt(page),
-                              limit: parseInt(limit),
+                              page: pageNum,
+                              limit: limitNum,
                               total,
-                              pages: Math.ceil(total / limit)
+                              pages: Math.ceil(total / limitNum)
                         }
                   }
             });

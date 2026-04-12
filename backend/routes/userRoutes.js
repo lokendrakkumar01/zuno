@@ -26,7 +26,7 @@ const {
       requestVerification
 } = require('../controllers/userController');
 
-const { protect } = require('../middleware/auth');
+const { protect, optionalProtect } = require('../middleware/auth');
 const { uploadImage } = require('../middleware/upload');
 
 // Get user by MongoDB ID (used by Chat component for fast lookup)
@@ -61,7 +61,7 @@ router.post('/requests/:id/accept', protect, acceptFollowRequest);
 router.post('/requests/:id/reject', protect, rejectFollowRequest);
 
 // Public routes (at the end to avoid conflicts with specific routes)
-router.get('/:username', getUserProfile);
+router.get('/:username', optionalProtect, getUserProfile);
 router.get('/:username/followers', getFollowers);
 router.get('/:username/following', getFollowing);
 

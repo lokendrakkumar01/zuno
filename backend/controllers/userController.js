@@ -2,6 +2,48 @@ const User = require('../models/User');
 const { getReceiverSocketId, io } = require('../socket/socket');
 const { sendProfileUpdateEmail } = require('../config/emailService');
 
+const buildPublicProfilePayload = (user) => {
+      if (!user) return null;
+
+      return {
+            _id: user._id,
+            id: user._id,
+            username: user.username,
+            displayName: user.displayName || user.username,
+            avatar: user.avatar || '',
+            bio: user.bio || '',
+            role: user.role,
+            interests: user.interests || [],
+            isVerified: Boolean(user.isVerified),
+            verificationRequest: user.verificationRequest
+                  ? {
+                        status: user.verificationRequest.status,
+                        requestedAt: user.verificationRequest.requestedAt
+                  }
+                  : null,
+            followersCount: Array.isArray(user.followers) ? user.followers.length : 0,
+            followingCount: Array.isArray(user.following) ? user.following.length : 0,
+            profileSong: user.profileSong || null,
+            stats: user.stats || {},
+            createdAt: user.createdAt
+      };
+};
+
+const buildAuthProfilePayload = (user) => ({
+      ...buildPublicProfilePayload(user),
+      email: user.email,
+      preferredFeedMode: user.preferredFeedMode,
+      focusModeEnabled: user.focusModeEnabled,
+      dailyUsageLimit: user.dailyUsageLimit,
+      language: user.language,
+      following: user.following || [],
+      notificationSettings: user.notificationSettings || {},
+      blockedUsers: user.blockedUsers || [],
+      preferredContentTypes: user.preferredContentTypes || [],
+      isPrivate: Boolean(user.isPrivate),
+      profileVisibility: user.profileVisibility
+});
+
 const buildUploadedFileUrl = (file) => {
       if (!file) return '';
       if (file.path && /^https?:\/\//i.test(file.path)) return file.path;
@@ -29,7 +71,33 @@ const getUserById = async (req, res) => {
 // @access  Public
 const getUserProfile = async (req, res) => {
       try {
-            const user = await User.findOne({ username: req.params.username });
+            const user = await User.findOne({ username: req.params.username })
+                  .select([
+                        'username',
+                        'displayName',
+                        'avatar',
+                        'bio',
+                        'role',
+                        'interests',
+                        'isVerified',
+                        'verificationRequest',
+                        'followers',
+                        'following',
+                        'profileSong',
+                        'stats',
+                        'createdAt',
+                        'email',
+                        'preferredFeedMode',
+                        'focusModeEnabled',
+                        'dailyUsageLimit',
+                        'language',
+                        'notificationSettings',
+                        'blockedUsers',
+                        'preferredContentTypes',
+                        'isPrivate',
+                        'profileVisibility'
+                  ].join(' '))
+                  .lean();
 
             if (!user) {
                   return res.status(404).json({
@@ -38,9 +106,23 @@ const getUserProfile = async (req, res) => {
                   });
             }
 
+            const isOwnProfile = Boolean(
+                  req.user?._id && user._id && req.user._id.toString() === user._id.toString()
+            );
+
+            res.setHeader('Vary', 'Authorization');
+            res.setHeader(
+                  'Cache-Control',
+                  isOwnProfile ? 'private, no-store' : 'public, max-age=60'
+            );
+
             res.json({
                   success: true,
-                  data: { user: user.getPublicProfile() }
+                  data: {
+                        user: isOwnProfile
+                              ? buildAuthProfilePayload(user)
+                              : buildPublicProfilePayload(user)
+                  }
             });
       } catch (error) {
             res.status(500).json({

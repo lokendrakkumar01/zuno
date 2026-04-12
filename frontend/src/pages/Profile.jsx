@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config';
@@ -23,42 +23,72 @@ const FEED_MODES = [
       { id: 'problem-solving', label: 'Problem Solving' }
 ];
 
+const buildProfileCacheKey = (username = '') => `zuno_profile_cache_${username}`;
+const buildPostsCacheKey = (username = '') => `zuno_posts_cache_${username}`;
+
+const readCachedValue = (key, fallback) => {
+      if (!key) return fallback;
+
+      try {
+            const cached = localStorage.getItem(key);
+            return cached ? JSON.parse(cached) : fallback;
+      } catch {
+            return fallback;
+      }
+};
+
+const writeCachedValue = (key, value) => {
+      if (!key) return;
+
+      try {
+            localStorage.setItem(key, JSON.stringify(value));
+      } catch {
+            // Cache writes are best-effort only.
+      }
+};
+
+const getEditableProfile = (profile = {}) => ({
+      displayName: profile.displayName || '',
+      bio: profile.bio || '',
+      avatar: profile.avatar || '',
+      interests: Array.isArray(profile.interests) ? profile.interests : [],
+      preferredFeedMode: profile.preferredFeedMode || 'learning',
+      focusModeEnabled: Boolean(profile.focusModeEnabled),
+      dailyUsageLimit: Number(profile.dailyUsageLimit || 0),
+      profileSong: profile.profileSong || null
+});
+
+const getPostsViewCount = (posts = []) => (
+      Array.isArray(posts)
+            ? posts.reduce((sum, post) => sum + (post.metrics?.viewCount || 0), 0)
+            : 0
+);
+
 const Profile = () => {
       const { username } = useParams();
       const { user, token, isAuthenticated, updateProfile, uploadAvatar, logout, blockUser, unblockUser, updateFollowState } = useAuth();
       const navigate = useNavigate();
       const fileInputRef = useRef(null);
       const { playTrack, stopTrack, currentTrack, isPlaying: isMusicPlayingGlobal } = useMusic();
+      const targetUsername = username || user?.username || '';
+      const isOwnProfile = !username || (user && user.username === username);
+      const profileCacheKey = targetUsername ? buildProfileCacheKey(targetUsername) : '';
+      const postsCacheKey = targetUsername ? buildPostsCacheKey(targetUsername) : '';
 
       const [profileUser, setProfileUser] = useState(() => {
-            const targetUsername = username || user?.username;
             if (user && targetUsername === user.username) return user;
-            try {
-                  const cached = localStorage.getItem(`zuno_profile_cache_${targetUsername}`);
-                  if (cached) return JSON.parse(cached);
-            } catch (e) { }
-            return null;
+            return readCachedValue(profileCacheKey, null);
       });
       const [userPosts, setUserPosts] = useState(() => {
-            const targetUsername = username || user?.username;
             if (!targetUsername) return [];
-            try {
-                  const cached = localStorage.getItem(`zuno_posts_cache_${targetUsername}`);
-                  if (cached) return JSON.parse(cached);
-            } catch (e) { }
-            return [];
+            return readCachedValue(postsCacheKey, []);
       });
       const [loading, setLoading] = useState(() => {
-            const targetUsername = username || user?.username;
-            // Never show loading if we have cached data OR if it's own profile (already in context)
             if (user && targetUsername === user.username) return false;
-            try {
-                  if (localStorage.getItem(`zuno_profile_cache_${targetUsername}`)) return false;
-            } catch (e) { }
-            return true; // Only show loading if NO cache at all
+            return !readCachedValue(profileCacheKey, null);
       });
       const [editing, setEditing] = useState(false);
-      const [editData, setEditData] = useState({});
+      const [editData, setEditData] = useState(() => (isOwnProfile && user ? getEditableProfile(user) : {}));
       const [message, setMessage] = useState('');
       const [uploadingPhoto, setUploadingPhoto] = useState(false);
       const [activeTab, setActiveTab] = useState('profile');
@@ -80,84 +110,185 @@ const Profile = () => {
       const [followersList, setFollowersList] = useState([]);
       const [followingList, setFollowingList] = useState([]);
       const [modalLoading, setModalLoading] = useState(false);
+      const [postsError, setPostsError] = useState('');
 
       // Total views for content
       const [totalViews, setTotalViews] = useState(0);
 
-      const isOwnProfile = !username || (user && user.username === username);
       const canAccessAdminPanel = isOwnProfile && profileUser?.role === 'admin';
+
+      const fetchProfileRequest = useCallback(async (uname, signal) => {
+            const encodedUsername = encodeURIComponent(uname);
+            const headers = token ? { Authorization: `Bearer ${token}` } : {};
+            const res = await fetch(`${API_URL}/users/${encodedUsername}`, {
+                  headers,
+                  signal
+            });
+            const data = await res.json();
+
+            if (!data.success) {
+                  throw new Error(data.message || 'Failed to load profile.');
+            }
+
+            return data.data.user;
+      }, [token]);
+
+      const fetchUserPosts = useCallback(async (uname, signal) => {
+            setPostsError('');
+
+            try {
+                  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+                  const encodedUname = encodeURIComponent(uname);
+                  const res = await fetch(`${API_URL}/feed/creator/${encodedUname}`, {
+                        headers,
+                        signal
+                  });
+                  const data = await res.json();
+
+                  if (!data.success) {
+                        setPostsError('Failed to load posts.');
+                        return [];
+                  }
+
+                  let posts = [];
+                  if (data.data?.contents) {
+                        posts = data.data.contents;
+                  } else if (Array.isArray(data.data)) {
+                        posts = data.data;
+                  } else if (data.contents) {
+                        posts = data.contents;
+                  }
+
+                  const safePosts = Array.isArray(posts) ? posts : [];
+                  setUserPosts(safePosts);
+                  writeCachedValue(buildPostsCacheKey(uname), safePosts);
+                  return safePosts;
+            } catch (error) {
+                  if (error.name !== 'AbortError') {
+                        console.error('Failed to fetch user posts:', error);
+                  } else {
+                        setPostsError('Server slow. Showing cached content.');
+                  }
+
+                  const cachedPosts = readCachedValue(buildPostsCacheKey(uname), []);
+                  setUserPosts(Array.isArray(cachedPosts) ? cachedPosts : []);
+                  return Array.isArray(cachedPosts) ? cachedPosts : [];
+            }
+      }, [token]);
+
+      const refreshProfile = useCallback(async (nextUsername = targetUsername) => {
+            if (!nextUsername) return;
+
+            const [profileResult] = await Promise.allSettled([
+                  fetchProfileRequest(nextUsername),
+                  fetchUserPosts(nextUsername)
+            ]);
+
+            if (profileResult.status === 'fulfilled') {
+                  const nextProfile = profileResult.value;
+
+                  if (username && nextProfile?.username && nextProfile.username !== username) {
+                        navigate(`/u/${nextProfile.username}`, { replace: true });
+                  }
+
+                  setProfileUser(nextProfile);
+                  writeCachedValue(buildProfileCacheKey(nextUsername), nextProfile);
+
+                  if (isOwnProfile) {
+                        setEditData(getEditableProfile(nextProfile));
+                  }
+            } else if (profileResult.reason?.name !== 'AbortError') {
+                  console.error('Failed to refresh profile:', profileResult.reason);
+            }
+      }, [fetchProfileRequest, fetchUserPosts, isOwnProfile, navigate, targetUsername, username]);
+
+      useEffect(() => {
+            if (!targetUsername) return;
+
+            const nextProfile = isOwnProfile && user
+                  ? user
+                  : readCachedValue(profileCacheKey, null);
+            const nextPosts = readCachedValue(postsCacheKey, []);
+
+            setProfileUser(nextProfile);
+            setUserPosts(Array.isArray(nextPosts) ? nextPosts : []);
+            setLoading(!nextProfile);
+            setPostsError('');
+
+            if (isOwnProfile && user) {
+                  setEditData(getEditableProfile(user));
+            }
+      }, [isOwnProfile, postsCacheKey, profileCacheKey, targetUsername, user]);
+
+      useEffect(() => {
+            setTotalViews(getPostsViewCount(userPosts));
+      }, [userPosts]);
 
       // Refresh profile when page becomes visible (for dynamic updates)
       useEffect(() => {
+            if (!targetUsername) return undefined;
+
             const handleVisibilityChange = () => {
                   if (document.visibilityState === 'visible') {
-                        const tUsername = username || user?.username;
-                        if (tUsername) refreshProfile(tUsername);
+                        refreshProfile(targetUsername);
                   }
             };
+
             document.addEventListener('visibilitychange', handleVisibilityChange);
             return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-            // eslint-disable-next-line react-hooks/exhaustive-deps
-      }, [username, user?.username]);
-
-      const refreshProfile = async (targetUsername) => {
-            const tUser = targetUsername || username || user?.username;
-            if (!tUser) return;
-            // Run both in parallel for speed
-            Promise.all([
-                  fetch(`${API_URL}/users/${encodeURIComponent(tUser)}`)
-                        .then(r => r.json())
-                        .then(data => { if (data.success) setProfileUser(data.data.user); })
-                        .catch(e => console.error('Failed to refresh profile:', e)),
-                  fetchUserPosts(tUser)
-            ]);
-      };
+      }, [refreshProfile, targetUsername]);
 
       useEffect(() => {
-            const targetUsername = username || user?.username;
-            if (!targetUsername) return;
+            if (!targetUsername) return undefined;
 
-            // If we already have cached data, DON'T show loading at all
-            setLoading(!profileUser);
+            let ignore = false;
+            const profileController = new AbortController();
+            const postsController = new AbortController();
+            const profileTimeoutId = window.setTimeout(() => profileController.abort(), 10000);
+            const postsTimeoutId = window.setTimeout(() => postsController.abort(), 12000);
 
-            // Run profile fetch and posts fetch IN PARALLEL for speed
             const fetchProfileData = async () => {
                   try {
-                        const encodedUsername = encodeURIComponent(targetUsername);
-                        const res = await fetch(`${API_URL}/users/${encodedUsername}`);
-                        const data = await res.json();
-                        if (data.success) {
-                              if (username && data.data.user?.username && data.data.user.username !== username) {
-                                    navigate(`/u/${data.data.user.username}`, { replace: true });
-                              }
-                              setProfileUser(data.data.user);
-                              try {
-                                    localStorage.setItem(`zuno_profile_cache_${targetUsername}`, JSON.stringify(data.data.user));
-                              } catch (e) { }
-                              if (isOwnProfile) {
-                                    setEditData({
-                                          displayName: data.data.user.displayName || '',
-                                          bio: data.data.user.bio || '',
-                                          avatar: data.data.user.avatar || '',
-                                          interests: data.data.user.interests || [],
-                                          preferredFeedMode: data.data.user.preferredFeedMode || 'learning',
-                                          focusModeEnabled: data.data.user.focusModeEnabled || false,
-                                          dailyUsageLimit: data.data.user.dailyUsageLimit || 0,
-                                          profileSong: data.data.user.profileSong || null
-                                    });
-                              }
+                        const nextProfile = await fetchProfileRequest(targetUsername, profileController.signal);
+                        if (ignore) return;
+
+                        if (username && nextProfile?.username && nextProfile.username !== username) {
+                              navigate(`/u/${nextProfile.username}`, { replace: true });
+                        }
+
+                        setProfileUser(nextProfile);
+                        writeCachedValue(profileCacheKey, nextProfile);
+
+                        if (isOwnProfile) {
+                              setEditData(getEditableProfile(nextProfile));
                         }
                   } catch (error) {
-                        console.error('Failed to fetch profile:', error);
-                  } finally {
-                        setLoading(false);
+                        if (error.name !== 'AbortError') {
+                              console.error('Failed to fetch profile:', error);
+                        }
                   }
             };
 
-            // Both run at the same time - no need to wait for profile before loading posts
-            Promise.all([fetchProfileData(), fetchUserPosts(targetUsername)]);
-            // eslint-disable-next-line react-hooks/exhaustive-deps
-      }, [username, user]);
+            Promise.allSettled([
+                  fetchProfileData(),
+                  fetchUserPosts(targetUsername, postsController.signal)
+            ]).finally(() => {
+                  window.clearTimeout(profileTimeoutId);
+                  window.clearTimeout(postsTimeoutId);
+
+                  if (!ignore) {
+                        setLoading(false);
+                  }
+            });
+
+            return () => {
+                  ignore = true;
+                  window.clearTimeout(profileTimeoutId);
+                  window.clearTimeout(postsTimeoutId);
+                  profileController.abort();
+                  postsController.abort();
+            };
+      }, [fetchProfileRequest, fetchUserPosts, isOwnProfile, navigate, profileCacheKey, targetUsername, username]);
 
       // Auto-play removed per user request
 
@@ -167,60 +298,6 @@ const Profile = () => {
                   stopTrack();
             };
       }, [stopTrack]);
-
-      const [postsError, setPostsError] = useState('');
-
-      const fetchUserPosts = async (uname) => {
-            setPostsError('');
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout for mobile
-
-            try {
-                  const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-                  const encodedUname = encodeURIComponent(uname);
-                  const res = await fetch(`${API_URL}/feed/creator/${encodedUname}`, {
-                        headers,
-                        signal: controller.signal
-                  });
-                  clearTimeout(timeoutId);
-                  const data = await res.json();
-
-                  if (data.success) {
-                        let posts = [];
-                        if (data.data?.contents) {
-                              posts = data.data.contents;
-                        } else if (Array.isArray(data.data)) {
-                              posts = data.data;
-                        } else if (data.contents) {
-                              posts = data.contents;
-                        }
-
-                        if (!Array.isArray(posts)) posts = [];
-
-                        setUserPosts(posts);
-
-                        try {
-                              localStorage.setItem(`zuno_posts_cache_${uname}`, JSON.stringify(posts));
-                        } catch (e) { }
-
-                        const views = posts.reduce((sum, post) => sum + (post.metrics?.viewCount || 0), 0);
-                        setTotalViews(views);
-                  } else {
-                        setPostsError('Failed to load posts.');
-                  }
-            } catch (error) {
-                  clearTimeout(timeoutId);
-                  if (error.name !== 'AbortError') console.error('Failed to fetch user posts:', error);
-                  if (error.name === 'AbortError') {
-                        setPostsError('Server slow. Showing cached content.');
-                  }
-                  // Restore from cache silently
-                  try {
-                        const cached = localStorage.getItem(`zuno_posts_cache_${uname}`);
-                        if (cached) setUserPosts(JSON.parse(cached));
-                  } catch (e) { }
-            }
-      };
 
       // Fetch followers list
       const fetchFollowers = async () => {
@@ -446,7 +523,11 @@ const Profile = () => {
 
                   if (result.success && nextAvatar) {
                         setEditData(prev => ({ ...prev, avatar: nextAvatar }));
-                        setProfileUser(prev => ({ ...prev, avatar: nextAvatar }));
+                        setProfileUser(prev => {
+                              const nextProfile = { ...(prev || {}), avatar: nextAvatar };
+                              writeCachedValue(buildProfileCacheKey(targetUsername), nextProfile);
+                              return nextProfile;
+                        });
                         setMessage('Profile photo updated.');
                   } else {
                         setMessage(result.message || 'Failed to update photo.');
@@ -475,24 +556,21 @@ const Profile = () => {
             
             if (result.success) {
                   setMessage('Profile updated successfully.');
-                  
-                  // Clear strict caches immediately to ensure refreshing displays the new song
-                  const targetUsername = user?.username;
-                  if (targetUsername) {
-                        try {
-                              localStorage.removeItem(`zuno_profile_cache_${targetUsername}`);
-                        } catch (e) {}
-                  }
-                  
+
                   // Hard update state with latest context data from result
+                  const nextProfile = result.data?.user
+                        ? result.data.user
+                        : { ...profileUser, ...dataToSave };
+
                   if (result.data?.user) {
                         setProfileUser(result.data.user);
                   } else {
-                        setProfileUser(prev => ({ ...prev, ...dataToSave }));
+                        setProfileUser(nextProfile);
                   }
-                  
+                  writeCachedValue(buildProfileCacheKey(user?.username || targetUsername), nextProfile);
+
                   setEditing(false);
-                  
+
                   // Fetch freshly to be 100% sure the profileSong populates properly in the UI
                   refreshProfile(user?.username);
             } else {

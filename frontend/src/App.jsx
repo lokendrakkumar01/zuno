@@ -43,7 +43,7 @@ import GlobalNotification from './components/GlobalNotification';
 import CallOverlay from './components/CallOverlay';
 import GroupCallOverlay from './components/GroupCallOverlay';
 import ErrorBoundary from './components/ErrorBoundary';
-import { API_BASE_URL, API_URL } from './config';
+import { API_URL } from './config';
 
 function loadLanding() { return import('./pages/Landing'); }
 function loadHome() { return import('./pages/Home'); }
@@ -131,20 +131,31 @@ function AppRouter() {
                         feedUrl.searchParams.set('page', '1');
                         feedUrl.searchParams.set('limit', '12');
 
-                        const [conversationsRes, streamsRes, feedRes] = await Promise.all([
+                        const encodedUsername = encodeURIComponent(user.username);
+                        const headers = { Authorization: `Bearer ${token}` };
+
+                        const [conversationsRes, streamsRes, feedRes, profileRes, profilePostsRes] = await Promise.all([
                               fetch(`${API_URL}/messages/conversations`, {
-                                    headers: { Authorization: `Bearer ${token}` }
+                                    headers
                               }),
                               fetch(`${API_URL}/livestream/active`),
                               fetch(feedUrl.toString(), {
-                                    headers: { Authorization: `Bearer ${token}` }
+                                    headers
+                              }),
+                              fetch(`${API_URL}/users/${encodedUsername}`, {
+                                    headers
+                              }),
+                              fetch(`${API_URL}/feed/creator/${encodedUsername}`, {
+                                    headers
                               })
                         ]);
 
-                        const [conversationsData, streamsData, feedData] = await Promise.all([
+                        const [conversationsData, streamsData, feedData, profileData, profilePostsData] = await Promise.all([
                               conversationsRes.json().catch(() => null),
                               streamsRes.json().catch(() => null),
-                              feedRes.json().catch(() => null)
+                              feedRes.json().catch(() => null),
+                              profileRes.json().catch(() => null),
+                              profilePostsRes.json().catch(() => null)
                         ]);
 
                         if (conversationsData?.success) {
@@ -165,6 +176,20 @@ function AppRouter() {
                               localStorage.setItem(
                                     'zuno_feedCache_all',
                                     JSON.stringify(feedData.data.contents || [])
+                              );
+                        }
+
+                        if (profileData?.success) {
+                              localStorage.setItem(
+                                    `zuno_profile_cache_${user.username}`,
+                                    JSON.stringify(profileData.data.user || null)
+                              );
+                        }
+
+                        if (profilePostsData?.success) {
+                              localStorage.setItem(
+                                    `zuno_posts_cache_${user.username}`,
+                                    JSON.stringify(profilePostsData.data.contents || [])
                               );
                         }
                   } catch {
@@ -246,20 +271,6 @@ function AppRouter() {
 }
 
 function App() {
-      // Keep-alive ping to prevent Render free tier server from sleeping
-      // This helps avoid login failures and content loading delays
-      useEffect(() => {
-            const ping = () => {
-                  fetch(`${API_BASE_URL}/api/ping`, { method: 'GET' })
-                        .catch(() => {}); // Silent - don't show any error
-            };
-            // Ping immediately on load
-            ping();
-            // Then ping every 13 minutes (Render sleeps after 15 mins of inactivity)
-            const interval = setInterval(ping, 13 * 60 * 1000);
-            return () => clearInterval(interval);
-      }, []);
-
       return (
             <ThemeProvider>
                   <AuthProvider>
