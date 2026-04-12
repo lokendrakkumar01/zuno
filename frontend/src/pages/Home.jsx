@@ -274,7 +274,11 @@ const Home = () => {
                                     </div>
 
                                     <div className="home-toolbar-status">
-                                          {silentRefreshing ? <span className="home-inline-loader">Refreshing</span> : <span>Updated for smooth scrolling</span>}
+                                          {silentRefreshing && contents.length === 0 ? (
+                                                <span className="home-inline-loader" aria-hidden />
+                                          ) : !silentRefreshing ? (
+                                                <span className="text-secondary" style={{ fontSize: '0.88rem' }}>Scroll to explore</span>
+                                          ) : null}
                                     </div>
                               </div>
 
@@ -321,9 +325,8 @@ const Home = () => {
                   </section>
 
                   {silentRefreshing && contents.length > 0 && (
-                        <div className="home-floating-refresh">
+                        <div className="home-floating-refresh home-floating-refresh--subtle" aria-hidden>
                               <div className="loader-xs" />
-                              <span>Updating feed</span>
                         </div>
                   )}
             </div>

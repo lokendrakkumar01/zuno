@@ -7,6 +7,7 @@ import { LanguageProvider } from './context/LanguageContext';
 import { MusicProvider } from './context/MusicContext';
 import { ThemeProvider } from './context/ThemeContext';
 import SplashScreen from './components/SplashScreen';
+import RouteSuspenseFallback from './components/RouteSuspenseFallback';
 import Layout from './components/Layout/Layout';
 
 // Lazy load all heavy page components
@@ -44,6 +45,9 @@ import CallOverlay from './components/CallOverlay';
 import GroupCallOverlay from './components/GroupCallOverlay';
 import ErrorBoundary from './components/ErrorBoundary';
 import { API_URL } from './config';
+import { fetchWithTimeout, DEFAULT_REQUEST_TIMEOUT_MS } from './utils/fetchWithTimeout';
+
+const WARMUP_FETCH_MS = Math.min(DEFAULT_REQUEST_TIMEOUT_MS, 28000);
 
 function loadLanding() { return import('./pages/Landing'); }
 function loadHome() { return import('./pages/Home'); }
@@ -135,19 +139,19 @@ function AppRouter() {
                         const headers = { Authorization: `Bearer ${token}` };
 
                         const [conversationsRes, streamsRes, feedRes, profileRes, profilePostsRes] = await Promise.all([
-                              fetch(`${API_URL}/messages/conversations`, {
+                              fetchWithTimeout(`${API_URL}/messages/conversations`, {
                                     headers
-                              }),
-                              fetch(`${API_URL}/livestream/active`),
-                              fetch(feedUrl.toString(), {
+                              }, WARMUP_FETCH_MS),
+                              fetchWithTimeout(`${API_URL}/livestream/active`, {}, WARMUP_FETCH_MS),
+                              fetchWithTimeout(feedUrl.toString(), {
                                     headers
-                              }),
-                              fetch(`${API_URL}/users/${encodedUsername}`, {
+                              }, WARMUP_FETCH_MS),
+                              fetchWithTimeout(`${API_URL}/users/${encodedUsername}`, {
                                     headers
-                              }),
-                              fetch(`${API_URL}/feed/creator/${encodedUsername}`, {
+                              }, WARMUP_FETCH_MS),
+                              fetchWithTimeout(`${API_URL}/feed/creator/${encodedUsername}`, {
                                     headers
-                              })
+                              }, WARMUP_FETCH_MS)
                         ]);
 
                         const [conversationsData, streamsData, feedData, profileData, profilePostsData] = await Promise.all([
@@ -224,7 +228,7 @@ function AppRouter() {
                   <CallOverlay />
                   {/* Group Call Overlay handled via CallContext later, or we can render it conditionally here using CallContext state. For now, we will add the state to CallContext and let CallProvider render it, or we render it here consuming the context. Actually, let's keep GroupCallOverlay rendering inside App conditionally based on useCallContext state.*/}
                   <ToastContainer theme="colored" autoClose={4000} />
-                  <Suspense fallback={<div style={{ display: 'flex', height: '100vh', width: '100vw', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: '40px', height: '40px', border: '4px solid rgba(255,255,255,0.1)', borderTopColor: '#ef4444', borderRadius: '50%', animation: 'spin 1s linear infinite' }} /></div>}>
+                  <Suspense fallback={<RouteSuspenseFallback />}>
                     <Routes>
                           {/* Welcome/Landing Page */}
                           <Route path="/welcome" element={!isAuthenticated ? <Landing /> : <Navigate to="/" />} />

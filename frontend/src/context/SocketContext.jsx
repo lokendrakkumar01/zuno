@@ -1,4 +1,5 @@
 import { createContext, useState, useEffect, useContext, useRef } from "react";
+import { toast } from "react-toastify";
 import { useAuth } from "./AuthContext";
 import io from "socket.io-client";
 import { SOCKET_URL } from "../config";
@@ -70,6 +71,12 @@ export const SocketContextProvider = ({ children }) => {
                         console.error('[Socket] All reconnection attempts failed');
                         setIsConnected(false);
                         setOnlineUsers([]);
+                        if (typeof window !== 'undefined') {
+                              toast.warning(
+                                    'Could not reconnect to live updates. Try refreshing the page.',
+                                    { toastId: 'socket-reconnect-failed' }
+                              );
+                        }
                   };
 
                   const handleOnlineUsers = (users) => {

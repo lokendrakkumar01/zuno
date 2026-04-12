@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { API_URL } from '../../config';
+import { fetchWithTimeout, DEFAULT_REQUEST_TIMEOUT_MS } from '../../utils/fetchWithTimeout';
+
+const ADMIN_FETCH_MS = Math.min(DEFAULT_REQUEST_TIMEOUT_MS, 28000);
 
 // Global cache to eliminate loading screens between tab switches
 const adminCache = { stats: null, users: null, verifications: null, contents: null, configs: null, reports: null };
@@ -325,22 +328,21 @@ const DashboardHome = ({ token }) => {
   const [stats, setStats] = useState(adminCache.stats || null);
   const [loading, setLoading] = useState(!adminCache.stats);
 
-  const fetchStats = () => {
-    setLoading(true);
-    fetch(`${API_URL}/admin/stats`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json()).then(d => { 
-        if (d.success) {
-          setStats(d.data);
-          adminCache.stats = d.data;
-        }
-      })
-      .catch(() => {}).finally(() => setLoading(false));
+  const fetchStats = async (silent = false) => {
+    if (!silent) setLoading(true);
+    try {
+      const res = await fetchWithTimeout(`${API_URL}/admin/stats`, { headers: { Authorization: `Bearer ${token}` } }, ADMIN_FETCH_MS);
+      const d = await res.json();
+      if (d.success) {
+        setStats(d.data);
+        adminCache.stats = d.data;
+      }
+    } catch {/**/} finally { setLoading(false); }
   };
 
   useEffect(() => {
-    if (!adminCache.stats) fetchStats();
-    
-    const onRefresh = () => fetchStats();
+    fetchStats(Boolean(adminCache.stats));
+    const onRefresh = () => fetchStats(true);
     refreshEvent.addEventListener('refreshAll', onRefresh);
     return () => refreshEvent.removeEventListener('refreshAll', onRefresh);
   }, [token]);
@@ -467,12 +469,12 @@ const UsersManagement = ({ token }) => {
     }
   };
 
-  const fetchUsers = async (q = search, showSpinner = false) => {
-    if (showSpinner) setLoading(true);
+  const fetchUsers = async (q = search, silent = true) => {
+    if (!silent) setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/admin/users?search=${encodeURIComponent(q)}&limit=50`, {
+      const res = await fetchWithTimeout(`${API_URL}/admin/users?search=${encodeURIComponent(q)}&limit=50`, {
         headers: { Authorization: `Bearer ${token}` }
-      });
+      }, ADMIN_FETCH_MS);
       const data = await res.json();
       if (data.success) {
         setUsers(data.data.users);
@@ -482,7 +484,7 @@ const UsersManagement = ({ token }) => {
   };
 
   useEffect(() => { 
-    fetchUsers('', !adminCache.users); 
+    fetchUsers('', Boolean(adminCache.users)); 
     const onRefresh = () => fetchUsers(search, true);
     refreshEvent.addEventListener('refreshAll', onRefresh);
     return () => refreshEvent.removeEventListener('refreshAll', onRefresh);
@@ -550,9 +552,9 @@ const UsersManagement = ({ token }) => {
           placeholder="🔍 Search by name or email..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && fetchUsers(search, true)}
+          onKeyDown={e => e.key === 'Enter' && fetchUsers(search, false)}
         />
-        <button className="admin-btn admin-btn-primary" onClick={() => fetchUsers(search, true)}>Search</button>
+        <button className="admin-btn admin-btn-primary" onClick={() => fetchUsers(search, false)}>Search</button>
       </div>
 
       {loading ? <div className="admin-spinner" /> : (
@@ -720,12 +722,12 @@ const VerificationsManagement = ({ token, onUpdate }) => {
   const [loading, setLoading] = useState(!adminCache.verifications);
   const { show, Toast } = useToast();
 
-  const fetchVerifications = async (showSpinner = false) => {
-    if (showSpinner) setLoading(true);
+  const fetchVerifications = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/admin/verifications`, {
+      const res = await fetchWithTimeout(`${API_URL}/admin/verifications`, {
         headers: { Authorization: `Bearer ${token}` }
-      });
+      }, ADMIN_FETCH_MS);
       const data = await res.json();
       if (data.success) {
         setUsers(data.data.users);
@@ -736,7 +738,7 @@ const VerificationsManagement = ({ token, onUpdate }) => {
   };
 
   useEffect(() => { 
-    fetchVerifications(!adminCache.verifications); 
+    fetchVerifications(Boolean(adminCache.verifications)); 
     const onRefresh = () => fetchVerifications(true);
     refreshEvent.addEventListener('refreshAll', onRefresh);
     return () => refreshEvent.removeEventListener('refreshAll', onRefresh);
@@ -751,7 +753,7 @@ const VerificationsManagement = ({ token, onUpdate }) => {
     const data = await res.json();
     if (data.success) {
       show(action === 'approve' ? '✓ Verification approved! User is now verified.' : 'Verification rejected.', action === 'approve' ? '✅' : '❌');
-      fetchVerifications();
+      fetchVerifications(true);
     }
   };
 
@@ -818,10 +820,10 @@ const ContentManagement = ({ token }) => {
   const [loading, setLoading] = useState(!adminCache.contents);
   const { show, Toast } = useToast();
 
-  const fetchContent = async (showSpinner = false) => {
-    if (showSpinner) setLoading(true);
+  const fetchContent = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/admin/content?limit=30`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetchWithTimeout(`${API_URL}/admin/content?limit=30`, { headers: { Authorization: `Bearer ${token}` } }, ADMIN_FETCH_MS);
       const data = await res.json();
       if (data.success) {
         setContents(data.data.contents);
@@ -831,7 +833,7 @@ const ContentManagement = ({ token }) => {
   };
 
   useEffect(() => { 
-    fetchContent(!adminCache.contents); 
+    fetchContent(Boolean(adminCache.contents)); 
     const onRefresh = () => fetchContent(true);
     refreshEvent.addEventListener('refreshAll', onRefresh);
     return () => refreshEvent.removeEventListener('refreshAll', onRefresh);
@@ -858,7 +860,7 @@ const ContentManagement = ({ token }) => {
         }
       } else {
         show(data.message || 'Operation failed', '❌');
-        fetchContent(true); // Refresh on failure
+        fetchContent(false);
       }
     } catch (err) {
       show('Network error, please try again', '❌');
@@ -920,10 +922,10 @@ const ReportsManagement = ({ token }) => {
   const [loading, setLoading] = useState(!adminCache.reports);
   const { show, Toast } = useToast();
 
-  const fetchReports = async (showSpinner = false) => {
-    if (showSpinner) setLoading(true);
+  const fetchReports = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/admin/reports?limit=50`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetchWithTimeout(`${API_URL}/admin/reports?limit=50`, { headers: { Authorization: `Bearer ${token}` } }, ADMIN_FETCH_MS);
       const data = await res.json();
       if (data.success) {
         const nextReports = (data.data.reports || []).map(normalizeAdminReport);
@@ -934,7 +936,7 @@ const ReportsManagement = ({ token }) => {
   };
 
   useEffect(() => { 
-    fetchReports(!adminCache.reports); 
+    fetchReports(Boolean(adminCache.reports)); 
     const onRefresh = () => fetchReports(true);
     refreshEvent.addEventListener('refreshAll', onRefresh);
     return () => refreshEvent.removeEventListener('refreshAll', onRefresh);
@@ -1037,10 +1039,10 @@ const ConfigManagement = ({ token }) => {
   const [loading, setLoading] = useState(!adminCache.configs);
   const { show, Toast } = useToast();
 
-  const fetchConfigs = async (showSpinner = false) => {
-    if (showSpinner) setLoading(true);
+  const fetchConfigs = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/admin/config`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetchWithTimeout(`${API_URL}/admin/config`, { headers: { Authorization: `Bearer ${token}` } }, ADMIN_FETCH_MS);
       const data = await res.json();
       if (data.success) {
         setConfigs(data.data.configs);
@@ -1050,7 +1052,7 @@ const ConfigManagement = ({ token }) => {
   };
 
   useEffect(() => { 
-    fetchConfigs(!adminCache.configs); 
+    fetchConfigs(Boolean(adminCache.configs)); 
     const onRefresh = () => fetchConfigs(true);
     refreshEvent.addEventListener('refreshAll', onRefresh);
     return () => refreshEvent.removeEventListener('refreshAll', onRefresh);

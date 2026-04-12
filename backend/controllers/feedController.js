@@ -6,7 +6,7 @@ const { decorateContentsForViewer } = require('../utils/contentPresentation');
 let feedCache = {
       data: null,
       lastUpdated: 0,
-      ttl: 2 * 60 * 1000 // 2 minutes
+      ttl: 3 * 60 * 1000 // 3 minutes — fewer cold DB hits for anonymous home
 };
 
 const FEED_CONTENT_SELECT = [
@@ -186,12 +186,12 @@ const getFeed = async (req, res) => {
                   feedCache = {
                         data: responseData,
                         lastUpdated: Date.now(),
-                        ttl: 2 * 60 * 1000
+                        ttl: 3 * 60 * 1000
                   };
             }
 
             // Standard caching for browser
-            res.setHeader('Cache-Control', req.user ? 'private, max-age=30' : 'public, max-age=60');
+            res.setHeader('Cache-Control', req.user ? 'private, max-age=45' : 'public, max-age=90');
 
             res.json(responseData);
       } catch (error) {

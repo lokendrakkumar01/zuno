@@ -7,6 +7,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useSocketContext } from '../../context/SocketContext';
 import { useTheme } from '../../context/ThemeContext';
 import { API_URL } from '../../config';
+import { fetchWithTimeout, DEFAULT_REQUEST_TIMEOUT_MS } from '../../utils/fetchWithTimeout';
 import { resolveAssetUrl } from '../../utils/media';
 import { getUserHandle } from '../../utils/session';
 
@@ -92,9 +93,9 @@ const Layout = () => {
             if (!isAuthenticated || !token) return;
 
             try {
-                  const res = await fetch(`${API_URL}/messages/unread/count`, {
+                  const res = await fetchWithTimeout(`${API_URL}/messages/unread/count`, {
                         headers: { Authorization: `Bearer ${token}` }
-                  });
+                  }, DEFAULT_REQUEST_TIMEOUT_MS);
                   const data = await res.json();
                   if (data.success) {
                         setUnreadCount(data.data.unreadCount || 0);

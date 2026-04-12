@@ -4333,6 +4333,12 @@ video.chat-media-content {
   z-index: 120;
 }
 
+.home-floating-refresh--subtle {
+  padding: 0.45rem 0.55rem;
+  opacity: 0.5;
+  box-shadow: var(--shadow-sm);
+}
+
 /* ========================================
    Landing Page
    ======================================== */
@@ -6754,4 +6760,43 @@ video.chat-media-content {
   .profile-manage-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* Route lazy-load: minimal top bar (avoids full-screen blocking spinner) */
+@keyframes route-suspense-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(350%);
+  }
+}
+
+.route-suspense-fallback {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 99999;
+  overflow: hidden;
+  pointer-events: none;
+  background: rgba(99, 102, 241, 0.12);
+}
+
+.route-suspense-fallback-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 42%;
+  border-radius: 0 2px 2px 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(99, 102, 241, 0.95),
+    rgba(139, 92, 246, 0.85),
+    transparent
+  );
+  animation: route-suspense-shimmer 0.9s ease-in-out infinite;
 }

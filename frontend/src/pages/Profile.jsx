@@ -10,6 +10,7 @@ import NotificationPanel from '../components/Profile/NotificationPanel';
 import { BlockIcon, CheckIcon, ClockIcon, EditIcon, MessageIcon, SettingsIcon, UserPlusIcon } from '../components/Icons/ActionIcons';
 import { resolveAssetUrl } from '../utils/media';
 import { getUserHandle, readStoredAuthUser } from '../utils/session';
+import { fetchWithTimeout, DEFAULT_REQUEST_TIMEOUT_MS } from '../utils/fetchWithTimeout';
 
 const INTERESTS = [
       'learning', 'technology', 'creativity', 'health',
@@ -469,10 +470,10 @@ const Profile = () => {
             setFollowLoading(true);
             try {
                   const endpoint = (isFollowing || followRequested) ? 'unfollow' : 'follow';
-                  const res = await fetch(`${API_URL}/users/${profileUser._id}/${endpoint}`, {
+                  const res = await fetchWithTimeout(`${API_URL}/users/${profileUser._id}/${endpoint}`, {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${token}` }
-                  });
+                  }, DEFAULT_REQUEST_TIMEOUT_MS);
                   const data = await res.json();
                   if (data.success) {
                         const nextIsFollowing = data.status === 'following' || data.data?.isFollowing === true;

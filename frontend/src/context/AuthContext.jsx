@@ -8,30 +8,13 @@ import {
       readStoredToken
 } from '../utils/session';
 import { startKeepAlive, stopKeepAlive } from '../utils/keepAlive';
+import { fetchWithTimeout, DEFAULT_REQUEST_TIMEOUT_MS } from '../utils/fetchWithTimeout';
 
 const AuthContext = createContext(null);
 const AUTH_REFRESH_TIMEOUT_MS = 8000;
-const DEFAULT_REQUEST_TIMEOUT_MS = 30000;
 const AUTH_RETRY_DELAYS = [5000, 10000, 20000];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const fetchWithTimeout = async (url, options = {}, timeout = DEFAULT_REQUEST_TIMEOUT_MS) => {
-      const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(), timeout);
-
-      try {
-            const response = await fetch(url, {
-                  ...options,
-                  signal: controller.signal
-            });
-            clearTimeout(id);
-            return response;
-      } catch (error) {
-            clearTimeout(id);
-            throw error;
-      }
-};
 
 const getApiErrorMessage = async (res, fallbackMessage) => {
       let data = null;
@@ -61,9 +44,13 @@ const isRetriableNetworkError = (error) => (
 );
 
 export const AuthProvider = ({ children }) => {
-      const [user, setUser] = useState(null);
       const [token, setToken] = useState(() => readStoredToken());
-      const [loading, setLoading] = useState(() => Boolean(readStoredToken()));
+      const [user, setUser] = useState(() => (readStoredToken() ? readStoredAuthUser() : null));
+      const [loading, setLoading] = useState(() => {
+            const storedToken = readStoredToken();
+            if (!storedToken) return false;
+            return !readStoredAuthUser();
+      });
 
       const applyAuthenticatedSession = (nextUser, nextToken = token) => {
             setUser(nextUser);
@@ -91,7 +78,10 @@ export const AuthProvider = ({ children }) => {
                         return;
                   }
 
-                  setLoading(true);
+                  const hasOptimisticUser = Boolean(readStoredAuthUser());
+                  if (!hasOptimisticUser) {
+                        setLoading(true);
+                  }
 
                   try {
                         const res = await fetchWithTimeout(`${API_URL}/auth/me`, {
@@ -112,9 +102,13 @@ export const AuthProvider = ({ children }) => {
                   } catch (error) {
                         if (!ignore) {
                               console.error('Auth check failed (server may be starting):', error);
-                              const cachedUser = readStoredAuthUser();
-                              if (cachedUser) {
-                                    setUser(cachedUser);
+                              if (isRetriableNetworkError(error)) {
+                                    const cachedUser = readStoredAuthUser();
+                                    if (cachedUser) {
+                                          setUser(cachedUser);
+                                    }
+                              } else {
+                                    logout();
                               }
                         }
                   } finally {

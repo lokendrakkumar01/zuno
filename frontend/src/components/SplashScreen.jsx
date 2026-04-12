@@ -9,15 +9,15 @@ const SplashScreen = ({ onComplete }) => {
             // Faster exit animation
             const timer = setTimeout(() => {
                   setExit(true);
-                  setTimeout(onComplete, 400); // 400ms for exit animation
-            }, 1500); // Show for 1.5s total
+                  setTimeout(onComplete, 280);
+            }, 650);
 
             return () => clearTimeout(timer);
       }, [onComplete]);
 
       const handleSkip = () => {
             setExit(true);
-            setTimeout(onComplete, 200);
+            setTimeout(onComplete, 160);
       };
 
       return (
