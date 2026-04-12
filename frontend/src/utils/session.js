@@ -18,6 +18,18 @@ export const readStoredAuthUser = () => (
       || readJsonValue(AUTH_USER_SNAPSHOT_STORAGE_KEY, null)
 );
 
+export const getUserHandle = (user) => {
+      const username = String(user?.username || '').trim();
+      if (username) return username;
+
+      const email = String(user?.email || '').trim().toLowerCase();
+      if (email.includes('@')) {
+            return email.split('@')[0];
+      }
+
+      return '';
+};
+
 export const persistStoredAuthUser = (user) => {
       if (!user) return;
 

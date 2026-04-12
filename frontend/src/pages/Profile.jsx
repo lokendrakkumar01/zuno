@@ -9,7 +9,7 @@ import CricketGame from '../components/Games/CricketGame';
 import NotificationPanel from '../components/Profile/NotificationPanel';
 import { BlockIcon, CheckIcon, ClockIcon, EditIcon, MessageIcon, SettingsIcon, UserPlusIcon } from '../components/Icons/ActionIcons';
 import { resolveAssetUrl } from '../utils/media';
-import { readStoredAuthUser } from '../utils/session';
+import { getUserHandle, readStoredAuthUser } from '../utils/session';
 
 const INTERESTS = [
       'learning', 'technology', 'creativity', 'health',
@@ -74,11 +74,12 @@ const getPostsViewCount = (posts = []) => (
 
 const Profile = () => {
       const { username } = useParams();
-      const { user, token, isAuthenticated, updateProfile, uploadAvatar, logout, blockUser, unblockUser, updateFollowState } = useAuth();
+      const { user, token, loading: authLoading, isAuthenticated, updateProfile, uploadAvatar, logout, blockUser, unblockUser, updateFollowState } = useAuth();
       const navigate = useNavigate();
       const fileInputRef = useRef(null);
       const { playTrack, stopTrack, currentTrack, isPlaying: isMusicPlayingGlobal } = useMusic();
       const sessionUser = user || readStoredAuthUser();
+      const sessionHandle = getUserHandle(sessionUser);
       const routeIdentity = normalizeIdentity(username);
       const isCanonicalOwnRoute = Boolean(
             sessionUser && routeIdentity && [sessionUser.username, sessionUser.displayName].some((value) => normalizeIdentity(value) === routeIdentity)
@@ -128,6 +129,7 @@ const Profile = () => {
 
       // Total views for content
       const [totalViews, setTotalViews] = useState(0);
+      const visibleHandle = profileUser?.username || targetUsername || sessionHandle || 'account';
 
       const canAccessAdminPanel = isOwnProfile && profileUser?.role === 'admin';
 
@@ -217,7 +219,17 @@ const Profile = () => {
       }, [fetchProfileRequest, fetchUserPosts, isOwnProfile, navigate, targetUsername, username]);
 
       useEffect(() => {
-            if (!targetUsername) return;
+            if (!targetUsername) {
+                  setProfileUser(sessionUser || null);
+                  setUserPosts([]);
+                  setPostsError('');
+                  setLoading(Boolean(isOwnProfile && token && authLoading));
+
+                  if (isOwnProfile && sessionUser) {
+                        setEditData(getEditableProfile(sessionUser));
+                  }
+                  return;
+            }
 
             const nextProfile = isOwnProfile && sessionUser
                   ? sessionUser
@@ -232,7 +244,7 @@ const Profile = () => {
             if (isOwnProfile && sessionUser) {
                   setEditData(getEditableProfile(sessionUser));
             }
-      }, [isOwnProfile, postsCacheKey, profileCacheKey, sessionUser, targetUsername]);
+      }, [authLoading, isOwnProfile, postsCacheKey, profileCacheKey, sessionUser, targetUsername, token]);
 
       useEffect(() => {
             setTotalViews(getPostsViewCount(userPosts));
@@ -669,6 +681,28 @@ const Profile = () => {
             );
       }
 
+      if (isOwnProfile && !targetUsername) {
+            return (
+                  <div className="container" style={{ paddingTop: 'var(--space-2xl)' }}>
+                        <div className="empty-state animate-fadeIn">
+                              <div className="empty-state-icon">Profile</div>
+                              <h2 className="text-xl font-semibold mb-md">We could not finish restoring your profile</h2>
+                              <p className="text-secondary" style={{ maxWidth: '520px', margin: '0 auto 1rem' }}>
+                                    Your session opened, but your username is missing from local data. Refresh once to sync it again, or sign in again if the server was still waking up.
+                              </p>
+                              <div className="flex gap-md justify-center" style={{ flexWrap: 'wrap' }}>
+                                    <button onClick={() => window.location.reload()} className="btn btn-primary">
+                                          Refresh Profile
+                                    </button>
+                                    <button onClick={handleLogout} className="btn btn-secondary">
+                                          Sign In Again
+                                    </button>
+                              </div>
+                        </div>
+                  </div>
+            );
+      }
+
       if (!profileUser && isOwnProfile && token) {
             return (
                   <div className="container" style={{ paddingTop: 'var(--space-2xl)' }}>
@@ -843,7 +877,7 @@ const Profile = () => {
                                                 <h1 className="text-3xl font-bold mb-xs profile-display-name">
                                                       {profileUser.displayName || profileUser.username}
                                                 </h1>
-                                                <p className="text-muted text-lg mb-md profile-username-copy">@{profileUser.username}</p>
+                                                <p className="text-muted text-lg mb-md profile-username-copy">@{visibleHandle}</p>
 
                                                 {/* Stats: Followers/Following */}
                                                 <div className="profile-stat-row">
@@ -1281,7 +1315,7 @@ const Profile = () => {
                                                 rows={5} 
                                                 value={quickChatText} 
                                                 onChange={(e) => setQuickChatText(e.target.value)} 
-                                                placeholder={`Write your message to ${profileUser.username}...`}
+                                                placeholder={`Write your message to ${visibleHandle}...`}
                                                 style={{ resize: 'none', fontSize: '1.1rem', padding: '18px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(99, 102, 241, 0.2)' }}
                                                 onKeyDown={(e) => {
                                                       if (e.key === 'Enter' && !e.shiftKey) {

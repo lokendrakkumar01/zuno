@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, Route, Routes, useLocation } from 'react-router-dom';
-import { API_URL } from './config';
+import { API_URL, resolveAdminAssetUrl } from './config';
 
 const STYLES = `
 .admin-shell{min-height:100vh;background:linear-gradient(180deg,#fff9f2 0%,#f4faff 100%);color:#0f172a}
@@ -219,7 +219,7 @@ function UsersManagement({ token, notify }) {
                                     <tbody>
                                           {users.map((user) => (
                                                 <tr key={user._id}>
-                                                      <td><div className="admin-user"><div className="admin-avatar">{user.avatar ? <img src={user.avatar} alt={user.username} /> : initialsFor(user)}</div><div><strong>{user.displayName || user.username}</strong><div className="admin-muted">@{user.username}</div></div></div></td>
+                                                      <td><div className="admin-user"><div className="admin-avatar">{user.avatar ? <img src={resolveAdminAssetUrl(user.avatar)} alt={user.username} /> : initialsFor(user)}</div><div><strong>{user.displayName || user.username}</strong><div className="admin-muted">@{user.username}</div></div></div></td>
                                                       <td>{user.email}</td>
                                                       <td><select className="admin-select" value={user.role} onChange={(e) => updateUser(user._id, { role: e.target.value }, 'User role updated')}>{['user','creator','mentor','moderator','admin'].map((role) => <option key={role} value={role}>{role}</option>)}</select></td>
                                                       <td><span className={`admin-pill ${user.isActive ? 'good' : 'warn'}`}>{user.isActive ? 'Active' : 'Banned'}</span></td>
@@ -282,7 +282,7 @@ function VerificationsManagement({ token, notify, onUpdate }) {
                               {users.map((user) => (
                                     <div key={user._id} className="admin-card">
                                           <div className="admin-user" style={{ alignItems: 'flex-start' }}>
-                                                <div className="admin-avatar" style={{ width: '52px', height: '52px' }}>{user.avatar ? <img src={user.avatar} alt={user.username} /> : initialsFor(user)}</div>
+                                                <div className="admin-avatar" style={{ width: '52px', height: '52px' }}>{user.avatar ? <img src={resolveAdminAssetUrl(user.avatar)} alt={user.username} /> : initialsFor(user)}</div>
                                                 <div style={{ flex: 1 }}>
                                                       <h3>{user.displayName || user.username}</h3>
                                                       <p className="admin-muted">@{user.username} · {user.email}</p>

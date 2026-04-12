@@ -8,6 +8,7 @@ import { useSocketContext } from '../../context/SocketContext';
 import { useTheme } from '../../context/ThemeContext';
 import { API_URL } from '../../config';
 import { resolveAssetUrl } from '../../utils/media';
+import { getUserHandle } from '../../utils/session';
 
 const navItems = [
       {
@@ -124,7 +125,8 @@ const Layout = () => {
             };
       }, [fetchUnread, socket]);
 
-      const profileLabel = user?.displayName || user?.username || 'Profile';
+      const profileHandle = getUserHandle(user);
+      const profileLabel = user?.displayName || profileHandle || 'Profile';
       const activeUserLabel = onlineUsers.length === 1 ? '1 user active' : `${onlineUsers.length} users active`;
       const showProfileAsActive = location.pathname.startsWith('/profile') || location.pathname.startsWith('/u/') || location.pathname.startsWith('/messages');
 
@@ -192,7 +194,7 @@ const Layout = () => {
                                                 >
                                                       <span className="shell-profile-copy">
                                                             <strong>{profileLabel}</strong>
-                                                            <small>{unreadCount > 0 ? `${unreadCount} unread in inbox` : `@${user?.username}`}</small>
+                                                            <small>{unreadCount > 0 ? `${unreadCount} unread in inbox` : (profileHandle ? `@${profileHandle}` : 'Account')}</small>
                                                       </span>
                                                       <span className="nav-icon-wrap bottom-profile-avatar">
                                                             {profileAvatar}

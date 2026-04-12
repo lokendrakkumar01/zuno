@@ -50,7 +50,7 @@ const getApiErrorMessage = async (res, fallbackMessage) => {
 export const AuthProvider = ({ children }) => {
       const [user, setUser] = useState(() => readStoredAuthUser());
       const [token, setToken] = useState(() => readStoredToken());
-      const [loading, setLoading] = useState(false);
+      const [loading, setLoading] = useState(() => Boolean(readStoredToken()));
 
       const applyAuthenticatedSession = (nextUser, nextToken = token) => {
             setUser(nextUser);
@@ -81,8 +81,7 @@ export const AuthProvider = ({ children }) => {
                         setUser(cachedUser);
                   }
 
-                  // Keep startup non-blocking. Routes can open using the token while /me refreshes silently.
-                  setLoading(false);
+                  setLoading(true);
 
                   try {
                         const res = await fetchWithTimeout(`${API_URL}/auth/me`, {
@@ -101,6 +100,10 @@ export const AuthProvider = ({ children }) => {
                   } catch (error) {
                         if (!ignore) {
                               console.error('Auth check failed (server may be starting):', error);
+                        }
+                  } finally {
+                        if (!ignore) {
+                              setLoading(false);
                         }
                   }
             };
