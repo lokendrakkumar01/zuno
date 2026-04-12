@@ -199,6 +199,9 @@ userSchema.index({ username: 1 });
 userSchema.index({ email: 1 });
 userSchema.index({ blockedUsers: 1 });
 userSchema.index({ username: 'text', displayName: 'text' }); // Fast Search
+userSchema.index({ isActive: 1, createdAt: -1 });
+userSchema.index({ role: 1, createdAt: -1 });
+userSchema.index({ 'verificationRequest.status': 1, 'verificationRequest.requestedAt': 1 });
 
 // Pre-save middleware to hash password
 userSchema.pre('save', async function (next) {

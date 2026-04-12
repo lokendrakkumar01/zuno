@@ -31,5 +31,6 @@ const interactionSchema = new mongoose.Schema({
 
 // Ensure one interaction type per user per content
 interactionSchema.index({ user: 1, content: 1, type: 1 }, { unique: true });
+interactionSchema.index({ type: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Interaction', interactionSchema);

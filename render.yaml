@@ -22,6 +22,8 @@ services:
         value: https://zunoworld.tech
       - key: ADMIN_URL
         value: https://zuno-admin.onrender.com
+      - key: BACKEND_URL
+        value: https://zuno-backend-bevi.onrender.com
       - key: CORS_ORIGINS
         sync: false
       - key: GOOGLE_CLIENT_ID
@@ -81,3 +83,24 @@ services:
         value: 10000
       - key: VITE_GOOGLE_CLIENT_ID
         sync: false
+
+  # Admin Panel Static Site
+  - type: web
+    name: zuno-admin
+    runtime: static
+    plan: free
+    buildCommand: cd admin-panel && npm install && npm run build
+    staticPublishPath: admin-panel/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: public, max-age=0, must-revalidate
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://zuno-backend-bevi.onrender.com
+      - key: VITE_API_URL
+        value: https://zuno-backend-bevi.onrender.com

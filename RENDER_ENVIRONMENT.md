@@ -19,6 +19,7 @@ Required:
 Optional:
 
 - `CORS_ORIGINS`
+- `BACKEND_URL` (optional override for self-ping keep-alive; Render also provides `RENDER_EXTERNAL_URL`)
 - `CLOUDINARY_STREAM_HLS_PUBLIC_ID`
 - `CLOUDINARY_STREAM_PLAYER_URL`
 - `GOOGLE_CLIENT_ID`

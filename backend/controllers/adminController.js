@@ -5,6 +5,12 @@ const Interaction = require('../models/Interaction');
 const { sendCustomAdminEmail } = require('../config/emailService');
 const { io } = require('../socket/socket');
 
+const ADMIN_STATS_CACHE_TTL_MS = 30 * 1000;
+let adminStatsCache = {
+      data: null,
+      updatedAt: 0
+};
+
 const mapReportForAdmin = (report) => ({
       ...report,
       reporter: report.user || null,
@@ -14,11 +20,41 @@ const mapReportForAdmin = (report) => ({
       targetId: report.content?._id?.toString?.() || report.content?.toString?.() || null
 });
 
+const toPositiveInt = (value, fallback, max = 100) => {
+      const parsed = Number.parseInt(value, 10);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+            return fallback;
+      }
+
+      return Math.min(parsed, max);
+};
+
+const escapeRegex = (value = '') => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const invalidateAdminStatsCache = () => {
+      adminStatsCache = {
+            data: null,
+            updatedAt: 0
+      };
+};
+
 // @desc    Get admin dashboard stats
 // @route   GET /api/admin/stats
 // @access  Admin
 const getDashboardStats = async (req, res) => {
       try {
+            const cacheAge = Date.now() - adminStatsCache.updatedAt;
+            if (adminStatsCache.data && cacheAge < ADMIN_STATS_CACHE_TTL_MS) {
+                  return res.json({
+                        success: true,
+                        data: adminStatsCache.data,
+                        meta: {
+                              cached: true,
+                              ttlMs: ADMIN_STATS_CACHE_TTL_MS
+                        }
+                  });
+            }
+
             const [
                   totalUsers,
                   totalContent,
@@ -41,15 +77,26 @@ const getDashboardStats = async (req, res) => {
                   { $group: { _id: '$role', count: { $sum: 1 } } }
             ]);
 
+            const payload = {
+                  totalUsers,
+                  activeUsers,
+                  totalContent,
+                  totalReports,
+                  contentByType,
+                  usersByRole
+            };
+
+            adminStatsCache = {
+                  data: payload,
+                  updatedAt: Date.now()
+            };
+
             res.json({
                   success: true,
-                  data: {
-                        totalUsers,
-                        activeUsers,
-                        totalContent,
-                        totalReports,
-                        contentByType,
-                        usersByRole
+                  data: payload,
+                  meta: {
+                        cached: false,
+                        ttlMs: ADMIN_STATS_CACHE_TTL_MS
                   }
             });
       } catch (error) {
@@ -66,22 +113,27 @@ const getDashboardStats = async (req, res) => {
 // @access  Admin
 const getAllUsers = async (req, res) => {
       try {
-            const { page = 1, limit = 20, role, search } = req.query;
+            const page = toPositiveInt(req.query.page, 1, 100000);
+            const limit = toPositiveInt(req.query.limit, 20, 100);
+            const role = String(req.query.role || '').trim();
+            const search = String(req.query.search || '').trim();
 
             let query = {};
             if (role) query.role = role;
             if (search) {
+                  const safeSearch = escapeRegex(search);
                   query.$or = [
-                        { username: { $regex: search, $options: 'i' } },
-                        { email: { $regex: search, $options: 'i' } }
+                        { username: { $regex: safeSearch, $options: 'i' } },
+                        { email: { $regex: safeSearch, $options: 'i' } },
+                        { displayName: { $regex: safeSearch, $options: 'i' } }
                   ];
             }
 
             const users = await User.find(query)
-                  .select('-password')
+                  .select('username email displayName avatar role isActive isVerified createdAt')
                   .sort({ createdAt: -1 })
                   .skip((page - 1) * limit)
-                  .limit(parseInt(limit))
+                  .limit(limit)
                   .lean();
 
             const total = await User.countDocuments(query);
@@ -91,8 +143,8 @@ const getAllUsers = async (req, res) => {
                   data: {
                         users,
                         pagination: {
-                              page: parseInt(page),
-                              limit: parseInt(limit),
+                              page,
+                              limit,
                               total,
                               pages: Math.ceil(total / limit)
                         }
@@ -172,6 +224,7 @@ const updateUser = async (req, res) => {
                   message: passwordChanged ? 'User updated and password reset email sent' : 'User updated successfully',
                   data: { user }
             });
+            invalidateAdminStatsCache();
       } catch (error) {
             res.status(500).json({
                   success: false,
@@ -197,6 +250,7 @@ const toggleUserBan = async (req, res) => {
                   message: `User ${user.isActive ? 'unbanned' : 'banned'} successfully`,
                   data: { user }
             });
+            invalidateAdminStatsCache();
       } catch (error) {
             res.status(500).json({ success: false, message: 'Failed to toggle ban', error: error.message });
       }
@@ -235,7 +289,7 @@ const sendUserEmail = async (req, res) => {
 const getPendingVerifications = async (req, res) => {
       try {
             const users = await User.find({ 'verificationRequest.status': 'pending' })
-                  .select('-password')
+                  .select('username email displayName avatar isVerified verificationRequest createdAt')
                   .sort({ 'verificationRequest.requestedAt': 1 })
                   .lean();
             res.json({ success: true, data: { users } });
@@ -269,6 +323,7 @@ const handleVerification = async (req, res) => {
             }
             user.verificationRequest.reviewedAt = new Date();
             await user.save();
+            invalidateAdminStatsCache();
             res.json({
                   success: true,
                   message: `Verification ${action}d successfully`,
@@ -285,7 +340,11 @@ const handleVerification = async (req, res) => {
 // @access  Admin/Moderator
 const getAllContent = async (req, res) => {
       try {
-            const { page = 1, limit = 20, status, contentType, isApproved } = req.query;
+            const page = toPositiveInt(req.query.page, 1, 100000);
+            const limit = toPositiveInt(req.query.limit, 20, 100);
+            const status = String(req.query.status || '').trim();
+            const contentType = String(req.query.contentType || '').trim();
+            const isApproved = req.query.isApproved;
 
             let query = { status: { $ne: 'removed' } };
             if (status) query.status = status;
@@ -294,9 +353,10 @@ const getAllContent = async (req, res) => {
 
             const contents = await Content.find(query)
                   .populate('creator', 'username displayName')
+                  .select('title body contentType status isApproved moderationNote creator createdAt updatedAt media')
                   .sort({ createdAt: -1 })
                   .skip((page - 1) * limit)
-                  .limit(parseInt(limit))
+                  .limit(limit)
                   .lean();
 
             const total = await Content.countDocuments(query);
@@ -306,8 +366,8 @@ const getAllContent = async (req, res) => {
                   data: {
                         contents,
                         pagination: {
-                              page: parseInt(page),
-                              limit: parseInt(limit),
+                              page,
+                              limit,
                               total,
                               pages: Math.ceil(total / limit)
                         }
@@ -350,6 +410,7 @@ const moderateContent = async (req, res) => {
             // If removing, also delete from DB after marking
             if (updates.status === 'removed') {
                   await Content.findByIdAndDelete(req.params.id);
+                  invalidateAdminStatsCache();
                   return res.json({
                         success: true,
                         message: 'Content removed and deleted successfully',
@@ -362,6 +423,7 @@ const moderateContent = async (req, res) => {
                   message: 'Content moderated successfully',
                   data: { content }
             });
+            invalidateAdminStatsCache();
       } catch (error) {
             res.status(500).json({
                   success: false,
@@ -376,7 +438,8 @@ const moderateContent = async (req, res) => {
 // @access  Admin/Moderator
 const getReports = async (req, res) => {
       try {
-            const { page = 1, limit = 20 } = req.query;
+            const page = toPositiveInt(req.query.page, 1, 100000);
+            const limit = toPositiveInt(req.query.limit, 20, 100);
 
             const reports = await Interaction.find({ type: 'report' })
                   .populate('user', 'username')
@@ -386,7 +449,7 @@ const getReports = async (req, res) => {
                   })
                   .sort({ createdAt: -1 })
                   .skip((page - 1) * limit)
-                  .limit(parseInt(limit))
+                  .limit(limit)
                   .lean();
 
             const total = await Interaction.countDocuments({ type: 'report' });
@@ -397,8 +460,8 @@ const getReports = async (req, res) => {
                   data: {
                         reports: normalizedReports,
                         pagination: {
-                              page: parseInt(page),
-                              limit: parseInt(limit),
+                              page,
+                              limit,
                               total,
                               pages: Math.ceil(total / limit)
                         }
@@ -441,6 +504,7 @@ const handleReportAction = async (req, res) => {
 
             // After handling, delete the report Interaction
             await Interaction.findByIdAndDelete(req.params.id);
+            invalidateAdminStatsCache();
 
             res.json({
                   success: true,
@@ -572,6 +636,7 @@ const deleteUser = async (req, res) => {
             }
 
             await User.findByIdAndDelete(targetId);
+            invalidateAdminStatsCache();
 
             res.json({
                   success: true,
