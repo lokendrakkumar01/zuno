@@ -10,12 +10,12 @@ const connectDB = async () => {
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
       const conn = await mongoose.connect(mongoUri, {
-        serverSelectionTimeoutMS: 15000,  // 15s to find a server
-        socketTimeoutMS: 60000,           // 60s socket timeout
-        connectTimeoutMS: 15000,          // 15s connection timeout
-        maxPoolSize: 10,                  // Connection pool for concurrency
-        minPoolSize: 2,                   // Keep minimum connections ready
-        heartbeatFrequencyMS: 10000,      // Check connection every 10s
+        serverSelectionTimeoutMS: 15000,
+        socketTimeoutMS: 60000,
+        connectTimeoutMS: 15000,
+        maxPoolSize: Number(process.env.MONGODB_MAX_POOL_SIZE) || 20,
+        minPoolSize: 2,
+        heartbeatFrequencyMS: 10000,
       });
       console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
 

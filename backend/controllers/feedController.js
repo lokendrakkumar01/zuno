@@ -63,6 +63,28 @@ const toPositiveInt = (value, fallback) => {
       return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
 
+const getViewerId = (reqUser) => {
+      if (!reqUser) return null;
+      return reqUser._id || reqUser.id;
+};
+
+/**
+ * Faster than countDocuments + find: fetch (limit + 1) rows to compute hasMore.
+ */
+const findFeedPage = async (query, sortOptions, pageNum, limitNum) => {
+      const skip = (pageNum - 1) * limitNum;
+      const raw = await Content.find(query)
+            .populate('creator', 'username displayName avatar role')
+            .select(FEED_CONTENT_SELECT)
+            .sort(sortOptions)
+            .skip(skip)
+            .limit(limitNum + 1)
+            .lean();
+      const hasMore = raw.length > limitNum;
+      const contents = hasMore ? raw.slice(0, limitNum) : raw;
+      return { contents, hasMore };
+};
+
 // @desc    Get feed based on mode
 // @route   GET /api/feed
 // @access  Public/Private
@@ -124,9 +146,10 @@ const getFeed = async (req, res) => {
 
             // If user is logged in, personalized filtering (including blocks)
             if (req.user) {
+                  const uid = getViewerId(req.user);
                   const [currentUser, whoBlockedMe] = await Promise.all([
-                        User.findById(req.user.id).select('blockedUsers').lean(),
-                        User.find({ blockedUsers: req.user.id }).select('_id').lean()
+                        User.findById(uid).select('blockedUsers').lean(),
+                        User.find({ blockedUsers: uid }).select('_id').lean()
                   ]);
 
                   if (currentUser) {
@@ -142,20 +165,10 @@ const getFeed = async (req, res) => {
             }
 
             // Sort options
-            let sortOptions = { createdAt: -1, qualityScore: -1 };
+            const sortOptions = { createdAt: -1, qualityScore: -1 };
 
-            // Fetch content and pagination data together so the first screen returns sooner.
-            const [contents, total] = await Promise.all([
-                  Content.find(query)
-                        .populate('creator', 'username displayName avatar role')
-                        .select(FEED_CONTENT_SELECT)
-                        .sort(sortOptions)
-                        .skip((pageNum - 1) * limitNum)
-                        .limit(limitNum)
-                        .lean(),
-                  Content.countDocuments(query)
-            ]);
-            const decoratedContents = await decorateContentsForViewer(contents, req.user?.id);
+            const { contents, hasMore } = await findFeedPage(query, sortOptions, pageNum, limitNum);
+            const decoratedContents = await decorateContentsForViewer(contents, getViewerId(req.user));
 
             // Process content (silentMode check)
             const processedContents = decoratedContents.map(c => {
@@ -174,9 +187,9 @@ const getFeed = async (req, res) => {
                         pagination: {
                               page: pageNum,
                               limit: limitNum,
-                              total,
-                              pages: Math.ceil(total / limitNum),
-                              hasMore: pageNum * limitNum < total
+                              total: null,
+                              pages: null,
+                              hasMore
                         }
                   }
             };
@@ -222,17 +235,13 @@ const getFeedByTopic = async (req, res) => {
                   contentType: { $nin: ['story', 'status', 'text-status'] }
             };
 
-            const [contents, total] = await Promise.all([
-                  Content.find(query)
-                        .populate('creator', 'username displayName avatar role')
-                        .select(FEED_CONTENT_SELECT)
-                        .sort({ qualityScore: -1, createdAt: -1 })
-                        .skip((pageNum - 1) * limitNum)
-                        .limit(limitNum)
-                        .lean(),
-                  Content.countDocuments(query)
-            ]);
-            const decoratedContents = await decorateContentsForViewer(contents, req.user?.id);
+            const { contents, hasMore } = await findFeedPage(
+                  query,
+                  { qualityScore: -1, createdAt: -1 },
+                  pageNum,
+                  limitNum
+            );
+            const decoratedContents = await decorateContentsForViewer(contents, getViewerId(req.user));
 
             res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
             res.setHeader('Pragma', 'no-cache');
@@ -246,8 +255,9 @@ const getFeedByTopic = async (req, res) => {
                         pagination: {
                               page: pageNum,
                               limit: limitNum,
-                              total,
-                              pages: Math.ceil(total / limitNum)
+                              total: null,
+                              pages: null,
+                              hasMore
                         }
                   }
             });
@@ -325,17 +335,13 @@ const getCreatorFeed = async (req, res) => {
                   query.status = 'published';
             }
 
-            const [contents, total] = await Promise.all([
-                  Content.find(query)
-                        .populate('creator', 'username displayName avatar role')
-                        .select(FEED_CONTENT_SELECT)
-                        .sort({ createdAt: -1 })
-                        .skip((pageNum - 1) * limitNum)
-                        .limit(limitNum)
-                        .lean(),
-                  Content.countDocuments(query)
-            ]);
-            const decoratedContents = await decorateContentsForViewer(contents, req.user?.id);
+            const { contents, hasMore } = await findFeedPage(
+                  query,
+                  { createdAt: -1 },
+                  pageNum,
+                  limitNum
+            );
+            const decoratedContents = await decorateContentsForViewer(contents, getViewerId(req.user));
 
             // No debug logs in production
 
@@ -350,8 +356,9 @@ const getCreatorFeed = async (req, res) => {
                         pagination: {
                               page: pageNum,
                               limit: limitNum,
-                              total,
-                              pages: Math.ceil(total / limitNum)
+                              total: null,
+                              pages: null,
+                              hasMore
                         }
                   }
             });
@@ -392,17 +399,13 @@ const searchContent = async (req, res) => {
                   ]
             };
 
-            const [contents, total] = await Promise.all([
-                  Content.find(query)
-                        .populate('creator', 'username displayName avatar role')
-                        .select(FEED_CONTENT_SELECT)
-                        .sort({ qualityScore: -1, createdAt: -1 })
-                        .skip((pageNum - 1) * limitNum)
-                        .limit(limitNum)
-                        .lean(),
-                  Content.countDocuments(query)
-            ]);
-            const decoratedContents = await decorateContentsForViewer(contents, req.user?.id);
+            const { contents, hasMore } = await findFeedPage(
+                  query,
+                  { qualityScore: -1, createdAt: -1 },
+                  pageNum,
+                  limitNum
+            );
+            const decoratedContents = await decorateContentsForViewer(contents, getViewerId(req.user));
 
             res.json({
                   success: true,
@@ -412,8 +415,9 @@ const searchContent = async (req, res) => {
                         pagination: {
                               page: pageNum,
                               limit: limitNum,
-                              total,
-                              pages: Math.ceil(total / limitNum)
+                              total: null,
+                              pages: null,
+                              hasMore
                         }
                   }
             });
@@ -444,12 +448,13 @@ const getActiveStories = async (req, res) => {
             // Filter out stories from blocked users
             let filteredStories = stories;
             if (req.user) {
-                  const currentUser = await User.findById(req.user.id).select('blockedUsers');
-                  const myBlocked = currentUser.blockedUsers.map(id => id.toString());
+                  const vid = getViewerId(req.user);
+                  const currentUser = await User.findById(vid).select('blockedUsers').lean();
+                  const myBlocked = (currentUser?.blockedUsers || []).map((id) => id.toString());
 
                   filteredStories = stories.filter(story => {
                         const creatorId = story.creator._id.toString();
-                        const creatorBlockedMe = story.creator.blockedUsers && story.creator.blockedUsers.some(id => id.toString() === req.user.id);
+                        const creatorBlockedMe = story.creator.blockedUsers && story.creator.blockedUsers.some((id) => id.toString() === String(vid));
                         return !myBlocked.includes(creatorId) && !creatorBlockedMe;
                   });
             }
@@ -466,7 +471,7 @@ const getActiveStories = async (req, res) => {
                   }
 
                   // If owner, populate viewedBy details
-                  if (req.user && creatorId === req.user.id) {
+                  if (req.user && creatorId === String(getViewerId(req.user))) {
                         // We need to re-fetch or populate manually since .lean() was used
                         // For simplicity, let's just make sure viewedBy is populated if it exists
                         // But since we used .lean(), we have to handle it carefully.
@@ -478,8 +483,9 @@ const getActiveStories = async (req, res) => {
 
             // After grouping, if req.user exists, batch-populate viewedBy for their own stories
             if (req.user) {
+                  const vid = String(getViewerId(req.user));
                   for (const group of Object.values(groupedStories)) {
-                        if (group.creator._id.toString() === req.user.id) {
+                        if (group.creator._id.toString() === vid) {
                               // Batch fetch all own stories with viewedBy populated in ONE query
                               const ownStoryIds = group.stories.map(s => s._id);
                               if (ownStoryIds.length > 0) {
