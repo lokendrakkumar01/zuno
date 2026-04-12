@@ -12,8 +12,10 @@ import { resolveAssetUrl } from '../utils/media';
 import { getUserHandle, readStoredAuthUser } from '../utils/session';
 import { fetchWithTimeout, DEFAULT_REQUEST_TIMEOUT_MS } from '../utils/fetchWithTimeout';
 
-const POSTS_FETCH_PRIMARY_MS = 22000;
-const POSTS_FETCH_WAKE_MS = 50000;
+const PROFILE_FETCH_PRIMARY_MS = 12000;
+const PROFILE_FETCH_WAKE_MS = 45000;
+const POSTS_FETCH_PRIMARY_MS = 12000;
+const POSTS_FETCH_WAKE_MS = 45000;
 
 const INTERESTS = [
       'learning', 'technology', 'creativity', 'health',
@@ -28,9 +30,6 @@ const FEED_MODES = [
       { id: 'reading', label: 'Reading' },
       { id: 'problem-solving', label: 'Problem Solving' }
 ];
-
-const PROFILE_FETCH_TIMEOUT_MS = 18000;
-const PROFILE_POSTS_TIMEOUT_MS = 30000;
 
 const buildProfileCacheKey = (username = '') => `zuno_profile_cache_${username}`;
 const buildPostsCacheKey = (username = '') => `zuno_posts_cache_${username}`;
@@ -106,6 +105,8 @@ const Profile = () => {
       });
       const [loading, setLoading] = useState(() => {
             if (sessionUser && targetUsername === sessionUser.username) return false;
+            if (readCachedValue(profileCacheKey, null)) return false;
+            if (readCachedValue(postsCacheKey, []).length > 0) return false;
             if (isOwnProfile && !targetUsername) return Boolean(token);
             return !readCachedValue(profileCacheKey, null);
       });
@@ -142,29 +143,39 @@ const Profile = () => {
 
       const wakeBackend = useCallback(async () => {
             try {
-                  await fetch(`${API_URL}/ping`, {
-                        cache: 'no-store'
-                  });
+                  await fetch(`${API_URL}/ping`, { cache: 'no-store' });
             } catch {
                   // Best-effort wake request only.
             }
       }, []);
 
+      useEffect(() => {
+            if (targetUsername) {
+                  wakeBackend();
+            }
+      }, [targetUsername, wakeBackend]);
+
       const fetchProfileRequest = useCallback(async (uname, signal) => {
-            const encodedUsername = encodeURIComponent(uname);
-            const headers = token ? { Authorization: `Bearer ${token}` } : {};
+            const url = `${API_URL}/users/${encodeURIComponent(uname)}`;
+            const baseOpts = { headers: token ? { Authorization: `Bearer ${token}` } : {} };
+            if (signal) {
+                  baseOpts.signal = signal;
+            }
+
             let res;
 
             try {
-                  res = await fetch(`${API_URL}/users/${encodedUsername}`, {
-                        headers,
-                        signal
-                  });
+                  res = await fetchWithTimeout(url, { ...baseOpts }, PROFILE_FETCH_PRIMARY_MS);
             } catch (error) {
-                  if (error.name === 'AbortError') {
-                        await wakeBackend();
+                  if (error?.name === 'AbortError' && signal?.aborted) {
+                        throw error;
                   }
-                  throw error;
+                  if (error?.name === 'AbortError') {
+                        await wakeBackend();
+                        res = await fetchWithTimeout(url, { ...baseOpts }, PROFILE_FETCH_WAKE_MS);
+                  } else {
+                        throw error;
+                  }
             }
 
             const data = await res.json().catch(() => null);
@@ -330,8 +341,6 @@ const Profile = () => {
             let ignore = false;
             const profileController = new AbortController();
             const postsController = new AbortController();
-            const profileTimeoutId = window.setTimeout(() => profileController.abort(), PROFILE_FETCH_TIMEOUT_MS);
-            const postsTimeoutId = window.setTimeout(() => postsController.abort(), PROFILE_POSTS_TIMEOUT_MS);
 
             const fetchProfileData = async () => {
                   try {
@@ -359,9 +368,6 @@ const Profile = () => {
                   fetchProfileData(),
                   fetchUserPosts(targetUsername, postsController.signal)
             ]).finally(() => {
-                  window.clearTimeout(profileTimeoutId);
-                  window.clearTimeout(postsTimeoutId);
-
                   if (!ignore) {
                         setLoading(false);
                   }
@@ -369,8 +375,6 @@ const Profile = () => {
 
             return () => {
                   ignore = true;
-                  window.clearTimeout(profileTimeoutId);
-                  window.clearTimeout(postsTimeoutId);
                   profileController.abort();
                   postsController.abort();
             };
@@ -713,30 +717,12 @@ const Profile = () => {
             );
       }
 
-      if (loading && !profileUser) {
+      if (loading && !profileUser && !readCachedValue(profileCacheKey, null)) {
             return (
-                  <div className="container profile-page-shell profile-skeleton-shell" style={{ paddingTop: 'var(--space-xl)', paddingBottom: 'var(--space-2xl)' }}>
-                        <div className="card profile-header-card animate-fadeInUp" style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                              <div className="profile-skeleton-line profile-skeleton-avatar" />
-                              <div className="profile-skeleton-stack">
-                                    <div className="profile-skeleton-line profile-skeleton-title" />
-                                    <div className="profile-skeleton-line profile-skeleton-subtitle" />
-                                    <div className="profile-skeleton-stat-row">
-                                          <div className="profile-skeleton-line profile-skeleton-stat" />
-                                          <div className="profile-skeleton-line profile-skeleton-stat" />
-                                          <div className="profile-skeleton-line profile-skeleton-stat" />
-                                    </div>
-                                    <div className="profile-skeleton-line profile-skeleton-bio" />
-                              </div>
-                        </div>
-
-                        <div className="card animate-fadeInUp" style={{ animationDelay: '0.06s', minHeight: '220px' }}>
-                              <div className="profile-skeleton-grid">
-                                    {Array.from({ length: 6 }).map((_, index) => (
-                                          <div key={index} className="profile-skeleton-line profile-skeleton-post" />
-                                    ))}
-                              </div>
-                        </div>
+                  <div className="container" style={{ paddingTop: 'var(--space-2xl)' }}>
+                        <p className="text-secondary" style={{ fontSize: '0.95rem' }}>
+                              {targetUsername ? `@${targetUsername}` : 'Profile'}
+                        </p>
                   </div>
             );
       }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import ContentCard from '../components/Content/ContentCard';
@@ -6,8 +6,9 @@ import StoryBar from '../components/Story/StoryBar';
 import { API_URL } from '../config';
 import { fetchWithTimeout } from '../utils/fetchWithTimeout';
 
-const PRIMARY_FEED_TIMEOUT_MS = 22000;
-const WAKE_FEED_TIMEOUT_MS = 50000;
+/** Shorter first attempt → faster switch to wake + long retry on cold Render. */
+const PRIMARY_FEED_TIMEOUT_MS = 12000;
+const WAKE_FEED_TIMEOUT_MS = 45000;
 
 const FEED_MODES = [
       { id: 'all', label: 'All', desc: 'A fast mix of current conversations, posts and videos.' },
@@ -38,20 +39,25 @@ const Home = () => {
       const [mode, setMode] = useState('all');
 
       const [contents, setContents] = useState(() => readFeedCache('zuno_feedCache_all'));
-      const [silentRefreshing, setSilentRefreshing] = useState(false);
+      /** Background fetch in progress — only used to disable “Load more”, never shown as a loader. */
+      const [feedBusy, setFeedBusy] = useState(false);
       const [error, setError] = useState(null);
       const [page, setPage] = useState(1);
       const [hasMore, setHasMore] = useState(true);
 
       const feedRequestGenRef = useRef(0);
 
-      const wakeBackend = async () => {
+      const wakeBackend = useCallback(async () => {
             try {
                   await fetch(`${API_URL}/ping`, { cache: 'no-store' });
             } catch {
                   // Best-effort wake only.
             }
-      };
+      }, []);
+
+      useEffect(() => {
+            wakeBackend();
+      }, [wakeBackend]);
 
       const fetchFeed = async (currentMode, currentPage, append = false, currentTopic = topicParam) => {
             const myGen = ++feedRequestGenRef.current;
@@ -68,7 +74,7 @@ const Home = () => {
                         hasCachedContent = true;
                   }
 
-                  setSilentRefreshing(true);
+                  setFeedBusy(true);
                   setError(null);
             } else {
                   hasCachedContent = contents.length > 0;
@@ -103,7 +109,6 @@ const Home = () => {
                         if (myGen !== feedRequestGenRef.current) {
                               return;
                         }
-                        setError('__waking_up__');
                         await wakeBackend();
                         res = await attemptFetch(WAKE_FEED_TIMEOUT_MS);
                   }
@@ -159,7 +164,7 @@ const Home = () => {
                   }
             } finally {
                   if (myGen === feedRequestGenRef.current) {
-                        setSilentRefreshing(false);
+                        setFeedBusy(false);
                   }
             }
       };
@@ -271,35 +276,23 @@ const Home = () => {
                                     </div>
 
                                     <div className="home-toolbar-status">
-                                          {silentRefreshing && contents.length === 0 ? (
-                                                <span className="home-inline-loader" aria-hidden />
-                                          ) : !silentRefreshing ? (
-                                                <span className="text-secondary" style={{ fontSize: '0.88rem' }}>Scroll to explore</span>
-                                          ) : null}
+                                          <span className="text-secondary" style={{ fontSize: '0.88rem' }}>Scroll to explore</span>
                                     </div>
                               </div>
 
-                              {error === '__waking_up__' && contents.length === 0 && (
-                                    <div className="text-center py-xl">
-                                          <div className="loader mb-md" />
-                                          <h3 className="text-lg">Preparing your feed...</h3>
-                                          <p className="text-secondary">The server may be waking up — loading the latest posts.</p>
-                                    </div>
-                              )}
-
                               {(error === 'network' || error === 'timeout') && contents.length === 0 && (
-                                    <div className="text-center py-xl">
-                                          <p className="text-secondary mb-md">
+                                    <div className="text-center py-lg">
+                                          <p className="text-secondary mb-sm" style={{ fontSize: '0.9rem' }}>
                                                 {error === 'timeout'
-                                                      ? 'The feed is taking longer than usual.'
-                                                      : 'Unable to reach the server right now.'}
+                                                      ? 'Still connecting — pull to refresh or tap below.'
+                                                      : 'Offline — tap to retry when you are back online.'}
                                           </p>
                                           <button
                                                 type="button"
                                                 onClick={() => fetchFeed(mode, 1, false, topicParam)}
-                                                className="btn btn-primary"
+                                                className="btn btn-secondary btn-sm"
                                           >
-                                                Try again
+                                                Retry
                                           </button>
                                     </div>
                               )}
@@ -312,7 +305,7 @@ const Home = () => {
                                     ))}
                               </div>
 
-                              {contents.length === 0 && !silentRefreshing && !error && (
+                              {contents.length === 0 && !feedBusy && !error && (
                                     <div className="text-center py-3xl card">
                                           <div style={{ fontSize: '3.5rem', marginBottom: '1rem' }}>Quiet for now</div>
                                           <h3 className="text-xl font-bold mb-sm">Nothing has landed here yet</h3>
@@ -323,19 +316,13 @@ const Home = () => {
 
                               {hasMore && contents.length > 0 && (
                                     <div className="text-center mt-3xl">
-                                          <button type="button" onClick={loadMore} disabled={silentRefreshing} className="btn btn-secondary">
-                                                {silentRefreshing ? 'Loading...' : 'Load More'}
+                                          <button type="button" onClick={loadMore} disabled={feedBusy} className="btn btn-secondary">
+                                                Load more
                                           </button>
                                     </div>
                               )}
                         </div>
                   </section>
-
-                  {silentRefreshing && contents.length > 0 && (
-                        <div className="home-floating-refresh home-floating-refresh--subtle" aria-hidden>
-                              <div className="loader-xs" />
-                        </div>
-                  )}
             </div>
       );
 };
