@@ -6,6 +6,9 @@ import { useAuth } from '../../context/AuthContext';
 import { useSocketContext } from '../../context/SocketContext';
 import UserAvatar from '../User/UserAvatar';
 
+const PRIMARY_NOTIFICATION_TIMEOUT_MS = 12000;
+const WAKE_NOTIFICATION_TIMEOUT_MS = 25000;
+
 const buildNotificationsCacheKey = (userId) => `zuno_notifications_cache_${userId}`;
 
 const readCachedNotifications = (userId) => {
@@ -32,6 +35,22 @@ const writeCachedNotifications = (userId, notifications, unreadCount) => {
       }
 };
 
+const fetchJsonWithTimeout = async (url, options = {}, timeoutMs = PRIMARY_NOTIFICATION_TIMEOUT_MS) => {
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+      try {
+            const response = await fetch(url, {
+                  ...options,
+                  signal: controller.signal
+            });
+            const data = await response.json().catch(() => null);
+            return { response, data };
+      } finally {
+            window.clearTimeout(timeoutId);
+      }
+};
+
 const NotificationPanel = ({ onProfileRefresh }) => {
       const navigate = useNavigate();
       const { token, user } = useAuth();
@@ -52,11 +71,27 @@ const NotificationPanel = ({ onProfileRefresh }) => {
             writeCachedNotifications(user?._id, nextNotifications, nextUnreadCount);
       }, [unreadCount, user?._id]);
 
+      const wakeBackend = useCallback(async () => {
+            try {
+                  await fetch(`${API_URL}/ping`, {
+                        cache: 'no-store'
+                  });
+            } catch {
+                  // Best-effort wake request only.
+            }
+      }, []);
+
       const fetchNotifications = useCallback(async (showLoader = false) => {
-            if (!token || !user?._id) return;
+            if (!token || !user?._id) {
+                  setLoading(false);
+                  setSilentRefreshing(false);
+                  return;
+            }
 
             setError('');
-            if (showLoader && notifications.length === 0) {
+            const hasCachedNotifications = notifications.length > 0;
+
+            if (showLoader && !hasCachedNotifications) {
                   setLoading(true);
             } else {
                   setSilentRefreshing(true);
@@ -64,39 +99,73 @@ const NotificationPanel = ({ onProfileRefresh }) => {
 
             try {
                   const headers = { Authorization: `Bearer ${token}` };
-                  const [notificationsRes, requestsRes] = await Promise.all([
-                        fetch(`${API_URL}/notifications?limit=40`, { headers }),
-                        fetch(`${API_URL}/users/requests/pending`, { headers })
+                  const loadNotificationsRequest = async (timeoutMs) => (
+                        fetchJsonWithTimeout(`${API_URL}/notifications?limit=40`, { headers }, timeoutMs)
+                  );
+                  const loadRequestsRequest = async (timeoutMs) => (
+                        fetchJsonWithTimeout(`${API_URL}/users/requests/pending`, { headers }, timeoutMs)
+                  );
+
+                  let results = await Promise.allSettled([
+                        loadNotificationsRequest(PRIMARY_NOTIFICATION_TIMEOUT_MS),
+                        loadRequestsRequest(PRIMARY_NOTIFICATION_TIMEOUT_MS)
                   ]);
 
-                  const [notificationsData, requestsData] = await Promise.all([
-                        notificationsRes.json(),
-                        requestsRes.json()
-                  ]);
+                  const shouldWakeAndRetry = results.some((result) => (
+                        result.status === 'rejected' && result.reason?.name === 'AbortError'
+                  ));
 
-                  if (notificationsData.success) {
-                        const nextNotifications = notificationsData.data.notifications || [];
-                        const nextUnreadCount = notificationsData.data.unreadCount || 0;
-                        syncNotificationCache(nextNotifications, nextUnreadCount);
+                  if (shouldWakeAndRetry) {
+                        await wakeBackend();
+                        results = await Promise.allSettled([
+                              loadNotificationsRequest(WAKE_NOTIFICATION_TIMEOUT_MS),
+                              loadRequestsRequest(WAKE_NOTIFICATION_TIMEOUT_MS)
+                        ]);
                   }
 
-                  if (requestsData.success) {
-                        setPendingRequests(requestsData.data.requests || []);
+                  const [notificationsResult, requestsResult] = results;
+
+                  if (notificationsResult.status === 'fulfilled') {
+                        const { response, data } = notificationsResult.value;
+                        if (response.ok && data?.success) {
+                              const nextNotifications = data.data.notifications || [];
+                              const nextUnreadCount = data.data.unreadCount || 0;
+                              syncNotificationCache(nextNotifications, nextUnreadCount);
+                        }
+                  }
+
+                  if (requestsResult.status === 'fulfilled') {
+                        const { response, data } = requestsResult.value;
+                        if (response.ok && data?.success) {
+                              setPendingRequests(data.data.requests || []);
+                        }
+                  }
+
+                  const notificationsFailed = notificationsResult.status === 'rejected'
+                        || (notificationsResult.status === 'fulfilled' && (!notificationsResult.value.response.ok || !notificationsResult.value.data?.success));
+                  const requestsFailed = requestsResult.status === 'rejected'
+                        || (requestsResult.status === 'fulfilled' && (!requestsResult.value.response.ok || !requestsResult.value.data?.success));
+
+                  if (notificationsFailed && requestsFailed && !hasCachedNotifications) {
+                        setError('Inbox is taking longer than usual. Pull to refresh in a few seconds.');
                   }
             } catch (fetchError) {
                   console.error('Failed to fetch notifications:', fetchError);
-                  if (notifications.length === 0) {
+                  if (!hasCachedNotifications) {
                         setError('Notifications could not be loaded right now. Showing cached activity if available.');
                   }
             } finally {
                   setLoading(false);
                   setSilentRefreshing(false);
             }
-      }, [API_URL, notifications.length, syncNotificationCache, token, user?._id]);
+      }, [notifications.length, syncNotificationCache, token, user?._id, wakeBackend]);
 
       useEffect(() => {
+            setNotifications(cachedInbox.notifications || []);
+            setUnreadCount(cachedInbox.unreadCount || 0);
+            setLoading((cachedInbox.notifications || []).length === 0 && Boolean(token && user?._id));
             fetchNotifications((cachedInbox.notifications || []).length === 0);
-      }, [fetchNotifications, cachedInbox.notifications]);
+      }, [cachedInbox.notifications, cachedInbox.unreadCount, fetchNotifications, token, user?._id]);
 
       useEffect(() => {
             if (!socket || !user?._id) return undefined;

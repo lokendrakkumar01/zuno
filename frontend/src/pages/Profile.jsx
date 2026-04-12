@@ -25,6 +25,9 @@ const FEED_MODES = [
       { id: 'problem-solving', label: 'Problem Solving' }
 ];
 
+const PROFILE_FETCH_TIMEOUT_MS = 18000;
+const PROFILE_POSTS_TIMEOUT_MS = 30000;
+
 const buildProfileCacheKey = (username = '') => `zuno_profile_cache_${username}`;
 const buildPostsCacheKey = (username = '') => `zuno_posts_cache_${username}`;
 const normalizeIdentity = (value = '') => (
@@ -133,21 +136,41 @@ const Profile = () => {
 
       const canAccessAdminPanel = isOwnProfile && profileUser?.role === 'admin';
 
+      const wakeBackend = useCallback(async () => {
+            try {
+                  await fetch(`${API_URL}/ping`, {
+                        cache: 'no-store'
+                  });
+            } catch {
+                  // Best-effort wake request only.
+            }
+      }, []);
+
       const fetchProfileRequest = useCallback(async (uname, signal) => {
             const encodedUsername = encodeURIComponent(uname);
             const headers = token ? { Authorization: `Bearer ${token}` } : {};
-            const res = await fetch(`${API_URL}/users/${encodedUsername}`, {
-                  headers,
-                  signal
-            });
-            const data = await res.json();
+            let res;
 
-            if (!data.success) {
-                  throw new Error(data.message || 'Failed to load profile.');
+            try {
+                  res = await fetch(`${API_URL}/users/${encodedUsername}`, {
+                        headers,
+                        signal
+                  });
+            } catch (error) {
+                  if (error.name === 'AbortError') {
+                        await wakeBackend();
+                  }
+                  throw error;
+            }
+
+            const data = await res.json().catch(() => null);
+
+            if (!res.ok || !data?.success) {
+                  throw new Error(data?.message || 'Failed to load profile.');
             }
 
             return data.data.user;
-      }, [token]);
+      }, [token, wakeBackend]);
 
       const fetchUserPosts = useCallback(async (uname, signal) => {
             setPostsError('');
@@ -155,13 +178,23 @@ const Profile = () => {
             try {
                   const headers = token ? { Authorization: `Bearer ${token}` } : {};
                   const encodedUname = encodeURIComponent(uname);
-                  const res = await fetch(`${API_URL}/feed/creator/${encodedUname}`, {
-                        headers,
-                        signal
-                  });
-                  const data = await res.json();
+                  let res;
 
-                  if (!data.success) {
+                  try {
+                        res = await fetch(`${API_URL}/feed/creator/${encodedUname}`, {
+                              headers,
+                              signal
+                        });
+                  } catch (error) {
+                        if (error.name === 'AbortError') {
+                              await wakeBackend();
+                        }
+                        throw error;
+                  }
+
+                  const data = await res.json().catch(() => null);
+
+                  if (!res.ok || !data?.success) {
                         setPostsError('Failed to load posts.');
                         return [];
                   }
@@ -180,17 +213,21 @@ const Profile = () => {
                   writeCachedValue(buildPostsCacheKey(uname), safePosts);
                   return safePosts;
             } catch (error) {
+                  const cachedPosts = readCachedValue(buildPostsCacheKey(uname), []);
+                  const hasCachedPosts = Array.isArray(cachedPosts) && cachedPosts.length > 0;
+
                   if (error.name !== 'AbortError') {
                         console.error('Failed to fetch user posts:', error);
                   } else {
-                        setPostsError('Server slow. Showing cached content.');
+                        setPostsError(hasCachedPosts
+                              ? 'Showing saved posts while the latest content loads.'
+                              : 'Latest posts are still loading. Try refresh in a few seconds.');
                   }
 
-                  const cachedPosts = readCachedValue(buildPostsCacheKey(uname), []);
                   setUserPosts(Array.isArray(cachedPosts) ? cachedPosts : []);
                   return Array.isArray(cachedPosts) ? cachedPosts : [];
             }
-      }, [token]);
+      }, [token, wakeBackend]);
 
       const refreshProfile = useCallback(async (nextUsername = targetUsername) => {
             if (!nextUsername) return;
@@ -270,8 +307,8 @@ const Profile = () => {
             let ignore = false;
             const profileController = new AbortController();
             const postsController = new AbortController();
-            const profileTimeoutId = window.setTimeout(() => profileController.abort(), 10000);
-            const postsTimeoutId = window.setTimeout(() => postsController.abort(), 12000);
+            const profileTimeoutId = window.setTimeout(() => profileController.abort(), PROFILE_FETCH_TIMEOUT_MS);
+            const postsTimeoutId = window.setTimeout(() => postsController.abort(), PROFILE_POSTS_TIMEOUT_MS);
 
             const fetchProfileData = async () => {
                   try {

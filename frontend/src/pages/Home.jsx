@@ -5,8 +5,8 @@ import ContentCard from '../components/Content/ContentCard';
 import StoryBar from '../components/Story/StoryBar';
 import { API_URL } from '../config';
 
-const PRIMARY_FEED_TIMEOUT_MS = 12000;
-const WAKE_FEED_TIMEOUT_MS = 20000;
+const PRIMARY_FEED_TIMEOUT_MS = 18000;
+const WAKE_FEED_TIMEOUT_MS = 35000;
 
 const FEED_MODES = [
       { id: 'all', label: 'All', desc: 'A fast mix of current conversations, posts and videos.' },
@@ -39,6 +39,16 @@ const Home = () => {
       const [hasMore, setHasMore] = useState(true);
 
       const activeRequestRef = useRef(null);
+
+      const wakeBackend = async () => {
+            try {
+                  await fetch(`${API_URL}/ping`, {
+                        cache: 'no-store'
+                  });
+            } catch {
+                  // Best-effort wake request only.
+            }
+      };
 
       const fetchFeed = async (currentMode, currentPage, append = false, currentTopic = topicParam) => {
             let hasCachedContent = false;
@@ -106,6 +116,7 @@ const Home = () => {
                   } catch (firstErr) {
                         if (firstErr.name === 'AbortError') {
                               setError('__waking_up__');
+                              await wakeBackend();
                               data = await attemptFetch(WAKE_FEED_TIMEOUT_MS);
                         } else {
                               throw firstErr;
@@ -270,8 +281,8 @@ const Home = () => {
                               {error === '__waking_up__' && contents.length === 0 && (
                                     <div className="text-center py-xl">
                                           <div className="loader mb-md" />
-                                          <h3 className="text-lg">ZUNO is waking up...</h3>
-                                          <p className="text-secondary">Please wait a few seconds while we warm up the servers.</p>
+                                          <h3 className="text-lg">Preparing your feed...</h3>
+                                          <p className="text-secondary">We are reconnecting to the backend and loading the latest posts.</p>
                                     </div>
                               )}
 
