@@ -1,14 +1,17 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { Suspense, lazy, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import ContentCard from '../components/Content/ContentCard';
-import StoryBar from '../components/Story/StoryBar';
 import { API_URL } from '../config';
 import { fetchWithTimeout } from '../utils/fetchWithTimeout';
 
-/** Shorter first attempt → faster switch to wake + long retry on cold Render. */
+const ContentCard = lazy(() => import('../components/Content/ContentCard'));
+const StoryBar = lazy(() => import('../components/Story/StoryBar'));
+const VirtualizedList = lazy(() => import('../components/VirtualizedList'));
+
 const PRIMARY_FEED_TIMEOUT_MS = 12000;
 const WAKE_FEED_TIMEOUT_MS = 45000;
+const FEED_PAGE_SIZE = 12;
+const FEED_CARD_HEIGHT = 520;
 
 const FEED_MODES = [
       { id: 'all', label: 'All', desc: 'A fast mix of current conversations, posts and videos.' },
@@ -37,21 +40,18 @@ const Home = () => {
       const [searchParams, setSearchParams] = useSearchParams();
       const topicParam = searchParams.get('topic') || '';
       const [mode, setMode] = useState('all');
-
       const [contents, setContents] = useState(() => readFeedCache('zuno_feedCache_all'));
-      /** Background fetch in progress — only used to disable “Load more”, never shown as a loader. */
       const [feedBusy, setFeedBusy] = useState(false);
       const [error, setError] = useState(null);
-      const [page, setPage] = useState(1);
       const [hasMore, setHasMore] = useState(true);
-
+      const [nextCursor, setNextCursor] = useState(null);
       const feedRequestGenRef = useRef(0);
 
       const wakeBackend = useCallback(async () => {
             try {
                   await fetch(`${API_URL}/ping`, { cache: 'no-store' });
             } catch {
-                  // Best-effort wake only.
+                  // Best effort only.
             }
       }, []);
 
@@ -59,135 +59,119 @@ const Home = () => {
             wakeBackend();
       }, [wakeBackend]);
 
-      const fetchFeed = async (currentMode, currentPage, append = false, currentTopic = topicParam) => {
-            const myGen = ++feedRequestGenRef.current;
-            let hasCachedContent = false;
+      const fetchFeed = useCallback(async ({
+            currentMode,
+            append = false,
+            cursor = null,
+            currentTopic = topicParam
+      }) => {
+            const requestId = ++feedRequestGenRef.current;
+            const cacheKey = currentTopic ? `zuno_feedCache_${currentMode}_${currentTopic}` : `zuno_feedCache_${currentMode}`;
 
-            if (currentPage === 1 && !append) {
-                  const modeKey = currentTopic ? `zuno_feedCache_${currentMode}_${currentTopic}` : `zuno_feedCache_${currentMode}`;
-                  let fromCache = readFeedCache(modeKey);
-                  if (fromCache.length === 0 && currentMode !== 'all') {
-                        fromCache = readFeedCache('zuno_feedCache_all');
+            if (!append) {
+                  const cached = readFeedCache(cacheKey);
+                  if (cached.length > 0) {
+                        startTransition(() => setContents(cached));
                   }
-                  if (fromCache.length > 0) {
-                        setContents(fromCache);
-                        hasCachedContent = true;
-                  }
-
-                  setFeedBusy(true);
                   setError(null);
-            } else {
-                  hasCachedContent = contents.length > 0;
             }
 
-            const buildUrl = () => {
-                  const url = new URL(`${API_URL}/feed`);
-                  url.searchParams.append('mode', currentMode);
-                  url.searchParams.append('page', currentPage);
-                  url.searchParams.append('limit', 12);
-                  if (currentTopic) {
-                        url.searchParams.append('topic', currentTopic);
-                  }
-                  return url.toString();
-            };
+            setFeedBusy(true);
 
             const headers = token ? { Authorization: `Bearer ${token}` } : {};
+            const url = new URL(`${API_URL}/feed`);
+            url.searchParams.set('mode', currentMode);
+            url.searchParams.set('limit', String(FEED_PAGE_SIZE));
+            if (cursor) url.searchParams.set('cursor', cursor);
+            if (currentTopic) url.searchParams.set('topic', currentTopic);
 
-            const attemptFetch = async (timeoutMs) => {
-                  return fetchWithTimeout(buildUrl(), { headers }, timeoutMs);
-            };
+            const runFetch = async (timeoutMs) => fetchWithTimeout(url.toString(), { headers }, timeoutMs);
 
             try {
-                  let res;
+                  let response;
 
                   try {
-                        res = await attemptFetch(PRIMARY_FEED_TIMEOUT_MS);
-                  } catch (firstErr) {
-                        if (firstErr?.name !== 'AbortError') {
-                              throw firstErr;
-                        }
-                        if (myGen !== feedRequestGenRef.current) {
-                              return;
+                        response = await runFetch(PRIMARY_FEED_TIMEOUT_MS);
+                  } catch (fetchError) {
+                        if (fetchError?.name !== 'AbortError') {
+                              throw fetchError;
                         }
                         await wakeBackend();
-                        res = await attemptFetch(WAKE_FEED_TIMEOUT_MS);
+                        response = await runFetch(WAKE_FEED_TIMEOUT_MS);
                   }
 
-                  if (myGen !== feedRequestGenRef.current) {
-                        return;
+                  if (requestId !== feedRequestGenRef.current) return;
+                  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                  const payload = await response.json();
+                  if (!payload?.success) {
+                        throw new Error(payload?.message || 'Failed to load feed');
                   }
 
-                  if (!res.ok) {
-                        throw new Error(`HTTP ${res.status}`);
-                  }
+                  const nextContents = payload.data?.contents || [];
+                  const pagination = payload.data?.pagination || {};
 
-                  const data = await res.json();
-
-                  if (myGen !== feedRequestGenRef.current) {
-                        return;
-                  }
-
-                  if (data?.success) {
-                        const newContents = data.data.contents || [];
-
-                        if (append) {
-                              setContents((prev) => {
-                                    const existingIds = new Set(prev.map((item) => item._id));
-                                    const uniqueNew = newContents.filter((item) => !existingIds.has(item._id));
-                                    return [...prev, ...uniqueNew];
-                              });
-                        } else {
-                              setContents(newContents);
-
-                              try {
-                                    const cacheKey = currentTopic ? `zuno_feedCache_${currentMode}_${currentTopic}` : `zuno_feedCache_${currentMode}`;
-                                    localStorage.setItem(cacheKey, JSON.stringify(newContents));
-                              } catch {
-                                    // best-effort
+                  startTransition(() => {
+                        setContents((previous) => {
+                              if (!append) {
+                                    try {
+                                          localStorage.setItem(cacheKey, JSON.stringify(nextContents));
+                                    } catch {
+                                          // Best effort cache.
+                                    }
+                                    return nextContents;
                               }
-                        }
 
-                        setHasMore(Boolean(data.data.pagination?.hasMore));
-                        setError(null);
-                  } else {
-                        throw new Error(data?.message || 'Failed to load');
-                  }
-            } catch (err) {
-                  if (myGen !== feedRequestGenRef.current) {
-                        return;
-                  }
-                  console.error('Feed fetch failed:', err);
-                  if (!hasCachedContent) {
-                        setError(err?.name === 'AbortError' ? 'timeout' : 'network');
-                  } else {
-                        setError(null);
+                              const existingIds = new Set(previous.map((item) => item._id));
+                              const merged = [...previous, ...nextContents.filter((item) => !existingIds.has(item._id))];
+                              try {
+                                    localStorage.setItem(cacheKey, JSON.stringify(merged));
+                              } catch {
+                                    // Best effort cache.
+                              }
+                              return merged;
+                        });
+                  });
+
+                  setHasMore(Boolean(pagination.hasMore));
+                  setNextCursor(pagination.nextCursor || null);
+                  setError(null);
+            } catch (fetchError) {
+                  if (requestId !== feedRequestGenRef.current) return;
+                  const cached = readFeedCache(cacheKey);
+                  if (cached.length === 0 && contents.length === 0) {
+                        setError(fetchError?.name === 'AbortError' ? 'timeout' : 'network');
                   }
             } finally {
-                  if (myGen === feedRequestGenRef.current) {
+                  if (requestId === feedRequestGenRef.current) {
                         setFeedBusy(false);
                   }
             }
-      };
+      }, [contents.length, token, topicParam, wakeBackend]);
 
       useEffect(() => {
-            setPage(1);
-            fetchFeed(mode, 1, false, topicParam);
+            setHasMore(true);
+            setNextCursor(null);
+            fetchFeed({ currentMode: mode, append: false, cursor: null, currentTopic: topicParam });
 
             return () => {
                   feedRequestGenRef.current += 1;
             };
-      }, [mode, token, topicParam]);
+      }, [fetchFeed, mode, topicParam]);
 
-      const loadMore = () => {
-            const nextPage = page + 1;
-            setPage(nextPage);
-            fetchFeed(mode, nextPage, true, topicParam);
-      };
+      const loadMore = useCallback(() => {
+            if (!nextCursor || feedBusy) return;
+            fetchFeed({ currentMode: mode, append: true, cursor: nextCursor, currentTopic: topicParam });
+      }, [feedBusy, fetchFeed, mode, nextCursor, topicParam]);
 
-      const derivedTopics = Array.from(
-            new Set(contents.flatMap((content) => content.topics || []).filter(Boolean))
-      ).slice(0, 6);
-      const quickTopics = derivedTopics.length > 0 ? derivedTopics : FALLBACK_TOPICS;
+      const quickTopics = useMemo(() => {
+            const derivedTopics = Array.from(
+                  new Set(contents.flatMap((content) => content.topics || []).filter(Boolean))
+            ).slice(0, 6);
+
+            return derivedTopics.length > 0 ? derivedTopics : FALLBACK_TOPICS;
+      }, [contents]);
+
       const selectedMode = FEED_MODES.find((item) => item.id === mode) || FEED_MODES[0];
       const videoCount = contents.filter((item) => item.contentType?.includes('video')).length;
       const textCount = contents.filter((item) => item.contentType === 'post').length;
@@ -199,14 +183,12 @@ const Home = () => {
                               <div className="home-hero-copy">
                                     <span className="home-kicker">Fast social feed</span>
                                     <h1>{user?.displayName ? `Welcome back, ${user.displayName.split(' ')[0]}` : 'Your ZUNO home'}</h1>
-                                    <p>
-                                          Clean navigation, fast loading, and a quieter feed that still keeps chat, live streams and sharing close at hand.
-                                    </p>
+                                    <p>Clean navigation, instant hydration, and a quieter feed that still keeps chat, live streams, and sharing close at hand.</p>
 
                                     <div className="home-hero-actions">
                                           <Link to="/upload" className="btn btn-primary">Create Post</Link>
                                           <Link to="/profile" className="btn btn-secondary">Open Profile Inbox</Link>
-                                      </div>
+                                    </div>
 
                                     <div className="home-hero-topics">
                                           {quickTopics.map((topic) => (
@@ -219,11 +201,11 @@ const Home = () => {
                                                       #{topic}
                                                 </button>
                                           ))}
-                                          {topicParam && (
+                                          {topicParam ? (
                                                 <button type="button" className="home-topic-clear" onClick={() => setSearchParams({})}>
                                                       Clear topic
                                                 </button>
-                                          )}
+                                          ) : null}
                                     </div>
                               </div>
 
@@ -256,7 +238,9 @@ const Home = () => {
                   </section>
 
                   <div className="container home-story-strip">
-                        <StoryBar />
+                        <Suspense fallback={null}>
+                              <StoryBar />
+                        </Suspense>
                   </div>
 
                   <section className="section">
@@ -276,51 +260,59 @@ const Home = () => {
                                     </div>
 
                                     <div className="home-toolbar-status">
-                                          <span className="text-secondary" style={{ fontSize: '0.88rem' }}>Scroll to explore</span>
+                                          <span className="text-secondary" style={{ fontSize: '0.88rem' }}>Cursor feed + windowed render</span>
                                     </div>
                               </div>
 
-                              {(error === 'network' || error === 'timeout') && contents.length === 0 && (
+                              {(error === 'network' || error === 'timeout') && contents.length === 0 ? (
                                     <div className="text-center py-lg">
                                           <p className="text-secondary mb-sm" style={{ fontSize: '0.9rem' }}>
                                                 {error === 'timeout'
-                                                      ? 'Still connecting — pull to refresh or tap below.'
-                                                      : 'Offline — tap to retry when you are back online.'}
+                                                      ? 'Still connecting. Tap below to retry.'
+                                                      : 'Offline. Retry once the connection is back.'}
                                           </p>
                                           <button
                                                 type="button"
-                                                onClick={() => fetchFeed(mode, 1, false, topicParam)}
+                                                onClick={() => fetchFeed({ currentMode: mode, append: false, cursor: null, currentTopic: topicParam })}
                                                 className="btn btn-secondary btn-sm"
                                           >
                                                 Retry
                                           </button>
                                     </div>
-                              )}
+                              ) : null}
 
-                              <div className="content-grid">
-                                    {contents.map((content, index) => (
-                                          <div key={content._id} className="animate-fadeInUp" style={{ animationDelay: `${index * 0.04}s` }}>
-                                                <ContentCard content={content} />
-                                          </div>
-                                    ))}
-                              </div>
+                              {contents.length > 0 ? (
+                                    <Suspense fallback={<div className="py-lg text-center text-secondary">Loading feed cards...</div>}>
+                                          <VirtualizedList
+                                                items={contents}
+                                                itemHeight={FEED_CARD_HEIGHT}
+                                                className="home-windowed-list"
+                                                itemClassName="home-windowed-item"
+                                                renderItem={(content, index) => (
+                                                      <div className="animate-fadeInUp" style={{ animationDelay: `${Math.min(index, 10) * 0.03}s`, paddingBottom: '1rem' }}>
+                                                            <ContentCard content={content} />
+                                                      </div>
+                                                )}
+                                          />
+                                    </Suspense>
+                              ) : null}
 
-                              {contents.length === 0 && !feedBusy && !error && (
+                              {contents.length === 0 && !feedBusy && !error ? (
                                     <div className="text-center py-3xl card">
                                           <div style={{ fontSize: '3.5rem', marginBottom: '1rem' }}>Quiet for now</div>
                                           <h3 className="text-xl font-bold mb-sm">Nothing has landed here yet</h3>
                                           <p className="text-secondary mb-xl">Switch modes or share the first post in this lane.</p>
                                           <Link to="/upload" className="btn btn-primary">Start Creating</Link>
                                     </div>
-                              )}
+                              ) : null}
 
-                              {hasMore && contents.length > 0 && (
+                              {hasMore && contents.length > 0 ? (
                                     <div className="text-center mt-3xl">
                                           <button type="button" onClick={loadMore} disabled={feedBusy} className="btn btn-secondary">
-                                                Load more
+                                                {feedBusy ? 'Loading...' : 'Load more'}
                                           </button>
                                     </div>
-                              )}
+                              ) : null}
                         </div>
                   </section>
             </div>

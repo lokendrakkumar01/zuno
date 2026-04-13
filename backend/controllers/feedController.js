@@ -1,200 +1,200 @@
 const Content = require('../models/Content');
 const User = require('../models/User');
-const { decorateContentsForViewer } = require('../utils/contentPresentation');
+const {
+      CONTENT_EXCLUDED_TYPES,
+      DEFAULT_FEED_LIMIT,
+      MAX_FEED_LIMIT,
+      buildContentEnrichmentStages,
+      buildCursorMatch,
+      buildFeedModeMatch,
+      decodeCursor,
+      toObjectId,
+      toPositiveInt,
+      unpackCursorPage
+} = require('../utils/feedAggregation');
 
-// Simple in-memory cache for public feed (expires every 2 minutes)
 let feedCache = {
       data: null,
       lastUpdated: 0,
-      ttl: 3 * 60 * 1000 // 3 minutes — fewer cold DB hits for anonymous home
+      ttl: 3 * 60 * 1000
 };
 
-const FEED_CONTENT_SELECT = [
-      'creator',
-      'contentType',
-      'title',
-      'body',
-      'media',
-      'purpose',
-      'topics',
-      'qualityScore',
-      'createdAt',
-      'updatedAt',
-      'expiresAt',
-      'silentMode',
-      'metrics.helpfulCount',
-      'metrics.notUsefulCount',
-      'metrics.viewCount',
-      'metrics.saveCount',
-      'metrics.shareCount',
-      'metrics.commentCount',
-      'music',
-      'backgroundColor',
-      'fontStyle',
-      'textAlign',
-      'liveData'
-].join(' ');
+const getViewerId = (reqUser) => reqUser?._id || reqUser?.id || null;
 
-const buildCreatorSummary = (creator) => ({
-      _id: creator._id,
-      id: creator._id,
-      username: creator.username,
-      displayName: creator.displayName || creator.username,
-      avatar: creator.avatar || '',
-      bio: creator.bio || '',
-      role: creator.role,
-      interests: creator.interests || [],
-      isVerified: Boolean(creator.isVerified),
-      verificationRequest: creator.verificationRequest
-            ? {
-                  status: creator.verificationRequest.status,
-                  requestedAt: creator.verificationRequest.requestedAt
+const stripSilentMetrics = (content) => {
+      if (!content?.silentMode) return content;
+      const { metrics, ...safeContent } = content;
+      return safeContent;
+};
+
+const buildCreatorVisibilityFilter = (viewerId) => {
+      const viewerObjectId = toObjectId(viewerId);
+      if (!viewerObjectId) return [];
+
+      return [
+            {
+                  $match: {
+                        $expr: {
+                              $not: [
+                                    { $in: [viewerObjectId, { $ifNull: ['$blockedUsers', []] }] }
+                              ]
+                        }
+                  }
             }
-            : null,
-      followersCount: Array.isArray(creator.followers) ? creator.followers.length : 0,
-      followingCount: Array.isArray(creator.following) ? creator.following.length : 0,
-      profileSong: creator.profileSong || null,
-      stats: creator.stats || {},
-      createdAt: creator.createdAt
+      ];
+};
+
+const buildFeedMatch = ({
+      mode = 'all',
+      contentType,
+      topic,
+      viewerBlockedIds = [],
+      cursor
+}) => {
+      const filters = [
+            {
+                  status: 'published',
+                  visibility: 'public',
+                  isApproved: true,
+                  ...buildFeedModeMatch(mode)
+            }
+      ];
+
+      if (contentType) {
+            filters.push({ contentType });
+      }
+
+      if (topic) {
+            filters.push({ topics: topic });
+      }
+
+      if (Array.isArray(viewerBlockedIds) && viewerBlockedIds.length > 0) {
+            filters.push({
+                  creator: {
+                        $nin: viewerBlockedIds
+                              .map((value) => toObjectId(value))
+                              .filter(Boolean)
+                  }
+            });
+      }
+
+      const cursorMatch = buildCursorMatch(cursor);
+      if (cursorMatch) {
+            filters.push(cursorMatch);
+      }
+
+      return filters.length === 1 ? filters[0] : { $and: filters };
+};
+
+const fetchFeedPage = async ({
+      mode = 'all',
+      contentType,
+      topic,
+      limit,
+      cursor,
+      viewerId,
+      viewerBlockedIds = [],
+      sort = { createdAt: -1, _id: -1 }
+}) => {
+      const aggregation = await Content.aggregate([
+            {
+                  $match: buildFeedMatch({
+                        mode,
+                        contentType,
+                        topic,
+                        viewerBlockedIds,
+                        cursor
+                  })
+            },
+            { $sort: sort },
+            {
+                  $facet: {
+                        contents: [
+                              { $limit: limit + 1 },
+                              ...buildContentEnrichmentStages({
+                                    viewerId,
+                                    creatorLookupMatch: buildCreatorVisibilityFilter(viewerId)
+                              })
+                        ]
+                  }
+            }
+      ]);
+
+      const { items, hasMore, nextCursor } = unpackCursorPage(
+            aggregation?.[0]?.contents || [],
+            limit
+      );
+
+      return {
+            contents: items.map(stripSilentMetrics),
+            hasMore,
+            nextCursor
+      };
+};
+
+const buildFeedResponse = ({
+      contents,
+      mode,
+      limit,
+      hasMore,
+      nextCursor,
+      topic = null,
+      query = null
+}) => ({
+      success: true,
+      data: {
+            contents,
+            mode,
+            ...(topic ? { topic } : {}),
+            ...(query ? { query } : {}),
+            pagination: {
+                  limit,
+                  hasMore,
+                  nextCursor
+            }
+      }
 });
 
-const toPositiveInt = (value, fallback) => {
-      const parsed = Number.parseInt(value, 10);
-      return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-};
-
-const getViewerId = (reqUser) => {
-      if (!reqUser) return null;
-      return reqUser._id || reqUser.id;
-};
-
-/**
- * Faster than countDocuments + find: fetch (limit + 1) rows to compute hasMore.
- */
-const findFeedPage = async (query, sortOptions, pageNum, limitNum) => {
-      const skip = (pageNum - 1) * limitNum;
-      const raw = await Content.find(query)
-            .populate('creator', 'username displayName avatar role')
-            .select(FEED_CONTENT_SELECT)
-            .sort(sortOptions)
-            .skip(skip)
-            .limit(limitNum + 1)
-            .lean();
-      const hasMore = raw.length > limitNum;
-      const contents = hasMore ? raw.slice(0, limitNum) : raw;
-      return { contents, hasMore };
-};
-
-// @desc    Get feed based on mode
-// @route   GET /api/feed
-// @access  Public/Private
-const getFeed = async (req, res) => {
+const getFeed = async (req, res, next) => {
       try {
             const {
                   mode = 'all',
-                  page = 1,
-                  limit = 10,
+                  cursor: rawCursor,
+                  limit = DEFAULT_FEED_LIMIT,
                   contentType,
                   topic
             } = req.query;
-            const pageNum = toPositiveInt(page, 1);
-            const limitNum = toPositiveInt(limit, 10);
 
-            // Use cache for public 'all' mode on first page
-            const isPublicFirstPage = !req.user && mode === 'all' && pageNum === 1 && !contentType && !topic;
+            const viewerId = getViewerId(req.user);
+            const decodedCursor = decodeCursor(rawCursor);
+            const limitNum = toPositiveInt(limit, DEFAULT_FEED_LIMIT, MAX_FEED_LIMIT);
+            const viewerBlockedIds = req.user?.blockedUsers || [];
+
+            const isPublicFirstPage = !viewerId && mode === 'all' && !contentType && !topic && !decodedCursor;
             if (isPublicFirstPage && feedCache.data && (Date.now() - feedCache.lastUpdated < feedCache.ttl)) {
+                  res.setHeader('Cache-Control', 'public, max-age=90');
                   return res.json(feedCache.data);
             }
 
-            // Build query based on mode
-            let query = {
-                  status: 'published',
-                  visibility: 'public',
-                  isApproved: true
-            };
-
-            // Mode-specific filtering
-            switch (mode) {
-                  case 'all':
-                        query.contentType = { $nin: ['story', 'status', 'text-status'] };
-                        break;
-                  case 'learning':
-                        query.contentType = { $nin: ['story', 'status', 'text-status'] };
-                        query.purpose = { $in: ['skill', 'explain', 'learning', 'solution'] };
-                        break;
-                  case 'calm':
-                        query.contentType = { $nin: ['story', 'status', 'text-status'] };
-                        query.purpose = { $in: ['inspiration', 'story', 'idea'] };
-                        break;
-                  case 'video':
-                        query.contentType = { $in: ['short-video', 'long-video'] };
-                        break;
-                  case 'reading':
-                        query.contentType = 'post';
-                        break;
-                  case 'problem-solving':
-                        query.contentType = { $nin: ['story', 'status', 'text-status'] };
-                        query.purpose = { $in: ['question', 'discussion', 'solution'] };
-                        break;
-                  default:
-                        query.contentType = { $nin: ['story', 'status', 'text-status'] };
-            }
-
-            // Additional filters
-            if (contentType) query.contentType = contentType;
-            if (topic) query.topics = topic;
-
-            // If user is logged in, personalized filtering (including blocks)
-            if (req.user) {
-                  const uid = getViewerId(req.user);
-                  const [currentUser, whoBlockedMe] = await Promise.all([
-                        User.findById(uid).select('blockedUsers').lean(),
-                        User.find({ blockedUsers: uid }).select('_id').lean()
-                  ]);
-
-                  if (currentUser) {
-                        const blockedByMe = currentUser.blockedUsers || [];
-                        const blockedMeIds = whoBlockedMe.map(u => u._id);
-
-                        const allBlockedIds = [...new Set([...blockedByMe, ...blockedMeIds])];
-
-                        if (allBlockedIds.length > 0) {
-                              query.creator = { $nin: allBlockedIds };
-                        }
-                  }
-            }
-
-            // Sort options
-            const sortOptions = { createdAt: -1, qualityScore: -1 };
-
-            const { contents, hasMore } = await findFeedPage(query, sortOptions, pageNum, limitNum);
-            const decoratedContents = await decorateContentsForViewer(contents, getViewerId(req.user));
-
-            // Process content (silentMode check)
-            const processedContents = decoratedContents.map(c => {
-                  if (c.silentMode) {
-                        const { metrics, ...rest } = c;
-                        return rest;
-                  }
-                  return c;
+            const { contents, hasMore, nextCursor } = await fetchFeedPage({
+                  mode,
+                  contentType,
+                  topic,
+                  limit: limitNum,
+                  cursor: decodedCursor,
+                  viewerId,
+                  viewerBlockedIds
             });
 
-            const responseData = {
-                  success: true,
-                  data: {
-                        contents: processedContents,
-                        mode,
-                        pagination: {
-                              page: pageNum,
-                              limit: limitNum,
-                              total: null,
-                              pages: null,
-                              hasMore
-                        }
-                  }
-            };
+            const responseData = buildFeedResponse({
+                  contents,
+                  mode,
+                  limit: limitNum,
+                  hasMore,
+                  nextCursor,
+                  topic: topic || null
+            });
 
-            // Update cache if applicable
             if (isPublicFirstPage) {
                   feedCache = {
                         data: responseData,
@@ -203,101 +203,141 @@ const getFeed = async (req, res) => {
                   };
             }
 
-            // Standard caching for browser
-            res.setHeader('Cache-Control', req.user ? 'private, max-age=45' : 'public, max-age=90');
-
-            res.json(responseData);
+            res.setHeader('Cache-Control', viewerId ? 'private, max-age=45' : 'public, max-age=90');
+            return res.json(responseData);
       } catch (error) {
-            console.error('[FeedController] Error:', error);
-            res.status(500).json({
-                  success: false,
-                  message: 'Failed to get feed',
-                  error: process.env.NODE_ENV === 'development' ? error.message : undefined
-            });
+            return next(error);
       }
 };
 
-// @desc    Get feed by topic
-// @route   GET /api/feed/topic/:topic
-// @access  Public
-const getFeedByTopic = async (req, res) => {
+const getFeedByTopic = async (req, res, next) => {
       try {
-            const { topic } = req.params;
-            const { page = 1, limit = 10 } = req.query;
-            const pageNum = toPositiveInt(page, 1);
-            const limitNum = toPositiveInt(limit, 10);
-
-            const query = {
-                  status: 'published',
-                  visibility: 'public',
-                  isApproved: true,
-                  topics: topic,
-                  contentType: { $nin: ['story', 'status', 'text-status'] }
-            };
-
-            const { contents, hasMore } = await findFeedPage(
-                  query,
-                  { qualityScore: -1, createdAt: -1 },
-                  pageNum,
-                  limitNum
-            );
-            const decoratedContents = await decorateContentsForViewer(contents, getViewerId(req.user));
-
+            req.query.topic = req.params.topic;
+            req.query.mode = req.query.mode || 'all';
             res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
             res.setHeader('Pragma', 'no-cache');
             res.setHeader('Expires', '0');
-
-            res.json({
-                  success: true,
-                  data: {
-                        contents: decoratedContents,
-                        topic,
-                        pagination: {
-                              page: pageNum,
-                              limit: limitNum,
-                              total: null,
-                              pages: null,
-                              hasMore
-                        }
-                  }
-            });
+            return getFeed(req, res, next);
       } catch (error) {
-            res.status(500).json({
-                  success: false,
-                  message: 'Failed to get topic feed',
-                  error: error.message
-            });
+            return next(error);
       }
 };
 
-// @desc    Get creator's public content
-// @route   GET /api/feed/creator/:username
-// @access  Public
-const getCreatorFeed = async (req, res) => {
+const getCreatorFeed = async (req, res, next) => {
       try {
             const { username } = req.params;
-            const { page = 1, limit = 10 } = req.query;
-            const pageNum = toPositiveInt(page, 1);
-            const limitNum = toPositiveInt(limit, 10);
+            const viewerId = getViewerId(req.user);
+            const viewerObjectId = toObjectId(viewerId);
+            const limitNum = toPositiveInt(req.query.limit, DEFAULT_FEED_LIMIT, MAX_FEED_LIMIT);
+            const decodedCursor = decodeCursor(req.query.cursor);
+            const viewerBlockedIds = (req.user?.blockedUsers || [])
+                  .map((value) => toObjectId(value))
+                  .filter(Boolean);
 
-            const creator = await User.findOne({ username })
-                  .select([
-                        'username',
-                        'displayName',
-                        'avatar',
-                        'bio',
-                        'role',
-                        'interests',
-                        'isVerified',
-                        'verificationRequest',
-                        'followers',
-                        'following',
-                        'profileSong',
-                        'stats',
-                        'createdAt',
-                        'blockedUsers'
-                  ].join(' '))
-                  .lean();
+            const aggregation = await User.aggregate([
+                  { $match: { username } },
+                  { $limit: 1 },
+                  {
+                        $addFields: {
+                              isOwnProfile: viewerObjectId
+                                    ? { $eq: ['$_id', viewerObjectId] }
+                                    : false,
+                              blockedByViewer: { $in: ['$_id', viewerBlockedIds] },
+                              hasBlockedViewer: viewerObjectId
+                                    ? { $in: [viewerObjectId, { $ifNull: ['$blockedUsers', []] }] }
+                                    : false
+                        }
+                  },
+                  {
+                        $match: {
+                              blockedByViewer: false,
+                              hasBlockedViewer: false
+                        }
+                  },
+                  {
+                        $facet: {
+                              creator: [
+                                    {
+                                          $project: {
+                                                _id: 1,
+                                                id: '$_id',
+                                                username: 1,
+                                                displayName: { $ifNull: ['$displayName', '$username'] },
+                                                avatar: { $ifNull: ['$avatar', ''] },
+                                                bio: { $ifNull: ['$bio', ''] },
+                                                role: 1,
+                                                interests: { $ifNull: ['$interests', []] },
+                                                isVerified: { $toBool: '$isVerified' },
+                                                verificationRequest: {
+                                                      $cond: [
+                                                            { $gt: [{ $type: '$verificationRequest' }, 'missing'] },
+                                                            {
+                                                                  status: '$verificationRequest.status',
+                                                                  requestedAt: '$verificationRequest.requestedAt'
+                                                            },
+                                                            null
+                                                      ]
+                                                },
+                                                followersCount: { $size: { $ifNull: ['$followers', []] } },
+                                                followingCount: { $size: { $ifNull: ['$following', []] } },
+                                                profileSong: { $ifNull: ['$profileSong', null] },
+                                                stats: { $ifNull: ['$stats', {}] },
+                                                createdAt: '$createdAt'
+                                          }
+                                    }
+                              ],
+                              contentPage: [
+                                    {
+                                          $lookup: {
+                                                from: 'contents',
+                                                let: {
+                                                      profileUserId: '$_id',
+                                                      isOwnProfile: '$isOwnProfile'
+                                                },
+                                                pipeline: [
+                                                      {
+                                                            $match: {
+                                                                  $expr: {
+                                                                        $and: [
+                                                                              { $eq: ['$creator', '$$profileUserId'] },
+                                                                              { $eq: ['$isApproved', true] },
+                                                                              { $not: [{ $in: ['$contentType', CONTENT_EXCLUDED_TYPES] }] },
+                                                                              {
+                                                                                    $or: [
+                                                                                          '$$isOwnProfile',
+                                                                                          {
+                                                                                                $and: [
+                                                                                                      { $eq: ['$visibility', 'public'] },
+                                                                                                      { $eq: ['$status', 'published'] }
+                                                                                                ]
+                                                                                          }
+                                                                                    ]
+                                                                              }
+                                                                        ]
+                                                                  }
+                                                            }
+                                                      },
+                                                      ...(buildCursorMatch(decodedCursor) ? [{ $match: buildCursorMatch(decodedCursor) }] : []),
+                                                      { $sort: { createdAt: -1, _id: -1 } },
+                                                      { $limit: limitNum + 1 },
+                                                      ...buildContentEnrichmentStages({ viewerId })
+                                                ],
+                                                as: 'contents'
+                                          }
+                                    },
+                                    {
+                                          $project: {
+                                                contents: '$contents'
+                                          }
+                                    }
+                              ]
+                        }
+                  }
+            ]);
+
+            const root = aggregation?.[0];
+            const creator = root?.creator?.[0];
+
             if (!creator) {
                   return res.status(404).json({
                         success: false,
@@ -305,202 +345,206 @@ const getCreatorFeed = async (req, res) => {
                   });
             }
 
-            // Check if blocked (either direction)
-            if (req.user) {
-                  const blockedByMe = req.user.blockedUsers || [];
-                  const isBlockedByMe = blockedByMe.some((id) => id?.toString() === creator._id.toString());
-                  const hasBlockedMe = (creator.blockedUsers || []).some((id) => id?.toString() === req.user.id.toString());
-
-                  if (isBlockedByMe || hasBlockedMe) {
-                        return res.status(404).json({
-                              success: false,
-                              message: 'User not found'
-                        });
-                  }
-            }
-
-            let query = {
-                  creator: creator._id,
-                  isApproved: true,
-                  contentType: { $nin: ['story', 'status', 'text-status'] }
-            };
-
-            // Only show public/published content if viewer is NOT the creator
-            const viewerId = req.user ? (req.user._id || req.user.id) : null;
-            const isViewingSelf = Boolean(
-                  viewerId && creator._id && String(viewerId) === String(creator._id)
-            );
-            if (!req.user || !isViewingSelf) {
-                  query.visibility = 'public';
-                  query.status = 'published';
-            }
-
-            const { contents, hasMore } = await findFeedPage(
-                  query,
-                  { createdAt: -1 },
-                  pageNum,
+            const { items, hasMore, nextCursor } = unpackCursorPage(
+                  root?.contentPage?.[0]?.contents || [],
                   limitNum
             );
-            const decoratedContents = await decorateContentsForViewer(contents, getViewerId(req.user));
 
-            // No debug logs in production
+            res.setHeader(
+                  'Cache-Control',
+                  viewerId && creator?._id?.toString?.() === viewerId.toString()
+                        ? 'private, no-store'
+                        : 'public, max-age=30'
+            );
 
-            const isOwnProfile = Boolean(req.user?._id && req.user._id.toString() === creator._id.toString());
-            res.setHeader('Cache-Control', isOwnProfile ? 'private, no-store' : 'public, max-age=30');
-
-            res.json({
+            return res.json({
                   success: true,
                   data: {
-                        creator: buildCreatorSummary(creator),
-                        contents: decoratedContents,
+                        creator,
+                        contents: items.map(stripSilentMetrics),
                         pagination: {
-                              page: pageNum,
                               limit: limitNum,
-                              total: null,
-                              pages: null,
-                              hasMore
+                              hasMore,
+                              nextCursor
                         }
                   }
             });
       } catch (error) {
-            res.status(500).json({
-                  success: false,
-                  message: 'Failed to get creator feed',
-                  error: error.message
-            });
+            return next(error);
       }
 };
 
-// @desc    Search content
-// @route   GET /api/feed/search
-// @access  Public
-const searchContent = async (req, res) => {
+const searchContent = async (req, res, next) => {
       try {
-            const { q, page = 1, limit = 10 } = req.query;
-            const pageNum = toPositiveInt(page, 1);
-            const limitNum = toPositiveInt(limit, 10);
+            const query = String(req.query.q || '').trim();
+            const limitNum = toPositiveInt(req.query.limit, DEFAULT_FEED_LIMIT, MAX_FEED_LIMIT);
+            const viewerId = getViewerId(req.user);
+            const viewerBlockedIds = req.user?.blockedUsers || [];
 
-            if (!q || q.trim().length < 2) {
+            if (query.length < 2) {
                   return res.status(400).json({
                         success: false,
                         message: 'Search query must be at least 2 characters'
                   });
             }
 
-            const query = {
-                  status: 'published',
-                  visibility: 'public',
-                  isApproved: true,
-                  contentType: { $nin: ['story', 'status', 'text-status'] },
-                  $or: [
-                        { title: { $regex: q, $options: 'i' } },
-                        { body: { $regex: q, $options: 'i' } },
-                        { tags: { $regex: q, $options: 'i' } }
-                  ]
-            };
-
-            const { contents, hasMore } = await findFeedPage(
-                  query,
-                  { qualityScore: -1, createdAt: -1 },
-                  pageNum,
-                  limitNum
-            );
-            const decoratedContents = await decorateContentsForViewer(contents, getViewerId(req.user));
-
-            res.json({
-                  success: true,
-                  data: {
-                        contents: decoratedContents,
-                        query: q,
-                        pagination: {
-                              page: pageNum,
-                              limit: limitNum,
-                              total: null,
-                              pages: null,
-                              hasMore
+            const buildSearchAggregation = (matchStage, sortStage) => Content.aggregate([
+                  {
+                        $match: {
+                              status: 'published',
+                              visibility: 'public',
+                              isApproved: true,
+                              contentType: { $nin: CONTENT_EXCLUDED_TYPES },
+                              ...(Array.isArray(viewerBlockedIds) && viewerBlockedIds.length > 0
+                                    ? {
+                                            creator: {
+                                                  $nin: viewerBlockedIds
+                                                        .map((value) => toObjectId(value))
+                                                        .filter(Boolean)
+                                            }
+                                    }
+                                    : {}),
+                              ...matchStage
+                        }
+                  },
+                  { $sort: sortStage },
+                  {
+                        $facet: {
+                              contents: [
+                                    { $limit: limitNum + 1 },
+                                    ...buildContentEnrichmentStages({
+                                          viewerId,
+                                          creatorLookupMatch: buildCreatorVisibilityFilter(viewerId)
+                                    })
+                              ]
                         }
                   }
-            });
+            ]);
+
+            let aggregation;
+
+            try {
+                  aggregation = await buildSearchAggregation(
+                        { $text: { $search: query } },
+                        { score: { $meta: 'textScore' }, createdAt: -1, _id: -1 }
+                  );
+            } catch (error) {
+                  aggregation = await buildSearchAggregation(
+                        {
+                              $or: [
+                                    { title: { $regex: query, $options: 'i' } },
+                                    { body: { $regex: query, $options: 'i' } },
+                                    { tags: { $regex: query, $options: 'i' } }
+                              ]
+                        },
+                        { createdAt: -1, _id: -1 }
+                  );
+            }
+
+            const { items, hasMore, nextCursor } = unpackCursorPage(
+                  aggregation?.[0]?.contents || [],
+                  limitNum
+            );
+
+            return res.json(buildFeedResponse({
+                  contents: items.map(stripSilentMetrics),
+                  mode: 'search',
+                  limit: limitNum,
+                  hasMore,
+                  nextCursor,
+                  query
+            }));
       } catch (error) {
-            res.status(500).json({
-                  success: false,
-                  message: 'Search failed',
-                  error: error.message
-            });
+            return next(error);
       }
 };
 
-// @desc    Get active stories
-// @route   GET /api/feed/stories
-// @access  Public
-const getActiveStories = async (req, res) => {
+const getActiveStories = async (req, res, next) => {
       try {
-            const stories = await Content.find({
-                  contentType: { $in: ['story', 'text-status'] },
-                  expiresAt: { $gt: new Date() },
-                  status: 'published',
-                  visibility: 'public' // Respect privacy? For now public.
-            })
-                  .populate('creator', 'username displayName avatar isPrivate blockedUsers')
-                  .sort({ createdAt: 1 })
-                  .lean();
+            const viewerId = getViewerId(req.user);
+            const viewerObjectId = toObjectId(viewerId);
+            const viewerBlockedIds = (req.user?.blockedUsers || [])
+                  .map((value) => toObjectId(value))
+                  .filter(Boolean);
 
-            // Filter out stories from blocked users
-            let filteredStories = stories;
-            if (req.user) {
-                  const vid = getViewerId(req.user);
-                  const currentUser = await User.findById(vid).select('blockedUsers').lean();
-                  const myBlocked = (currentUser?.blockedUsers || []).map((id) => id.toString());
+            const stories = await Content.aggregate([
+                  {
+                        $match: {
+                              contentType: { $in: ['story', 'text-status'] },
+                              expiresAt: { $gt: new Date() },
+                              status: 'published',
+                              visibility: 'public',
+                              ...(viewerBlockedIds.length > 0
+                                    ? { creator: { $nin: viewerBlockedIds } }
+                                    : {})
+                        }
+                  },
+                  { $sort: { createdAt: 1, _id: 1 } },
+                  {
+                        $lookup: {
+                              from: 'users',
+                              let: { creatorId: '$creator' },
+                              pipeline: [
+                                    {
+                                          $match: {
+                                                $expr: { $eq: ['$_id', '$$creatorId'] }
+                                          }
+                                    },
+                                    ...buildCreatorVisibilityFilter(viewerId),
+                                    {
+                                          $project: {
+                                                _id: 1,
+                                                username: 1,
+                                                displayName: { $ifNull: ['$displayName', '$username'] },
+                                                avatar: { $ifNull: ['$avatar', ''] }
+                                          }
+                                    }
+                              ],
+                              as: 'creatorDoc'
+                        }
+                  },
+                  { $unwind: '$creatorDoc' },
+                  {
+                        $project: {
+                              _id: 1,
+                              creator: {
+                                    _id: '$creatorDoc._id',
+                                    username: '$creatorDoc.username',
+                                    displayName: '$creatorDoc.displayName',
+                                    avatar: '$creatorDoc.avatar'
+                              },
+                              contentType: 1,
+                              body: 1,
+                              media: 1,
+                              createdAt: 1,
+                              expiresAt: 1,
+                              backgroundColor: 1,
+                              fontStyle: 1,
+                              textAlign: 1,
+                              metrics: 1
+                        }
+                  }
+            ]);
 
-                  filteredStories = stories.filter(story => {
-                        const creatorId = story.creator._id.toString();
-                        const creatorBlockedMe = story.creator.blockedUsers && story.creator.blockedUsers.some((id) => id.toString() === String(vid));
-                        return !myBlocked.includes(creatorId) && !creatorBlockedMe;
-                  });
-            }
-
-            // Group by creator
-            const groupedStories = {};
-            for (const story of filteredStories) {
+            const groupedStories = stories.reduce((accumulator, story) => {
                   const creatorId = story.creator._id.toString();
-                  if (!groupedStories[creatorId]) {
-                        groupedStories[creatorId] = {
+                  if (!accumulator[creatorId]) {
+                        accumulator[creatorId] = {
                               creator: story.creator,
-                              stories: []
+                              stories: [],
+                              isFollowing: false
                         };
                   }
 
-                  // If owner, populate viewedBy details
-                  if (req.user && creatorId === String(getViewerId(req.user))) {
-                        // We need to re-fetch or populate manually since .lean() was used
-                        // For simplicity, let's just make sure viewedBy is populated if it exists
-                        // But since we used .lean(), we have to handle it carefully.
-                        // Actually, let's just use .populate() in the initial query or here.
-                  }
-                  
-                  groupedStories[creatorId].stories.push(story);
-            }
+                  accumulator[creatorId].stories.push(story);
+                  return accumulator;
+            }, {});
 
-            // After grouping, if req.user exists, batch-populate viewedBy for their own stories
-            if (req.user) {
-                  const vid = String(getViewerId(req.user));
-                  for (const group of Object.values(groupedStories)) {
-                        if (group.creator._id.toString() === vid) {
-                              // Batch fetch all own stories with viewedBy populated in ONE query
-                              const ownStoryIds = group.stories.map(s => s._id);
-                              if (ownStoryIds.length > 0) {
-                                    const populatedStories = await Content.find({ _id: { $in: ownStoryIds } })
-                                          .populate('metrics.viewedBy', 'username displayName avatar')
-                                          .lean();
-                                    // Replace stories with populated versions
-                                    const populatedMap = new Map(populatedStories.map(s => [s._id.toString(), s]));
-                                    for (let i = 0; i < group.stories.length; i++) {
-                                          const populated = populatedMap.get(group.stories[i]._id.toString());
-                                          if (populated) group.stories[i] = populated;
-                                    }
-                              }
-                        }
-                  }
+            if (viewerObjectId && Array.isArray(req.user?.following)) {
+                  const followingIds = new Set((req.user.following || []).map((entry) => entry.toString()));
+                  Object.values(groupedStories).forEach((group) => {
+                        group.isFollowing = followingIds.has(group.creator._id.toString());
+                  });
             }
 
             const groupedStoryList = Object.values(groupedStories).sort((left, right) => {
@@ -513,16 +557,12 @@ const getActiveStories = async (req, res) => {
             res.setHeader('Pragma', 'no-cache');
             res.setHeader('Expires', '0');
 
-            res.json({
+            return res.json({
                   success: true,
                   data: groupedStoryList
             });
       } catch (error) {
-            res.status(500).json({
-                  success: false,
-                  message: 'Failed to get stories',
-                  error: error.message
-            });
+            return next(error);
       }
 };
 

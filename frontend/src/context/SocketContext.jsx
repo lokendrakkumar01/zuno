@@ -16,6 +16,8 @@ export const SocketContextProvider = ({ children }) => {
       const [isConnected, setIsConnected] = useState(false);
       const { user, token } = useAuth();
       const socketRef = useRef(null);
+      const heartbeatIntervalRef = useRef(null);
+      const lastHeartbeatAckRef = useRef(0);
 
       const closeSocket = (socketInstance) => {
             if (!socketInstance) return;
@@ -23,6 +25,13 @@ export const SocketContextProvider = ({ children }) => {
             socketInstance.removeAllListeners();
             socketInstance.io?.removeAllListeners?.();
             socketInstance.close();
+      };
+
+      const clearHeartbeat = () => {
+            if (heartbeatIntervalRef.current) {
+                  window.clearInterval(heartbeatIntervalRef.current);
+                  heartbeatIntervalRef.current = null;
+            }
       };
 
       useEffect(() => {
@@ -51,6 +60,7 @@ export const SocketContextProvider = ({ children }) => {
 
                   const handleConnect = () => {
                         setIsConnected(true);
+                        lastHeartbeatAckRef.current = Date.now();
                   };
 
                   const handleDisconnect = () => {
@@ -83,18 +93,36 @@ export const SocketContextProvider = ({ children }) => {
                         setOnlineUsers(Array.isArray(users) ? users : []);
                   };
 
+                  const handleHeartbeatAck = () => {
+                        lastHeartbeatAckRef.current = Date.now();
+                        setIsConnected(true);
+                  };
+
                   socketInstance.on("connect", handleConnect);
                   socketInstance.on("disconnect", handleDisconnect);
                   socketInstance.on("connect_error", handleConnectError);
                   socketInstance.on("getOnlineUsers", handleOnlineUsers);
+                  socketInstance.on("presence:heartbeat:ack", handleHeartbeatAck);
                   socketInstance.io.on("reconnect_attempt", handleReconnectAttempt);
                   socketInstance.io.on("reconnect_failed", handleReconnectFailed);
 
+                  clearHeartbeat();
+                  heartbeatIntervalRef.current = window.setInterval(() => {
+                        if (!socketInstance.connected) return;
+
+                        socketInstance.emit('presence:heartbeat');
+                        if (Date.now() - lastHeartbeatAckRef.current > 65000) {
+                              setIsConnected(false);
+                        }
+                  }, 20000);
+
                   return () => {
+                        clearHeartbeat();
                         socketInstance.off("connect", handleConnect);
                         socketInstance.off("disconnect", handleDisconnect);
                         socketInstance.off("connect_error", handleConnectError);
                         socketInstance.off("getOnlineUsers", handleOnlineUsers);
+                        socketInstance.off("presence:heartbeat:ack", handleHeartbeatAck);
                         socketInstance.io.off("reconnect_attempt", handleReconnectAttempt);
                         socketInstance.io.off("reconnect_failed", handleReconnectFailed);
 
@@ -110,6 +138,7 @@ export const SocketContextProvider = ({ children }) => {
             }
 
             if (socketRef.current) {
+                  clearHeartbeat();
                   closeSocket(socketRef.current);
                   socketRef.current = null;
             }

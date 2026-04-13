@@ -187,6 +187,8 @@ const userSchema = new mongoose.Schema({
       // Password Reset (token-based, never store plain passwords)
       passwordResetToken: { type: String, select: false },
       passwordResetExpires: { type: Date, select: false },
+      refreshTokenHash: { type: String, select: false },
+      refreshTokenExpiresAt: { type: Date, select: false },
 
       // Online status
       isOnline: { type: Boolean, default: false },

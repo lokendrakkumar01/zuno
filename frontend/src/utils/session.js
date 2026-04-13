@@ -1,4 +1,5 @@
 export const AUTH_TOKEN_STORAGE_KEY = 'zuno_token';
+export const AUTH_REFRESH_TOKEN_STORAGE_KEY = 'zuno_refresh_token';
 export const AUTH_USER_STORAGE_KEY = 'zuno_user';
 export const AUTH_USER_SNAPSHOT_STORAGE_KEY = 'zuno_session_user';
 
@@ -12,6 +13,7 @@ const readJsonValue = (key, fallback = null) => {
 };
 
 export const readStoredToken = () => localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+export const readStoredRefreshToken = () => localStorage.getItem(AUTH_REFRESH_TOKEN_STORAGE_KEY);
 
 export const readStoredAuthUser = () => (
       readJsonValue(AUTH_USER_STORAGE_KEY, null)
@@ -44,9 +46,19 @@ export const persistStoredToken = (token) => {
       }
 };
 
-export const persistStoredSession = ({ user, token }) => {
+export const persistStoredRefreshToken = (refreshToken) => {
+      if (refreshToken) {
+            localStorage.setItem(AUTH_REFRESH_TOKEN_STORAGE_KEY, refreshToken);
+      }
+};
+
+export const persistStoredSession = ({ user, token, refreshToken }) => {
       if (token) {
             persistStoredToken(token);
+      }
+
+      if (refreshToken) {
+            persistStoredRefreshToken(refreshToken);
       }
 
       if (user) {
@@ -56,6 +68,7 @@ export const persistStoredSession = ({ user, token }) => {
 
 export const clearStoredSession = () => {
       localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+      localStorage.removeItem(AUTH_REFRESH_TOKEN_STORAGE_KEY);
       localStorage.removeItem(AUTH_USER_STORAGE_KEY);
       localStorage.removeItem(AUTH_USER_SNAPSHOT_STORAGE_KEY);
 };

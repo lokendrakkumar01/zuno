@@ -1,43 +1,26 @@
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const { sendProfileUpdateEmail } = require('../config/emailService');
 const { createNotification } = require('../utils/notificationService');
-
-const PUBLIC_PROFILE_SELECT = [
-      'username',
-      'displayName',
-      'avatar',
-      'bio',
-      'role',
-      'interests',
-      'isVerified',
-      'verificationRequest',
-      'followers',
-      'following',
-      'profileSong',
-      'stats',
-      'createdAt'
-].join(' ');
-
-const PRIVATE_PROFILE_SELECT = [
-      PUBLIC_PROFILE_SELECT,
-      'email',
-      'preferredFeedMode',
-      'focusModeEnabled',
-      'dailyUsageLimit',
-      'language',
-      'notificationSettings',
-      'preferredContentTypes',
-      'isPrivate',
-      'profileVisibility',
-      'blockedUsers'
-].join(' ');
+const {
+      CONTENT_EXCLUDED_TYPES,
+      DEFAULT_PROFILE_LIMIT,
+      MAX_PROFILE_LIMIT,
+      buildContentEnrichmentStages,
+      buildCursorMatch,
+      buildUserProfileProjection,
+      decodeCursor,
+      toObjectId,
+      toPositiveInt,
+      unpackCursorPage
+} = require('../utils/feedAggregation');
 
 const buildPublicProfilePayload = (user) => {
       if (!user) return null;
 
       return {
             _id: user._id,
-            id: user._id,
+            id: user.id || user._id,
             username: user.username,
             displayName: user.displayName || user.username,
             avatar: user.avatar || '',
@@ -45,17 +28,13 @@ const buildPublicProfilePayload = (user) => {
             role: user.role,
             interests: user.interests || [],
             isVerified: Boolean(user.isVerified),
-            verificationRequest: user.verificationRequest
-                  ? {
-                        status: user.verificationRequest.status,
-                        requestedAt: user.verificationRequest.requestedAt
-                  }
-                  : null,
-            followersCount: Array.isArray(user.followers) ? user.followers.length : 0,
-            followingCount: Array.isArray(user.following) ? user.following.length : 0,
+            verificationRequest: user.verificationRequest || null,
+            followersCount: Number(user.followersCount || 0),
+            followingCount: Number(user.followingCount || 0),
             profileSong: user.profileSong || null,
             stats: user.stats || {},
-            createdAt: user.createdAt
+            createdAt: user.createdAt,
+            isFollowing: Boolean(user.isFollowing)
       };
 };
 
@@ -63,8 +42,8 @@ const buildAuthProfilePayload = (user) => ({
       ...buildPublicProfilePayload(user),
       email: user.email,
       preferredFeedMode: user.preferredFeedMode,
-      focusModeEnabled: user.focusModeEnabled,
-      dailyUsageLimit: user.dailyUsageLimit,
+      focusModeEnabled: Boolean(user.focusModeEnabled),
+      dailyUsageLimit: Number(user.dailyUsageLimit || 0),
       language: user.language,
       following: user.following || [],
       notificationSettings: user.notificationSettings || {},
@@ -73,6 +52,8 @@ const buildAuthProfilePayload = (user) => ({
       isPrivate: Boolean(user.isPrivate),
       profileVisibility: user.profileVisibility
 });
+
+const getViewerId = (reqUser) => reqUser?._id || reqUser?.id || null;
 
 const buildUploadedFileUrl = (file) => {
       if (!file) return '';
@@ -86,7 +67,25 @@ const buildUploadedFileUrl = (file) => {
 // @access  Private
 const getUserById = async (req, res) => {
       try {
-            const user = await User.findById(req.params.id).select('username displayName avatar bio isVerified');
+            const userId = toObjectId(req.params.id);
+            if (!userId) {
+                  return res.status(400).json({ success: false, message: 'Invalid user id' });
+            }
+
+            const [user] = await User.aggregate([
+                  { $match: { _id: userId } },
+                  {
+                        $project: {
+                              _id: 1,
+                              username: 1,
+                              displayName: { $ifNull: ['$displayName', '$username'] },
+                              avatar: { $ifNull: ['$avatar', ''] },
+                              bio: { $ifNull: ['$bio', ''] },
+                              isVerified: { $toBool: '$isVerified' }
+                        }
+                  }
+            ]);
+
             if (!user) {
                   return res.status(404).json({ success: false, message: 'User not found' });
             }
@@ -101,37 +100,119 @@ const getUserById = async (req, res) => {
 // @access  Public
 const getUserProfile = async (req, res) => {
       try {
-            const user = await User.findOne({ username: req.params.username })
-                  .select(req.user ? PRIVATE_PROFILE_SELECT : PUBLIC_PROFILE_SELECT)
-                  .lean();
+            const viewerId = getViewerId(req.user);
+            const viewerObjectId = toObjectId(viewerId);
+            const postsLimit = toPositiveInt(req.query.postsLimit || req.query.limit, DEFAULT_PROFILE_LIMIT, MAX_PROFILE_LIMIT);
+            const postsCursor = decodeCursor(req.query.cursor || req.query.postsCursor);
+            const viewerBlockedIds = (req.user?.blockedUsers || []).map((value) => toObjectId(value)).filter(Boolean);
+            const viewerFollowingIds = req.user?.following || [];
+            const viewerIsAdmin = req.user?.role === 'admin';
 
-            if (!user) {
+            const result = await User.aggregate([
+                  { $match: { username: req.params.username } },
+                  { $limit: 1 },
+                  {
+                        $addFields: {
+                              isOwnProfile: viewerObjectId ? { $eq: ['$_id', viewerObjectId] } : false,
+                              isFollower: viewerObjectId
+                                    ? { $in: [viewerObjectId, { $ifNull: ['$followers', []] }] }
+                                    : false,
+                              blockedByViewer: { $in: ['$_id', viewerBlockedIds] },
+                              hasBlockedViewer: viewerObjectId
+                                    ? { $in: [viewerObjectId, { $ifNull: ['$blockedUsers', []] }] }
+                                    : false
+                        }
+                  },
+                  {
+                        $match: {
+                              blockedByViewer: false,
+                              hasBlockedViewer: false
+                        }
+                  },
+                  {
+                        $facet: {
+                              profile: [
+                                    {
+                                          $project: {
+                                                ...buildUserProfileProjection({
+                                                      includePrivate: true,
+                                                      viewerFollowingIds
+                                                }),
+                                                isOwnProfile: '$isOwnProfile'
+                                          }
+                                    }
+                              ],
+                              contentPage: [
+                                    {
+                                          $lookup: {
+                                                from: 'contents',
+                                                let: {
+                                                      profileUserId: '$_id',
+                                                      isOwnProfile: '$isOwnProfile',
+                                                      isFollower: '$isFollower',
+                                                      profileIsPrivate: { $ifNull: ['$isPrivate', false] }
+                                                },
+                                                pipeline: [
+                                                      {
+                                                            $match: {
+                                                                  $expr: {
+                                                                        $and: [
+                                                                              { $eq: ['$creator', '$$profileUserId'] },
+                                                                              { $eq: ['$isApproved', true] },
+                                                                              { $not: [{ $in: ['$contentType', CONTENT_EXCLUDED_TYPES] }] },
+                                                                              {
+                                                                                    $or: [
+                                                                                          '$$isOwnProfile',
+                                                                                          viewerIsAdmin,
+                                                                                          '$$isFollower',
+                                                                                          {
+                                                                                                $and: [
+                                                                                                      { $eq: ['$$profileIsPrivate', false] },
+                                                                                                      { $eq: ['$visibility', 'public'] },
+                                                                                                      { $eq: ['$status', 'published'] }
+                                                                                                ]
+                                                                                          }
+                                                                                    ]
+                                                                              }
+                                                                        ]
+                                                                  }
+                                                            }
+                                                      },
+                                                      ...(buildCursorMatch(postsCursor) ? [{ $match: buildCursorMatch(postsCursor) }] : []),
+                                                      { $sort: { createdAt: -1, _id: -1 } },
+                                                      { $limit: postsLimit + 1 },
+                                                      ...buildContentEnrichmentStages({ viewerId })
+                                                ],
+                                                as: 'contents'
+                                          }
+                                    },
+                                    {
+                                          $project: {
+                                                contents: '$contents'
+                                          }
+                                    }
+                              ]
+                        }
+                  }
+            ]);
+
+            const profile = result?.[0]?.profile?.[0];
+            if (!profile) {
                   return res.status(404).json({
                         success: false,
                         message: 'User not found'
                   });
             }
 
-            const isOwnProfile = Boolean(
-                  req.user?._id && user._id && req.user._id.toString() === user._id.toString()
+            const { items, hasMore, nextCursor } = unpackCursorPage(
+                  result?.[0]?.contentPage?.[0]?.contents || [],
+                  postsLimit
             );
 
-            if (!isOwnProfile && req.user) {
-                  const blockedByMe = req.user.blockedUsers || [];
-                  const isBlockedByMe = blockedByMe.some((id) => id?.toString() === user._id.toString());
-                  const hasBlockedMe = (user.blockedUsers || []).some((id) => id?.toString() === req.user.id.toString());
-
-                  if (isBlockedByMe || hasBlockedMe) {
-                        return res.status(404).json({
-                              success: false,
-                              message: 'User not found'
-                        });
-                  }
-            }
-
+            const isOwnProfile = Boolean(profile.isOwnProfile);
             const responseUser = isOwnProfile
-                  ? buildAuthProfilePayload(user)
-                  : buildPublicProfilePayload(user);
+                  ? buildAuthProfilePayload(profile)
+                  : buildPublicProfilePayload(profile);
 
             res.setHeader('Vary', 'Authorization');
             res.setHeader(
@@ -142,7 +223,13 @@ const getUserProfile = async (req, res) => {
             res.json({
                   success: true,
                   data: {
-                        user: responseUser
+                        user: responseUser,
+                        contents: items,
+                        pagination: {
+                              limit: postsLimit,
+                              hasMore,
+                              nextCursor
+                        }
                   }
             });
       } catch (error) {
@@ -619,23 +706,66 @@ const unblockUser = async (req, res) => {
       }
 };
 
+const aggregateRelatedUsers = async (username, relationField, responseKey) => {
+      const relationPath = `$${relationField}`;
+      const [result] = await User.aggregate([
+            { $match: { username } },
+            {
+                  $project: {
+                        relatedIds: { $ifNull: [relationPath, []] }
+                  }
+            },
+            {
+                  $lookup: {
+                        from: 'users',
+                        let: { relatedIds: '$relatedIds' },
+                        pipeline: [
+                              {
+                                    $match: {
+                                          $expr: { $in: ['$_id', '$$relatedIds'] }
+                                    }
+                              },
+                              {
+                                    $project: {
+                                          _id: 1,
+                                          username: 1,
+                                          displayName: { $ifNull: ['$displayName', '$username'] },
+                                          avatar: { $ifNull: ['$avatar', ''] },
+                                          bio: { $ifNull: ['$bio', ''] },
+                                          isVerified: { $toBool: '$isVerified' }
+                                    }
+                              }
+                        ],
+                        as: responseKey
+                  }
+            },
+            {
+                  $project: {
+                        [responseKey]: 1,
+                        count: { $size: '$relatedIds' }
+                  }
+            }
+      ]);
+
+      return result || null;
+};
+
 // @desc    Get followers list
 // @route   GET /api/users/:username/followers
 // @access  Public
 const getFollowers = async (req, res) => {
       try {
-            const user = await User.findOne({ username: req.params.username })
-                  .populate('followers', 'username displayName avatar bio isVerified');
+            const result = await aggregateRelatedUsers(req.params.username, 'followers', 'followers');
 
-            if (!user) {
+            if (!result) {
                   return res.status(404).json({ success: false, message: 'User not found' });
             }
 
             res.json({
                   success: true,
                   data: {
-                        followers: user.followers || [],
-                        count: user.followers ? user.followers.length : 0
+                        followers: result.followers || [],
+                        count: result.count || 0
                   }
             });
       } catch (error) {
@@ -648,18 +778,17 @@ const getFollowers = async (req, res) => {
 // @access  Public
 const getFollowing = async (req, res) => {
       try {
-            const user = await User.findOne({ username: req.params.username })
-                  .populate('following', 'username displayName avatar bio isVerified');
+            const result = await aggregateRelatedUsers(req.params.username, 'following', 'following');
 
-            if (!user) {
+            if (!result) {
                   return res.status(404).json({ success: false, message: 'User not found' });
             }
 
             res.json({
                   success: true,
                   data: {
-                        following: user.following || [],
-                        count: user.following ? user.following.length : 0
+                        following: result.following || [],
+                        count: result.count || 0
                   }
             });
       } catch (error) {
@@ -672,8 +801,38 @@ const getFollowing = async (req, res) => {
 // @access  Private
 const getFollowRequests = async (req, res) => {
       try {
-            const user = await User.findById(req.user.id).populate('followRequests', 'username displayName avatar');
-            res.json({ success: true, data: { requests: user.followRequests } });
+            const [result] = await User.aggregate([
+                  { $match: { _id: new mongoose.Types.ObjectId(req.user.id) } },
+                  {
+                        $project: {
+                              followRequests: { $ifNull: ['$followRequests', []] }
+                        }
+                  },
+                  {
+                        $lookup: {
+                              from: 'users',
+                              let: { requestIds: '$followRequests' },
+                              pipeline: [
+                                    {
+                                          $match: {
+                                                $expr: { $in: ['$_id', '$$requestIds'] }
+                                          }
+                                    },
+                                    {
+                                          $project: {
+                                                _id: 1,
+                                                username: 1,
+                                                displayName: { $ifNull: ['$displayName', '$username'] },
+                                                avatar: { $ifNull: ['$avatar', ''] }
+                                          }
+                                    }
+                              ],
+                              as: 'requests'
+                        }
+                  }
+            ]);
+
+            res.json({ success: true, data: { requests: result?.requests || [] } });
       } catch (error) {
             res.status(500).json({ success: false, message: "Failed to get requests", error: error.message });
       }
@@ -684,14 +843,50 @@ const getFollowRequests = async (req, res) => {
 // @access  Private
 const getCloseFriends = async (req, res) => {
       try {
-            const user = await User.findById(req.user.id)
-                  .populate('closeFriends', 'username displayName avatar bio isVerified');
+            const [result] = await User.aggregate([
+                  { $match: { _id: new mongoose.Types.ObjectId(req.user.id) } },
+                  {
+                        $project: {
+                              closeFriends: { $ifNull: ['$closeFriends', []] }
+                        }
+                  },
+                  {
+                        $lookup: {
+                              from: 'users',
+                              let: { closeFriendIds: '$closeFriends' },
+                              pipeline: [
+                                    {
+                                          $match: {
+                                                $expr: { $in: ['$_id', '$$closeFriendIds'] }
+                                          }
+                                    },
+                                    {
+                                          $project: {
+                                                _id: 1,
+                                                username: 1,
+                                                displayName: { $ifNull: ['$displayName', '$username'] },
+                                                avatar: { $ifNull: ['$avatar', ''] },
+                                                bio: { $ifNull: ['$bio', ''] },
+                                                isVerified: { $toBool: '$isVerified' }
+                                          }
+                                    }
+                              ],
+                              as: 'closeFriendsData'
+                        }
+                  },
+                  {
+                        $project: {
+                              closeFriends: '$closeFriendsData',
+                              count: { $size: '$closeFriends' }
+                        }
+                  }
+            ]);
 
             res.json({
                   success: true,
                   data: {
-                        closeFriends: user.closeFriends || [],
-                        count: user.closeFriends ? user.closeFriends.length : 0
+                        closeFriends: result?.closeFriends || [],
+                        count: result?.count || 0
                   }
             });
       } catch (error) {
@@ -759,9 +954,9 @@ const removeCloseFriend = async (req, res) => {
 // @access  Private
 const searchUsers = async (req, res) => {
       try {
-            const { q } = req.query;
+            const q = String(req.query.q || '').trim();
 
-            if (!q || q.length < 2) {
+            if (q.length < 2) {
                   return res.status(400).json({
                         success: false,
                         message: 'Search query must be at least 2 characters'
@@ -769,34 +964,54 @@ const searchUsers = async (req, res) => {
             }
 
             let users;
-            // First attempt to use text search for ultra-fast lookup (if index exists)
+            const selfId = new mongoose.Types.ObjectId(req.user.id);
+
             try {
-                  users = await User.find({
-                        $and: [
-                              { _id: { $ne: req.user.id } },
-                              { $text: { $search: q } }
-                        ]
-                  }, { score: { $meta: "textScore" } })
-                        .sort({ score: { $meta: "textScore" } })
-                        .select('username displayName avatar bio isVerified')
-                        .limit(10)
-                        .lean();
+                  users = await User.aggregate([
+                        {
+                              $match: {
+                                    _id: { $ne: selfId },
+                                    $text: { $search: q }
+                              }
+                        },
+                        {
+                              $project: {
+                                    score: { $meta: 'textScore' },
+                                    _id: 1,
+                                    username: 1,
+                                    displayName: { $ifNull: ['$displayName', '$username'] },
+                                    avatar: { $ifNull: ['$avatar', ''] },
+                                    bio: { $ifNull: ['$bio', ''] },
+                                    isVerified: { $toBool: '$isVerified' }
+                              }
+                        },
+                        { $sort: { score: -1, username: 1 } },
+                        { $limit: 10 }
+                  ]);
             } catch (err) {
-                  // Fallback to regex if index is not yet built, but optimize by anchoring to start or using faster options
-                  users = await User.find({
-                        $and: [
-                              { _id: { $ne: req.user.id } },
-                              {
+                  users = await User.aggregate([
+                        {
+                              $match: {
+                                    _id: { $ne: selfId },
                                     $or: [
                                           { username: { $regex: q, $options: 'i' } },
                                           { displayName: { $regex: q, $options: 'i' } }
                                     ]
                               }
-                        ]
-                  })
-                        .select('username displayName avatar bio isVerified')
-                        .limit(10)
-                        .lean();
+                        },
+                        {
+                              $project: {
+                                    _id: 1,
+                                    username: 1,
+                                    displayName: { $ifNull: ['$displayName', '$username'] },
+                                    avatar: { $ifNull: ['$avatar', ''] },
+                                    bio: { $ifNull: ['$bio', ''] },
+                                    isVerified: { $toBool: '$isVerified' }
+                              }
+                        },
+                        { $sort: { username: 1 } },
+                        { $limit: 10 }
+                  ]);
             }
 
             res.json({
@@ -910,10 +1125,46 @@ const blockUser = async (req, res) => {
 // @access  Private
 const getBlockedUsers = async (req, res) => {
       try {
-            const user = await User.findById(req.user.id).populate('blockedUsers', 'username displayName avatar bio isVerified');
+            const [user] = await User.aggregate([
+                  { $match: { _id: new mongoose.Types.ObjectId(req.user.id) } },
+                  {
+                        $project: {
+                              blockedUsers: { $ifNull: ['$blockedUsers', []] }
+                        }
+                  },
+                  {
+                        $lookup: {
+                              from: 'users',
+                              let: { blockedIds: '$blockedUsers' },
+                              pipeline: [
+                                    {
+                                          $match: {
+                                                $expr: { $in: ['$_id', '$$blockedIds'] }
+                                          }
+                                    },
+                                    {
+                                          $project: {
+                                                _id: 1,
+                                                username: 1,
+                                                displayName: { $ifNull: ['$displayName', '$username'] },
+                                                avatar: { $ifNull: ['$avatar', ''] },
+                                                bio: { $ifNull: ['$bio', ''] },
+                                                isVerified: { $toBool: '$isVerified' }
+                                          }
+                                    }
+                              ],
+                              as: 'blockedUsersData'
+                        }
+                  },
+                  {
+                        $project: {
+                              blockedUsers: '$blockedUsersData'
+                        }
+                  }
+            ]);
             res.json({
                   success: true,
-                  data: { blockedUsers: user.blockedUsers || [] }
+                  data: { blockedUsers: user?.blockedUsers || [] }
             });
       } catch (error) {
             res.status(500).json({ success: false, message: 'Failed to get blocked users', error: error.message });

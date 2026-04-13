@@ -9,6 +9,7 @@ const connectDB = require('./config/db');
 const { isOriginAllowed } = require('./config/appConfig');
 const { apiLimiter, uploadLimiter, messageLimiter } = require('./middleware/rateLimit');
 const errorHandler = require('./middleware/errorMiddleware');
+const { optimizeResponseMediaUrls } = require('./middleware/mediaOptimization');
 const mongoose = require('mongoose');
 
 // Import routes
@@ -59,6 +60,7 @@ app.options('*', cors(corsOptions)); // Handle preflight for all routes
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(optimizeResponseMediaUrls);
 app.use('/api', apiLimiter);
 
 // Static files for uploads with proper headers
@@ -152,6 +154,16 @@ const PORT = process.env.PORT || 5000;
 
 const keepAlive = require('./utils/keepAlive');
 
+const registerProcessErrorHandlers = () => {
+  process.on('unhandledRejection', (reason) => {
+    console.error('[Process] Unhandled promise rejection:', reason);
+  });
+
+  process.on('uncaughtException', (error) => {
+    console.error('[Process] Uncaught exception:', error);
+  });
+};
+
 const startServer = async () => {
   try {
     // Connect to Database first
@@ -169,4 +181,5 @@ const startServer = async () => {
   }
 };
 
+registerProcessErrorHandlers();
 startServer();

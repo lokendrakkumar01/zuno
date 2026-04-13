@@ -1,16 +1,18 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { Suspense, lazy, startTransition, useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config';
-import SpotifySearch from '../components/Music/SpotifySearch';
 import { useMusic } from '../context/MusicContext';
 import UserAvatar from '../components/User/UserAvatar';
-import CricketGame from '../components/Games/CricketGame';
-import NotificationPanel from '../components/Profile/NotificationPanel';
 import { BlockIcon, CheckIcon, ClockIcon, EditIcon, MessageIcon, SettingsIcon, UserPlusIcon } from '../components/Icons/ActionIcons';
 import { resolveAssetUrl } from '../utils/media';
 import { getUserHandle, readStoredAuthUser } from '../utils/session';
 import { fetchWithTimeout, DEFAULT_REQUEST_TIMEOUT_MS } from '../utils/fetchWithTimeout';
+
+const SpotifySearch = lazy(() => import('../components/Music/SpotifySearch'));
+const CricketGame = lazy(() => import('../components/Games/CricketGame'));
+const NotificationPanel = lazy(() => import('../components/Profile/NotificationPanel'));
+const VirtualizedGrid = lazy(() => import('../components/VirtualizedGrid'));
 
 const PROFILE_FETCH_PRIMARY_MS = 12000;
 const PROFILE_FETCH_WAKE_MS = 45000;
@@ -78,6 +80,40 @@ const getPostsViewCount = (posts = []) => (
             : 0
 );
 
+const applyProfileBundle = ({
+      bundle,
+      username,
+      setProfileUser,
+      setUserPosts,
+      setEditData,
+      isOwnProfile,
+      setPostsError,
+      setHasMorePosts,
+      setPostsCursor
+}) => {
+      const nextProfile = bundle?.user || null;
+      const nextPosts = Array.isArray(bundle?.contents) ? bundle.contents : [];
+
+      if (nextProfile) {
+            startTransition(() => {
+                  setProfileUser(nextProfile);
+                  setUserPosts(nextPosts);
+            });
+
+            writeCachedValue(buildProfileCacheKey(username), nextProfile);
+            writeCachedValue(buildPostsCacheKey(username), nextPosts);
+
+            if (isOwnProfile) {
+                  setEditData(getEditableProfile(nextProfile));
+            }
+      }
+
+      setPostsError('');
+      setHasMorePosts(Boolean(bundle?.pagination?.hasMore));
+      setPostsCursor(bundle?.pagination?.nextCursor || null);
+      return nextProfile;
+};
+
 const Profile = () => {
       const { username } = useParams();
       const { user, token, loading: authLoading, isAuthenticated, updateProfile, uploadAvatar, logout, blockUser, unblockUser, updateFollowState } = useAuth();
@@ -134,6 +170,8 @@ const Profile = () => {
       const [followingList, setFollowingList] = useState([]);
       const [modalLoading, setModalLoading] = useState(false);
       const [postsError, setPostsError] = useState('');
+      const [hasMorePosts, setHasMorePosts] = useState(false);
+      const [postsCursor, setPostsCursor] = useState(null);
 
       // Total views for content
       const [totalViews, setTotalViews] = useState(0);
@@ -156,7 +194,8 @@ const Profile = () => {
       }, [targetUsername, wakeBackend]);
 
       const fetchProfileRequest = useCallback(async (uname, signal) => {
-            const url = `${API_URL}/users/${encodeURIComponent(uname)}`;
+            const url = new URL(`${API_URL}/users/${encodeURIComponent(uname)}`);
+            url.searchParams.set('postsLimit', '24');
             const baseOpts = { headers: token ? { Authorization: `Bearer ${token}` } : {} };
             if (signal) {
                   baseOpts.signal = signal;
@@ -184,14 +223,16 @@ const Profile = () => {
                   throw new Error(data?.message || 'Failed to load profile.');
             }
 
-            return data.data.user;
+            return data.data;
       }, [token, wakeBackend]);
 
-      const fetchUserPosts = useCallback(async (uname, signal) => {
+      const fetchUserPosts = useCallback(async (uname, signal, cursor = null) => {
             setPostsError('');
-
-            const encodedUname = encodeURIComponent(uname);
-            const url = `${API_URL}/feed/creator/${encodedUname}`;
+            const url = new URL(`${API_URL}/users/${encodeURIComponent(uname)}`);
+            url.searchParams.set('postsLimit', '24');
+            if (cursor) {
+                  url.searchParams.set('postsCursor', cursor);
+            }
             const baseOpts = { headers: token ? { Authorization: `Bearer ${token}` } : {} };
             if (signal) {
                   baseOpts.signal = signal;
@@ -201,14 +242,14 @@ const Profile = () => {
                   let res;
 
                   try {
-                        res = await fetchWithTimeout(url, { ...baseOpts }, POSTS_FETCH_PRIMARY_MS);
+                        res = await fetchWithTimeout(url.toString(), { ...baseOpts }, POSTS_FETCH_PRIMARY_MS);
                   } catch (error) {
                         if (error?.name === 'AbortError' && signal?.aborted) {
                               throw error;
                         }
                         if (error?.name === 'AbortError') {
                               await wakeBackend();
-                              res = await fetchWithTimeout(url, { ...baseOpts }, POSTS_FETCH_WAKE_MS);
+                              res = await fetchWithTimeout(url.toString(), { ...baseOpts }, POSTS_FETCH_WAKE_MS);
                         } else {
                               throw error;
                         }
@@ -225,18 +266,25 @@ const Profile = () => {
                         return [];
                   }
 
-                  let posts = [];
-                  if (data.data?.contents) {
-                        posts = data.data.contents;
-                  } else if (Array.isArray(data.data)) {
-                        posts = data.data;
-                  } else if (data.contents) {
-                        posts = data.contents;
-                  }
+                  const safePosts = Array.isArray(data.data?.contents) ? data.data.contents : [];
+                  const pagination = data.data?.pagination || {};
 
-                  const safePosts = Array.isArray(posts) ? posts : [];
-                  setUserPosts(safePosts);
-                  writeCachedValue(buildPostsCacheKey(uname), safePosts);
+                  startTransition(() => {
+                        setUserPosts((previous) => {
+                              if (!cursor) {
+                                    writeCachedValue(buildPostsCacheKey(uname), safePosts);
+                                    return safePosts;
+                              }
+
+                              const existingIds = new Set(previous.map((post) => post._id));
+                              const merged = [...previous, ...safePosts.filter((post) => !existingIds.has(post._id))];
+                              writeCachedValue(buildPostsCacheKey(uname), merged);
+                              return merged;
+                        });
+                  });
+
+                  setHasMorePosts(Boolean(pagination.hasMore));
+                  setPostsCursor(pagination.nextCursor || null);
                   setPostsError('');
                   return safePosts;
             } catch (error) {
@@ -264,28 +312,31 @@ const Profile = () => {
       const refreshProfile = useCallback(async (nextUsername = targetUsername) => {
             if (!nextUsername) return;
 
-            const [profileResult] = await Promise.allSettled([
-                  fetchProfileRequest(nextUsername),
-                  fetchUserPosts(nextUsername)
+            const profileResult = await Promise.allSettled([
+                  fetchProfileRequest(nextUsername)
             ]);
 
-            if (profileResult.status === 'fulfilled') {
-                  const nextProfile = profileResult.value;
+            if (profileResult[0]?.status === 'fulfilled') {
+                  const nextBundle = profileResult[0].value;
+                  const nextProfile = applyProfileBundle({
+                        bundle: nextBundle,
+                        username: nextUsername,
+                        setProfileUser,
+                        setUserPosts,
+                        setEditData,
+                        isOwnProfile,
+                        setPostsError,
+                        setHasMorePosts,
+                        setPostsCursor
+                  });
 
                   if (username && nextProfile?.username && nextProfile.username !== username) {
                         navigate(`/u/${nextProfile.username}`, { replace: true });
                   }
-
-                  setProfileUser(nextProfile);
-                  writeCachedValue(buildProfileCacheKey(nextUsername), nextProfile);
-
-                  if (isOwnProfile) {
-                        setEditData(getEditableProfile(nextProfile));
-                  }
-            } else if (profileResult.reason?.name !== 'AbortError') {
-                  console.error('Failed to refresh profile:', profileResult.reason);
+            } else if (profileResult[0]?.reason?.name !== 'AbortError') {
+                  console.error('Failed to refresh profile:', profileResult[0]?.reason);
             }
-      }, [fetchProfileRequest, fetchUserPosts, isOwnProfile, navigate, targetUsername, username]);
+      }, [fetchProfileRequest, isOwnProfile, navigate, targetUsername, username]);
 
       useEffect(() => {
             if (!targetUsername) {
@@ -294,6 +345,8 @@ const Profile = () => {
                         setUserPosts([]);
                   }
                   setPostsError('');
+                  setHasMorePosts(false);
+                  setPostsCursor(null);
                   setLoading(Boolean(isOwnProfile && token && authLoading));
 
                   if (isOwnProfile && sessionUser) {
@@ -311,6 +364,8 @@ const Profile = () => {
             setUserPosts(Array.isArray(nextPosts) ? nextPosts : []);
             setLoading(!nextProfile);
             setPostsError('');
+            setHasMorePosts(false);
+            setPostsCursor(null);
 
             if (isOwnProfile && sessionUser) {
                   setEditData(getEditableProfile(sessionUser));
@@ -340,22 +395,26 @@ const Profile = () => {
 
             let ignore = false;
             const profileController = new AbortController();
-            const postsController = new AbortController();
 
             const fetchProfileData = async () => {
                   try {
-                        const nextProfile = await fetchProfileRequest(targetUsername, profileController.signal);
+                        const nextBundle = await fetchProfileRequest(targetUsername, profileController.signal);
                         if (ignore) return;
+
+                        const nextProfile = applyProfileBundle({
+                              bundle: nextBundle,
+                              username: targetUsername,
+                              setProfileUser,
+                              setUserPosts,
+                              setEditData,
+                              isOwnProfile,
+                              setPostsError,
+                              setHasMorePosts,
+                              setPostsCursor
+                        });
 
                         if (username && nextProfile?.username && nextProfile.username !== username) {
                               navigate(`/u/${nextProfile.username}`, { replace: true });
-                        }
-
-                        setProfileUser(nextProfile);
-                        writeCachedValue(profileCacheKey, nextProfile);
-
-                        if (isOwnProfile) {
-                              setEditData(getEditableProfile(nextProfile));
                         }
                   } catch (error) {
                         if (error.name !== 'AbortError') {
@@ -365,8 +424,7 @@ const Profile = () => {
             };
 
             Promise.allSettled([
-                  fetchProfileData(),
-                  fetchUserPosts(targetUsername, postsController.signal)
+                  fetchProfileData()
             ]).finally(() => {
                   if (!ignore) {
                         setLoading(false);
@@ -376,9 +434,8 @@ const Profile = () => {
             return () => {
                   ignore = true;
                   profileController.abort();
-                  postsController.abort();
             };
-      }, [fetchProfileRequest, fetchUserPosts, isOwnProfile, navigate, profileCacheKey, targetUsername, username]);
+      }, [fetchProfileRequest, isOwnProfile, navigate, profileCacheKey, targetUsername, username]);
 
       // Auto-play removed per user request
 
@@ -1333,13 +1390,15 @@ const Profile = () => {
                                           </div>
                                     </div>
                                     <div className="input-group mt-lg" id="spotify-search-wrapper">
-                                          <SpotifySearch
-                                                selectedTrack={editData.profileSong}
-                                                onSelect={(track) => setEditData(prev => ({ ...prev, profileSong: track }))}
-                                                inputId="spotify-search-input"
-                                                title="Profile Music"
-                                                helperText="Choose a track that appears on your profile and can be previewed from your avatar."
-                                          />
+                                          <Suspense fallback={<div className="text-secondary py-md">Loading music search...</div>}>
+                                                <SpotifySearch
+                                                      selectedTrack={editData.profileSong}
+                                                      onSelect={(track) => setEditData(prev => ({ ...prev, profileSong: track }))}
+                                                      inputId="spotify-search-input"
+                                                      title="Profile Music"
+                                                      helperText="Choose a track that appears on your profile and can be previewed from your avatar."
+                                                />
+                                          </Suspense>
                                     </div>
                                     <div className="flex gap-md mt-xl profile-edit-actions">
                                           <button onClick={handleSaveProfile} className="btn btn-primary">Save Changes</button>
@@ -1434,34 +1493,33 @@ const Profile = () => {
                                                       'linear-gradient(135deg, #fd746c, #ff9068)',
                                                       'linear-gradient(135deg, #0ba360, #3cba92)',
                                                 ];
-                                                const API_BASE = window.location.origin.includes('localhost') ? 'http://localhost:5000' : '';
-
                                                 return (
-                                                      <>
-                                                            <div className="profile-posts-grid">
-                                                                  {userPosts.map((post, idx) => {
+                                                      <Suspense fallback={<div className="py-lg text-center text-secondary">Loading post grid...</div>}>
+                                                            <VirtualizedGrid
+                                                                  items={userPosts}
+                                                                  className="profile-posts-grid"
+                                                                  renderItem={(post, idx) => {
                                                                         const rawMediaType = post.media?.[0]?.type;
                                                                         const rawMediaUrl = post.media?.[0]?.url || (typeof post.media?.[0] === 'string' ? post.media[0] : '');
                                                                         const isVid = post.type === 'short-video' || post.type === 'long-video' ||
                                                                               post.contentType === 'video' || rawMediaType === 'video' ||
                                                                               /\.(mp4|webm|mov|avi|mkv|flv)/i.test(rawMediaUrl);
 
-                                                                        const hasMedia = post.media && post.media.length > 0;
+                                                                        const hasMedia = Array.isArray(post.media) && post.media.length > 0;
                                                                         const rawUrl = hasMedia ? (post.media[0]?.url || post.media[0]) : null;
                                                                         const thumbnailRaw = hasMedia ? post.media[0]?.thumbnail : null;
-                                                                        
-                                                                        const resolved = rawUrl && typeof rawUrl === 'string' ? (rawUrl.startsWith('http') ? rawUrl : API_BASE + rawUrl) : null;
-                                                                        const resolvedThumb = thumbnailRaw && typeof thumbnailRaw === 'string' ? (thumbnailRaw.startsWith('http') ? thumbnailRaw : API_BASE + thumbnailRaw) : null;
+                                                                        const resolved = rawUrl ? resolveAssetUrl(rawUrl) : null;
+                                                                        const resolvedThumb = thumbnailRaw ? resolveAssetUrl(thumbnailRaw) : null;
                                                                         const gradient = GRADIENTS[idx % GRADIENTS.length];
 
                                                                         return (
-                                                                              <div key={post._id} className="profile-post-thumb" onClick={() => navigate(`/content/${post._id}`)}>
+                                                                              <div className="profile-post-thumb" onClick={() => navigate(`/content/${post._id}`)}>
                                                                                     {hasMedia ? (
                                                                                           isVid ? (
                                                                                                 resolvedThumb ? (
                                                                                                       <img src={resolvedThumb} alt={post.title || 'Video thumbnail'} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }} />
                                                                                                 ) : (
-                                                                                                      <video src={resolved ? (resolved + (resolved.includes('#t=') ? '' : '#t=0.1')) : undefined} muted playsInline preload="metadata" style={{ pointerEvents: 'none', width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                                                                                                      <video src={resolved ? `${resolved}${resolved.includes('#t=') ? '' : '#t=0.1'}` : undefined} muted playsInline preload="metadata" style={{ pointerEvents: 'none', width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                                                                                                 )
                                                                                           ) : (
                                                                                                 <img src={resolved} alt={post.title || ''} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
@@ -1479,12 +1537,24 @@ const Profile = () => {
                                                                                     <div className="profile-post-type-badge">{isVid ? 'VIDEO' : !hasMedia ? 'POST' : ''}</div>
                                                                               </div>
                                                                         );
-                                                                  })}
-                                                            </div>
-                                                      </>
+                                                                  }}
+                                                            />
+                                                      </Suspense>
                                                 );
                                           })()}
                                     </div>
+
+                                    {hasMorePosts && !postsError && (
+                                          <div className="text-center mt-lg">
+                                                <button
+                                                      type="button"
+                                                      className="btn btn-secondary"
+                                                      onClick={() => fetchUserPosts(profileUser.username, null, postsCursor)}
+                                                >
+                                                      Load more posts
+                                                </button>
+                                          </div>
+                                    )}
 
                                     {isOwnProfile && (
                                           <div className="grid grid-cols-3 gap-md mb-lg mt-xl profile-shortcut-grid">
@@ -1535,7 +1605,9 @@ const Profile = () => {
                         )}
 
                         {activeTab === 'notifications' && isOwnProfile && (
-                              <NotificationPanel onProfileRefresh={() => refreshProfile(sessionUser?.username || targetUsername)} />
+                              <Suspense fallback={<div className="text-secondary py-lg text-center">Loading notifications...</div>}>
+                                    <NotificationPanel onProfileRefresh={() => refreshProfile(sessionUser?.username || targetUsername)} />
+                              </Suspense>
                         )}
 
                         {activeTab === 'stats' && isOwnProfile && user?.stats && (
@@ -1552,7 +1624,9 @@ const Profile = () => {
                         {activeTab === 'games' && isOwnProfile && (
                               <div className="card animate-fadeInUp mb-xl">
                                     <h3 className="text-lg font-semibold mb-lg text-center">Zuno Cricket</h3>
-                                    <CricketGame />
+                                    <Suspense fallback={<div className="text-secondary py-lg text-center">Loading game...</div>}>
+                                          <CricketGame />
+                                    </Suspense>
                               </div>
                         )}
 

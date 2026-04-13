@@ -4,12 +4,38 @@ const { OAuth2Client } = require('google-auth-library');
 const User = require('../models/User');
 const { sendLoginEmail } = require('../config/emailService');
 
-// Generate JWT Token
-const generateToken = (id) => {
-      return jwt.sign({ id }, process.env.JWT_SECRET, {
-            expiresIn: process.env.JWT_EXPIRE || '30d'
-      });
+const ACCESS_TOKEN_EXPIRE = process.env.JWT_ACCESS_EXPIRE || '30m';
+const REFRESH_TOKEN_EXPIRE = process.env.JWT_REFRESH_EXPIRE || '30d';
+
+const getRefreshSecret = () => process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET;
+
+const generateAccessToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, {
+      expiresIn: ACCESS_TOKEN_EXPIRE
+});
+
+const generateRefreshToken = (id) => jwt.sign({ id, type: 'refresh' }, getRefreshSecret(), {
+      expiresIn: REFRESH_TOKEN_EXPIRE
+});
+
+const hashToken = (value = '') => crypto.createHash('sha256').update(String(value)).digest('hex');
+
+const getRefreshExpiryDate = () => {
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30);
+      return expiresAt;
 };
+
+const getGoogleClientIds = () => (
+      [
+            process.env.GOOGLE_CLIENT_ID,
+            process.env.GOOGLE_WEB_CLIENT_ID,
+            process.env.GOOGLE_ANDROID_CLIENT_ID,
+            process.env.GOOGLE_IOS_CLIENT_ID
+      ]
+            .concat(String(process.env.GOOGLE_CLIENT_IDS || '').split(','))
+            .map((value) => String(value || '').trim())
+            .filter(Boolean)
+);
 
 const handleAuthError = (res, message, error) => {
       if (process.env.NODE_ENV !== 'production') {
@@ -48,19 +74,52 @@ const buildGoogleUsername = async ({ email, name }) => {
       throw new Error('Could not generate unique username');
 };
 
-const verifyGoogleCredential = async (credential) => {
-      const googleClientId = process.env.GOOGLE_CLIENT_ID;
-      if (!googleClientId) {
+const issueSessionTokens = async (user) => {
+      const accessToken = generateAccessToken(user._id);
+      const refreshToken = generateRefreshToken(user._id);
+
+      user.refreshTokenHash = hashToken(refreshToken);
+      user.refreshTokenExpiresAt = getRefreshExpiryDate();
+      await user.save();
+
+      return {
+            token: accessToken,
+            refreshToken
+      };
+};
+
+const verifyGoogleCredential = async ({ credential, redirectUri, origin }) => {
+      const googleClientIds = getGoogleClientIds();
+      if (googleClientIds.length === 0) {
             throw new Error('GOOGLE_CLIENT_ID is missing on the server');
       }
 
-      const client = new OAuth2Client(googleClientId);
+      const allowedRedirectUris = [
+            process.env.GOOGLE_REDIRECT_URI,
+            process.env.GOOGLE_CALLBACK_URI,
+            process.env.GOOGLE_CALLBACK_URL
+      ].map((value) => String(value || '').trim()).filter(Boolean);
+
+      if (redirectUri && allowedRedirectUris.length > 0 && !allowedRedirectUris.includes(redirectUri)) {
+            throw new Error('Google callback URI mismatch');
+      }
+
+      const allowedOrigins = String(process.env.GOOGLE_ALLOWED_ORIGINS || '')
+            .split(',')
+            .map((value) => value.trim())
+            .filter(Boolean);
+
+      if (origin && allowedOrigins.length > 0 && !allowedOrigins.includes(origin)) {
+            throw new Error('Google callback URI mismatch');
+      }
+
+      const client = new OAuth2Client(googleClientIds[0]);
       let ticket;
 
       try {
             ticket = await client.verifyIdToken({
                   idToken: credential,
-                  audience: googleClientId
+                  audience: googleClientIds
             });
       } catch {
             throw new Error('Google token verification failed');
@@ -89,9 +148,10 @@ const verifyGoogleCredential = async (credential) => {
 const register = async (req, res) => {
       try {
             const { username, email, password, displayName, language } = req.body;
+            const normalizedUserEmail = normalizeEmail(email);
 
             // Check if user exists
-            const userExists = await User.findOne({ $or: [{ email }, { username }] });
+            const userExists = await User.findOne({ $or: [{ email: normalizedUserEmail }, { username }] });
             if (userExists) {
                   return res.status(400).json({
                         success: false,
@@ -102,14 +162,13 @@ const register = async (req, res) => {
             // Create user
             const user = await User.create({
                   username,
-                  email,
+                  email: normalizedUserEmail,
                   password,
                   displayName: displayName || username,
                   language: language || 'both'
             });
 
-            // Generate token
-            const token = generateToken(user._id);
+            const tokens = await issueSessionTokens(user);
 
             res.status(201).json({
                   success: true,
@@ -130,6 +189,7 @@ const register = async (req, res) => {
 const login = async (req, res) => {
       try {
             const { email, password } = req.body;
+            const normalizedUserEmail = normalizeEmail(email);
 
             // Validate
             if (!email || !password) {
@@ -140,7 +200,7 @@ const login = async (req, res) => {
             }
 
             // Check user
-            const user = await User.findOne({ email }).select('+password');
+            const user = await User.findOne({ email: normalizedUserEmail }).select('+password +refreshTokenHash +refreshTokenExpiresAt');
             if (!user) {
                   return res.status(401).json({
                         success: false,
@@ -165,8 +225,7 @@ const login = async (req, res) => {
                   });
             }
 
-            // Generate token
-            const token = generateToken(user._id);
+            const tokens = await issueSessionTokens(user);
 
             // Send login alert email (fire-and-forget, does not affect login speed)
             const loginTime = new Date().toLocaleString('en-IN', {
@@ -183,7 +242,8 @@ const login = async (req, res) => {
                   message: 'Welcome back! 👋',
                   data: {
                         user: user.getAuthProfile(),
-                        token
+                        token: tokens.token,
+                        refreshToken: tokens.refreshToken
                   }
             });
       } catch (error) {
@@ -197,6 +257,8 @@ const login = async (req, res) => {
 const googleLogin = async (req, res) => {
       try {
             const credential = String(req.body?.credential || '').trim();
+            const redirectUri = String(req.body?.redirectUri || '').trim();
+            const origin = String(req.body?.origin || '').trim();
             if (!credential) {
                   return res.status(400).json({
                         success: false,
@@ -204,7 +266,7 @@ const googleLogin = async (req, res) => {
                   });
             }
 
-            const googleProfile = await verifyGoogleCredential(credential);
+            const googleProfile = await verifyGoogleCredential({ credential, redirectUri, origin });
 
             let user = await User.findOne({
                   $or: [
@@ -291,13 +353,14 @@ const googleLogin = async (req, res) => {
                   });
             }
 
-            const token = generateToken(user._id);
+            const tokens = await issueSessionTokens(user);
             res.json({
                   success: true,
                   message: 'Welcome to ZUNO!',
                   data: {
                         user: user.getAuthProfile(),
-                        token
+                        token: tokens.token,
+                        refreshToken: tokens.refreshToken
                   }
             });
       } catch (error) {
@@ -339,10 +402,89 @@ const getMe = async (req, res) => {
       }
 };
 
+// @desc    Refresh access token without forcing a logout
+// @route   POST /api/auth/refresh
+// @access  Public
+const refreshSession = async (req, res) => {
+      try {
+            const refreshToken = String(req.body?.refreshToken || '').trim();
+
+            if (!refreshToken) {
+                  return res.status(400).json({
+                        success: false,
+                        message: 'Refresh token is required'
+                  });
+            }
+
+            let decoded;
+            try {
+                  decoded = jwt.verify(refreshToken, getRefreshSecret());
+            } catch {
+                  return res.status(401).json({
+                        success: false,
+                        message: 'Refresh token is invalid or expired'
+                  });
+            }
+
+            if (decoded?.type !== 'refresh') {
+                  return res.status(401).json({
+                        success: false,
+                        message: 'Refresh token is invalid or expired'
+                  });
+            }
+
+            const user = await User.findById(decoded.id).select('+refreshTokenHash +refreshTokenExpiresAt');
+            if (!user || !user.isActive) {
+                  return res.status(401).json({
+                        success: false,
+                        message: 'Session could not be refreshed'
+                  });
+            }
+
+            if (!user.refreshTokenHash || user.refreshTokenHash !== hashToken(refreshToken)) {
+                  return res.status(401).json({
+                        success: false,
+                        message: 'Session could not be refreshed'
+                  });
+            }
+
+            if (!user.refreshTokenExpiresAt || user.refreshTokenExpiresAt <= new Date()) {
+                  user.refreshTokenHash = undefined;
+                  user.refreshTokenExpiresAt = undefined;
+                  await user.save();
+
+                  return res.status(401).json({
+                        success: false,
+                        message: 'Refresh token is invalid or expired'
+                  });
+            }
+
+            const tokens = await issueSessionTokens(user);
+
+            return res.json({
+                  success: true,
+                  data: {
+                        user: user.getAuthProfile(),
+                        token: tokens.token,
+                        refreshToken: tokens.refreshToken
+                  }
+            });
+      } catch (error) {
+            return handleAuthError(res, 'Failed to refresh session', error);
+      }
+};
+
 // @desc    Logout user (client-side token removal)
 // @route   POST /api/auth/logout
 // @access  Private
 const logout = async (req, res) => {
+      await User.findByIdAndUpdate(req.user.id, {
+            $unset: {
+                  refreshTokenHash: 1,
+                  refreshTokenExpiresAt: 1
+            }
+      }).catch(() => undefined);
+
       res.json({
             success: true,
             message: 'Logged out successfully. Take care! 🙏'
@@ -391,6 +533,8 @@ const changePassword = async (req, res) => {
 
             // Update password
             user.password = newPassword;
+            user.refreshTokenHash = undefined;
+            user.refreshTokenExpiresAt = undefined;
             await user.save();
 
             res.json({
@@ -443,6 +587,7 @@ module.exports = {
       login,
       googleLogin,
       getMe,
+      refreshSession,
       logout,
       changePassword,
       resetPassword

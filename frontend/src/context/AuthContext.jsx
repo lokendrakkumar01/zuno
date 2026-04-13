@@ -5,6 +5,7 @@ import {
       persistStoredAuthUser,
       persistStoredSession,
       readStoredAuthUser,
+      readStoredRefreshToken,
       readStoredToken
 } from '../utils/session';
 import { startKeepAlive, stopKeepAlive } from '../utils/keepAlive';
@@ -45,6 +46,7 @@ const isRetriableNetworkError = (error) => (
 
 export const AuthProvider = ({ children }) => {
       const [token, setToken] = useState(() => readStoredToken());
+      const [refreshToken, setRefreshToken] = useState(() => readStoredRefreshToken());
       const [user, setUser] = useState(() => (readStoredToken() ? readStoredAuthUser() : null));
       const [loading, setLoading] = useState(() => {
             const storedToken = readStoredToken();
@@ -52,12 +54,14 @@ export const AuthProvider = ({ children }) => {
             return !readStoredAuthUser();
       });
 
-      const applyAuthenticatedSession = (nextUser, nextToken = token) => {
+      const applyAuthenticatedSession = (nextUser, nextToken = token, nextRefreshToken = refreshToken) => {
             setUser(nextUser);
             setToken(nextToken);
+            setRefreshToken(nextRefreshToken);
             persistStoredSession({
                   user: nextUser,
-                  token: nextToken
+                  token: nextToken,
+                  refreshToken: nextRefreshToken
             });
       };
 
@@ -65,7 +69,33 @@ export const AuthProvider = ({ children }) => {
             stopKeepAlive();
             setUser(null);
             setToken(null);
+            setRefreshToken(null);
             clearStoredSession();
+      };
+
+      const refreshSessionToken = async () => {
+            if (!refreshToken) {
+                  throw new Error('Missing refresh token');
+            }
+
+            const res = await fetchWithTimeout(`${API_URL}/auth/refresh`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ refreshToken })
+            }, AUTH_REFRESH_TIMEOUT_MS);
+
+            const data = await res.json().catch(() => null);
+            if (!res.ok || !data?.success || !data?.data?.token) {
+                  throw new Error(data?.message || 'Session refresh failed');
+            }
+
+            applyAuthenticatedSession(
+                  data.data.user || readStoredAuthUser(),
+                  data.data.token,
+                  data.data.refreshToken || refreshToken
+            );
+
+            return data.data.token;
       };
 
       useEffect(() => {
@@ -84,12 +114,21 @@ export const AuthProvider = ({ children }) => {
                   }
 
                   try {
-                        const res = await fetchWithTimeout(`${API_URL}/auth/me`, {
-                              headers: { Authorization: `Bearer ${token}` }
+                        let currentToken = token;
+                        let res = await fetchWithTimeout(`${API_URL}/auth/me`, {
+                              headers: { Authorization: `Bearer ${currentToken}` }
                         }, AUTH_REFRESH_TIMEOUT_MS);
-                        const data = await res.json().catch(() => null);
+                        let data = await res.json().catch(() => null);
 
                         if (ignore) return;
+
+                        if (res.status === 401 && refreshToken) {
+                              currentToken = await refreshSessionToken();
+                              res = await fetchWithTimeout(`${API_URL}/auth/me`, {
+                                    headers: { Authorization: `Bearer ${currentToken}` }
+                              }, AUTH_REFRESH_TIMEOUT_MS);
+                              data = await res.json().catch(() => null);
+                        }
 
                         if (res.ok && data?.success && data?.data?.user) {
                               setUser(data.data.user);
@@ -123,7 +162,7 @@ export const AuthProvider = ({ children }) => {
             return () => {
                   ignore = true;
             };
-      }, [token]);
+      }, [token, refreshToken]);
 
       useEffect(() => {
             if (token && user) {
@@ -163,7 +202,7 @@ export const AuthProvider = ({ children }) => {
                   try {
                         const data = await attemptLogin(25000);
                         if (data.success) {
-                              applyAuthenticatedSession(data.data.user, data.data.token);
+                              applyAuthenticatedSession(data.data.user, data.data.token, data.data.refreshToken);
                               return { success: true, message: data.message };
                         }
 
@@ -213,7 +252,11 @@ export const AuthProvider = ({ children }) => {
                         const res = await fetchWithTimeout(`${API_URL}/auth/google`, {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ credential })
+                              body: JSON.stringify({
+                                    credential,
+                                    origin: typeof window !== 'undefined' ? window.location.origin : '',
+                                    redirectUri: typeof window !== 'undefined' ? `${window.location.origin}/login` : ''
+                              })
                         }, DEFAULT_REQUEST_TIMEOUT_MS);
 
                         if (!res.ok && res.status !== 400 && res.status !== 401 && res.status !== 422) {
@@ -229,7 +272,7 @@ export const AuthProvider = ({ children }) => {
 
                         const data = await res.json();
                         if (data.success) {
-                              applyAuthenticatedSession(data.data.user, data.data.token);
+                              applyAuthenticatedSession(data.data.user, data.data.token, data.data.refreshToken);
                               return { success: true, message: data.message || 'Logged in with Google.' };
                         }
 
@@ -283,7 +326,7 @@ export const AuthProvider = ({ children }) => {
 
                         const data = await res.json();
                         if (data.success) {
-                              applyAuthenticatedSession(data.data.user, data.data.token);
+                              applyAuthenticatedSession(data.data.user, data.data.token, data.data.refreshToken);
                               return { success: true, message: data.message };
                         }
 

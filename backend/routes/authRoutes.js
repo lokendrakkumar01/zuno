@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { register, login, googleLogin, getMe, logout, changePassword, resetPassword } = require('../controllers/authController');
+const { register, login, googleLogin, getMe, refreshSession, logout, changePassword, resetPassword } = require('../controllers/authController');
 const { protect } = require('../middleware/auth');
 const { authLimiter } = require('../middleware/rateLimit');
 const { registerRules, loginRules } = require('../utils/validationRules');
@@ -10,6 +10,7 @@ const { validate } = require('../middleware/validation');
 router.post('/register', authLimiter, registerRules(), validate, register);
 router.post('/login', authLimiter, loginRules(), validate, login);
 router.post('/google', authLimiter, googleLogin);
+router.post('/refresh', authLimiter, refreshSession);
 router.post('/reset-password', authLimiter, resetPassword); // token-based reset from admin
 
 // Protected routes

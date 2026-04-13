@@ -132,13 +132,12 @@ function AppRouter() {
                   try {
                         const feedUrl = new URL(`${API_URL}/feed`);
                         feedUrl.searchParams.set('mode', 'all');
-                        feedUrl.searchParams.set('page', '1');
                         feedUrl.searchParams.set('limit', '12');
 
                         const encodedUsername = encodeURIComponent(user.username);
                         const headers = { Authorization: `Bearer ${token}` };
 
-                        const [conversationsRes, streamsRes, feedRes, profileRes, profilePostsRes] = await Promise.all([
+                        const [conversationsRes, streamsRes, feedRes, profileRes] = await Promise.all([
                               fetchWithTimeout(`${API_URL}/messages/conversations`, {
                                     headers
                               }, WARMUP_FETCH_MS),
@@ -146,20 +145,16 @@ function AppRouter() {
                               fetchWithTimeout(feedUrl.toString(), {
                                     headers
                               }, WARMUP_FETCH_MS),
-                              fetchWithTimeout(`${API_URL}/users/${encodedUsername}`, {
-                                    headers
-                              }, WARMUP_FETCH_MS),
-                              fetchWithTimeout(`${API_URL}/feed/creator/${encodedUsername}`, {
+                              fetchWithTimeout(`${API_URL}/users/${encodedUsername}?postsLimit=24`, {
                                     headers
                               }, WARMUP_FETCH_MS)
                         ]);
 
-                        const [conversationsData, streamsData, feedData, profileData, profilePostsData] = await Promise.all([
+                        const [conversationsData, streamsData, feedData, profileData] = await Promise.all([
                               conversationsRes.json().catch(() => null),
                               streamsRes.json().catch(() => null),
                               feedRes.json().catch(() => null),
-                              profileRes.json().catch(() => null),
-                              profilePostsRes.json().catch(() => null)
+                              profileRes.json().catch(() => null)
                         ]);
 
                         if (conversationsData?.success) {
@@ -188,12 +183,9 @@ function AppRouter() {
                                     `zuno_profile_cache_${user.username}`,
                                     JSON.stringify(profileData.data.user || null)
                               );
-                        }
-
-                        if (profilePostsData?.success) {
                               localStorage.setItem(
                                     `zuno_posts_cache_${user.username}`,
-                                    JSON.stringify(profilePostsData.data.contents || [])
+                                    JSON.stringify(profileData.data.contents || [])
                               );
                         }
                   } catch {

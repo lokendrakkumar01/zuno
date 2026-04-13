@@ -172,6 +172,10 @@ contentSchema.index({ topics: 1, status: 1, qualityScore: -1 });
 contentSchema.index({ purpose: 1, status: 1 });
 contentSchema.index({ status: 1, visibility: 1, isApproved: 1, purpose: 1, createdAt: -1 });
 contentSchema.index({ status: 1, visibility: 1, isApproved: 1, createdAt: -1, qualityScore: -1 });
+contentSchema.index(
+      { title: 'text', body: 'text', tags: 'text' },
+      { weights: { title: 5, tags: 3, body: 1 }, name: 'content_text_search' }
+);
 
 // TTL index to automatically remove expired content (stories/statuses)
 contentSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
