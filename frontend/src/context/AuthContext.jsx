@@ -72,6 +72,17 @@ export const AuthProvider = ({ children }) => {
       };
 
       const logout = () => {
+            const tokenToRevoke = token;
+
+            if (tokenToRevoke) {
+                  fetchWithTimeout(`${API_URL}/auth/logout`, {
+                        method: 'POST',
+                        headers: {
+                              Authorization: `Bearer ${tokenToRevoke}`
+                        }
+                  }, AUTH_REFRESH_TIMEOUT_MS).catch(() => undefined);
+            }
+
             stopKeepAlive();
             setUser(null);
             setToken(null);

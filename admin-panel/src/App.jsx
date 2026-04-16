@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import Login from './Login';
 import AdminDashboard from './AdminDashboard';
@@ -20,12 +20,20 @@ export default function App() {
     setUser(u); 
   };
   
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
+    const tokenToRevoke = token;
+    if (tokenToRevoke) {
+      fetch(`${API_URL}/auth/logout`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${tokenToRevoke}` }
+      }).catch(() => undefined);
+    }
+
     localStorage.removeItem('admin_token');
     localStorage.removeItem('admin_user');
     setToken(null); 
     setUser(null);
-  };
+  }, [token]);
 
   useEffect(() => {
     if (!token || user?.role !== 'admin') return;
@@ -53,7 +61,7 @@ export default function App() {
     return () => {
       ignore = true;
     };
-  }, [token, user?.role]);
+  }, [handleLogout, token, user?.role]);
 
   if (!token || user?.role !== 'admin') {
     return <Login onLogin={handleLogin} />;

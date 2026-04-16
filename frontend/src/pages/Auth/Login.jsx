@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
@@ -12,7 +12,7 @@ const Login = () => {
       const [error, setError] = useState('');
       const [loading, setLoading] = useState(false);
       const [wakingUp, setWakingUp] = useState(false);
-      const [retryInfo, setRetryInfo] = useState(null); // { attempt, maxRetries, retryIn }
+      const [retryInfo, setRetryInfo] = useState(null);
       const [countdown, setCountdown] = useState(0);
       const [googleBusy, setGoogleBusy] = useState(false);
       const countdownRef = useRef(null);
@@ -21,11 +21,11 @@ const Login = () => {
       const { t } = useLanguage();
       const navigate = useNavigate();
 
-      // Countdown timer for retry
       useEffect(() => {
             if (countdown > 0) {
-                  countdownRef.current = setTimeout(() => setCountdown(c => c - 1), 1000);
+                  countdownRef.current = setTimeout(() => setCountdown((current) => current - 1), 1000);
             }
+
             return () => clearTimeout(countdownRef.current);
       }, [countdown]);
 
@@ -51,24 +51,28 @@ const Login = () => {
                               setWakingUp(false);
                               setRetryInfo(null);
                               setCountdown(0);
+
                               const result = await googleLogin(credential, (info) => {
                                     setWakingUp(true);
                                     setRetryInfo(info);
                                     setCountdown(info.retryIn);
-                                    setError(`â³ Server is waking up... Auto-retrying (${info.attempt}/${info.maxRetries})`);
+                                    setError(`Server is waking up... Auto-retrying (${info.attempt}/${info.maxRetries})`);
                               });
+
                               setGoogleBusy(false);
 
                               if (result.success) {
                                     navigate('/');
-                              } else {
-                                    if (result.status === 'waking_up') {
-                                          setWakingUp(true);
-                                    } else {
-                                          setWakingUp(false);
-                                    }
-                                    setError(result.message || 'Google login failed.');
+                                    return;
                               }
+
+                              if (result.status === 'waking_up') {
+                                    setWakingUp(true);
+                              } else {
+                                    setWakingUp(false);
+                              }
+
+                              setError(result.message || 'Google login failed.');
                         }
                   });
 
@@ -98,7 +102,9 @@ const Login = () => {
             script.defer = true;
             script.onload = renderGoogleButton;
             script.onerror = () => {
-                  if (!cancelled) setError('Google sign-in script failed to load.');
+                  if (!cancelled) {
+                        setError('Google sign-in script failed to load.');
+                  }
             };
             document.head.appendChild(script);
 
@@ -107,80 +113,86 @@ const Login = () => {
             };
       }, [googleClientId, googleLogin, navigate]);
 
-      const handleSubmit = async (e) => {
-            e.preventDefault();
+      const handleSubmit = async (event) => {
+            event.preventDefault();
             const normalizedEmail = email.trim().toLowerCase();
-            const normalizedPassword = password;
-            if (!normalizedEmail || !normalizedPassword) {
+
+            if (!normalizedEmail || !password) {
                   setError('Please enter email and password.');
                   return;
             }
+
             setError('');
             setWakingUp(false);
             setRetryInfo(null);
             setCountdown(0);
             setLoading(true);
 
-            const result = await login(normalizedEmail, normalizedPassword, (info) => {
-                  // Called when auto-retry is happening
+            const result = await login(normalizedEmail, password, (info) => {
                   setWakingUp(true);
                   setRetryInfo(info);
                   setCountdown(info.retryIn);
-                  setError(`⏳ Server is waking up... Auto-retrying (${info.attempt}/${info.maxRetries})`);
+                  setError(`Server is waking up... Auto-retrying (${info.attempt}/${info.maxRetries})`);
             });
 
             if (result.success) {
                   navigate('/');
+            } else if (result.status === 'waking_up') {
+                  setWakingUp(true);
+                  setError('Server is still waking up. Please click Login again in 30 seconds.');
             } else {
-                  if (result.status === 'waking_up') {
-                        setWakingUp(true);
-                        setError('Server is still waking up. Please click Login again in 30 seconds.');
-                  } else {
-                        setWakingUp(false);
-                        setError(result.message || 'Login failed. Please check your credentials.');
-                  }
+                  setWakingUp(false);
+                  setError(result.message || 'Login failed. Please check your credentials.');
             }
+
             setLoading(false);
             setRetryInfo(null);
       };
 
       const getButtonLabel = () => {
-            if (!loading) return `✨ ${t('login')}`;
+            if (!loading) return t('login');
+
             if (wakingUp && retryInfo) {
                   return (
                         <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                              <span style={{ fontSize: '18px' }}>⏳</span>
-                              Retrying ({retryInfo.attempt}/{retryInfo.maxRetries})
-                              {countdown > 0 && <span style={{ fontSize: '13px', opacity: 0.75 }}>in {countdown}s</span>}
+                              <span>Retrying ({retryInfo.attempt}/{retryInfo.maxRetries})</span>
+                              {countdown > 0 ? <span style={{ fontSize: '13px', opacity: 0.75 }}>in {countdown}s</span> : null}
                         </span>
                   );
             }
-            return (
-                  <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '18px' }}>⏳</span>
-                        Signing in…
-                  </span>
-            );
+
+            return 'Signing in...';
       };
 
       return (
             <div className="auth-page">
-                  {/* Background Elements */}
                   <div style={{
-                        position: 'fixed', top: '20%', left: '10%',
-                        width: '300px', height: '300px',
+                        position: 'fixed',
+                        top: '20%',
+                        left: '10%',
+                        width: '300px',
+                        height: '300px',
                         background: 'radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, transparent 70%)',
-                        animation: 'float 8s ease-in-out infinite', zIndex: 0
+                        animation: 'float 8s ease-in-out infinite',
+                        zIndex: 0
                   }} />
                   <div style={{
-                        position: 'fixed', bottom: '20%', right: '10%',
-                        width: '250px', height: '250px',
+                        position: 'fixed',
+                        bottom: '20%',
+                        right: '10%',
+                        width: '250px',
+                        height: '250px',
                         background: 'radial-gradient(circle, rgba(236, 72, 153, 0.08) 0%, transparent 70%)',
-                        animation: 'float 6s ease-in-out infinite reverse', zIndex: 0
+                        animation: 'float 6s ease-in-out infinite reverse',
+                        zIndex: 0
                   }} />
 
                   <div className="auth-card" style={{ position: 'relative', zIndex: 1 }}>
-                        <Link to="/welcome" className="logo" style={{ justifyContent: 'center', marginBottom: 'var(--space-xl)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <Link
+                              to="/welcome"
+                              className="logo"
+                              style={{ justifyContent: 'center', marginBottom: 'var(--space-xl)', display: 'flex', alignItems: 'center', gap: '10px' }}
+                        >
                               <img src={zunoLogo} alt="ZUNO" className="animate-pulse" style={{ height: '50px', borderRadius: '8px' }} />
                               <span style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--color-accent-primary)' }}>ZUNO</span>
                         </Link>
@@ -188,27 +200,29 @@ const Login = () => {
                         <h1 className="auth-title animate-fadeInUp">Welcome Back</h1>
                         <p className="auth-subtitle animate-fadeInUp">Continue your journey with ZUNO</p>
 
-                        {/* Error / Waking Up Banner */}
-                        {error && (
+                        {error ? (
                               <div
                                     className="card p-md mb-lg animate-fadeIn"
                                     style={{
                                           background: wakingUp ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)',
                                           borderColor: wakingUp ? 'rgba(245, 158, 11, 0.3)' : 'rgba(239, 68, 68, 0.3)',
-                                          display: 'flex', alignItems: 'flex-start', gap: '10px'
+                                          display: 'flex',
+                                          alignItems: 'flex-start',
+                                          gap: '10px'
                                     }}
                               >
-                                    <span style={{ fontSize: '18px', flexShrink: 0 }}>
-                                          {wakingUp ? '⏳' : '⚠️'}
-                                    </span>
+                                    <span style={{ fontSize: '18px', flexShrink: 0 }}>{wakingUp ? '...' : '!'}</span>
                                     <div style={{ flex: 1 }}>
                                           <p style={{
                                                 color: wakingUp ? '#f59e0b' : '#ef4444',
-                                                fontSize: 'var(--font-size-sm)', margin: 0, fontWeight: 500
-                                          }}>{error}</p>
+                                                fontSize: 'var(--font-size-sm)',
+                                                margin: 0,
+                                                fontWeight: 500
+                                          }}>
+                                                {error}
+                                          </p>
 
-                                          {/* Waking up progress bar */}
-                                          {wakingUp && retryInfo && (
+                                          {wakingUp && retryInfo ? (
                                                 <div style={{ marginTop: '8px' }}>
                                                       <div style={{
                                                             height: '3px',
@@ -225,16 +239,24 @@ const Login = () => {
                                                             }} />
                                                       </div>
                                                 </div>
-                                          )}
+                                          ) : null}
                                     </div>
-                                    {!loading && (
+                                    {!loading ? (
                                           <button
-                                                onClick={() => { setError(''); setWakingUp(false); setRetryInfo(null); setCountdown(0); }}
+                                                type="button"
+                                                onClick={() => {
+                                                      setError('');
+                                                      setWakingUp(false);
+                                                      setRetryInfo(null);
+                                                      setCountdown(0);
+                                                }}
                                                 style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: 0, flexShrink: 0 }}
-                                          >✕</button>
-                                    )}
+                                          >
+                                                x
+                                          </button>
+                                    ) : null}
                               </div>
-                        )}
+                        ) : null}
 
                         <form onSubmit={handleSubmit} className="auth-form">
                               <div className="input-group animate-fadeInUp stagger-2">
@@ -244,7 +266,10 @@ const Login = () => {
                                           className="input"
                                           placeholder="Enter your email"
                                           value={email}
-                                          onChange={(e) => { setEmail(e.target.value); if (error && !wakingUp) setError(''); }}
+                                          onChange={(event) => {
+                                                setEmail(event.target.value);
+                                                if (error && !wakingUp) setError('');
+                                          }}
                                           required
                                           autoComplete="email"
                                           disabled={loading}
@@ -259,26 +284,35 @@ const Login = () => {
                                                 className="input"
                                                 placeholder="Enter your password"
                                                 value={password}
-                                                onChange={(e) => { setPassword(e.target.value); if (error && !wakingUp) setError(''); }}
+                                                onChange={(event) => {
+                                                      setPassword(event.target.value);
+                                                      if (error && !wakingUp) setError('');
+                                                }}
                                                 required
                                                 autoComplete="current-password"
                                                 disabled={loading}
-                                                style={{ width: '100%', paddingRight: '48px' }}
+                                                style={{ width: '100%', paddingRight: '72px' }}
                                           />
                                           <button
                                                 type="button"
-                                                onClick={() => setShowPassword(p => !p)}
+                                                onClick={() => setShowPassword((current) => !current)}
                                                 disabled={loading}
                                                 style={{
-                                                      position: 'absolute', right: '12px', top: '50%',
+                                                      position: 'absolute',
+                                                      right: '12px',
+                                                      top: '50%',
                                                       transform: 'translateY(-50%)',
-                                                      background: 'none', border: 'none',
-                                                      color: '#64748b', cursor: 'pointer', fontSize: '16px',
-                                                      lineHeight: 1, padding: '4px'
+                                                      background: 'none',
+                                                      border: 'none',
+                                                      color: '#64748b',
+                                                      cursor: 'pointer',
+                                                      fontSize: '13px',
+                                                      lineHeight: 1,
+                                                      padding: '4px'
                                                 }}
                                                 title={showPassword ? 'Hide password' : 'Show password'}
                                           >
-                                                {showPassword ? '🙈' : '👁️'}
+                                                {showPassword ? 'Hide' : 'Show'}
                                           </button>
                                     </div>
                               </div>
@@ -293,7 +327,7 @@ const Login = () => {
                               </button>
                         </form>
 
-                        {googleClientId && (
+                        {googleClientId ? (
                               <>
                                     <div className="auth-divider mt-lg mb-lg animate-fadeIn">
                                           <span>or continue with</span>
@@ -311,7 +345,7 @@ const Login = () => {
                                           }}
                                     />
                               </>
-                        )}
+                        ) : null}
 
                         <div className="auth-divider mt-xl mb-lg animate-fadeIn">
                               <span>{t('newToZuno')}</span>
@@ -322,14 +356,13 @@ const Login = () => {
                               className="btn btn-secondary animate-fadeInUp"
                               style={{ width: '100%' }}
                         >
-                              🚀 {t('createAccount')}
+                              {t('createAccount')}
                         </Link>
 
-                        {/* Trust Badges */}
                         <div className="flex justify-center gap-lg mt-xl animate-fadeIn" style={{ opacity: 0.6 }}>
-                              <span className="text-xs">🔒 Secure</span>
-                              <span className="text-xs">🧘 No Tracking</span>
-                              <span className="text-xs">💚 Privacy First</span>
+                              <span className="text-xs">Secure</span>
+                              <span className="text-xs">No Tracking</span>
+                              <span className="text-xs">Privacy First</span>
                         </div>
                   </div>
             </div>

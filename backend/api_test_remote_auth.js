@@ -1,5 +1,10 @@
 const https = require('https');
-const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5YTUxNjAwZWYyYTBiMjJhZGViMDlmMCIsImlhdCI6MTc3Mjk1NTE4NCwiZXhwIjoxNzc1NTQ3MTg0fQ.Y-cUzDYzagUyuocsw5OPTdeFXllRsPNauWH_8RQhf0o';
+const token = process.env.TEST_AUTH_TOKEN;
+
+if (!token) {
+      console.error('Set TEST_AUTH_TOKEN before running this script.');
+      process.exit(1);
+}
 
 const options = {
       hostname: 'zuno-backend-bevi.onrender.com',
