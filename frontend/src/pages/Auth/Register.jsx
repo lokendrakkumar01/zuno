@@ -27,7 +27,7 @@ const Register = () => {
       const [retryInfo, setRetryInfo] = useState(null);
       const [countdown, setCountdown] = useState(0);
       const countdownRef = useRef(null);
-      const { register } = useAuth();
+      const { register, isAuthenticated } = useAuth();
       const { t } = useLanguage();
       const navigate = useNavigate();
 
@@ -38,6 +38,12 @@ const Register = () => {
 
             return () => clearTimeout(countdownRef.current);
       }, [countdown]);
+
+      useEffect(() => {
+            if (isAuthenticated) {
+                  navigate('/', { replace: true });
+            }
+      }, [isAuthenticated, navigate]);
 
       const passwordChecks = [
             { label: '8+ characters', valid: formData.password.length >= 8 },
@@ -133,8 +139,12 @@ const Register = () => {
             });
 
             if (result.success) {
-                  navigate('/');
-            } else if (result.status === 'waking_up') {
+                  setLoading(false);
+                  setRetryInfo(null);
+                  return;
+            }
+
+            if (result.status === 'waking_up') {
                   setWakingUp(true);
                   setError('Server is still waking up. Please try Create Account again in 30 seconds.');
             } else {

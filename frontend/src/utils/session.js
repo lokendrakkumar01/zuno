@@ -33,7 +33,11 @@ export const getUserHandle = (user) => {
 };
 
 export const persistStoredAuthUser = (user) => {
-      if (!user) return;
+      if (!user) {
+            localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+            localStorage.removeItem(AUTH_USER_SNAPSHOT_STORAGE_KEY);
+            return;
+      }
 
       const serializedUser = JSON.stringify(user);
       localStorage.setItem(AUTH_USER_STORAGE_KEY, serializedUser);
@@ -43,27 +47,25 @@ export const persistStoredAuthUser = (user) => {
 export const persistStoredToken = (token) => {
       if (token) {
             localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+            return;
       }
+
+      localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
 };
 
 export const persistStoredRefreshToken = (refreshToken) => {
       if (refreshToken) {
             localStorage.setItem(AUTH_REFRESH_TOKEN_STORAGE_KEY, refreshToken);
+            return;
       }
+
+      localStorage.removeItem(AUTH_REFRESH_TOKEN_STORAGE_KEY);
 };
 
 export const persistStoredSession = ({ user, token, refreshToken }) => {
-      if (token) {
-            persistStoredToken(token);
-      }
-
-      if (refreshToken) {
-            persistStoredRefreshToken(refreshToken);
-      }
-
-      if (user) {
-            persistStoredAuthUser(user);
-      }
+      persistStoredToken(token);
+      persistStoredRefreshToken(refreshToken);
+      persistStoredAuthUser(user);
 };
 
 export const clearStoredSession = () => {

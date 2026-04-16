@@ -128,9 +128,12 @@ export const AuthProvider = ({ children }) => {
                   }
 
                   const cachedUser = readStoredAuthUser();
-                  const hasOptimisticUser = Boolean(cachedUser);
+                  const optimisticUser = cachedUser || user;
+                  const hasOptimisticUser = Boolean(optimisticUser);
                   if (!hasOptimisticUser) {
                         setLoading(true);
+                  } else if (cachedUser && !user) {
+                        setUser(cachedUser);
                   }
 
                   try {
@@ -163,9 +166,9 @@ export const AuthProvider = ({ children }) => {
                   } catch (error) {
                         if (!ignore) {
                               console.error('Auth check failed (server may be starting):', error);
-                              if (cachedUser && isRecoverableAuthError(error)) {
-                                    setUser(cachedUser);
-                                    persistStoredAuthUser(cachedUser);
+                              if (optimisticUser && (isRecoverableAuthError(error) || typeof error?.status !== 'number')) {
+                                    setUser(optimisticUser);
+                                    persistStoredAuthUser(optimisticUser);
                               } else {
                                     logout();
                               }
@@ -489,7 +492,7 @@ export const AuthProvider = ({ children }) => {
             user,
             token,
             loading,
-            isAuthenticated: !!(token && user),
+            isAuthenticated: Boolean(token),
             login,
             googleLogin,
             register,

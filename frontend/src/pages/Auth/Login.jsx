@@ -17,7 +17,7 @@ const Login = () => {
       const [googleBusy, setGoogleBusy] = useState(false);
       const countdownRef = useRef(null);
       const googleButtonRef = useRef(null);
-      const { login, googleLogin } = useAuth();
+      const { login, googleLogin, isAuthenticated } = useAuth();
       const { t } = useLanguage();
       const navigate = useNavigate();
 
@@ -62,7 +62,6 @@ const Login = () => {
                               setGoogleBusy(false);
 
                               if (result.success) {
-                                    navigate('/');
                                     return;
                               }
 
@@ -113,6 +112,12 @@ const Login = () => {
             };
       }, [googleClientId, googleLogin, navigate]);
 
+      useEffect(() => {
+            if (isAuthenticated) {
+                  navigate('/', { replace: true });
+            }
+      }, [isAuthenticated, navigate]);
+
       const handleSubmit = async (event) => {
             event.preventDefault();
             const normalizedEmail = email.trim().toLowerCase();
@@ -136,8 +141,12 @@ const Login = () => {
             });
 
             if (result.success) {
-                  navigate('/');
-            } else if (result.status === 'waking_up') {
+                  setLoading(false);
+                  setRetryInfo(null);
+                  return;
+            }
+
+            if (result.status === 'waking_up') {
                   setWakingUp(true);
                   setError('Server is still waking up. Please click Login again in 30 seconds.');
             } else {

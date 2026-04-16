@@ -81,6 +81,7 @@ function loadStatus() { return import('./pages/Status'); }
 // Main App Router Component (inside AuthProvider)
 function AppRouter() {
       const { isAuthenticated, user, token, loading } = useAuth();
+      const hasActiveSession = Boolean(token);
       const [showSplash, setShowSplash] = useState(() => {
             const shown = localStorage.getItem('zuno_splash_shown');
             const time = localStorage.getItem('zuno_splash_time');
@@ -232,12 +233,12 @@ function AppRouter() {
                           <Route path="/welcome" element={!isAuthenticated ? <Landing /> : <Navigate to="/" replace />} />
 
                           {/* Auth routes - no layout */}
-                          <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to="/" replace />} />
-                          <Route path="/register" element={!isAuthenticated ? <Register /> : <Navigate to="/" replace />} />
+                          <Route path="/login" element={!hasActiveSession ? <Login /> : <Navigate to="/" replace />} />
+                          <Route path="/register" element={!hasActiveSession ? <Register /> : <Navigate to="/" replace />} />
                           <Route path="/reset-password" element={<ResetPassword />} />
 
                           {/* Main routes with layout */}
-                          <Route path="/" element={isAuthenticated ? <Layout /> : <Navigate to="/welcome" replace />}>
+                          <Route path="/" element={hasActiveSession ? <Layout /> : <Navigate to="/welcome" replace />}>
                                 <Route index element={<Home />} />
                                 <Route path="upload" element={<Upload />} />
                                 <Route path="profile" element={<Profile />} />
