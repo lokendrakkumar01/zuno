@@ -21,6 +21,7 @@ const {
 } = require('../controllers/messageController');
 const { protect } = require('../middleware/auth');
 const { uploadMultiple } = require('../middleware/upload');
+const { messageLimiter } = require('../middleware/rateLimit');
 
 // All routes are protected
 router.use(protect);
@@ -31,7 +32,7 @@ router.get('/conversations', getConversations);
 // Group Chat specific routes
 router.post('/group/create', uploadMultiple.single('avatar'), createGroup);
 router.get('/group/:groupId', getGroupMessages);
-router.post('/group/:groupId', uploadMultiple.single('media'), sendGroupMessage);
+router.post('/group/:groupId', messageLimiter, uploadMultiple.single('media'), sendGroupMessage);
 router.delete('/group/:groupId', deleteGroup);
 router.put('/group/:groupId/participants/add', addGroupParticipants);
 router.put('/group/:groupId/participants/remove', removeGroupParticipant);
@@ -51,7 +52,7 @@ router.delete('/clear/:userId', clearChat);
 
 // Messages with a specific user
 router.get('/:userId', getMessages);
-router.post('/:userId', uploadMultiple.single('media'), sendMessage);
+router.post('/:userId', messageLimiter, uploadMultiple.single('media'), sendMessage);
 router.put('/:userId/read', markAsRead);
 
 module.exports = router;

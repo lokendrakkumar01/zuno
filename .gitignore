@@ -6,8 +6,15 @@ admin-panel/node_modules/
 
 # Environment files
 .env
+.env.*
 .env.local
 .env.production
+backend/.env
+backend/.env.*
+frontend/.env
+frontend/.env.*
+admin-panel/.env
+admin-panel/.env.*
 
 # Build outputs — never commit built artifacts
 .dist/

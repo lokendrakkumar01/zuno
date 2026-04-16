@@ -402,6 +402,7 @@ const markNotUseful = async (req, res) => {
             });
             const previousType = existing?.type || null;
             let helpfulReceivedDelta = 0;
+            let isNotUseful = false;
 
             if (existing) {
                   if (existing.type === 'not-useful') {
@@ -659,7 +660,7 @@ const shareContent = async (req, res) => {
                   message: "Content shared",
                   data: {
                         shareCount: content.metrics.shareCount,
-                        shareUrl: `${process.env.CLIENT_URL || ''}/content/${content._id}`
+                        shareUrl: `${process.env.CLIENT_URL || 'https://zunoworld.tech'}/content/${content._id}`
                   }
             });
       } catch (error) {

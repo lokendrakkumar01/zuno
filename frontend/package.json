@@ -4,7 +4,7 @@
       "version": "1.0.0",
       "type": "module",
       "engines": {
-            "node": "20.x"
+            "node": ">=20 <23"
       },
       "scripts": {
             "dev": "node ./node_modules/vite/bin/vite.js --host",
@@ -22,7 +22,7 @@
             "process": "^0.11.10",
             "react": "^18.2.0",
             "react-dom": "^18.2.0",
-            "react-router-dom": "^6.21.1",
+            "react-router-dom": "^6.30.2",
             "react-toastify": "^11.0.5",
             "simple-peer": "^9.11.1",
             "socket.io-client": "^4.8.3",

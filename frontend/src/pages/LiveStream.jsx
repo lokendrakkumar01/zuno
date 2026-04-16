@@ -395,7 +395,7 @@ const LiveStream = () => {
                         setPlaybackHint('Waiting for the broadcaster to start sending video.');
                         setStreamError('');
 
-                        socket.emit('joinStream', { hostId, viewerId: user._id });
+                        socket.emit('joinStreamView', { hostId, viewerId: user._id });
                   } catch (error) {
                         if (ignore) return;
 
@@ -483,7 +483,7 @@ const LiveStream = () => {
                   setIsLive(true);
                   setPlaybackReady(false);
                   setPlaybackHint('Waiting for the broadcaster to start sending video.');
-                  socket.emit('joinStream', { hostId, viewerId: user._id });
+                  socket.emit('joinStreamView', { hostId, viewerId: user._id });
             } catch (error) {
                   setStreamError(error.message || 'Could not reconnect to the stream.');
             }

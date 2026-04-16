@@ -7,7 +7,7 @@ require('dotenv').config();
 
 const connectDB = require('./config/db');
 const { isOriginAllowed } = require('./config/appConfig');
-const { apiLimiter, uploadLimiter, messageLimiter } = require('./middleware/rateLimit');
+const { apiLimiter } = require('./middleware/rateLimit');
 const errorHandler = require('./middleware/errorMiddleware');
 const { optimizeResponseMediaUrls } = require('./middleware/mediaOptimization');
 const mongoose = require('mongoose');
@@ -85,14 +85,14 @@ app.use('/uploads', (req, res, next) => {
   }
 }));
 
-// API Routes (rate limiters applied at route level for targeted control)
+// API Routes (keep targeted limiters at route-level to avoid throttling read endpoints)
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/content', uploadLimiter, contentRoutes);   // 20 uploads/hr per IP
+app.use('/api/content', contentRoutes);
 app.use('/api/comments', commentRoutes);
 app.use('/api/feed', feedRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/messages', messageLimiter, messageRoutes); // 60 messages/min per IP
+app.use('/api/messages', messageRoutes);
 app.use('/api/notes', noteRoutes);
 app.use('/api/livestream', liveStreamRoutes);
 app.use('/api/spotify', spotifyRoutes);

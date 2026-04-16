@@ -20,16 +20,16 @@ if (useCloudinary) {
 }
 
 // Configure local storage as fallback
+const localUploadDir = path.join(__dirname, '..', 'uploads');
+
 const localStorage = multer.diskStorage({
       destination: function (req, file, cb) {
-            const folder = 'uploads/';
-
             // Ensure folder exists
-            if (!fs.existsSync(folder)) {
-                  fs.mkdirSync(folder, { recursive: true });
+            if (!fs.existsSync(localUploadDir)) {
+                  fs.mkdirSync(localUploadDir, { recursive: true });
             }
 
-            cb(null, folder);
+            cb(null, localUploadDir);
       },
       filename: function (req, file, cb) {
             const uniqueName = `${uuidv4()}${path.extname(file.originalname)}`;

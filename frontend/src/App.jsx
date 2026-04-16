@@ -15,6 +15,7 @@ const Landing = React.lazy(loadLanding);
 const Home = React.lazy(loadHome);
 const Login = React.lazy(loadLogin);
 const Register = React.lazy(loadRegister);
+const ResetPassword = React.lazy(loadResetPassword);
 const Upload = React.lazy(loadUpload);
 const Profile = React.lazy(loadProfile);
 const ContentView = React.lazy(loadContentView);
@@ -53,6 +54,7 @@ function loadLanding() { return import('./pages/Landing'); }
 function loadHome() { return import('./pages/Home'); }
 function loadLogin() { return import('./pages/Auth/Login'); }
 function loadRegister() { return import('./pages/Auth/Register'); }
+function loadResetPassword() { return import('./pages/Auth/ResetPassword'); }
 function loadUpload() { return import('./pages/Upload/Upload'); }
 function loadProfile() { return import('./pages/Profile'); }
 function loadContentView() { return import('./pages/ContentView'); }
@@ -232,6 +234,7 @@ function AppRouter() {
                           {/* Auth routes - no layout */}
                           <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to="/" replace />} />
                           <Route path="/register" element={!isAuthenticated ? <Register /> : <Navigate to="/" replace />} />
+                          <Route path="/reset-password" element={<ResetPassword />} />
 
                           {/* Main routes with layout */}
                           <Route path="/" element={isAuthenticated ? <Layout /> : <Navigate to="/welcome" replace />}>
