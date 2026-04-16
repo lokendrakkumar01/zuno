@@ -70,9 +70,9 @@ describe('User profile controller', () => {
         await getUserProfile(req, res);
 
         expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'private, no-store');
-        expect(res.json).toHaveBeenCalledWith({
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
             success: true,
-            data: {
+            data: expect.objectContaining({
                 user: expect.objectContaining({
                     username: 'zuno',
                     email: 'owner@example.com',
@@ -80,8 +80,14 @@ describe('User profile controller', () => {
                     blockedUsers: ['blocked-1'],
                     isPrivate: true,
                 }),
-            },
-        });
+                contents: [],
+                pagination: {
+                    limit: 24,
+                    hasMore: false,
+                    nextCursor: null,
+                },
+            }),
+        }));
     });
 
     it('returns the public profile shape for visitors', async () => {

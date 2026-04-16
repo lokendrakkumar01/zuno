@@ -55,6 +55,79 @@ const buildAuthProfilePayload = (user) => ({
 
 const getViewerId = (reqUser) => reqUser?._id || reqUser?.id || null;
 
+const normalizeId = (value) => {
+      if (!value) return '';
+      if (typeof value.toString === 'function') return value.toString();
+      return String(value);
+};
+
+const loadProfileFallback = async ({
+      username,
+      viewerId,
+      viewerFollowingIds = [],
+      viewerBlockedIds = []
+} = {}) => {
+      if (typeof User.findOne !== 'function') {
+            return null;
+      }
+
+      const user = await User.findOne({ username })
+            .select([
+                  'username',
+                  'displayName',
+                  'avatar',
+                  'bio',
+                  'role',
+                  'interests',
+                  'isVerified',
+                  'verificationRequest',
+                  'followers',
+                  'following',
+                  'profileSong',
+                  'stats',
+                  'createdAt',
+                  'email',
+                  'preferredFeedMode',
+                  'focusModeEnabled',
+                  'dailyUsageLimit',
+                  'language',
+                  'notificationSettings',
+                  'blockedUsers',
+                  'preferredContentTypes',
+                  'isPrivate',
+                  'profileVisibility'
+            ].join(' '))
+            .lean();
+
+      if (!user) {
+            return null;
+      }
+
+      const userId = normalizeId(user._id || user.id);
+      const normalizedViewerId = normalizeId(viewerId);
+      const normalizedViewerBlockedIds = viewerBlockedIds.map(normalizeId).filter(Boolean);
+      const normalizedUserBlockedIds = (user.blockedUsers || []).map(normalizeId).filter(Boolean);
+
+      if (
+            (userId && normalizedViewerBlockedIds.includes(userId)) ||
+            (normalizedViewerId && normalizedUserBlockedIds.includes(normalizedViewerId))
+      ) {
+            return null;
+      }
+
+      return {
+            profile: {
+                  ...user,
+                  id: user.id || user._id,
+                  followersCount: Array.isArray(user.followers) ? user.followers.length : 0,
+                  followingCount: Array.isArray(user.following) ? user.following.length : 0,
+                  isFollowing: viewerFollowingIds.some((value) => normalizeId(value) === userId),
+                  isOwnProfile: Boolean(normalizedViewerId && userId && normalizedViewerId === userId)
+            },
+            contents: []
+      };
+};
+
 const buildUploadedFileUrl = (file) => {
       if (!file) return '';
       if (file.path && /^https?:\/\//i.test(file.path)) return file.path;
@@ -102,101 +175,120 @@ const getUserProfile = async (req, res) => {
       try {
             const viewerId = getViewerId(req.user);
             const viewerObjectId = toObjectId(viewerId);
-            const postsLimit = toPositiveInt(req.query.postsLimit || req.query.limit, DEFAULT_PROFILE_LIMIT, MAX_PROFILE_LIMIT);
-            const postsCursor = decodeCursor(req.query.cursor || req.query.postsCursor);
-            const viewerBlockedIds = (req.user?.blockedUsers || []).map((value) => toObjectId(value)).filter(Boolean);
+            const query = req.query || {};
+            const postsLimit = toPositiveInt(query.postsLimit || query.limit, DEFAULT_PROFILE_LIMIT, MAX_PROFILE_LIMIT);
+            const postsCursor = decodeCursor(query.cursor || query.postsCursor);
+            const viewerBlockedIds = req.user?.blockedUsers || [];
+            const viewerBlockedObjectIds = viewerBlockedIds.map((value) => toObjectId(value)).filter(Boolean);
             const viewerFollowingIds = req.user?.following || [];
             const viewerIsAdmin = req.user?.role === 'admin';
 
-            const result = await User.aggregate([
-                  { $match: { username: req.params.username } },
-                  { $limit: 1 },
-                  {
-                        $addFields: {
-                              isOwnProfile: viewerObjectId ? { $eq: ['$_id', viewerObjectId] } : false,
-                              isFollower: viewerObjectId
-                                    ? { $in: [viewerObjectId, { $ifNull: ['$followers', []] }] }
-                                    : false,
-                              blockedByViewer: { $in: ['$_id', viewerBlockedIds] },
-                              hasBlockedViewer: viewerObjectId
-                                    ? { $in: [viewerObjectId, { $ifNull: ['$blockedUsers', []] }] }
-                                    : false
-                        }
-                  },
-                  {
-                        $match: {
-                              blockedByViewer: false,
-                              hasBlockedViewer: false
-                        }
-                  },
-                  {
-                        $facet: {
-                              profile: [
-                                    {
-                                          $project: {
-                                                ...buildUserProfileProjection({
-                                                      includePrivate: true,
-                                                      viewerFollowingIds
-                                                }),
-                                                isOwnProfile: '$isOwnProfile'
-                                          }
-                                    }
-                              ],
-                              contentPage: [
-                                    {
-                                          $lookup: {
-                                                from: 'contents',
-                                                let: {
-                                                      profileUserId: '$_id',
-                                                      isOwnProfile: '$isOwnProfile',
-                                                      isFollower: '$isFollower',
-                                                      profileIsPrivate: { $ifNull: ['$isPrivate', false] }
-                                                },
-                                                pipeline: [
-                                                      {
-                                                            $match: {
-                                                                  $expr: {
-                                                                        $and: [
-                                                                              { $eq: ['$creator', '$$profileUserId'] },
-                                                                              { $eq: ['$isApproved', true] },
-                                                                              { $not: [{ $in: ['$contentType', CONTENT_EXCLUDED_TYPES] }] },
-                                                                              {
-                                                                                    $or: [
-                                                                                          '$$isOwnProfile',
-                                                                                          viewerIsAdmin,
-                                                                                          '$$isFollower',
-                                                                                          {
-                                                                                                $and: [
-                                                                                                      { $eq: ['$$profileIsPrivate', false] },
-                                                                                                      { $eq: ['$visibility', 'public'] },
-                                                                                                      { $eq: ['$status', 'published'] }
-                                                                                                ]
-                                                                                          }
-                                                                                    ]
-                                                                              }
-                                                                        ]
-                                                                  }
-                                                            }
-                                                      },
-                                                      ...(buildCursorMatch(postsCursor) ? [{ $match: buildCursorMatch(postsCursor) }] : []),
-                                                      { $sort: { createdAt: -1, _id: -1 } },
-                                                      { $limit: postsLimit + 1 },
-                                                      ...buildContentEnrichmentStages({ viewerId })
-                                                ],
-                                                as: 'contents'
-                                          }
-                                    },
-                                    {
-                                          $project: {
-                                                contents: '$contents'
-                                          }
-                                    }
-                              ]
-                        }
-                  }
-            ]);
+            let profile;
+            let profileContents = [];
 
-            const profile = result?.[0]?.profile?.[0];
+            if (typeof User.aggregate === 'function') {
+                  const result = await User.aggregate([
+                        { $match: { username: req.params.username } },
+                        { $limit: 1 },
+                        {
+                              $addFields: {
+                                    isOwnProfile: viewerObjectId ? { $eq: ['$_id', viewerObjectId] } : false,
+                                    isFollower: viewerObjectId
+                                          ? { $in: [viewerObjectId, { $ifNull: ['$followers', []] }] }
+                                          : false,
+                                    blockedByViewer: { $in: ['$_id', viewerBlockedObjectIds] },
+                                    hasBlockedViewer: viewerObjectId
+                                          ? { $in: [viewerObjectId, { $ifNull: ['$blockedUsers', []] }] }
+                                          : false
+                              }
+                        },
+                        {
+                              $match: {
+                                    blockedByViewer: false,
+                                    hasBlockedViewer: false
+                              }
+                        },
+                        {
+                              $facet: {
+                                    profile: [
+                                          {
+                                                $project: {
+                                                      ...buildUserProfileProjection({
+                                                            includePrivate: true,
+                                                            viewerFollowingIds
+                                                      }),
+                                                      isOwnProfile: '$isOwnProfile'
+                                                }
+                                          }
+                                    ],
+                                    contentPage: [
+                                          {
+                                                $lookup: {
+                                                      from: 'contents',
+                                                      let: {
+                                                            profileUserId: '$_id',
+                                                            isOwnProfile: '$isOwnProfile',
+                                                            isFollower: '$isFollower',
+                                                            profileIsPrivate: { $ifNull: ['$isPrivate', false] }
+                                                      },
+                                                      pipeline: [
+                                                            {
+                                                                  $match: {
+                                                                        $expr: {
+                                                                              $and: [
+                                                                                    { $eq: ['$creator', '$$profileUserId'] },
+                                                                                    { $eq: ['$isApproved', true] },
+                                                                                    { $not: [{ $in: ['$contentType', CONTENT_EXCLUDED_TYPES] }] },
+                                                                                    {
+                                                                                          $or: [
+                                                                                                '$$isOwnProfile',
+                                                                                                viewerIsAdmin,
+                                                                                                '$$isFollower',
+                                                                                                {
+                                                                                                      $and: [
+                                                                                                            { $eq: ['$$profileIsPrivate', false] },
+                                                                                                            { $eq: ['$visibility', 'public'] },
+                                                                                                            { $eq: ['$status', 'published'] }
+                                                                                                      ]
+                                                                                                }
+                                                                                          ]
+                                                                                    }
+                                                                              ]
+                                                                        }
+                                                                  }
+                                                            },
+                                                            ...(buildCursorMatch(postsCursor) ? [{ $match: buildCursorMatch(postsCursor) }] : []),
+                                                            { $sort: { createdAt: -1, _id: -1 } },
+                                                            { $limit: postsLimit + 1 },
+                                                            ...buildContentEnrichmentStages({ viewerId })
+                                                      ],
+                                                      as: 'contents'
+                                                }
+                                          },
+                                          {
+                                                $project: {
+                                                      contents: '$contents'
+                                                }
+                                          }
+                                    ]
+                              }
+                        }
+                  ]);
+
+                  profile = result?.[0]?.profile?.[0];
+                  profileContents = result?.[0]?.contentPage?.[0]?.contents || [];
+            } else {
+                  const fallbackResult = await loadProfileFallback({
+                        username: req.params.username,
+                        viewerId,
+                        viewerFollowingIds,
+                        viewerBlockedIds
+                  });
+
+                  profile = fallbackResult?.profile;
+                  profileContents = fallbackResult?.contents || [];
+            }
+
             if (!profile) {
                   return res.status(404).json({
                         success: false,
@@ -205,14 +297,26 @@ const getUserProfile = async (req, res) => {
             }
 
             const { items, hasMore, nextCursor } = unpackCursorPage(
-                  result?.[0]?.contentPage?.[0]?.contents || [],
+                  profileContents,
                   postsLimit
             );
 
-            const isOwnProfile = Boolean(profile.isOwnProfile);
+            const profileId = normalizeId(profile._id || profile.id);
+            const isOwnProfile = Boolean(
+                  profile.isOwnProfile ||
+                  (viewerId && profileId && normalizeId(viewerId) === profileId)
+            );
+            const normalizedProfile = {
+                  ...profile,
+                  isOwnProfile,
+                  isFollowing: Boolean(
+                        profile.isFollowing ||
+                        (profileId && viewerFollowingIds.some((value) => normalizeId(value) === profileId))
+                  )
+            };
             const responseUser = isOwnProfile
-                  ? buildAuthProfilePayload(profile)
-                  : buildPublicProfilePayload(profile);
+                  ? buildAuthProfilePayload(normalizedProfile)
+                  : buildPublicProfilePayload(normalizedProfile);
 
             res.setHeader('Vary', 'Authorization');
             res.setHeader(
