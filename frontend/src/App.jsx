@@ -78,7 +78,7 @@ function loadStatus() { return import('./pages/Status'); }
 
 // Main App Router Component (inside AuthProvider)
 function AppRouter() {
-      const { isAuthenticated, user, token } = useAuth();
+      const { isAuthenticated, user, token, loading } = useAuth();
       const [showSplash, setShowSplash] = useState(() => {
             const shown = localStorage.getItem('zuno_splash_shown');
             const time = localStorage.getItem('zuno_splash_time');
@@ -202,8 +202,8 @@ function AppRouter() {
             localStorage.setItem('zuno_splash_time', Date.now().toString());
             setShowSplash(false);
 
-            // Navigate if not already on a route
-            if (window.location.pathname === '/') {
+            // Navigate if not already on a route and auth has finished restoring
+            if (!loading && window.location.pathname === '/') {
                   if (isAuthenticated) navigate('/');
                   else navigate('/welcome');
             }
@@ -212,6 +212,10 @@ function AppRouter() {
       // Show splash screen
       if (showSplash) {
             return <SplashScreen onComplete={handleSplashComplete} />;
+      }
+
+      if (loading) {
+            return <RouteSuspenseFallback />;
       }
 
       return (
@@ -223,14 +227,14 @@ function AppRouter() {
                   <Suspense fallback={<RouteSuspenseFallback />}>
                     <Routes>
                           {/* Welcome/Landing Page */}
-                          <Route path="/welcome" element={!isAuthenticated ? <Landing /> : <Navigate to="/" />} />
+                          <Route path="/welcome" element={!isAuthenticated ? <Landing /> : <Navigate to="/" replace />} />
 
                           {/* Auth routes - no layout */}
-                          <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to="/" />} />
-                          <Route path="/register" element={!isAuthenticated ? <Register /> : <Navigate to="/" />} />
+                          <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to="/" replace />} />
+                          <Route path="/register" element={!isAuthenticated ? <Register /> : <Navigate to="/" replace />} />
 
                           {/* Main routes with layout */}
-                          <Route path="/" element={isAuthenticated ? <Layout /> : <Navigate to="/welcome" />}>
+                          <Route path="/" element={isAuthenticated ? <Layout /> : <Navigate to="/welcome" replace />}>
                                 <Route index element={<Home />} />
                                 <Route path="upload" element={<Upload />} />
                                 <Route path="profile" element={<Profile />} />

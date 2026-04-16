@@ -44,6 +44,12 @@ const isRetriableNetworkError = (error) => (
       || error?.message?.includes('HTTP 5')
 );
 
+const isRecoverableAuthError = (error) => (
+      isRetriableNetworkError(error)
+      || error?.status === 429
+      || (typeof error?.status === 'number' && error.status >= 500)
+);
+
 export const AuthProvider = ({ children }) => {
       const [token, setToken] = useState(() => readStoredToken());
       const [refreshToken, setRefreshToken] = useState(() => readStoredRefreshToken());
@@ -86,7 +92,9 @@ export const AuthProvider = ({ children }) => {
 
             const data = await res.json().catch(() => null);
             if (!res.ok || !data?.success || !data?.data?.token) {
-                  throw new Error(data?.message || 'Session refresh failed');
+                  const error = new Error(data?.message || 'Session refresh failed');
+                  error.status = res.status;
+                  throw error;
             }
 
             applyAuthenticatedSession(
@@ -108,7 +116,8 @@ export const AuthProvider = ({ children }) => {
                         return;
                   }
 
-                  const hasOptimisticUser = Boolean(readStoredAuthUser());
+                  const cachedUser = readStoredAuthUser();
+                  const hasOptimisticUser = Boolean(cachedUser);
                   if (!hasOptimisticUser) {
                         setLoading(true);
                   }
@@ -136,16 +145,16 @@ export const AuthProvider = ({ children }) => {
                         } else if (res.status === 401) {
                               logout();
                         } else {
-                              throw new Error(data?.message || `Auth check failed with status ${res.status}`);
+                              const error = new Error(data?.message || `Auth check failed with status ${res.status}`);
+                              error.status = res.status;
+                              throw error;
                         }
                   } catch (error) {
                         if (!ignore) {
                               console.error('Auth check failed (server may be starting):', error);
-                              if (isRetriableNetworkError(error)) {
-                                    const cachedUser = readStoredAuthUser();
-                                    if (cachedUser) {
-                                          setUser(cachedUser);
-                                    }
+                              if (cachedUser && isRecoverableAuthError(error)) {
+                                    setUser(cachedUser);
+                                    persistStoredAuthUser(cachedUser);
                               } else {
                                     logout();
                               }

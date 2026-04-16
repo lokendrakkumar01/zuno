@@ -175,7 +175,8 @@ const register = async (req, res) => {
                   message: 'Welcome to ZUNO! 🎉',
                   data: {
                         user: user.getAuthProfile(),
-                        token
+                        token: tokens.token,
+                        refreshToken: tokens.refreshToken
                   }
             });
       } catch (error) {
