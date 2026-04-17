@@ -15,6 +15,10 @@ const EMOJI_DATA = {
       '🍕': ['🍕', '🍔', '🍟', '🌮', '🍜', '🍩', '🍪', '🎂', '🧁', '🍰', '🍫', '🍬', '☕', '🧃', '🍷', '🍻', '🥤', '🍳', '🥗', '🍣']
 };
 
+const sortMessagesByCreatedAt = (items = []) => (
+      [...items].sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime())
+);
+
 const GroupChat = () => {
       const { groupId } = useParams();
       const { token, user } = useAuth();
@@ -193,21 +197,43 @@ const GroupChat = () => {
             if (!socket) return;
 
             const handleNewGroupMessage = (newMsg) => {
-                  if (newMsg.conversationId !== groupId) return;
+                  const incomingConversationId = newMsg.conversationId?.toString?.() || newMsg.conversationId;
+                  if (incomingConversationId !== groupId) return;
 
                   const incomingSenderId = (newMsg.sender?._id || newMsg.sender || '').toString();
                   const currentUserId = (user?._id || user?.id || '').toString();
                   const isMyEcho = incomingSenderId === currentUserId;
 
                   if (isMyEcho) {
-                        if (sentMsgIds.current.has(newMsg._id?.toString())) return;
+                        const clientMsgId = newMsg.clientMsgId;
+                        const realMsgId = newMsg._id?.toString();
+
+                        if (sentMsgIds.current.has(realMsgId)) return;
+
+                        setMessages((prev) => {
+                              const tempIdx = clientMsgId ? prev.findIndex((message) => message._id === clientMsgId) : -1;
+                              if (tempIdx > -1) {
+                                    const updated = [...prev];
+                                    updated[tempIdx] = newMsg;
+                                    sentMsgIds.current.add(realMsgId);
+                                    return sortMessagesByCreatedAt(updated);
+                              }
+
+                              if (prev.some((message) => message._id?.toString() === realMsgId)) {
+                                    return prev;
+                              }
+
+                              sentMsgIds.current.add(realMsgId);
+                              return sortMessagesByCreatedAt([...prev, newMsg]);
+                        });
+                        return;
                   }
 
                   setMessages((prev) => {
                         const newId = newMsg._id?.toString();
                         if (prev.some(m => (m._id?.toString()) === newId)) return prev;
                         if (!isMyEcho) playSound('receive');
-                        return [...prev, newMsg];
+                        return sortMessagesByCreatedAt([...prev, newMsg]);
                   });
             };
 
@@ -244,8 +270,25 @@ const GroupChat = () => {
       useEffect(() => {
             const lastMsg = messages[messages.length - 1];
             const isMySent = lastMsg?.sender?._id === user?._id || lastMsg?.sender === user?._id;
+
+            if (messages.length > 0) {
+                  const persistCache = () => {
+                        try {
+                              localStorage.setItem(`zuno_group_chat_cache_${groupId}`, JSON.stringify(messages.slice(-100)));
+                        } catch {
+                              // Cache writes are optional.
+                        }
+                  };
+
+                  if (window.requestIdleCallback) {
+                        window.requestIdleCallback(persistCache);
+                  } else {
+                        window.setTimeout(persistCache, 100);
+                  }
+            }
+
             scrollToBottom(isMySent);
-      }, [messages]);
+      }, [groupId, messages, user?._id]);
 
       useEffect(() => {
             const handleClickOutside = (e) => {
@@ -296,7 +339,7 @@ const GroupChat = () => {
                                     const merged = [...newMsgs, ...prev];
                                     const map = new Map();
                                     merged.forEach(m => map.set(m._id?.toString(), m));
-                                    return Array.from(map.values()).sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+                                    return sortMessagesByCreatedAt(Array.from(map.values()));
                               });
                               setPage(pageNum);
                               requestAnimationFrame(() => {
@@ -544,6 +587,7 @@ const GroupChat = () => {
                         const fileToSend = await compressImage(currentMedia);
                         const formData = new FormData();
                         formData.append('media', fileToSend);
+                        formData.append('clientMsgId', tempId);
                         if (msgText) formData.append('text', msgText);
                         if (currentReplyTarget) formData.append('replyTo', currentReplyTarget._id);
 
@@ -553,7 +597,7 @@ const GroupChat = () => {
                               body: formData
                         });
                   } else {
-                        const payload = { text: msgText };
+                        const payload = { text: msgText, clientMsgId: tempId };
                         if (currentReplyTarget) payload.replyTo = currentReplyTarget._id;
 
                         res = await fetch(`${API_URL}/messages/group/${groupId}`, {
@@ -575,7 +619,9 @@ const GroupChat = () => {
                               if (alreadyHasReal) {
                                     return prev.filter(m => m._id !== tempId);
                               } else {
-                                    return prev.map(m => m._id === tempId ? data.data.message : m);
+                                    return sortMessagesByCreatedAt(
+                                          prev.map(m => m._id === tempId ? data.data.message : m)
+                                    );
                               }
                         });
                   } else {

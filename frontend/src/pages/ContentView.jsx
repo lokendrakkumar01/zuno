@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useMusic } from '../context/MusicContext';
@@ -7,6 +7,11 @@ import CommentSection from '../components/Content/CommentSection';
 import { BookmarkIcon, CheckIcon, CommentIcon, DownloadIcon, EditIcon, HeartIcon, ShareIcon } from '../components/Icons/ActionIcons';
 import { resolveAssetUrl } from '../utils/media';
 import { shareContentLink } from '../utils/shareContent';
+import { fetchWithTimeout } from '../utils/fetchWithTimeout';
+
+const CONTENT_FETCH_PRIMARY_MS = 12000;
+const CONTENT_FETCH_WAKE_MS = 45000;
+const RELATED_CONTENT_FETCH_MS = 15000;
 
 // Separate component for media items to avoid React hooks violation
 const MediaItem = ({ m, content }) => {
@@ -27,7 +32,7 @@ const MediaItem = ({ m, content }) => {
                   {/* Failed Status */}
                   {m.status === 'failed' && (
                         <div className="absolute inset-0 flex flex-col items-center justify-center text-red-500">
-                              <span className="text-2xl mb-2">⚠️</span>
+                              <span className="text-2xl mb-2">!</span>
                               <span className="text-sm">Media failed to load</span>
                         </div>
                   )}
@@ -110,6 +115,14 @@ const ContentView = () => {
       const [contentForm, setContentForm] = useState({ title: '', body: '' });
       const isOwner = Boolean(user?._id && content?.creator?._id?.toString() === user._id?.toString());
 
+      const wakeBackend = useCallback(async () => {
+            try {
+                  await fetch(`${API_URL}/ping`, { cache: 'no-store' });
+            } catch {
+                  // Best effort wake request only.
+            }
+      }, []);
+
       const updateContentState = (updater) => {
             setContent((prev) => {
                   if (!prev) return prev;
@@ -135,7 +148,9 @@ const ContentView = () => {
             if (!username) return;
             setMoreLoading(true);
             try {
-                  const res = await fetch(`${API_URL}/feed/creator/${username}`);
+                  const res = await fetchWithTimeout(`${API_URL}/feed/creator/${username}`, {
+                        headers: token ? { Authorization: `Bearer ${token}` } : {}
+                  }, RELATED_CONTENT_FETCH_MS);
                   const data = await res.json();
                   if (data.success) {
                         const items = data.data.contents || data.data || [];
@@ -149,37 +164,75 @@ const ContentView = () => {
       };
 
       useEffect(() => {
+            let ignore = false;
+            const controller = new AbortController();
+
             const fetchContent = async () => {
-                  setLoading(prev => content ? false : true);
+                  setLoading((prev) => (content ? false : prev));
+
                   try {
-                        const res = await fetch(`${API_URL}/content/${id}`, {
-                              headers: token ? { Authorization: `Bearer ${token}` } : {}
-                        });
-                        const data = await res.json();
-                        if (data.success) {
+                        let res;
+
+                        try {
+                              res = await fetchWithTimeout(`${API_URL}/content/${id}`, {
+                                    headers: token ? { Authorization: `Bearer ${token}` } : {},
+                                    signal: controller.signal
+                              }, CONTENT_FETCH_PRIMARY_MS);
+                        } catch (error) {
+                              if (error?.name === 'AbortError' && controller.signal.aborted) {
+                                    return;
+                              }
+
+                              if (error?.name === 'AbortError') {
+                                    await wakeBackend();
+                                    res = await fetchWithTimeout(`${API_URL}/content/${id}`, {
+                                          headers: token ? { Authorization: `Bearer ${token}` } : {},
+                                          signal: controller.signal
+                                    }, CONTENT_FETCH_WAKE_MS);
+                              } else {
+                                    throw error;
+                              }
+                        }
+
+                        const data = await res.json().catch(() => null);
+                        if (ignore) return;
+
+                        if (data?.success && data.data?.content) {
                               setContent(data.data.content);
                               setIsHelpful(Boolean(data.data.content?.viewerState?.isHelpful));
                               setIsSaved(Boolean(data.data.content?.viewerState?.isSaved));
                               try {
                                     localStorage.setItem(`zuno_content_${id}`, JSON.stringify(data.data.content));
-                              } catch (e) { }
-                        } else {
-                              console.error('Content fetch failed:', data.message);
+                              } catch {
+                                    // Cache writes are optional.
+                              }
+                        } else if (!content) {
+                              setContent(null);
                         }
                   } catch (error) {
-                        console.error('Failed to fetch content:', error);
+                        if (error?.name !== 'AbortError') {
+                              console.error('Failed to fetch content:', error);
+                        }
+                  } finally {
+                        if (!ignore) {
+                              setLoading(false);
+                        }
                   }
-                  setLoading(false);
             };
 
             fetchContent();
-      }, [id, token]);
+
+            return () => {
+                  ignore = true;
+                  controller.abort();
+            };
+      }, [id, token, wakeBackend]);
 
       useEffect(() => {
             if (content?.creator?.username) {
                   fetchMoreFromCreator(content.creator.username);
             }
-      }, [content?._id]);
+      }, [content?._id, token]);
 
       const hasAutoPlayed = useRef(false);
       useEffect(() => {
@@ -343,7 +396,7 @@ const ContentView = () => {
       if (!content) {
             return (
                   <div className="empty-state animate-fadeIn">
-                        <div className="empty-state-icon">🔍</div>
+                        <div className="empty-state-icon">[Not Found]</div>
                         <h2 className="text-xl font-semibold mb-md">Content not found</h2>
                         <Link to="/" className="btn btn-primary">Go Home</Link>
                   </div>
@@ -390,9 +443,9 @@ const ContentView = () => {
                                     </div>
                                     <div className="flex gap-sm flex-wrap items-center">
                                           <span className="tag tag-primary" style={{ textTransform: 'uppercase', fontSize: '0.75rem', fontWeight: 800 }}>{content.contentType}</span>
-                                          <span className="text-muted" style={{ margin: '0 8px' }}>•</span>
+                                          <span className="text-muted" style={{ margin: '0 8px' }}>-</span>
                                           <span className="text-muted text-sm">{new Date(content.createdAt).toLocaleDateString()}</span>
-                                          <span className="text-muted" style={{ margin: '0 8px' }}>•</span>
+                                          <span className="text-muted" style={{ margin: '0 8px' }}>-</span>
                                           <div className="flex gap-xs">
                                                 {content.topics?.map(topic => (
                                                       <span key={topic} className="text-indigo-500 font-semibold text-sm">#{topic}</span>
@@ -461,7 +514,7 @@ const ContentView = () => {
                                     )}
                               </div>
 
-                              <div className="mb-2xl">
+                              <div id="comments" className="mb-2xl">
                                     <CommentSection
                                           contentId={content._id}
                                           onCountChange={(commentCount) => {
@@ -481,7 +534,7 @@ const ContentView = () => {
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-lg mb-2xl">
                                           {content.chapters?.length > 0 && (
                                                 <div className="card p-lg" style={{ background: 'linear-gradient(135deg, #f8fafc, #f1f5f9)' }}>
-                                                      <h3 className="font-bold mb-md flex items-center gap-sm">📑 Video Chapters</h3>
+                                                      <h3 className="font-bold mb-md flex items-center gap-sm">Video Chapters</h3>
                                                       <ul className="flex flex-col gap-sm">
                                                             {content.chapters.map((ch, idx) => (
                                                                   <li key={idx} className="flex justify-between items-center p-sm hover:bg-white rounded-lg transition-all cursor-pointer">
@@ -494,7 +547,7 @@ const ContentView = () => {
                                           )}
                                           {content.notes && (
                                                 <div className="card p-lg" style={{ background: 'linear-gradient(135deg, #fffcf0, #fefce8)' }}>
-                                                      <h3 className="font-bold mb-md flex items-center gap-sm">📝 Study Notes</h3>
+                                                      <h3 className="font-bold mb-md flex items-center gap-sm">Study Notes</h3>
                                                       <p className="text-sm" style={{ whiteSpace: 'pre-wrap', color: '#854d0e' }}>{content.notes}</p>
                                                 </div>
                                           )}
@@ -505,7 +558,7 @@ const ContentView = () => {
                               <div className="more-from-creator mt-2xl pt-xl" style={{ borderTop: '2px solid #f1f5f9' }}>
                                     <div className="flex items-center justify-between mb-xl">
                                           <h2 className="text-2xl font-bold">More from this Creator</h2>
-                                          <Link to={`/u/${content.creator?.username}`} className="text-indigo-600 font-bold hover:underline">View Profile →</Link>
+                                          <Link to={`/u/${content.creator?.username}`} className="text-indigo-600 font-bold hover:underline">View Profile -&gt;</Link>
                                     </div>
                                     {moreLoading ? (
                                           <div className="flex gap-md overflow-x-auto pb-4">

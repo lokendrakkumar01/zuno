@@ -5,6 +5,14 @@ import { useSocketContext } from '../../context/SocketContext';
 import { API_URL } from '../../config';
 import UserAvatar from '../../components/User/UserAvatar';
 
+const getMessagePreview = (message = {}) => {
+      const trimmedText = String(message.text || '').trim();
+      if (trimmedText) return trimmedText;
+      if (message.media?.type === 'video') return 'Video attachment';
+      if (message.media?.url) return 'Photo attachment';
+      return 'Media shared';
+};
+
 const Messages = () => {
       const { token, isAuthenticated, user } = useAuth();
       const { onlineUsers, socket } = useSocketContext();
@@ -49,6 +57,15 @@ const Messages = () => {
       const searchAbortRef = useRef(null);
       const groupSearchAbortRef = useRef(null);
 
+      const persistConversations = useCallback((nextConversations) => {
+            setConversations(nextConversations);
+            try {
+                  localStorage.setItem(conversationsCacheKey, JSON.stringify(nextConversations));
+            } catch {
+                  // Cache writes are optional.
+            }
+      }, [conversationsCacheKey]);
+
       const fetchConversations = useCallback(async () => {
             const cacheKey = conversationsCacheKey;
             const hasCached = !!localStorage.getItem(cacheKey);
@@ -62,12 +79,7 @@ const Messages = () => {
                   });
                   const data = await res.json();
                   if (data.success) {
-                        setConversations(data.data.conversations || []);
-                        try {
-                              localStorage.setItem(cacheKey, JSON.stringify(data.data.conversations || []));
-                        } catch {
-                              // Cache writes are optional.
-                        }
+                        persistConversations(data.data.conversations || []);
                   }
             } catch (err) {
                   console.error('Failed to fetch conversations:', err);
@@ -75,7 +87,7 @@ const Messages = () => {
                   setLoading(false);
                   setSilentRefreshing(false);
             }
-      }, [conversationsCacheKey, token]);
+      }, [conversationsCacheKey, persistConversations, token]);
 
       const fetchNotes = useCallback(async () => {
             try {
@@ -107,6 +119,77 @@ const Messages = () => {
             }, 250);
       }, [fetchConversations]);
 
+      const upsertConversationFromMessage = useCallback((message, { isGroup = false } = {}) => {
+            if (!message) return;
+
+            const currentUserId = user?._id?.toString() || user?.id?.toString() || '';
+            const conversationId = message.conversationId?.toString?.() || message.conversationId || null;
+            const sender = message.sender || null;
+            const receiver = message.receiver || null;
+            const senderId = sender?._id?.toString?.() || sender?.toString?.() || '';
+            const peerUser = senderId === currentUserId ? receiver : sender;
+            const peerUserId = peerUser?._id?.toString?.() || peerUser?.toString?.() || '';
+            const nextTimestamp = message.createdAt || new Date().toISOString();
+            const unreadIncrement = senderId && senderId !== currentUserId ? 1 : 0;
+            const nextPreview = getMessagePreview(message);
+
+            setConversations((previous) => {
+                  const existingIndex = previous.findIndex((conversation) => {
+                        const conversationKey = conversation._id?.toString?.() || conversation._id;
+                        const conversationUserId = conversation.user?._id?.toString?.() || conversation.user?._id;
+
+                        if (conversationId && conversationKey === conversationId) {
+                              return true;
+                        }
+
+                        return !isGroup && peerUserId && !conversation.isGroup && conversationUserId === peerUserId;
+                  });
+
+                  const nextConversations = [...previous];
+
+                  if (existingIndex >= 0) {
+                        const existingConversation = nextConversations[existingIndex];
+                        nextConversations.splice(existingIndex, 1);
+                        nextConversations.unshift({
+                              ...existingConversation,
+                              user: isGroup ? existingConversation.user : (peerUser || existingConversation.user),
+                              lastMessage: {
+                                    ...(existingConversation.lastMessage || {}),
+                                    text: nextPreview,
+                                    sender: sender || existingConversation.lastMessage?.sender,
+                                    createdAt: nextTimestamp
+                              },
+                              unreadCount: Math.max(0, Number(existingConversation.unreadCount || 0) + unreadIncrement),
+                              updatedAt: nextTimestamp
+                        });
+                  } else {
+                        nextConversations.unshift({
+                              _id: conversationId || peerUserId || `conversation-${Date.now()}`,
+                              user: isGroup ? null : peerUser,
+                              isGroup,
+                              isChannel: Boolean(message.isChannel),
+                              groupName: message.groupName || 'Group conversation',
+                              groupAvatar: message.groupAvatar || '',
+                              lastMessage: {
+                                    text: nextPreview,
+                                    sender,
+                                    createdAt: nextTimestamp
+                              },
+                              unreadCount: unreadIncrement,
+                              updatedAt: nextTimestamp
+                        });
+                  }
+
+                  try {
+                        localStorage.setItem(conversationsCacheKey, JSON.stringify(nextConversations));
+                  } catch {
+                        // Cache writes are optional.
+                  }
+
+                  return nextConversations;
+            });
+      }, [conversationsCacheKey, user?._id, user?.id]);
+
       useEffect(() => {
             if (!isAuthenticated) return;
             fetchConversations();
@@ -116,18 +199,28 @@ const Messages = () => {
       useEffect(() => {
             if (!socket) return;
 
+            const handleRealtimeDm = (message) => {
+                  upsertConversationFromMessage(message, { isGroup: false });
+                  debouncedRefetch();
+            };
+
+            const handleRealtimeGroup = (message) => {
+                  upsertConversationFromMessage(message, { isGroup: true });
+                  debouncedRefetch();
+            };
+
             const handleRealtimeUpdate = () => debouncedRefetch();
 
-            socket.on('newMessage', handleRealtimeUpdate);
-            socket.on('newGroupMessage', handleRealtimeUpdate);
+            socket.on('newMessage', handleRealtimeDm);
+            socket.on('newGroupMessage', handleRealtimeGroup);
             socket.on('messageRead', handleRealtimeUpdate);
 
             return () => {
-                  socket.off('newMessage', handleRealtimeUpdate);
-                  socket.off('newGroupMessage', handleRealtimeUpdate);
+                  socket.off('newMessage', handleRealtimeDm);
+                  socket.off('newGroupMessage', handleRealtimeGroup);
                   socket.off('messageRead', handleRealtimeUpdate);
             };
-      }, [debouncedRefetch, socket]);
+      }, [debouncedRefetch, socket, upsertConversationFromMessage]);
 
       useEffect(() => () => {
             if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current);

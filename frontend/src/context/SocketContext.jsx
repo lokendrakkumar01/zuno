@@ -15,6 +15,7 @@ export const SocketContextProvider = ({ children }) => {
       const [onlineUsers, setOnlineUsers] = useState([]);
       const [isConnected, setIsConnected] = useState(false);
       const { user, token } = useAuth();
+      const authenticatedUserId = user?._id || user?.id || null;
       const socketRef = useRef(null);
       const heartbeatIntervalRef = useRef(null);
       const lastHeartbeatAckRef = useRef(0);
@@ -35,23 +36,23 @@ export const SocketContextProvider = ({ children }) => {
       };
 
       useEffect(() => {
-            if (user && token) {
+            if (authenticatedUserId && token) {
                   if (socketRef.current) {
                         closeSocket(socketRef.current);
                   }
 
                   const socketInstance = io(SOCKET_URL, {
-                        auth: { token },
-                        transports: ['polling', 'websocket'],
+                        auth: { token, userId: authenticatedUserId },
+                        transports: ['websocket', 'polling'],
                         withCredentials: true,
                         reconnection: true,
                         reconnectionAttempts: 30,
-                        reconnectionDelay: 2000,
-                        reconnectionDelayMax: 15000,
-                        randomizationFactor: 0.5,
-                        timeout: 20000,
+                        reconnectionDelay: 1000,
+                        reconnectionDelayMax: 5000,
+                        randomizationFactor: 0.2,
+                        timeout: 10000,
                         upgrade: true,
-                        rememberUpgrade: false,
+                        rememberUpgrade: true,
                         autoConnect: true
                   });
 
@@ -70,6 +71,9 @@ export const SocketContextProvider = ({ children }) => {
 
                   const handleConnectError = (err) => {
                         console.warn('[Socket] Connection error:', err.message);
+                        if (socketInstance.io.opts.transports?.[0] === 'websocket') {
+                              socketInstance.io.opts.transports = ['polling', 'websocket'];
+                        }
                         setIsConnected(false);
                   };
 
@@ -148,7 +152,7 @@ export const SocketContextProvider = ({ children }) => {
             setOnlineUsers([]);
 
             return undefined;
-      }, [user, token]);
+      }, [authenticatedUserId, token]);
 
       return (
             <SocketContext.Provider value={{ socket, onlineUsers, isConnected }}>

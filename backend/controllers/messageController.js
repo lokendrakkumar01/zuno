@@ -249,7 +249,7 @@ const sendMessage = async (req, res) => {
             }
 
             // Conversation last message text
-            const lastText = text ? text.trim() : (msgData.media?.type === 'video' ? '🎬 Video' : '📷 Photo');
+            const lastText = text ? text.trim() : (msgData.media?.type === 'video' ? 'Video attachment' : 'Photo attachment');
 
             let conversation = await Conversation.findOne({
                   participants: { $all: [req.user.id, userId] },
@@ -570,18 +570,31 @@ const reactToMessage = async (req, res) => {
             await message.populate('receiver', 'username displayName avatar');
             await message.populate('reactions.user', 'username displayName avatar');
 
-            // Send via socket
-            const receiverId = message.sender.toString() === req.user.id
-                  ? message.receiver?.toString()
-                  : message.sender.toString();
+            const reactionPayload = {
+                  messageId,
+                  reactions: message.reactions,
+                  conversationId: message.conversationId?.toString() || null
+            };
 
-            // Broadcast to the other user's specific room when available
-            if (receiverId) {
-                  io.to(receiverId).emit("messageReaction", { messageId, reactions: message.reactions });
+            if (message.conversationId) {
+                  const conversation = await Conversation.findById(message.conversationId)
+                        .select('participants')
+                        .lean();
+
+                  conversation?.participants?.forEach((participantId) => {
+                        io.to(participantId.toString()).emit('messageReaction', reactionPayload);
+                  });
+            } else {
+                  const receiverId = message.sender.toString() === req.user.id
+                        ? message.receiver?.toString()
+                        : message.sender.toString();
+
+                  if (receiverId) {
+                        io.to(receiverId).emit('messageReaction', reactionPayload);
+                  }
+
+                  io.to(req.user.id).emit('messageReaction', reactionPayload);
             }
-
-            // Also broadcast to the current user's room so their other tabs instantly sync
-            io.to(req.user.id).emit("messageReaction", { messageId, reactions: message.reactions });
 
             res.json({
                   success: true,
@@ -601,31 +614,61 @@ const clearChat = async (req, res) => {
             const { userId } = req.params;
             const currentUserId = req.user.id;
 
-            // Delete all messages between these two users
-            await Message.deleteMany({
-                  $or: [
-                        { sender: currentUserId, receiver: userId },
-                        { sender: userId, receiver: currentUserId }
-                  ]
-            });
+            const groupConversation = await Conversation.findById(userId)
+                  .select('participants isGroup')
+                  .lean()
+                  .catch(() => null);
 
-            // Update or delete the conversation
-            const conversation = await Conversation.findOne({
-                  participants: { $all: [currentUserId, userId] }
-            });
-
-            if (conversation) {
-                  // Option 1: Delete the conversation entirely
-                  // await Conversation.findByIdAndDelete(conversation._id);
-
-                  // Option 2: Clear lastMessage and unread counts
-                  conversation.lastMessage = { text: '', sender: null, createdAt: Date.now() };
-                  if (conversation.unreadCount) {
-                        conversation.unreadCount.set(currentUserId, 0);
-                        conversation.unreadCount.set(userId, 0);
+            if (groupConversation?.isGroup) {
+                  if (!hasUserId(groupConversation.participants, currentUserId)) {
+                        return res.status(403).json({
+                              success: false,
+                              message: 'Not a member of this group'
+                        });
                   }
-                  await conversation.save();
+
+                  await Message.updateMany(
+                        {
+                              conversationId: userId,
+                              deletedBy: { $ne: currentUserId }
+                        },
+                        {
+                              $addToSet: { deletedBy: currentUserId }
+                        }
+                  );
+
+                  await Conversation.findByIdAndUpdate(userId, {
+                        $set: { [`unreadCount.${currentUserId}`]: 0 }
+                  });
+
+                  return res.json({
+                        success: true,
+                        message: 'Chat cleared successfully'
+                  });
             }
+
+            await Message.updateMany(
+                  {
+                        $or: [
+                              { sender: currentUserId, receiver: userId },
+                              { sender: userId, receiver: currentUserId }
+                        ],
+                        deletedBy: { $ne: currentUserId }
+                  },
+                  {
+                        $addToSet: { deletedBy: currentUserId }
+                  }
+            );
+
+            await Conversation.findOneAndUpdate(
+                  {
+                        participants: { $all: [currentUserId, userId] },
+                        isGroup: false
+                  },
+                  {
+                        $set: { [`unreadCount.${currentUserId}`]: 0 }
+                  }
+            );
 
             res.json({
                   success: true,
@@ -765,6 +808,13 @@ const sendGroupMessage = async (req, res) => {
                   return res.status(403).json({ success: false, message: 'Only admins can post in channels' });
             }
 
+            if ((!text || !text.trim()) && !mediaUrl && !req.file) {
+                  return res.status(400).json({
+                        success: false,
+                        message: 'Message text or media is required'
+                  });
+            }
+
             const msgData = {
                   sender: req.user.id,
                   conversationId: groupId,
@@ -784,7 +834,7 @@ const sendGroupMessage = async (req, res) => {
             }
 
             let message = await Message.create(msgData);
-            const lastText = text ? text.trim() : (msgData.media?.type === 'video' ? '🎬 Video' : '📷 Photo');
+            const lastText = text ? text.trim() : (msgData.media?.type === 'video' ? 'Video attachment' : 'Photo attachment');
 
             conversation.lastMessage = { text: lastText, sender: req.user.id, createdAt: new Date() };
             if (!conversation.unreadCount) conversation.unreadCount = new Map();
