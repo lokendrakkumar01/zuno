@@ -166,46 +166,59 @@ const getFeed = async (req, res, next) => {
             } = req.query;
 
             const viewerId = getViewerId(req.user);
-            const decodedCursor = decodeCursor(rawCursor);
             const limitNum = toPositiveInt(limit, DEFAULT_FEED_LIMIT, MAX_FEED_LIMIT);
-            const viewerBlockedIds = req.user?.blockedUsers || [];
 
-            const isPublicFirstPage = !viewerId && mode === 'all' && !contentType && !topic && !decodedCursor;
-            if (isPublicFirstPage && feedCache.data && (Date.now() - feedCache.lastUpdated < feedCache.ttl)) {
-                  res.setHeader('Cache-Control', 'public, max-age=90');
-                  return res.json(feedCache.data);
+            // Simple query without complex aggregation
+            const query = {
+                  status: 'published',
+                  visibility: 'public',
+                  isApproved: true
+            };
+
+            if (contentType) {
+                  query.contentType = contentType;
             }
 
-            const { contents, hasMore, nextCursor } = await fetchFeedPage({
-                  mode,
-                  contentType,
-                  topic,
-                  limit: limitNum,
-                  cursor: decodedCursor,
-                  viewerId,
-                  viewerBlockedIds
-            });
-
-            const responseData = buildFeedResponse({
-                  contents,
-                  mode,
-                  limit: limitNum,
-                  hasMore,
-                  nextCursor,
-                  topic: topic || null
-            });
-
-            if (isPublicFirstPage) {
-                  feedCache = {
-                        data: responseData,
-                        lastUpdated: Date.now(),
-                        ttl: 3 * 60 * 1000
-                  };
+            if (topic) {
+                  query.topics = topic;
             }
+
+            const contents = await Content.find(query)
+                  .populate('creator', 'username displayName avatar bio isVerified')
+                  .sort({ createdAt: -1 })
+                  .limit(limitNum)
+                  .lean();
+
+            const responseData = {
+                  success: true,
+                  data: {
+                        contents: contents.map(content => ({
+                              ...content,
+                              creator: content.creator || {},
+                              comments: { total: 0, preview: [] },
+                              metrics: {
+                                    views: 0,
+                                    likes: 0,
+                                    shares: 0,
+                                    comments: 0
+                              },
+                              userInteraction: {
+                                    liked: false,
+                                    saved: false
+                              }
+                        })),
+                        hasMore: contents.length === limitNum,
+                        nextCursor: null,
+                        mode,
+                        limit: limitNum,
+                        topic: topic || null
+                  }
+            };
 
             res.setHeader('Cache-Control', viewerId ? 'private, max-age=45' : 'public, max-age=90');
             return res.json(responseData);
       } catch (error) {
+            console.error('Feed error:', error);
             return next(error);
       }
 };
