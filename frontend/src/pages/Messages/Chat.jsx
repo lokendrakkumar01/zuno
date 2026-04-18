@@ -576,7 +576,8 @@ const Chat = () => {
                   read: false,
                   edited: false,
                   createdAt: new Date().toISOString(),
-                  _sending: true
+                  _sending: true,
+                  clientMsgId: tempId // Add clientMsgId for socket deduplication
             };
 
             setMessages(prev => [...prev, optimisticMsg]);

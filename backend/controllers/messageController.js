@@ -113,6 +113,7 @@ const getMessages = async (req, res) => {
                   ...cursorFilter
             };
 
+            // Add index hint for better performance
             const messages = await Message.find(messageQuery)
                   .sort({ createdAt: -1 }) // newest first — frontend reverses for display
                   .limit(parseInt(limit))

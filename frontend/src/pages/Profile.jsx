@@ -47,8 +47,20 @@ const readCachedValue = (key, fallback) => {
 
       try {
             const cached = localStorage.getItem(key);
-            return cached ? JSON.parse(cached) : fallback;
+            if (!cached) return fallback;
+            
+            const parsed = JSON.parse(cached);
+            // Add cache timestamp validation (max 5 minutes for profile cache)
+            if (parsed._cacheTimestamp) {
+                  const cacheAge = Date.now() - parsed._cacheTimestamp;
+                  if (cacheAge > 5 * 60 * 1000) { // 5 minutes
+                        localStorage.removeItem(key);
+                        return fallback;
+                  }
+            }
+            return parsed;
       } catch {
+            localStorage.removeItem(key);
             return fallback;
       }
 };
@@ -57,9 +69,32 @@ const writeCachedValue = (key, value) => {
       if (!key) return;
 
       try {
-            localStorage.setItem(key, JSON.stringify(value));
+            // Add timestamp to cache for validation
+            const valueWithTimestamp = {
+                  ...value,
+                  _cacheTimestamp: Date.now()
+            };
+            localStorage.setItem(key, JSON.stringify(valueWithTimestamp));
       } catch {
             // Cache writes are best-effort only.
+            // If storage is full, try to clear old cache
+            try {
+                  const keys = Object.keys(localStorage);
+                  for (const k of keys) {
+                        if (k.startsWith('zuno_')) {
+                              localStorage.removeItem(k);
+                              break;
+                        }
+                  }
+                  // Retry
+                  const valueWithTimestamp = {
+                        ...value,
+                        _cacheTimestamp: Date.now()
+                  };
+                  localStorage.setItem(key, JSON.stringify(valueWithTimestamp));
+            } catch {
+                  // Give up if still failing
+            }
       }
 };
 
@@ -423,19 +458,23 @@ const Profile = () => {
                   }
             };
 
-            Promise.allSettled([
-                  fetchProfileData()
-            ]).finally(() => {
-                  if (!ignore) {
-                        setLoading(false);
-                  }
-            });
+            // Add a small delay to prevent rapid re-fetching
+            const timer = setTimeout(() => {
+                  Promise.allSettled([
+                        fetchProfileData()
+                  ]).finally(() => {
+                        if (!ignore) {
+                              setLoading(false);
+                        }
+                  });
+            }, 100);
 
             return () => {
                   ignore = true;
                   profileController.abort();
+                  clearTimeout(timer);
             };
-      }, [fetchProfileRequest, isOwnProfile, navigate, profileCacheKey, targetUsername, username]);
+      }, [fetchProfileRequest, isOwnProfile, navigate, targetUsername, username]);
 
       // Auto-play removed per user request
 
@@ -461,8 +500,17 @@ const Profile = () => {
                   const data = await res.json();
 
                   if (data.success) {
-                        setFollowersList(data.data.followers || []);
-                        console.log('Followers loaded:', data.data.followers?.length || 0);
+                        const followers = data.data.followers || [];
+                        setFollowersList(followers);
+                        
+                        // Update the profile user with accurate count
+                        if (profileUser) {
+                              setProfileUser(prev => ({
+                                    ...prev,
+                                    followersCount: followers.length
+                              }));
+                        }
+                        console.log('Followers loaded:', followers.length);
                   } else {
                         console.error('Failed to fetch followers:', data.message);
                         setMessage('Failed to load followers.');
@@ -492,8 +540,17 @@ const Profile = () => {
                   const data = await res.json();
 
                   if (data.success) {
-                        setFollowingList(data.data.following || []);
-                        console.log('Following loaded:', data.data.following?.length || 0);
+                        const following = data.data.following || [];
+                        setFollowingList(following);
+                        
+                        // Update the profile user with accurate count
+                        if (profileUser) {
+                              setProfileUser(prev => ({
+                                    ...prev,
+                                    followingCount: following.length
+                              }));
+                        }
+                        console.log('Following loaded:', following.length);
                   } else {
                         console.error('Failed to fetch following:', data.message);
                         setMessage('Failed to load following list.');

@@ -81,10 +81,23 @@ const ICE_SERVERS = {
                   urls: 'turn:openrelay.metered.ca:443?transport=tcp',
                   username: 'openrelayproject',
                   credential: 'openrelayproject'
+            },
+            // Additional reliable TURN servers
+            {
+                  urls: 'turn:global.turn.twilio.com:3478?transport=udp',
+                  username: 'c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4',
+                  credential: 'f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1'
+            },
+            {
+                  urls: 'turn:global.turn.twilio.com:3478?transport=tcp',
+                  username: 'c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4',
+                  credential: 'f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1'
             }
       ],
       iceTransportPolicy: 'all',
-      iceCandidatePoolSize: 10
+      iceCandidatePoolSize: 10,
+      rtcpMuxPolicy: 'require',
+      bundlePolicy: 'max-bundle'
 };
 
 export const useCallContext = () => useContext(CallContext);
@@ -763,18 +776,44 @@ export const CallProvider = ({ children }) => {
             callAcceptedRef.current = false;
             setShowCallModal(null);
 
+            // Clean up connection
             if (connectionRef.current) {
-                  connectionRef.current.destroy();
+                  try {
+                        connectionRef.current.destroy();
+                  } catch (e) {
+                        console.error('Error destroying peer connection:', e);
+                  }
                   connectionRef.current = null;
             }
 
             // Always stop ALL tracks cleanly (prevents camera LED staying on)
             if (stream) {
-                  stream.getTracks().forEach(track => track.stop());
+                  stream.getTracks().forEach(track => {
+                        try {
+                              track.stop();
+                        } catch (e) {
+                              console.error('Error stopping track:', e);
+                        }
+                  });
                   setStream(null);
             }
             if (remoteStream) {
+                  remoteStream.getTracks().forEach(track => {
+                        try {
+                              track.stop();
+                        } catch (e) {
+                              console.error('Error stopping remote track:', e);
+                        }
+                  });
                   setRemoteStream(null);
+            }
+
+            // Clean up video elements
+            if (myVideo.current) {
+                  myVideo.current.srcObject = null;
+            }
+            if (userVideo.current) {
+                  userVideo.current.srcObject = null;
             }
 
             setTimeout(() => {

@@ -537,6 +537,7 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     socketHeartbeats.delete(socket.id);
 
+    // Clean up from all streams
     for (const [hostId, stream] of activeStreams.entries()) {
       if (stream.hostSocketId === socket.id) {
         stream.hostSocketId = null;
@@ -553,13 +554,28 @@ io.on('connection', (socket) => {
       }
     }
 
+    // Clean up from direct calls
+    const peerId = activeDirectCalls.get(userId);
+    if (peerId) {
+      clearDirectCall(userId, peerId);
+      io.to(peerId).emit('callEnded');
+    }
+
+    // Clean up from pending disconnects
+    clearPendingDirectCallDisconnect(userId);
+    clearPendingStreamDisconnect(userId);
+
     const remainingSockets = removeUserSocket(userId, socket.id);
     if (remainingSockets === 0) {
-      scheduleDirectCallDisconnect(userId);
       markUserPresence(userId, false);
     }
 
     emitOnlineUsers();
+    
+    // Force garbage collection hint (Node.js will handle this automatically)
+    if (global.gc) {
+      global.gc();
+    }
   });
 });
 
