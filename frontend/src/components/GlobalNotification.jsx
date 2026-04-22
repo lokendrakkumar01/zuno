@@ -4,6 +4,7 @@ import { useSocketContext } from '../context/SocketContext';
 import { useCallContext } from '../context/CallContext';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
+import { getEntityId } from '../utils/session';
 
 const DEFAULT_NOTIFICATION_SETTINGS = {
       pushNotifications: true,
@@ -89,8 +90,8 @@ const GlobalNotification = () => {
             const handleNewMessage = (newMessage) => {
                   if (!shouldAllow()) return;
 
-                  const senderId = (newMessage.sender?._id || newMessage.sender || '').toString();
-                  const currentUserId = (user?._id || user?.id || '').toString();
+                  const senderId = getEntityId(newMessage.sender);
+                  const currentUserId = getEntityId(user);
                   if (!senderId || senderId === currentUserId) return;
 
                   const pathSegments = location.pathname.split('/').filter(Boolean);
@@ -102,7 +103,7 @@ const GlobalNotification = () => {
                   const textPreview = newMessage.text
                         ? (newMessage.text.length > 40 ? `${newMessage.text.substring(0, 40)}...` : newMessage.text)
                         : (newMessage.media?.type === 'video' ? 'Video message' : 'Photo message');
-                  const navigateId = senderId || (typeof newMessage.sender === 'string' ? newMessage.sender : '');
+                  const navigateId = senderId;
 
                   playNotificationSound();
                   toast.info(

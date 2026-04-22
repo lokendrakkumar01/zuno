@@ -21,11 +21,82 @@ let feedCache = {
 
 const getViewerId = (reqUser) => reqUser?._id || reqUser?.id || null;
 
+const normalizeId = (value) => {
+      if (!value) return '';
+      if (typeof value === 'string' || typeof value === 'number') return String(value);
+      if (typeof value?.toHexString === 'function') return value.toHexString();
+      if (typeof value?.toString === 'function') {
+            const normalized = String(value.toString());
+            if (normalized && normalized !== '[object Object]') {
+                  return normalized;
+            }
+      }
+      return '';
+};
+
 const stripSilentMetrics = (content) => {
       if (!content?.silentMode) return content;
       const { metrics, ...safeContent } = content;
       return safeContent;
 };
+
+const buildCreatorPayload = (creator) => {
+      if (!creator) return null;
+
+      const creatorId = normalizeId(creator._id || creator.id);
+
+      return {
+            _id: creatorId,
+            id: creatorId,
+            username: creator.username,
+            displayName: creator.displayName || creator.username,
+            avatar: creator.avatar || '',
+            bio: creator.bio || '',
+            role: creator.role,
+            interests: creator.interests || [],
+            isVerified: Boolean(creator.isVerified),
+            verificationRequest: creator.verificationRequest || null,
+            followersCount: Number(creator.followersCount || 0),
+            followingCount: Number(creator.followingCount || 0),
+            profileSong: creator.profileSong || null,
+            stats: creator.stats || {},
+            createdAt: creator.createdAt
+      };
+};
+
+const serializeFallbackContent = (content) => ({
+      _id: normalizeId(content._id),
+      creator: buildCreatorPayload(content.creator),
+      contentType: content.contentType,
+      title: content.title || '',
+      body: content.body || '',
+      media: Array.isArray(content.media) ? content.media : [],
+      purpose: content.purpose || null,
+      topics: Array.isArray(content.topics) ? content.topics : [],
+      qualityScore: Number(content.qualityScore || 0),
+      createdAt: content.createdAt,
+      updatedAt: content.updatedAt,
+      expiresAt: content.expiresAt || null,
+      silentMode: Boolean(content.silentMode),
+      metrics: {
+            helpfulCount: Number(content.metrics?.helpfulCount || 0),
+            notUsefulCount: Number(content.metrics?.notUsefulCount || 0),
+            viewCount: Number(content.metrics?.viewCount || 0),
+            saveCount: Number(content.metrics?.saveCount || 0),
+            shareCount: Number(content.metrics?.shareCount || 0),
+            commentCount: Number(content.metrics?.commentCount || 0)
+      },
+      music: content.music || null,
+      backgroundColor: content.backgroundColor || null,
+      fontStyle: content.fontStyle || 'bold',
+      textAlign: content.textAlign || 'center',
+      liveData: content.liveData || {},
+      commentsPreview: [],
+      viewerState: {
+            isHelpful: false,
+            isSaved: false
+      }
+});
 
 const buildCreatorVisibilityFilter = (viewerId) => {
       const viewerObjectId = toObjectId(viewerId);
@@ -132,6 +203,60 @@ const fetchFeedPage = async ({
       };
 };
 
+const fetchFeedPageFallback = async ({
+      mode = 'all',
+      contentType,
+      topic,
+      limit,
+      cursor,
+      viewerId,
+      viewerBlockedIds = [],
+      sort = { createdAt: -1, _id: -1 }
+}) => {
+      const docs = await Content.find(
+            buildFeedMatch({
+                  mode,
+                  contentType,
+                  topic,
+                  viewerBlockedIds,
+                  cursor
+            })
+      )
+            .sort(sort)
+            .limit(limit + 1)
+            .populate('creator', [
+                  'username',
+                  'displayName',
+                  'avatar',
+                  'bio',
+                  'role',
+                  'interests',
+                  'isVerified',
+                  'verificationRequest',
+                  'profileSong',
+                  'stats',
+                  'createdAt',
+                  'blockedUsers'
+            ].join(' '))
+            .lean();
+
+      const safeDocs = docs.filter((doc) => {
+            if (!viewerId || !Array.isArray(doc.creator?.blockedUsers)) {
+                  return true;
+            }
+
+            return !doc.creator.blockedUsers.some((entry) => normalizeId(entry) === normalizeId(viewerId));
+      });
+
+      const { items, hasMore, nextCursor } = unpackCursorPage(safeDocs, limit);
+
+      return {
+            contents: items.map((item) => stripSilentMetrics(serializeFallbackContent(item))),
+            hasMore,
+            nextCursor
+      };
+};
+
 const buildFeedResponse = ({
       contents,
       mode,
@@ -170,15 +295,32 @@ const getFeed = async (req, res, next) => {
             const decodedCursor = decodeCursor(rawCursor);
             const viewerBlockedIds = req.user?.blockedUsers || [];
 
-            const { contents, hasMore, nextCursor } = await fetchFeedPage({
-                  mode,
-                  contentType,
-                  topic,
-                  limit: limitNum,
-                  cursor: decodedCursor,
-                  viewerId,
-                  viewerBlockedIds
-            });
+            let feedPage;
+
+            try {
+                  feedPage = await fetchFeedPage({
+                        mode,
+                        contentType,
+                        topic,
+                        limit: limitNum,
+                        cursor: decodedCursor,
+                        viewerId,
+                        viewerBlockedIds
+                  });
+            } catch (aggregationError) {
+                  console.error('[Feed] Falling back from aggregation:', aggregationError);
+                  feedPage = await fetchFeedPageFallback({
+                        mode,
+                        contentType,
+                        topic,
+                        limit: limitNum,
+                        cursor: decodedCursor,
+                        viewerId,
+                        viewerBlockedIds
+                  });
+            }
+
+            const { contents, hasMore, nextCursor } = feedPage;
 
             res.setHeader(
                   'Cache-Control',

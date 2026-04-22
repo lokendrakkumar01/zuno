@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useSocketContext } from '../../context/SocketContext';
 import { API_URL } from '../../config';
 import UserAvatar from '../../components/User/UserAvatar';
+import { getEntityId, sameEntityId } from '../../utils/session';
 
 const getMessagePreview = (message = {}) => {
       const trimmedText = String(message.text || '').trim();
@@ -13,12 +14,23 @@ const getMessagePreview = (message = {}) => {
       return 'Media shared';
 };
 
+const buildDirectMessagePath = (target) => {
+      const targetId = getEntityId(target);
+      return targetId ? `/messages/${encodeURIComponent(targetId)}` : '/messages';
+};
+
+const buildGroupMessagePath = (target) => {
+      const targetId = getEntityId(target);
+      return targetId ? `/messages/group/${encodeURIComponent(targetId)}` : '/messages';
+};
+
 const Messages = () => {
       const { token, isAuthenticated, user } = useAuth();
       const { onlineUsers, socket } = useSocketContext();
       const navigate = useNavigate();
-      const conversationsCacheKey = `zuno_conversations_cache_${user?._id}`;
-      const notesCacheKey = `zuno_notes_cache_${user?._id}`;
+      const authenticatedUserId = getEntityId(user);
+      const conversationsCacheKey = `zuno_conversations_cache_${authenticatedUserId || 'guest'}`;
+      const notesCacheKey = `zuno_notes_cache_${authenticatedUserId || 'guest'}`;
 
       const [conversations, setConversations] = useState(() => {
             try {
@@ -122,21 +134,21 @@ const Messages = () => {
       const upsertConversationFromMessage = useCallback((message, { isGroup = false } = {}) => {
             if (!message) return;
 
-            const currentUserId = user?._id?.toString() || user?.id?.toString() || '';
-            const conversationId = message.conversationId?.toString?.() || message.conversationId || null;
+            const currentUserId = authenticatedUserId;
+            const conversationId = getEntityId(message.conversationId) || null;
             const sender = message.sender || null;
             const receiver = message.receiver || null;
-            const senderId = sender?._id?.toString?.() || sender?.toString?.() || '';
+            const senderId = getEntityId(sender);
             const peerUser = senderId === currentUserId ? receiver : sender;
-            const peerUserId = peerUser?._id?.toString?.() || peerUser?.toString?.() || '';
+            const peerUserId = getEntityId(peerUser);
             const nextTimestamp = message.createdAt || new Date().toISOString();
             const unreadIncrement = senderId && senderId !== currentUserId ? 1 : 0;
             const nextPreview = getMessagePreview(message);
 
             setConversations((previous) => {
                   const existingIndex = previous.findIndex((conversation) => {
-                        const conversationKey = conversation._id?.toString?.() || conversation._id;
-                        const conversationUserId = conversation.user?._id?.toString?.() || conversation.user?._id;
+                        const conversationKey = getEntityId(conversation._id);
+                        const conversationUserId = getEntityId(conversation.user);
 
                         if (conversationId && conversationKey === conversationId) {
                               return true;
@@ -188,7 +200,7 @@ const Messages = () => {
 
                   return nextConversations;
             });
-      }, [conversationsCacheKey, user?._id, user?.id]);
+      }, [authenticatedUserId, conversationsCacheKey]);
 
       useEffect(() => {
             if (!isAuthenticated) return;
@@ -201,12 +213,10 @@ const Messages = () => {
 
             const handleRealtimeDm = (message) => {
                   upsertConversationFromMessage(message, { isGroup: false });
-                  debouncedRefetch();
             };
 
             const handleRealtimeGroup = (message) => {
                   upsertConversationFromMessage(message, { isGroup: true });
-                  debouncedRefetch();
             };
 
             const handleRealtimeUpdate = () => debouncedRefetch();
@@ -260,9 +270,9 @@ const Messages = () => {
                         const data = await res.json();
 
                         if (data.success) {
-                              const localIds = new Set(localMatches.map((match) => match._id));
+                              const localIds = new Set(localMatches.map((match) => getEntityId(match)));
                               const remoteMatches = (data.data.users || [])
-                                    .filter((candidate) => candidate._id !== user?._id && !localIds.has(candidate._id));
+                                    .filter((candidate) => !sameEntityId(candidate, user) && !localIds.has(getEntityId(candidate)));
 
                               setSearchResults([...localMatches, ...remoteMatches]);
                         }
@@ -276,7 +286,7 @@ const Messages = () => {
             }, 220);
 
             return () => clearTimeout(timer);
-      }, [conversations, searchQuery, token, user?._id]);
+      }, [conversations, searchQuery, token, user]);
 
       const handleGroupSearch = async (query) => {
             setGroupSearchQuery(query);
@@ -298,7 +308,7 @@ const Messages = () => {
                   });
                   const data = await res.json();
                   if (data.success) {
-                        setGroupSearchResults((data.data.users || []).filter((candidate) => candidate._id !== user?._id));
+                        setGroupSearchResults((data.data.users || []).filter((candidate) => !sameEntityId(candidate, user)));
                   }
             } catch (err) {
                   if (err.name !== 'AbortError') {
@@ -358,7 +368,7 @@ const Messages = () => {
                         },
                         body: JSON.stringify({
                               name: newGroupName.trim(),
-                              participants: selectedUsers.map((member) => member._id),
+                              participants: selectedUsers.map((member) => getEntityId(member)).filter(Boolean),
                               isChannel
                         })
                   });
@@ -372,7 +382,7 @@ const Messages = () => {
                         setGroupSearchQuery('');
                         setGroupSearchResults([]);
                         fetchConversations();
-                        navigate(`/messages/group/${data.data.conversation._id}`);
+                        navigate(buildGroupMessagePath(data.data.conversation?._id || data.data.conversation));
                   }
             } catch (err) {
                   console.error(err);
@@ -404,7 +414,7 @@ const Messages = () => {
       }
 
       const onlineConversationCount = conversations.filter((conversation) =>
-            !conversation.isGroup && onlineUsers.some((id) => id?.toString() === conversation.user?._id?.toString())
+            !conversation.isGroup && onlineUsers.some((id) => sameEntityId(id, conversation.user))
       ).length;
 
       return (
@@ -456,8 +466,8 @@ const Messages = () => {
                                           ) : searchResults.length > 0 ? (
                                                 searchResults.map((person) => (
                                                       <Link
-                                                            key={person._id}
-                                                            to={`/messages/${person._id}`}
+                                                            key={getEntityId(person) || person.username}
+                                                            to={buildDirectMessagePath(person)}
                                                             className="search-result-item"
                                                             onClick={() => setSearchQuery('')}
                                                       >
@@ -486,7 +496,7 @@ const Messages = () => {
                                     </button>
 
                                     {notes.map((note) => (
-                                          <button key={note._id} type="button" className="messages-note-card" onClick={() => setViewingNote(note)}>
+                                          <button key={getEntityId(note._id) || note.text} type="button" className="messages-note-card" onClick={() => setViewingNote(note)}>
                                                 <UserAvatar user={note.user} size={56} />
                                                 <strong>{note.user?.displayName || note.user?.username}</strong>
                                                 <span>{note.text}</span>
@@ -509,8 +519,8 @@ const Messages = () => {
                               ) : conversations.length > 0 ? (
                                     conversations.map((conversation) => (
                                           <Link
-                                                key={conversation._id}
-                                                to={conversation.isGroup ? `/messages/group/${conversation._id}` : `/messages/${conversation.user?._id}`}
+                                                key={getEntityId(conversation._id) || `conversation-${conversation.groupName || conversation.user?.username || 'item'}`}
+                                                to={conversation.isGroup ? buildGroupMessagePath(conversation._id) : buildDirectMessagePath(conversation.user)}
                                                 className={`conversation-item ${conversation.unreadCount > 0 ? 'unread' : ''}`}
                                           >
                                                 <div className="msg-avatar" style={{ position: 'relative' }}>
@@ -524,7 +534,7 @@ const Messages = () => {
                                                             <UserAvatar user={conversation.user} size={48} />
                                                       )}
 
-                                                      {!conversation.isGroup && onlineUsers.some((id) => id?.toString() === conversation.user?._id?.toString()) && (
+                                                      {!conversation.isGroup && onlineUsers.some((id) => sameEntityId(id, conversation.user)) && (
                                                             <span className="messages-online-dot" />
                                                       )}
                                                 </div>
@@ -592,10 +602,10 @@ const Messages = () => {
                                                 {groupSearchResults.map((candidate) => (
                                                       <button
                                                             type="button"
-                                                            key={candidate._id}
+                                                            key={getEntityId(candidate) || candidate.username}
                                                             className="messages-member-result"
                                                             onClick={() => {
-                                                                  if (!selectedUsers.find((member) => member._id === candidate._id)) {
+                                                                  if (!selectedUsers.find((member) => sameEntityId(member, candidate))) {
                                                                         setSelectedUsers((prev) => [...prev, candidate]);
                                                                   }
                                                                   setGroupSearchQuery('');
@@ -612,11 +622,11 @@ const Messages = () => {
                                     {selectedUsers.length > 0 && (
                                           <div className="messages-selected-members">
                                                 {selectedUsers.map((member) => (
-                                                      <span key={member._id} className="messages-selected-pill">
+                                                      <span key={getEntityId(member) || member.username} className="messages-selected-pill">
                                                             {member.username}
                                                             <button
                                                                   type="button"
-                                                                  onClick={() => setSelectedUsers((prev) => prev.filter((entry) => entry._id !== member._id))}
+                                                                  onClick={() => setSelectedUsers((prev) => prev.filter((entry) => !sameEntityId(entry, member)))}
                                                             >
                                                                   ×
                                                             </button>
@@ -661,7 +671,7 @@ const Messages = () => {
                                     <UserAvatar user={viewingNote.user} size={72} />
                                     <h2>{viewingNote.user?.displayName || viewingNote.user?.username}</h2>
                                     <p className="messages-note-preview">"{viewingNote.text}"</p>
-                                    {viewingNote.user?._id === user?._id && (
+                                    {sameEntityId(viewingNote.user, user) && (
                                           <button type="button" className="btn btn-secondary" onClick={() => handleDeleteNote(viewingNote._id)}>
                                                 Delete Note
                                           </button>
@@ -671,7 +681,7 @@ const Messages = () => {
                                           className="btn btn-primary"
                                           onClick={() => {
                                                 setViewingNote(null);
-                                                navigate(`/messages/${viewingNote.user?._id}`);
+                                                navigate(buildDirectMessagePath(viewingNote.user));
                                           }}
                                     >
                                           Reply in Chat

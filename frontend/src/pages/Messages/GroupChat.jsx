@@ -5,6 +5,7 @@ import { useSocketContext } from '../../context/SocketContext';
 import { API_URL } from '../../config';
 import { useCallContext } from '../../context/CallContext';
 import UserAvatar from '../../components/User/UserAvatar';
+import { getEntityId, sameEntityId } from '../../utils/session';
 
 // Common emojis organized by category
 const EMOJI_DATA = {
@@ -136,8 +137,8 @@ const GroupChat = () => {
       // Replies
       const [replyingTo, setReplyingTo] = useState(null);
 
-      const currentUserIdStr = (user?._id || user?.id || '').toString();
-      const adminIdStr = (groupInfo?.groupAdmin?._id || groupInfo?.groupAdmin || '').toString();
+      const currentUserIdStr = getEntityId(user);
+      const adminIdStr = getEntityId(groupInfo?.groupAdmin);
       const isAdmin = Boolean(currentUserIdStr && adminIdStr && currentUserIdStr === adminIdStr);
       const canPost = !groupInfo?.isChannel || isAdmin;
 
@@ -1348,11 +1349,11 @@ const GroupChat = () => {
                                                                   <div>
                                                                         <div className="font-semibold" style={{ fontSize: '0.95rem' }}>{p.displayName || p.username || 'User'}</div>
                                                                         <div className="text-xs text-muted">
-                                                                              {p._id === groupInfo.groupAdmin ? 'Admin' : 'Member'}
+                                                                        {sameEntityId(p, groupInfo.groupAdmin) ? 'Admin' : 'Member'}
                                                                         </div>
                                                                   </div>
                                                             </div>
-                                                            {isAdmin && p._id !== user?._id && p._id !== groupInfo.groupAdmin && (
+                                                            {isAdmin && !sameEntityId(p, user) && !sameEntityId(p, groupInfo.groupAdmin) && (
                                                                   <button 
                                                                         className="btn btn-ghost text-red-500 text-xs" 
                                                                         onClick={() => handleRemoveParticipant(p._id)}

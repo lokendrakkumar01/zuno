@@ -32,6 +32,49 @@ export const getUserHandle = (user) => {
       return '';
 };
 
+export const getEntityId = (value) => {
+      if (value == null) return '';
+
+      if (typeof value === 'string' || typeof value === 'number') {
+            return String(value).trim();
+      }
+
+      if (typeof value?.toHexString === 'function') {
+            return value.toHexString();
+      }
+
+      if (typeof value?.$oid === 'string') {
+            return value.$oid.trim();
+      }
+
+      if (value && typeof value === 'object') {
+            if (value._id && value._id !== value) {
+                  const nestedId = getEntityId(value._id);
+                  if (nestedId) return nestedId;
+            }
+
+            if (value.id && value.id !== value) {
+                  const nestedId = getEntityId(value.id);
+                  if (nestedId) return nestedId;
+            }
+      }
+
+      if (typeof value?.toString === 'function') {
+            const normalized = String(value.toString()).trim();
+            if (normalized && normalized !== '[object Object]') {
+                  return normalized;
+            }
+      }
+
+      return '';
+};
+
+export const sameEntityId = (left, right) => {
+      const normalizedLeft = getEntityId(left);
+      const normalizedRight = getEntityId(right);
+      return Boolean(normalizedLeft && normalizedRight && normalizedLeft === normalizedRight);
+};
+
 export const persistStoredAuthUser = (user) => {
       if (!user) {
             localStorage.removeItem(AUTH_USER_STORAGE_KEY);

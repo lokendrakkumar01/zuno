@@ -3,6 +3,7 @@ import { toast } from "react-toastify";
 import { useAuth } from "./AuthContext";
 import io from "socket.io-client";
 import { SOCKET_URL } from "../config";
+import { getEntityId } from "../utils/session";
 
 const SocketContext = createContext();
 
@@ -15,7 +16,7 @@ export const SocketContextProvider = ({ children }) => {
       const [onlineUsers, setOnlineUsers] = useState([]);
       const [isConnected, setIsConnected] = useState(false);
       const { user, token } = useAuth();
-      const authenticatedUserId = user?._id || user?.id || null;
+      const authenticatedUserId = getEntityId(user) || null;
       const socketRef = useRef(null);
       const heartbeatIntervalRef = useRef(null);
       const lastHeartbeatAckRef = useRef(0);
@@ -43,16 +44,16 @@ export const SocketContextProvider = ({ children }) => {
 
                   const socketInstance = io(SOCKET_URL, {
                         auth: { token, userId: authenticatedUserId },
-                        transports: ['websocket', 'polling'],
+                        transports: ['polling', 'websocket'],
                         withCredentials: true,
                         reconnection: true,
-                        reconnectionAttempts: 30,
+                        reconnectionAttempts: Infinity,
                         reconnectionDelay: 1000,
-                        reconnectionDelayMax: 5000,
+                        reconnectionDelayMax: 8000,
                         randomizationFactor: 0.2,
-                        timeout: 10000,
+                        timeout: 20000,
                         upgrade: true,
-                        rememberUpgrade: true,
+                        rememberUpgrade: false,
                         autoConnect: true
                   });
 

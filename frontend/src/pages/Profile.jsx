@@ -6,7 +6,7 @@ import { useMusic } from '../context/MusicContext';
 import UserAvatar from '../components/User/UserAvatar';
 import { BlockIcon, CheckIcon, ClockIcon, EditIcon, MessageIcon, SettingsIcon, UserPlusIcon } from '../components/Icons/ActionIcons';
 import { resolveAssetUrl } from '../utils/media';
-import { getUserHandle, readStoredAuthUser } from '../utils/session';
+import { getEntityId, getUserHandle, readStoredAuthUser, sameEntityId } from '../utils/session';
 import { fetchWithTimeout, DEFAULT_REQUEST_TIMEOUT_MS } from '../utils/fetchWithTimeout';
 
 const SpotifySearch = lazy(() => import('../components/Music/SpotifySearch'));
@@ -221,6 +221,7 @@ const Profile = () => {
       const [postsError, setPostsError] = useState('');
       const [hasMorePosts, setHasMorePosts] = useState(false);
       const [postsCursor, setPostsCursor] = useState(null);
+      const profileUserId = getEntityId(profileUser);
 
       // Total views for content
       const [totalViews, setTotalViews] = useState(0);
@@ -605,17 +606,17 @@ const Profile = () => {
             if (!isOwnProfile && profileUser && user) {
                   // Check following
                   const following = user.following || [];
-                  setIsFollowing(following.some(id => id?.toString() === profileUser._id?.toString()));
+                  setIsFollowing(following.some(id => sameEntityId(id, profileUser)));
                   setFollowRequested(false);
 
                   // Check blocked
                   const blocked = user.blockedUsers || [];
-                  setIsBlocked(blocked.some(id => id?.toString() === profileUser._id?.toString()));
+                  setIsBlocked(blocked.some(id => sameEntityId(id, profileUser)));
             }
       }, [profileUser, user, isOwnProfile]);
 
       const handleFollow = async () => {
-            if (!token || !profileUser) return;
+            if (!token || !profileUserId || !profileUser) return;
             if (isBlocked) {
                   setMessage('Please unblock this user first.');
                   setTimeout(() => setMessage(''), 3000);
@@ -624,7 +625,7 @@ const Profile = () => {
             setFollowLoading(true);
             try {
                   const endpoint = (isFollowing || followRequested) ? 'unfollow' : 'follow';
-                  const res = await fetchWithTimeout(`${API_URL}/users/${profileUser._id}/${endpoint}`, {
+                  const res = await fetchWithTimeout(`${API_URL}/users/${profileUserId}/${endpoint}`, {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${token}` }
                   }, DEFAULT_REQUEST_TIMEOUT_MS);
@@ -635,7 +636,7 @@ const Profile = () => {
 
                         setIsFollowing(nextIsFollowing);
                         setFollowRequested(nextIsRequested);
-                        updateFollowState(profileUser._id, nextIsFollowing);
+                        updateFollowState(profileUserId, nextIsFollowing);
                         setProfileUser(prev => ({
                               ...prev,
                               followersCount: data.data?.followersCount ?? prev.followersCount ?? 0
@@ -651,11 +652,11 @@ const Profile = () => {
 
       const handleQuickSend = async (e) => {
             if (e) e.preventDefault();
-            if (!quickChatText.trim() || !token || !profileUser) return;
+            if (!quickChatText.trim() || !token || !profileUserId) return;
 
             setSendingQuickChat(true);
             try {
-                  const res = await fetch(`${API_URL}/messages/${profileUser._id}`, {
+                  const res = await fetch(`${API_URL}/messages/${profileUserId}`, {
                         method: 'POST',
                         headers: {
                               'Content-Type': 'application/json',
@@ -679,21 +680,21 @@ const Profile = () => {
       };
 
       const handleBlockToggle = async () => {
-            if (!token || !profileUser) return;
+            if (!token || !profileUserId || !profileUser) return;
             if (!isBlocked && !window.confirm(`Are you sure you want to block ${profileUser.displayName || profileUser.username}? They will no longer be able to message you or see your profile.`)) return;
 
             setBlockLoading(true);
             try {
                   const res = isBlocked
-                        ? await unblockUser(profileUser._id)
-                        : await blockUser(profileUser._id);
+                        ? await unblockUser(profileUserId)
+                        : await blockUser(profileUserId);
 
                   if (res.success) {
                         setIsBlocked(!isBlocked);
                         if (!isBlocked) {
                               setIsFollowing(false);
                               setFollowRequested(false);
-                              updateFollowState(profileUser._id, false);
+                              updateFollowState(profileUserId, false);
                               // Update followers count as blocking auto-unfollows
                               setProfileUser(prev => ({
                                     ...prev,
@@ -1512,7 +1513,7 @@ const Profile = () => {
                                                 type="button"
                                                 className="btn btn-secondary w-full"
                                                 style={{ padding: '14px', fontSize: '1rem', fontWeight: 600 }}
-                                                onClick={() => navigate(`/messages/${profileUser._id}`)}
+                                                onClick={() => profileUserId && navigate(`/messages/${profileUserId}`)}
                                           >
                                                 Open Full Chat and Calling
                                           </button>

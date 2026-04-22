@@ -15,6 +15,126 @@ const handleMessageError = (res, userMessage, error) => {
       });
 };
 
+const normalizeId = (value) => {
+      if (!value) return '';
+      if (typeof value === 'string' || typeof value === 'number') return String(value);
+      if (typeof value?.toHexString === 'function') return value.toHexString();
+      if (value && typeof value === 'object') {
+            if (value._id && value._id !== value) {
+                  const nestedId = normalizeId(value._id);
+                  if (nestedId) return nestedId;
+            }
+            if (value.id && value.id !== value) {
+                  const nestedId = normalizeId(value.id);
+                  if (nestedId) return nestedId;
+            }
+      }
+      if (typeof value?.toString === 'function') {
+            const normalized = String(value.toString());
+            if (normalized && normalized !== '[object Object]') {
+                  return normalized;
+            }
+      }
+      return '';
+};
+
+const serializeUserPreview = (user) => {
+      if (!user) return null;
+
+      if (typeof user === 'string') {
+            return { _id: user, id: user };
+      }
+
+      const userId = normalizeId(user._id || user.id || user);
+      if (!userId) return null;
+
+      return {
+            _id: userId,
+            id: userId,
+            username: user.username || '',
+            displayName: user.displayName || user.username || '',
+            avatar: user.avatar || '',
+            isOnline: Boolean(user.isOnline),
+            offlineStatus: user.offlineStatus || null
+      };
+};
+
+const serializeReplyPayload = (replyTo) => {
+      if (!replyTo) return null;
+
+      return {
+            ...replyTo,
+            _id: normalizeId(replyTo._id),
+            sender: serializeUserPreview(replyTo.sender),
+            conversationId: normalizeId(replyTo.conversationId) || null,
+            deletedBy: Array.isArray(replyTo.deletedBy) ? replyTo.deletedBy.map((entry) => normalizeId(entry)).filter(Boolean) : []
+      };
+};
+
+const serializeMessagePayload = (message) => {
+      if (!message) return null;
+
+      const serialized = {
+            ...message,
+            _id: normalizeId(message._id),
+            conversationId: normalizeId(message.conversationId) || null,
+            sender: typeof message.sender === 'object' ? serializeUserPreview(message.sender) : normalizeId(message.sender),
+            receiver: message.receiver
+                  ? (typeof message.receiver === 'object' ? serializeUserPreview(message.receiver) : normalizeId(message.receiver))
+                  : null,
+            replyTo: serializeReplyPayload(message.replyTo),
+            reactions: Array.isArray(message.reactions)
+                  ? message.reactions.map((reaction) => ({
+                          ...reaction,
+                          user: normalizeId(reaction.user)
+                    }))
+                  : [],
+            deletedBy: Array.isArray(message.deletedBy)
+                  ? message.deletedBy.map((entry) => normalizeId(entry)).filter(Boolean)
+                  : []
+      };
+
+      if (message.clientMsgId) {
+            serialized.clientMsgId = message.clientMsgId;
+      }
+
+      return serialized;
+};
+
+const serializeConversationPayload = (conversation, currentUserId) => {
+      if (!conversation) return null;
+
+      const participants = Array.isArray(conversation.participants)
+            ? conversation.participants.map((participant) => serializeUserPreview(participant)).filter(Boolean)
+            : [];
+      const otherUser = !conversation.isGroup
+            ? participants.find((participant) => participant._id !== normalizeId(currentUserId)) || null
+            : null;
+
+      return {
+            _id: normalizeId(conversation._id),
+            user: otherUser,
+            isGroup: Boolean(conversation.isGroup),
+            isChannel: Boolean(conversation.isChannel),
+            groupName: conversation.groupName || '',
+            groupAvatar: conversation.groupAvatar || '',
+            groupAdmin: typeof conversation.groupAdmin === 'object'
+                  ? serializeUserPreview(conversation.groupAdmin)
+                  : normalizeId(conversation.groupAdmin),
+            participants: (conversation.isGroup || conversation.isChannel) ? participants : undefined,
+            lastMessage: conversation.lastMessage
+                  ? {
+                          ...conversation.lastMessage,
+                          sender: typeof conversation.lastMessage.sender === 'object'
+                                ? serializeUserPreview(conversation.lastMessage.sender)
+                                : normalizeId(conversation.lastMessage.sender)
+                    }
+                  : null,
+            unreadCount: Number(conversation.unreadCount || 0),
+            updatedAt: conversation.updatedAt || null
+      };
+};
+
 // @desc    Get conversations for current user
 // @route   GET /api/messages/conversations
 // @access  Private
@@ -30,29 +150,10 @@ const getConversations = async (req, res) => {
                   .limit(50)
                   .lean();
 
-            const formatted = conversations.map(conv => {
-                  let otherUser = null;
-                  if (!conv.isGroup) {
-                        otherUser = conv.participants.find(
-                              p => p && p._id && p._id.toString() !== req.user.id
-                        );
-                  }
-                  const unread = conv.unreadCount ? (conv.unreadCount[req.user.id] || 0) : 0;
-
-                  return {
-                        _id: conv._id,
-                        user: otherUser,
-                        isGroup: conv.isGroup || false,
-                        isChannel: conv.isChannel || false,
-                        groupName: conv.groupName,
-                        groupAvatar: conv.groupAvatar,
-                        groupAdmin: conv.groupAdmin,
-                        participants: (conv.isGroup || conv.isChannel) ? conv.participants : undefined,
-                        lastMessage: conv.lastMessage,
-                        unreadCount: unread,
-                        updatedAt: conv.updatedAt
-                  };
-            });
+            const formatted = conversations.map((conv) => serializeConversationPayload({
+                  ...conv,
+                  unreadCount: conv.unreadCount ? (conv.unreadCount[req.user.id] || 0) : 0
+            }, req.user.id));
 
             res.json({
                   success: true,
@@ -151,10 +252,10 @@ const getMessages = async (req, res) => {
             res.json({
                   success: true,
                   data: {
-                        messages, // newest-first; frontend: messages.reverse()
+                        messages: messages.map((message) => serializeMessagePayload(message)), // newest-first; frontend: messages.reverse()
                         hasMore,
-                        oldestMessageId: messages.length > 0 ? messages[messages.length - 1]._id : null,
-                        otherUser,
+                        oldestMessageId: messages.length > 0 ? normalizeId(messages[messages.length - 1]._id) : null,
+                        otherUser: serializeUserPreview(otherUser),
                         blockedInfo
                   }
             });
@@ -290,10 +391,10 @@ const sendMessage = async (req, res) => {
                   { path: 'sender', select: 'username displayName avatar' },
                   { path: 'receiver', select: 'username displayName avatar' }
             ]);
-            const socketPayload = message.toObject();
-            if (req.body.clientMsgId) {
-                  socketPayload.clientMsgId = req.body.clientMsgId;
-            }
+            const socketPayload = serializeMessagePayload({
+                  ...message.toObject(),
+                  ...(req.body.clientMsgId ? { clientMsgId: req.body.clientMsgId } : {})
+            });
 
             // Emit only after persistence to keep realtime + HTTP states consistent.
             const receiverSocketId = getReceiverSocketId(userId);
@@ -731,7 +832,7 @@ const createGroup = async (req, res) => {
 
             res.status(201).json({
                   success: true,
-                  data: { conversation }
+                  data: { conversation: serializeConversationPayload(conversation.toObject(), req.user.id) }
             });
       } catch (error) {
             console.error('createGroup error:', error);
@@ -778,8 +879,8 @@ const getGroupMessages = async (req, res) => {
             res.json({
                   success: true,
                   data: {
-                        messages,
-                        group: conversation
+                        messages: messages.map((message) => serializeMessagePayload(message)),
+                        group: serializeConversationPayload(conversation.toObject(), req.user.id)
                   }
             });
       } catch (error) {
@@ -848,8 +949,10 @@ const sendGroupMessage = async (req, res) => {
             await conversation.save();
 
             await message.populate('sender', 'username displayName avatar');
-            const socketPayload = message.toObject();
-            if (req.body.clientMsgId) socketPayload.clientMsgId = req.body.clientMsgId;
+            const socketPayload = serializeMessagePayload({
+                  ...message.toObject(),
+                  ...(req.body.clientMsgId ? { clientMsgId: req.body.clientMsgId } : {})
+            });
 
             conversation.participants.forEach(pId => {
                   const socketId = getReceiverSocketId(pId.toString());
