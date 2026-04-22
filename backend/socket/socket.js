@@ -330,13 +330,15 @@ io.on('connection', (socket) => {
     if (!data.userToCall) return;
 
     linkDirectCall(userId, data.userToCall);
+    const callerProfile = data.from || {};
+
     io.to(data.userToCall).emit('callUser', {
       signal: data.signalData || data.signal,
       from: {
         _id: userId,
-        username: data.username || '',
-        displayName: data.name || data.displayName || '',
-        avatar: data.avatar || ''
+        username: callerProfile.username || data.username || '',
+        displayName: callerProfile.displayName || callerProfile.name || data.displayName || data.name || '',
+        avatar: callerProfile.avatar || data.avatar || ''
       },
       callType: data.callType || 'voice'
     });

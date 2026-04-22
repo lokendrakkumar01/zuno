@@ -48,16 +48,35 @@ const readCachedValue = (key, fallback) => {
       try {
             const cached = localStorage.getItem(key);
             if (!cached) return fallback;
-            
+
             const parsed = JSON.parse(cached);
-            // Add cache timestamp validation (max 5 minutes for profile cache)
-            if (parsed._cacheTimestamp) {
-                  const cacheAge = Date.now() - parsed._cacheTimestamp;
-                  if (cacheAge > 5 * 60 * 1000) { // 5 minutes
+            const cacheTimestamp = parsed?._cacheTimestamp;
+            if (cacheTimestamp) {
+                  const cacheAge = Date.now() - Number(cacheTimestamp);
+                  if (Number.isFinite(cacheAge) && cacheAge > 5 * 60 * 1000) {
                         localStorage.removeItem(key);
                         return fallback;
                   }
             }
+
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                  if (Object.prototype.hasOwnProperty.call(parsed, 'data')) {
+                        return parsed.data;
+                  }
+
+                  const valueKeys = Object.keys(parsed).filter((entry) => entry !== '_cacheTimestamp');
+                  if (valueKeys.length > 0 && valueKeys.every((entry) => /^\d+$/.test(entry))) {
+                        return valueKeys
+                              .sort((left, right) => Number(left) - Number(right))
+                              .map((entry) => parsed[entry]);
+                  }
+
+                  if (cacheTimestamp) {
+                        const { _cacheTimestamp, ...valueWithoutMetadata } = parsed;
+                        return valueWithoutMetadata;
+                  }
+            }
+
             return parsed;
       } catch {
             localStorage.removeItem(key);
@@ -69,15 +88,11 @@ const writeCachedValue = (key, value) => {
       if (!key) return;
 
       try {
-            // Add timestamp to cache for validation
-            const valueWithTimestamp = {
-                  ...value,
+            localStorage.setItem(key, JSON.stringify({
+                  data: value,
                   _cacheTimestamp: Date.now()
-            };
-            localStorage.setItem(key, JSON.stringify(valueWithTimestamp));
+            }));
       } catch {
-            // Cache writes are best-effort only.
-            // If storage is full, try to clear old cache
             try {
                   const keys = Object.keys(localStorage);
                   for (const k of keys) {
@@ -86,14 +101,13 @@ const writeCachedValue = (key, value) => {
                               break;
                         }
                   }
-                  // Retry
-                  const valueWithTimestamp = {
-                        ...value,
+
+                  localStorage.setItem(key, JSON.stringify({
+                        data: value,
                         _cacheTimestamp: Date.now()
-                  };
-                  localStorage.setItem(key, JSON.stringify(valueWithTimestamp));
+                  }));
             } catch {
-                  // Give up if still failing
+                  // Cache writes are best-effort only.
             }
       }
 };

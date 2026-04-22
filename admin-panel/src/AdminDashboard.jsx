@@ -424,11 +424,160 @@ function ConfigManagement({ token, notify }) {
       );
 }
 
+function ReportsManagement({ token, notify }) {
+      const [reports, setReports] = useState([]);
+      const [loading, setLoading] = useState(true);
+
+      const fetchReports = useCallback(async () => {
+            setLoading(true);
+            try {
+                  const res = await fetch(`${API_URL}/admin/reports?limit=30`, { headers: { Authorization: `Bearer ${token}` } });
+                  const { ok, data } = await readAdminResponse(res);
+                  if (ok) {
+                        setReports(data.data?.reports || []);
+                  } else {
+                        notify(data.message || 'Could not load reports');
+                  }
+            } catch {
+                  notify('Could not load reports');
+            } finally {
+                  setLoading(false);
+            }
+      }, [notify, token]);
+
+      useEffect(() => { fetchReports(); }, [fetchReports]);
+
+      const resolveReport = async (reportId, action) => {
+            try {
+                  const res = await fetch(`${API_URL}/admin/reports/${reportId}`, {
+                        method: 'PUT',
+                        headers: {
+                              'Content-Type': 'application/json',
+                              Authorization: `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ action })
+                  });
+                  const { ok, data } = await readAdminResponse(res);
+                  if (ok) {
+                        notify(action === 'removed' ? 'Reported content removed' : 'Report dismissed');
+                        fetchReports();
+                  } else {
+                        notify(data.message || 'Report update failed');
+                  }
+            } catch {
+                  notify('Report update failed');
+            }
+      };
+
+      return (
+            <Surface title="Reports" subtitle="Review reported content and clear moderation queues quickly.">
+                  {loading ? <Loading label="Loading reports" /> : reports.length === 0 ? <div className="admin-empty">No reports in the queue.</div> : (
+                        <div className="admin-stack">
+                              {reports.map((report) => (
+                                    <div key={report._id} className="admin-card">
+                                          <h3>{report.content?.title || 'Reported content'}</h3>
+                                          <p className="admin-muted">
+                                                Reported by @{report.reporter?.username || 'unknown'} - @{report.content?.creator?.username || 'unknown'}
+                                          </p>
+                                          <p style={{ marginTop: '8px' }}>
+                                                <strong>Reason:</strong> {report.reason || 'other'}
+                                          </p>
+                                          {report.details ? <p style={{ marginTop: '8px' }}>{report.details}</p> : null}
+                                          <div className="admin-row">
+                                                <button className="admin-btn soft" onClick={() => resolveReport(report._id, 'dismissed')}>Dismiss</button>
+                                                <button className="admin-btn danger" onClick={() => resolveReport(report._id, 'removed')}>Remove Content</button>
+                                          </div>
+                                    </div>
+                              ))}
+                        </div>
+                  )}
+            </Surface>
+      );
+}
+
+function BroadcastManagement({ token, notify }) {
+      const [message, setMessage] = useState('');
+      const [type, setType] = useState('info');
+      const [sending, setSending] = useState(false);
+
+      const sendBroadcastMessage = async () => {
+            const trimmedMessage = message.trim();
+            if (!trimmedMessage) {
+                  notify('Enter a broadcast message first');
+                  return;
+            }
+
+            setSending(true);
+            try {
+                  const res = await fetch(`${API_URL}/admin/broadcast`, {
+                        method: 'POST',
+                        headers: {
+                              'Content-Type': 'application/json',
+                              Authorization: `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ message: trimmedMessage, type })
+                  });
+                  const { ok, data } = await readAdminResponse(res);
+                  if (ok) {
+                        notify('Broadcast sent');
+                        setMessage('');
+                        setType('info');
+                  } else {
+                        notify(data.message || 'Broadcast failed');
+                  }
+            } catch {
+                  notify('Broadcast failed');
+            } finally {
+                  setSending(false);
+            }
+      };
+
+      return (
+            <Surface title="Broadcast" subtitle="Send a live announcement to connected users.">
+                  <div className="admin-stack">
+                        <div className="admin-card">
+                              <div className="admin-stack">
+                                    <div>
+                                          <label className="admin-muted" style={{ display: 'block', marginBottom: '8px' }}>Type</label>
+                                          <select className="admin-select" value={type} onChange={(event) => setType(event.target.value)}>
+                                                <option value="info">Info</option>
+                                                <option value="success">Success</option>
+                                                <option value="warning">Warning</option>
+                                                <option value="error">Error</option>
+                                          </select>
+                                    </div>
+
+                                    <div>
+                                          <label className="admin-muted" style={{ display: 'block', marginBottom: '8px' }}>Message</label>
+                                          <textarea
+                                                className="admin-input"
+                                                value={message}
+                                                onChange={(event) => setMessage(event.target.value)}
+                                                rows={5}
+                                                style={{ minHeight: '140px', resize: 'vertical' }}
+                                                placeholder="Write the announcement that active users should see..."
+                                          />
+                                    </div>
+
+                                    <div className="admin-row">
+                                          <button className="admin-btn primary" onClick={sendBroadcastMessage} disabled={sending || !message.trim()}>
+                                                {sending ? 'Sending...' : 'Send Broadcast'}
+                                          </button>
+                                    </div>
+                              </div>
+                        </div>
+                  </div>
+            </Surface>
+      );
+}
+
 const navItems = [
       { path: '/', label: 'Dashboard', showBadge: false },
       { path: '/users', label: 'Users', showBadge: false },
       { path: '/verifications', label: 'Verifications', showBadge: true },
       { path: '/content', label: 'Content', showBadge: false },
+      { path: '/reports', label: 'Reports', showBadge: false },
+      { path: '/broadcast', label: 'Broadcast', showBadge: false },
       { path: '/config', label: 'Config', showBadge: false }
 ];
 
@@ -478,6 +627,8 @@ export default function AdminDashboard({ token, user, onLogout }) {
                                           <Route path="/users" element={<UsersManagement token={token} notify={show} />} />
                                           <Route path="/verifications" element={<VerificationsManagement token={token} notify={show} onUpdate={setPendingCount} />} />
                                           <Route path="/content" element={<ContentManagement token={token} notify={show} />} />
+                                          <Route path="/reports" element={<ReportsManagement token={token} notify={show} />} />
+                                          <Route path="/broadcast" element={<BroadcastManagement token={token} notify={show} />} />
                                           <Route path="/config" element={<ConfigManagement token={token} notify={show} />} />
                                     </Routes>
                               </main>

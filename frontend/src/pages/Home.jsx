@@ -108,8 +108,11 @@ const Home = () => {
                         throw new Error(payload?.message || 'Failed to load feed');
                   }
 
-                  const nextContents = payload.data?.contents || [];
-                  const pagination = payload.data?.pagination || {};
+                  const nextContents = Array.isArray(payload.data?.contents) ? payload.data.contents : [];
+                  const pagination = payload.data?.pagination || {
+                        hasMore: payload.data?.hasMore,
+                        nextCursor: payload.data?.nextCursor || null
+                  };
 
                   startTransition(() => {
                         setContents((previous) => {
