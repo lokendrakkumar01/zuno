@@ -1,37 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#1a1a2e" />
-  <meta name="description"
-    content="ZUNO - A calm, value-focused platform for learning, growth, and meaningful sharing" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="ZUNO - A calm, value-focused platform for learning, growth, and meaningful sharing" />
   <title>ZUNO - Value Platform</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
-
-<body style="margin: 0; background-color: var(--color-bg-primary, #ffffff);">
-  <div id="root">
-    <div id="initial-loader" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);color:#e2e8f0;font-family:Inter,sans-serif">
-      <div style="font-size:3rem;margin-bottom:1rem">🚀</div>
-      <h1 style="margin:0 0 0.5rem 0">Loading ZUNO...</h1>
-      <p style="margin:0;color:#64748b;font-size:0.9rem">Please wait while we prepare your experience</p>
-    </div>
-  </div>
+<body>
+  <div id="root"></div>
   <script type="module" src="/src/main.jsx"></script>
-  <script>
-    // Fallback: If React doesn't load within 10 seconds, show error
-    setTimeout(function() {
-      var loader = document.getElementById('initial-loader');
-      if (loader && loader.parentElement && loader.parentElement.id === 'root') {
-        loader.innerHTML = '<div style="text-align:center;padding:20px"><h2 style="color:#ef4444">⚠️ Loading Failed</h2><p style="color:#64748b">The app is taking longer than expected to load.</p><button onclick="location.reload()" style="padding:10px 20px;margin-top:10px;cursor:pointer;background:#6366f1;color:#fff;border:none;border-radius:6px">Try Again</button></div>';
-      }
-    }, 10000);
-  </script>
 </body>
-
 </html>
