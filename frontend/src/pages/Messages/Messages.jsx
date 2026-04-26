@@ -203,6 +203,32 @@ const Messages = () => {
       }, [authenticatedUserId, conversationsCacheKey]);
 
       useEffect(() => {
+            if (!isAuthenticated || !token) return;
+            
+            // Wake up backend and fetch initial data
+            const initializeApp = async () => {
+                  try {
+                        // Wake up backend
+                        await fetch(`${API_URL}/ping`, { cache: 'no-store' });
+                        
+                        // Preload essential data
+                        await Promise.allSettled([
+                              fetchConversations(),
+                              fetch(`${API_URL}/feed?mode=all&limit=6`, {
+                                    headers: token ? { Authorization: `Bearer ${token}` } : {}
+                              }),
+                              fetch(`${API_URL}/livestream/active`)
+                        ]);
+                  } catch (error) {
+                        console.log('App initialization:', error.message);
+                  }
+            };
+            
+            initializeApp();
+      }, [isAuthenticated, token, fetchConversations]);
+      
+      // Original effect for fetching conversations and notes
+      useEffect(() => {
             if (!isAuthenticated) return;
             fetchConversations();
             fetchNotes();
@@ -212,20 +238,38 @@ const Messages = () => {
             if (!socket) return;
 
             const handleRealtimeDm = (message) => {
+                  console.log('Received real-time DM:', message);
                   upsertConversationFromMessage(message, { isGroup: false });
             };
 
             const handleRealtimeGroup = (message) => {
+                  console.log('Received real-time group message:', message);
                   upsertConversationFromMessage(message, { isGroup: true });
             };
 
-            const handleRealtimeUpdate = () => debouncedRefetch();
+            const handleRealtimeUpdate = () => {
+                  console.log('Real-time update triggered');
+                  debouncedRefetch();
+            };
 
+            const handleConnect = () => {
+                  console.log('Socket connected successfully');
+                  debouncedRefetch();
+            };
+
+            const handleDisconnect = () => {
+                  console.log('Socket disconnected');
+            };
+
+            socket.on('connect', handleConnect);
+            socket.on('disconnect', handleDisconnect);
             socket.on('newMessage', handleRealtimeDm);
             socket.on('newGroupMessage', handleRealtimeGroup);
             socket.on('messageRead', handleRealtimeUpdate);
 
             return () => {
+                  socket.off('connect', handleConnect);
+                  socket.off('disconnect', handleDisconnect);
                   socket.off('newMessage', handleRealtimeDm);
                   socket.off('newGroupMessage', handleRealtimeGroup);
                   socket.off('messageRead', handleRealtimeUpdate);

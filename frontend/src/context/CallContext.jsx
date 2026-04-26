@@ -237,6 +237,7 @@ export const CallProvider = ({ children }) => {
             if (!socket) return;
 
             const handleCallUser = (data) => {
+                  console.log('Incoming call:', data);
                   setReceivingCall(true);
                   setCaller(data.from);
                   callerRef.current = data.from;
@@ -248,6 +249,7 @@ export const CallProvider = ({ children }) => {
             };
 
             const handleCallAccepted = (signal) => {
+                  console.log('Call accepted');
                   setCallAccepted(true);
                   callAcceptedRef.current = true;
                   callStartTime.current = Date.now();
@@ -262,6 +264,7 @@ export const CallProvider = ({ children }) => {
             };
 
             const handleCallCancelled = () => {
+                  console.log('Call cancelled');
                   clearPersistedCallSession();
                   restoredSessionRef.current = false;
                   setShowCallModal(null);
@@ -274,6 +277,7 @@ export const CallProvider = ({ children }) => {
             };
 
             const handleGroupCallIncoming = (data) => {
+                  console.log('Incoming group call:', data);
                   // data: { signal, from, groupId, callType }
                   // Only accept if not already in a call, otherwise automatically ignore (busy)
                   if (activeGroupCall || isCallingRef.current || callAcceptedRef.current) return;
@@ -283,7 +287,10 @@ export const CallProvider = ({ children }) => {
                   setShowCallModal('groupIncoming');
             };
 
-            const handleCallEndedEvent = () => leaveCall(false);
+            const handleCallEndedEvent = () => {
+                  console.log('Call ended event');
+                  leaveCall(false);
+            };
 
             // For trickle=false, we don't need webrtcSignal events — but keep for compatibility
             const handleWebrtcSignal = (signal) => {
@@ -297,6 +304,16 @@ export const CallProvider = ({ children }) => {
                   }
             };
 
+            const handleConnect = () => {
+                  console.log('Socket connected in CallContext');
+            };
+
+            const handleDisconnect = () => {
+                  console.log('Socket disconnected in CallContext');
+            };
+
+            socket.on('connect', handleConnect);
+            socket.on('disconnect', handleDisconnect);
             socket.on("callUser", handleCallUser);
             socket.on("callAccepted", handleCallAccepted);
             socket.on("callCancelled", handleCallCancelled);
@@ -323,6 +340,8 @@ export const CallProvider = ({ children }) => {
             window.addEventListener('pagehide', handlePageHide);
 
             return () => {
+                  socket.off('connect', handleConnect);
+                  socket.off('disconnect', handleDisconnect);
                   socket.off("callUser", handleCallUser);
                   socket.off("callAccepted", handleCallAccepted);
                   socket.off("callCancelled", handleCallCancelled);
@@ -332,7 +351,7 @@ export const CallProvider = ({ children }) => {
                   window.removeEventListener('beforeunload', handleBeforeUnload);
                   window.removeEventListener('pagehide', handlePageHide);
             };
-      }, [socket]);
+      }, [socket, showCallToast]);
 
       // Ringtone for incoming call
       const playRingtone = () => {
