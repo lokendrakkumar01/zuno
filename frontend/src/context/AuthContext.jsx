@@ -488,6 +488,34 @@ export const AuthProvider = ({ children }) => {
             });
       };
 
+      // Fast message sending with delivery confirmation
+      const sendMessageFast = useCallback(async (receiverId, messageData) => {
+            if (!socket || !isConnected) {
+                  console.warn('Socket not connected for fast message delivery');
+                  return false;
+            }
+            
+            return new Promise((resolve) => {
+                  const timeout = setTimeout(() => {
+                        resolve(false);
+                  }, 5000);
+                  
+                  socket.emit('sendMessage', {
+                        receiverId,
+                        ...messageData,
+                        senderUsername: user?.username,
+                        senderDisplayName: user?.displayName,
+                        senderAvatar: user?.avatar
+                  });
+                  
+                  socket.once('messageSent', (response) => {
+                        clearTimeout(timeout);
+                        resolve(response.delivered);
+                  });
+            });
+      }, [socket, isConnected, user]);
+      
+      // Add fast message sending to the returned value
       const value = {
             user,
             token,
@@ -501,7 +529,8 @@ export const AuthProvider = ({ children }) => {
             uploadAvatar,
             blockUser,
             unblockUser,
-            updateFollowState
+            updateFollowState,
+            sendMessageFast
       };
 
       return (

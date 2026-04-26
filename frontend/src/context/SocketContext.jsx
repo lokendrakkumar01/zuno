@@ -44,17 +44,20 @@ export const SocketContextProvider = ({ children }) => {
 
                   const socketInstance = io(SOCKET_URL, {
                         auth: { token, userId: authenticatedUserId },
-                        transports: ['polling', 'websocket'],
+                        transports: ['websocket', 'polling'],
                         withCredentials: true,
                         reconnection: true,
-                        reconnectionAttempts: Infinity,
+                        reconnectionAttempts: 5,
                         reconnectionDelay: 1000,
-                        reconnectionDelayMax: 8000,
+                        reconnectionDelayMax: 5000,
                         randomizationFactor: 0.2,
-                        timeout: 20000,
+                        timeout: 60000,
                         upgrade: true,
-                        rememberUpgrade: false,
-                        autoConnect: true
+                        rememberUpgrade: true,
+                        autoConnect: true,
+                        // Optimized for speed
+                        forceNew: false,
+                        maxHttpBufferSize: 1e8
                   });
 
                   socketRef.current = socketInstance;

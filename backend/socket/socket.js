@@ -24,10 +24,19 @@ const io = new Server(server, {
   connectionStateRecovery: {
     maxDisconnectionDuration: 2 * 60 * 1000
   },
-  pingTimeout: 20000,
+  pingTimeout: 60000,
   pingInterval: 25000,
   transports: ['websocket', 'polling'],
-  perMessageDeflate: false
+  perMessageDeflate: false,
+  // Optimize for speed
+  maxHttpBufferSize: 1e8,
+  upgradeTimeout: 10000,
+  rememberUpgrade: true,
+  // Fast connection settings
+  forceNew: true,
+  reconnectionAttempts: 5,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000
 });
 
 const onlineUserSockets = new Map();
@@ -89,7 +98,51 @@ const removeUserSocket = (userId, socketId) => {
   return sockets.size;
 };
 
-const getReceiverSocketId = (receiverId) => normalizeId(receiverId);
+// Fast message delivery with direct socket targeting
+const deliverMessageFast = (receiverId, eventName, data) => {
+  const normalizedReceiverId = normalizeId(receiverId);
+  if (!normalizedReceiverId) return false;
+  
+  const receiverSockets = onlineUserSockets.get(normalizedReceiverId);
+  if (!receiverSockets || receiverSockets.size === 0) return false;
+  
+  // Send to all active sockets for this user with volatile flag for speed
+  let delivered = false;
+  receiverSockets.forEach(socketId => {
+    const socket = io.sockets.sockets.get(socketId);
+    if (socket && socket.connected) {
+      socket.volatile.emit(eventName, data);
+      delivered = true;
+    }
+  });
+  
+  return delivered;
+};
+
+// Enhanced message delivery with acknowledgment
+const deliverMessageWithAck = async (receiverId, eventName, data, timeout = 5000) => {
+  const normalizedReceiverId = normalizeId(receiverId);
+  if (!normalizedReceiverId) return false;
+  
+  const receiverSockets = onlineUserSockets.get(normalizedReceiverId);
+  if (!receiverSockets || receiverSockets.size === 0) return false;
+  
+  // Send to first available socket and wait for ack
+  for (const socketId of receiverSockets) {
+    const socket = io.sockets.sockets.get(socketId);
+    if (socket && socket.connected) {
+      try {
+        await socket.timeout(timeout).emitWithAck(eventName, data);
+        return true;
+      } catch (error) {
+        console.log('Message delivery timeout, trying next socket');
+        continue;
+      }
+    }
+  }
+  
+  return false;
+};
 
 const clearPendingDirectCallDisconnect = (userId) => {
   const normalizedUserId = normalizeId(userId);
@@ -320,19 +373,66 @@ io.on('connection', (socket) => {
   }
 
   socket.on('presence:heartbeat', () => emitHeartbeatAck(socket));
-  socket.on('typing', (data = {}) => data.receiverId && socket.to(data.receiverId).volatile.emit('typing', { senderId: userId }));
-  socket.on('stopTyping', (data = {}) => data.receiverId && socket.to(data.receiverId).volatile.emit('stopTyping', { senderId: userId }));
-  socket.on('messageRead', (data = {}) => data.receiverId && socket.to(data.receiverId).emit('messageRead', { messageId: data.messageId, readerId: userId }));
+  // Enhanced messaging with fast delivery
+  socket.on('sendMessage', async (data = {}) => {
+    const { receiverId, text, media, type = 'direct' } = data;
+    if (!receiverId) return;
+    
+    const messagePayload = {
+      sender: {
+        _id: userId,
+        username: data.senderUsername || '',
+        displayName: data.senderDisplayName || '',
+        avatar: data.senderAvatar || ''
+      },
+      receiver: { _id: receiverId },
+      text,
+      media,
+      type,
+      createdAt: nowIso(),
+      messageId: `msg_${Date.now()}_${userId}`
+    };
+    
+    // Fast delivery to receiver
+    const delivered = deliverMessageFast(receiverId, 'newMessage', messagePayload);
+    
+    // Send confirmation to sender
+    socket.emit('messageSent', {
+      ...messagePayload,
+      delivered,
+      timestamp: nowIso()
+    });
+    
+    console.log(`Message ${delivered ? 'delivered' : 'failed to deliver'} from ${userId} to ${receiverId}`);
+  });
+  
+  socket.on('typing', (data = {}) => {
+    if (data.receiverId) {
+      deliverMessageFast(data.receiverId, 'typing', { senderId: userId });
+    }
+  });
+  
+  socket.on('stopTyping', (data = {}) => {
+    if (data.receiverId) {
+      deliverMessageFast(data.receiverId, 'stopTyping', { senderId: userId });
+    }
+  });
+  
+  socket.on('messageRead', (data = {}) => {
+    if (data.receiverId) {
+      deliverMessageFast(data.receiverId, 'messageRead', { messageId: data.messageId, readerId: userId });
+    }
+  });
   socket.on('joinConversation', (data = {}) => data.conversationId && socket.join(`conversation:${data.conversationId}`));
   socket.on('leaveConversation', (data = {}) => data.conversationId && socket.leave(`conversation:${data.conversationId}`));
 
+  // Enhanced calling system with fast notifications
   socket.on('callUser', (data = {}) => {
     if (!data.userToCall) return;
 
     linkDirectCall(userId, data.userToCall);
     const callerProfile = data.from || {};
-
-    io.to(data.userToCall).emit('callUser', {
+    const callPayload = {
       signal: data.signalData || data.signal,
       from: {
         _id: userId,
@@ -340,24 +440,66 @@ io.on('connection', (socket) => {
         displayName: callerProfile.displayName || callerProfile.name || data.displayName || data.name || '',
         avatar: callerProfile.avatar || data.avatar || ''
       },
-      callType: data.callType || 'voice'
+      callType: data.callType || 'voice',
+      timestamp: nowIso(),
+      callId: `call_${Date.now()}_${userId}`
+    };
+
+    // Fast delivery with priority
+    const delivered = deliverMessageFast(data.userToCall, 'callUser', callPayload);
+    
+    // Send call status to caller
+    socket.emit('callInitiated', {
+      targetId: data.userToCall,
+      delivered,
+      callId: callPayload.callId,
+      timestamp: nowIso()
     });
+    
+    console.log(`Call ${delivered ? 'delivered' : 'failed to deliver'} from ${userId} to ${data.userToCall}`);
   });
 
   socket.on('answerCall', (data = {}) => {
     if (!data.to) return;
     linkDirectCall(userId, data.to);
-    io.to(data.to).emit('callAccepted', data.signal);
+    
+    const answerPayload = {
+      signal: data.signal,
+      from: userId,
+      timestamp: nowIso()
+    };
+    
+    const delivered = deliverMessageFast(data.to, 'callAccepted', answerPayload);
+    console.log(`Call answer ${delivered ? 'delivered' : 'failed to deliver'} from ${userId} to ${data.to}`);
   });
 
-  socket.on('webrtcSignal', (data = {}) => data.to && io.to(data.to).emit('webrtcSignal', data.signal));
+  socket.on('webrtcSignal', (data = {}) => {
+    if (data.to) {
+      const delivered = deliverMessageFast(data.to, 'webrtcSignal', { signal: data.signal, from: userId });
+      console.log(`WebRTC signal ${delivered ? 'delivered' : 'failed to deliver'} from ${userId} to ${data.to}`);
+    }
+  });
+  
   socket.on('cancelCall', (data = {}) => {
     clearDirectCall(userId, data.to);
-    data.to && io.to(data.to).emit('callCancelled');
+    if (data.to) {
+      const delivered = deliverMessageFast(data.to, 'callCancelled', { 
+        from: userId, 
+        timestamp: nowIso() 
+      });
+      console.log(`Call cancellation ${delivered ? 'delivered' : 'failed to deliver'} from ${userId} to ${data.to}`);
+    }
   });
+  
   socket.on('leaveCall', (data = {}) => {
     clearDirectCall(userId, data.to);
-    data.to && io.to(data.to).emit('callEnded');
+    if (data.to) {
+      const delivered = deliverMessageFast(data.to, 'callEnded', { 
+        from: userId, 
+        timestamp: nowIso() 
+      });
+      console.log(`Call end ${delivered ? 'delivered' : 'failed to deliver'} from ${userId} to ${data.to}`);
+    }
   });
 
   socket.on('groupCallUser', (data = {}) => {
@@ -597,7 +739,8 @@ module.exports = {
   app,
   io,
   server,
-  getReceiverSocketId,
+  deliverMessageFast,
+  deliverMessageWithAck,
   activeStreams,
   serializeStream,
   pruneExpiredStreams,

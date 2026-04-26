@@ -234,17 +234,45 @@ const Messages = () => {
             fetchNotes();
       }, [fetchConversations, fetchNotes, isAuthenticated]);
 
+      // Enhanced real-time messaging with fast delivery
       useEffect(() => {
             if (!socket) return;
 
             const handleRealtimeDm = (message) => {
                   console.log('Received real-time DM:', message);
                   upsertConversationFromMessage(message, { isGroup: false });
+                  
+                  // Show notification for new messages
+                  if (message.sender?._id !== authenticatedUserId) {
+                        const notification = new Notification(`New message from ${message.sender?.displayName || message.sender?.username}`, {
+                              body: message.text || 'Media shared',
+                              icon: message.sender?.avatar || '/favicon.svg',
+                              tag: `message_${message.sender?._id}`
+                        });
+                        
+                        notification.onclick = () => {
+                              window.focus();
+                              navigate(buildDirectMessagePath(message.sender));
+                        };
+                        
+                        setTimeout(() => notification.close(), 5000);
+                  }
             };
 
             const handleRealtimeGroup = (message) => {
                   console.log('Received real-time group message:', message);
                   upsertConversationFromMessage(message, { isGroup: true });
+                  
+                  // Show notification for group messages
+                  if (message.sender?._id !== authenticatedUserId) {
+                        const notification = new Notification(`New message in ${message.groupName || 'Group'}`, {
+                              body: `${message.sender?.displayName || message.sender?.username}: ${message.text || 'Media shared'}`,
+                              icon: '/favicon.svg',
+                              tag: `group_${message.groupId}`
+                        });
+                        
+                        setTimeout(() => notification.close(), 5000);
+                  }
             };
 
             const handleRealtimeUpdate = () => {
@@ -254,18 +282,33 @@ const Messages = () => {
 
             const handleConnect = () => {
                   console.log('Socket connected successfully');
+                  setIsConnected(true);
                   debouncedRefetch();
             };
 
             const handleDisconnect = () => {
                   console.log('Socket disconnected');
+                  setIsConnected(false);
             };
 
+            const handleTyping = (data) => {
+                  console.log('User typing:', data);
+                  // Handle typing indicator
+            };
+
+            const handleStopTyping = (data) => {
+                  console.log('User stopped typing:', data);
+                  // Handle stop typing indicator
+            };
+
+            // Enhanced socket event listeners
             socket.on('connect', handleConnect);
             socket.on('disconnect', handleDisconnect);
             socket.on('newMessage', handleRealtimeDm);
             socket.on('newGroupMessage', handleRealtimeGroup);
             socket.on('messageRead', handleRealtimeUpdate);
+            socket.on('typing', handleTyping);
+            socket.on('stopTyping', handleStopTyping);
 
             return () => {
                   socket.off('connect', handleConnect);
@@ -273,8 +316,10 @@ const Messages = () => {
                   socket.off('newMessage', handleRealtimeDm);
                   socket.off('newGroupMessage', handleRealtimeGroup);
                   socket.off('messageRead', handleRealtimeUpdate);
+                  socket.off('typing', handleTyping);
+                  socket.off('stopTyping', handleStopTyping);
             };
-      }, [debouncedRefetch, socket, upsertConversationFromMessage]);
+      }, [debouncedRefetch, socket, upsertConversationFromMessage, authenticatedUserId, navigate]);
 
       useEffect(() => () => {
             if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current);
