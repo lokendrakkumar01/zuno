@@ -100,26 +100,28 @@ app.use('/api/notifications', notificationRoutes);
 
 // Root route - API Welcome
 app.get('/', (req, res) => {
+  const frontendUrl = process.env.CLIENT_URL || (process.env.NODE_ENV === 'development' ? 'https://localhost:3002' : 'https://zunoworld.tech');
   res.send(`
     <!DOCTYPE html>
     <html>
     <head>
       <title>ZUNO API</title>
       <style>
-        body { font-family: sans-serif; background: #0a0a14; color: #f1f5f9; min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; }
+        body { font-family: sans-serif; background: #0a0f1a; color: #e2e8f0; min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; }
         .container { text-align: center; padding: 2rem; }
         .logo { font-size: 4rem; color: #6366f1; }
         h1 { margin: 0.5rem 0; }
         p { color: #94a3b8; }
-        .btn { display: inline-block; padding: 0.75rem 2rem; background: #6366f1; color: white; text-decoration: none; border-radius: 0.5rem; margin-top: 1rem; }
+        .btn { display: inline-block; padding: 0.75rem 2rem; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; text-decoration: none; border-radius: 0.5rem; margin-top: 1rem; }
       </style>
     </head>
     <body>
       <div class="container">
         <div class="logo">Z</div>
-        <h1>ZUNO API Server</h1>
-        <p>Backend is running.</p>
-        <a href="${process.env.CLIENT_URL || 'https://zunoworld.tech'}" class="btn">Open ZUNO Frontend</a>
+        <h1>ZUNO Backend Server</h1>
+        <p>Backend is running on port ${PORT}</p>
+        <p>Environment: ${process.env.NODE_ENV || 'development'}</p>
+        <a href="${frontendUrl}" class="btn">Open ZUNO Frontend</a>
       </div>
     </body>
     </html>
