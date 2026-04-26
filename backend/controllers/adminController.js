@@ -3,7 +3,6 @@ const Content = require('../models/Content');
 const AdminConfig = require('../models/AdminConfig');
 const Interaction = require('../models/Interaction');
 const Message = require('../models/Message');
-const Conversation = require('../models/Message');
 const mongoose = require('mongoose');
 const { sendCustomAdminEmail } = require('../config/emailService');
 const { io } = require('../socket/socket');
@@ -657,24 +656,24 @@ const deleteUser = async (req, res) => {
                         { session }
                   );
 
-                  // 2. Remove user from all conversations
-                  await Conversation.updateMany(
-                        { participants: targetId },
-                        { 
-                          $pull: { participants: targetId },
-                          $unset: { [`unreadCount.${targetId}`]: 1 }
-                        },
-                        { session }
-                  );
+                  // 2. Remove user from all conversations (if Conversation model exists)
+                  // await Conversation.updateMany(
+                  //       { participants: targetId },
+                  //       { 
+                  //         $pull: { participants: targetId },
+                  //         $unset: { [`unreadCount.${targetId}`]: 1 }
+                  //       },
+                  //       { session }
+                  // );
 
                   // 3. Delete conversations where this user is the only participant (DMs)
-                  await Conversation.deleteMany(
-                        { 
-                          participants: { $size: 1 },
-                          participants: targetId
-                        },
-                        { session }
-                  );
+                  // await Conversation.deleteMany(
+                  //       { 
+                  //         participants: { $size: 1 },
+                  //         participants: targetId
+                  //       },
+                  //       { session }
+                  // );
 
                   // 4. Handle content created by this user
                   await Content.updateMany(

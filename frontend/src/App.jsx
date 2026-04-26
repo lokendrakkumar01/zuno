@@ -19,6 +19,7 @@ const ResetPassword = React.lazy(loadResetPassword);
 const Upload = React.lazy(loadUpload);
 const Profile = React.lazy(loadProfile);
 const ContentView = React.lazy(loadContentView);
+const AdminLogin = React.lazy(loadAdminLogin);
 const AdminDashboard = React.lazy(loadAdminDashboard);
 const Settings = React.lazy(loadSettings);
 const Appearance = React.lazy(loadAppearance);
@@ -58,6 +59,7 @@ function loadResetPassword() { return import('./pages/Auth/ResetPassword'); }
 function loadUpload() { return import('./pages/Upload/Upload'); }
 function loadProfile() { return import('./pages/Profile'); }
 function loadContentView() { return import('./pages/ContentView'); }
+function loadAdminLogin() { return import('./pages/Admin/AdminLogin'); }
 function loadAdminDashboard() { return import('./pages/Admin/AdminDashboard'); }
 function loadSettings() { return import('./pages/Settings/Settings'); }
 function loadAppearance() { return import('./pages/Settings/Appearance'); }
@@ -266,7 +268,8 @@ function AppRouter() {
                                 <Route path="u/:username" element={<Profile />} />
                           </Route>
 
-                          {/* Admin routes */}
+                          {/* Admin routes - accessible without authentication for login */}
+                          <Route path="/admin/login" element={<AdminLogin />} />
                           <Route path="/admin/*" element={<AdminDashboard />} />
                     </Routes>
                   </Suspense>
