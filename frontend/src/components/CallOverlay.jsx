@@ -316,7 +316,8 @@ const CallOverlay = () => {
     flipCamera, facingMode,
     callToast,
     isAndroid: onAndroid,
-    supportsScreenShare
+    supportsScreenShare,
+    incomingGroupCall, acceptGroupCall, rejectGroupCall
   } = useCallContext();
 
   const timer = useCallTimer(callAccepted && !callEnded);
@@ -402,6 +403,31 @@ const CallOverlay = () => {
             <div className="call-btn-row">
               <button className="call-btn call-btn-end" onClick={rejectCall} title="Decline">📵</button>
               <button className="call-btn call-btn-answer" onClick={answerCall} title="Answer">📱</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Incoming Group Call ── */}
+      {showCallModal === 'groupIncoming' && incomingGroupCall && (
+        <div className="call-overlay-modal">
+          <div className="call-modal-card">
+            <div className="call-avatar-wrap">
+              <div className="call-avatar-wave" />
+              <div className="call-avatar-wave" />
+              <div className="call-avatar-wave" />
+              <div className="call-avatar-initials">👥</div>
+            </div>
+            <h2 className="call-name">{incomingGroupCall.groupName || 'Group Call'}</h2>
+            <div className="call-type-badge">
+              {incomingGroupCall.callType === 'video' ? '📹 Group Video Call' : '📞 Group Voice Call'}
+            </div>
+            <div className="call-status">
+              Incoming group call<span className="call-status-dot" /><span className="call-status-dot" /><span className="call-status-dot" />
+            </div>
+            <div className="call-btn-row">
+              <button className="call-btn call-btn-end" onClick={rejectGroupCall} title="Decline">📵</button>
+              <button className="call-btn call-btn-answer" onClick={acceptGroupCall} title="Join">📱</button>
             </div>
           </div>
         </div>

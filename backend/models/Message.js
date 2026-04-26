@@ -83,7 +83,12 @@ const conversationSchema = new mongoose.Schema({
       groupName: { type: String, trim: true },
       groupDescription: { type: String, trim: true },
       groupAvatar: { type: String, default: '' },
-      groupAdmin: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+      groupAdmin: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      pinnedMessage: {
+            messageId: { type: mongoose.Schema.Types.ObjectId, ref: 'Message' },
+            pinnedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+            pinnedAt: { type: Date, default: Date.now }
+      }
 }, { timestamps: true });
 
 // Index for efficient participant and sorting queries

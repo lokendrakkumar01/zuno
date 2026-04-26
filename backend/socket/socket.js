@@ -362,10 +362,14 @@ io.on('connection', (socket) => {
 
   socket.on('groupCallUser', (data = {}) => {
     if (!data.targetUserId) return;
+    
+    // Send enriched payload with group info for proper UI initialization
     io.to(data.targetUserId).emit('groupCallIncoming', {
       signal: data.signalData,
       from: userId,
       groupId: data.groupId,
+      groupName: data.groupName || 'Group Call',
+      participants: data.participants || [],
       callType: data.callType || 'video'
     });
   });
@@ -374,6 +378,14 @@ io.on('connection', (socket) => {
     if (!data.to) return;
     io.to(data.to).emit('groupCallAccepted', {
       signal: data.signal,
+      from: userId,
+      groupId: data.groupId
+    });
+  });
+
+  socket.on('groupCallRejected', (data = {}) => {
+    if (!data.to) return;
+    io.to(data.to).emit('groupCallRejected', {
       from: userId,
       groupId: data.groupId
     });
@@ -556,11 +568,11 @@ io.on('connection', (socket) => {
       }
     }
 
-    // Clean up from direct calls
+    // Clean up from direct calls with grace period
     const peerId = activeDirectCalls.get(userId);
     if (peerId) {
-      clearDirectCall(userId, peerId);
-      io.to(peerId).emit('callEnded');
+      // Use grace period instead of immediate ending
+      scheduleDirectCallDisconnect(userId);
     }
 
     // Clean up from pending disconnects

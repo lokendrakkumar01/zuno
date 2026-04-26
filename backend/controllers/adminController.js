@@ -2,6 +2,9 @@ const User = require('../models/User');
 const Content = require('../models/Content');
 const AdminConfig = require('../models/AdminConfig');
 const Interaction = require('../models/Interaction');
+const Message = require('../models/Message');
+const Conversation = require('../models/Message');
+const mongoose = require('mongoose');
 const { sendCustomAdminEmail } = require('../config/emailService');
 const { io } = require('../socket/socket');
 
@@ -612,7 +615,7 @@ const initializeConfigs = async (req, res) => {
       }
 };
 
-// @desc    Delete a user permanently
+// @desc    Delete a user permanently with safe cleanup
 // @route   DELETE /api/admin/users/:id
 // @access  Admin
 const deleteUser = async (req, res) => {
@@ -635,13 +638,92 @@ const deleteUser = async (req, res) => {
                   });
             }
 
-            await User.findByIdAndDelete(targetId);
-            invalidateAdminStatsCache();
+            // Start a transaction for atomic cleanup
+            const session = await mongoose.startSession();
+            session.startTransaction();
 
-            res.json({
-                  success: true,
-                  message: `User "${user.username}" deleted permanently.`
-            });
+            try {
+                  // 1. Soft delete messages sent by this user
+                  await Message.updateMany(
+                        { sender: targetId },
+                        { 
+                          $set: { 
+                            deletedForEveryone: true,
+                            text: '[Message deleted]',
+                            media: { url: '', type: '' },
+                            deletedBy: [targetId]
+                          }
+                        },
+                        { session }
+                  );
+
+                  // 2. Remove user from all conversations
+                  await Conversation.updateMany(
+                        { participants: targetId },
+                        { 
+                          $pull: { participants: targetId },
+                          $unset: { [`unreadCount.${targetId}`]: 1 }
+                        },
+                        { session }
+                  );
+
+                  // 3. Delete conversations where this user is the only participant (DMs)
+                  await Conversation.deleteMany(
+                        { 
+                          participants: { $size: 1 },
+                          participants: targetId
+                        },
+                        { session }
+                  );
+
+                  // 4. Handle content created by this user
+                  await Content.updateMany(
+                        { creator: targetId },
+                        { 
+                          $set: { 
+                            status: 'removed',
+                            moderationNote: 'User deleted - content removed'
+                          }
+                        },
+                        { session }
+                  );
+
+                  // 5. Remove interactions (likes, reports, etc.) by this user
+                  await Interaction.deleteMany(
+                        { user: targetId },
+                        { session }
+                  );
+
+                  // 6. Remove reports against this user's content
+                  await Interaction.deleteMany(
+                        { 
+                          type: 'report',
+                          'content.creator': targetId
+                        },
+                        { session }
+                  );
+
+                  // 7. Finally, delete the user
+                  await User.findByIdAndDelete(targetId, { session });
+
+                  // Commit the transaction
+                  await session.commitTransaction();
+                  
+                  invalidateAdminStatsCache();
+
+                  res.json({
+                        success: true,
+                        message: `User "${user.username}" deleted safely with cleanup.`
+                  });
+
+            } catch (cleanupError) {
+                  // Abort transaction on any error
+                  await session.abortTransaction();
+                  throw cleanupError;
+            } finally {
+                  session.endSession();
+            }
+
       } catch (error) {
             res.status(500).json({
                   success: false,

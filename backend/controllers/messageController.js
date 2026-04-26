@@ -843,10 +843,12 @@ const createGroup = async (req, res) => {
 // @desc    Get group messages
 // @route   GET /api/messages/group/:groupId
 // @access  Private
+// Supports cursor pagination: ?beforeId=<msgId> or ?before=<ISO timestamp>
+// Returns latest 50 messages newest-first, frontend reverses for display
 const getGroupMessages = async (req, res) => {
       try {
             const { groupId } = req.params;
-            const { page = 1, limit = 50 } = req.query;
+            const { beforeId, before, limit = 50, page } = req.query;
 
             const conversation = await Conversation.findById(groupId).populate('participants', 'username displayName avatar blockedUsers');
             if (!conversation || !conversation.isGroup) {
@@ -857,20 +859,53 @@ const getGroupMessages = async (req, res) => {
                   return res.status(403).json({ success: false, message: 'Not a member of this group' });
             }
 
-            let messages = await Message.find({ 
-                  conversationId: groupId,
-                  deletedBy: { $ne: req.user.id }
-            })
-                  .sort({ createdAt: -1 })
-                  .skip((page - 1) * limit)
-                  .limit(parseInt(limit))
-                  .populate('sender', 'username displayName avatar')
-                  .populate({
-                        path: 'replyTo',
-                        populate: { path: 'sender', select: 'username displayName' }
-                  });
+            // Build cursor filter for pagination (fast — no skip on large collections)
+            const cursorFilter = {};
+            if (beforeId) {
+                  cursorFilter._id = { $lt: beforeId }; // MongoDB ObjectIds are time-ordered
+            } else if (before) {
+                  cursorFilter.createdAt = { $lt: new Date(before) };
+            }
 
-            messages = messages.reverse();
+            let queryLimit = parseInt(limit);
+            let messages;
+
+            // Legacy support for old page-based pagination
+            if (page && !beforeId && !before) {
+                  // Fallback to old skip/limit for backward compatibility
+                  const skipAmount = (parseInt(page) - 1) * queryLimit;
+                  messages = await Message.find({ 
+                        conversationId: groupId,
+                        deletedBy: { $ne: req.user.id }
+                  })
+                        .sort({ createdAt: -1 })
+                        .skip(skipAmount)
+                        .limit(queryLimit)
+                        .populate('sender', 'username displayName avatar')
+                        .populate({
+                              path: 'replyTo',
+                              populate: { path: 'sender', select: 'username displayName' }
+                        });
+            } else {
+                  // Use cursor-based pagination
+                  messages = await Message.find({ 
+                        conversationId: groupId,
+                        deletedBy: { $ne: req.user.id },
+                        ...cursorFilter
+                  })
+                        .sort({ createdAt: -1 }) // newest first — frontend reverses for display
+                        .limit(queryLimit)
+                        .populate('sender', 'username displayName avatar')
+                        .populate({
+                              path: 'replyTo',
+                              populate: { path: 'sender', select: 'username displayName' }
+                        });
+            }
+
+            // hasMore flag for cursor pagination UI
+            const hasMore = messages.length === queryLimit;
+
+            messages = messages.reverse(); // oldest-first for frontend display
             await Conversation.findOneAndUpdate(
                   { _id: groupId },
                   { $set: { [`unreadCount.${req.user.id}`]: 0 } }
@@ -880,7 +915,9 @@ const getGroupMessages = async (req, res) => {
                   success: true,
                   data: {
                         messages: messages.map((message) => serializeMessagePayload(message)),
-                        group: serializeConversationPayload(conversation.toObject(), req.user.id)
+                        group: serializeConversationPayload(conversation.toObject(), req.user.id),
+                        hasMore,
+                        oldestMessageId: messages.length > 0 ? normalizeId(messages[0]._id) : null
                   }
             });
       } catch (error) {

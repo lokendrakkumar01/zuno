@@ -59,46 +59,54 @@ const clearPersistedCallSession = () => {
       }
 };
 
-// Public STUN + reliable TURN servers for NAT traversal
-const ICE_SERVERS = {
-      iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' },
-            { urls: 'stun:stun3.l.google.com:19302' },
-            { urls: 'stun:stun4.l.google.com:19302' },
-            {
-                  urls: 'turn:openrelay.metered.ca:80',
-                  username: 'openrelayproject',
-                  credential: 'openrelayproject'
-            },
-            {
-                  urls: 'turn:openrelay.metered.ca:443',
-                  username: 'openrelayproject',
-                  credential: 'openrelayproject'
-            },
-            {
-                  urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-                  username: 'openrelayproject',
-                  credential: 'openrelayproject'
-            },
-            // Additional reliable TURN servers
-            {
-                  urls: 'turn:global.turn.twilio.com:3478?transport=udp',
-                  username: 'c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4',
-                  credential: 'f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1'
-            },
-            {
-                  urls: 'turn:global.turn.twilio.com:3478?transport=tcp',
-                  username: 'c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4',
-                  credential: 'f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1'
-            }
-      ],
-      iceTransportPolicy: 'all',
-      iceCandidatePoolSize: 10,
-      rtcpMuxPolicy: 'require',
-      bundlePolicy: 'max-bundle'
+// Load ICE servers from environment or use reliable fallbacks
+const getIceServers = () => {
+  // Try to load from environment first
+  if (process.env.REACT_APP_TURN_SERVERS) {
+    try {
+      const envServers = JSON.parse(process.env.REACT_APP_TURN_SERVERS);
+      if (Array.isArray(envServers) && envServers.length > 0) {
+        return {
+          iceServers: envServers,
+          iceTransportPolicy: 'all',
+          iceCandidatePoolSize: 10,
+          rtcpMuxPolicy: 'require',
+          bundlePolicy: 'max-bundle'
+        };
+      }
+    } catch (e) {
+      console.warn('Invalid REACT_APP_TURN_SERVERS format, using fallbacks');
+    }
+  }
+
+  // Reliable fallback configuration
+  return {
+    iceServers: [
+      // Public STUN servers
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun2.l.google.com:19302' },
+      
+      // Free TURN servers (remove invalid/fake ones)
+      {
+        urls: 'turn:openrelay.metered.ca:80',
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+      },
+      {
+        urls: 'turn:openrelay.metered.ca:443',
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+      }
+    ],
+    iceTransportPolicy: 'all',
+    iceCandidatePoolSize: 10,
+    rtcpMuxPolicy: 'require',
+    bundlePolicy: 'max-bundle'
+  };
 };
+
+const ICE_SERVERS = getIceServers();
 
 export const useCallContext = () => useContext(CallContext);
 
@@ -119,6 +127,7 @@ export const CallProvider = ({ children }) => {
 
       // Group Call State
       const [activeGroupCall, setActiveGroupCall] = useState(null); // { groupId, groupName, participants, callType }
+  const [incomingGroupCall, setIncomingGroupCall] = useState(null); // { signal, from, groupId, callType, groupName, participants }
 
       // Hardware Controls
       const [isMuted, setIsMuted] = useState(false);
@@ -268,11 +277,10 @@ export const CallProvider = ({ children }) => {
                   // data: { signal, from, groupId, callType }
                   // Only accept if not already in a call, otherwise automatically ignore (busy)
                   if (activeGroupCall || isCallingRef.current || callAcceptedRef.current) return;
-                  // Auto-join or prompt could be done here. Since it's WhatsApp style, group calls might ring everyone.
-                  // For simplicity avoiding annoying ringtone per participant, we will auto-show a global incoming group call toaster,
-                  // or just let GroupCallOverlay handle receiving the signals.
-                  // Wait, GroupCallOverlay handles 'groupCallIncoming' entirely on its own! 
-                  // So we only need CallContext to listen for new group rings to mount the Overlay if not already mounted.
+                  
+                  // Store incoming call info to show UI
+                  setIncomingGroupCall(data);
+                  setShowCallModal('groupIncoming');
             };
 
             const handleCallEndedEvent = () => leaveCall(false);
@@ -294,6 +302,7 @@ export const CallProvider = ({ children }) => {
             socket.on("callCancelled", handleCallCancelled);
             socket.on("callEnded", handleCallEndedEvent);
             socket.on("webrtcSignal", handleWebrtcSignal);
+            socket.on("groupCallIncoming", handleGroupCallIncoming);
 
             // Warn before page unload during active call
             const handleBeforeUnload = (e) => {
@@ -319,6 +328,7 @@ export const CallProvider = ({ children }) => {
                   socket.off("callCancelled", handleCallCancelled);
                   socket.off("callEnded", handleCallEndedEvent);
                   socket.off("webrtcSignal", handleWebrtcSignal);
+                  socket.off("groupCallIncoming", handleGroupCallIncoming);
                   window.removeEventListener('beforeunload', handleBeforeUnload);
                   window.removeEventListener('pagehide', handlePageHide);
             };
@@ -852,6 +862,34 @@ export const CallProvider = ({ children }) => {
             setActiveGroupCall({ groupId, groupName, participants, callType });
       };
 
+      const acceptGroupCall = () => {
+            if (!incomingGroupCall) return;
+            
+            // Set active group call and clear incoming
+            setActiveGroupCall({
+                  groupId: incomingGroupCall.groupId,
+                  groupName: incomingGroupCall.groupName || 'Group Call',
+                  participants: incomingGroupCall.participants || [],
+                  callType: incomingGroupCall.callType
+            });
+            
+            setIncomingGroupCall(null);
+            setShowCallModal(null);
+      };
+
+      const rejectGroupCall = () => {
+            if (!incomingGroupCall || !socket) return;
+            
+            // Notify caller that we rejected
+            socket.emit('groupCallRejected', {
+                  to: incomingGroupCall.from,
+                  groupId: incomingGroupCall.groupId
+            });
+            
+            setIncomingGroupCall(null);
+            setShowCallModal(null);
+      };
+
       return (
             <CallContext.Provider value={{
                   stream, remoteStream, setStream, myVideo, userVideo,
@@ -868,7 +906,8 @@ export const CallProvider = ({ children }) => {
                   toggleSpeaker, flipCamera,
                   isAndroid: isAndroid(),
                   supportsScreenShare: supportsScreenShare(),
-                  activeGroupCall, startGroupCall
+                  activeGroupCall, startGroupCall,
+                  incomingGroupCall, acceptGroupCall, rejectGroupCall
             }}>
                   {children}
                   {/* Group Call Overlay rendered globally when active */}

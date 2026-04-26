@@ -435,8 +435,10 @@ const LiveStream = () => {
       const sendComment = (event) => {
             event.preventDefault();
             if (!commentText.trim() || !socket || !isLive) return;
-            if (slowModeEnabled && !isHostMode) return;
-
+            
+            // Remove the blocking check - let backend handle rate limiting
+            // The backend already supports per-user cooldown for slow mode
+            
             socket.emit('streamComment', {
                   hostId: isHostMode ? user?._id : hostId,
                   comment: commentText.trim(),
