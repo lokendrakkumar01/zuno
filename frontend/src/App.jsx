@@ -9,37 +9,6 @@ import { ThemeProvider } from './context/ThemeContext';
 import SplashScreen from './components/SplashScreen';
 import RouteSuspenseFallback from './components/RouteSuspenseFallback';
 import Layout from './components/Layout/Layout';
-
-// Lazy load all heavy page components
-const Landing = React.lazy(loadLanding);
-const Home = React.lazy(loadHome);
-const Login = React.lazy(loadLogin);
-const Register = React.lazy(loadRegister);
-const ResetPassword = React.lazy(loadResetPassword);
-const Upload = React.lazy(loadUpload);
-const Profile = React.lazy(loadProfile);
-const ContentView = React.lazy(loadContentView);
-const AdminLogin = React.lazy(loadAdminLogin);
-const AdminDashboard = React.lazy(loadAdminDashboard);
-const Settings = React.lazy(loadSettings);
-const Appearance = React.lazy(loadAppearance);
-const Privacy = React.lazy(loadPrivacy);
-const Language = React.lazy(loadLanguage);
-const Notifications = React.lazy(loadNotifications);
-const TimeManagement = React.lazy(loadTimeManagement);
-const PasswordSecurity = React.lazy(loadPasswordSecurity);
-const CloseFriends = React.lazy(loadCloseFriends);
-const Activity = React.lazy(loadActivity);
-const ScheduledContent = React.lazy(loadScheduledContent);
-const Insights = React.lazy(loadInsights);
-const Search = React.lazy(loadSearch);
-const SavedContent = React.lazy(loadSavedContent);
-const Messages = React.lazy(loadMessages);
-const Chat = React.lazy(loadChat);
-const GroupChat = React.lazy(loadGroupChat);
-const LiveStream = React.lazy(loadLiveStream);
-const Status = React.lazy(loadStatus);
-
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import GlobalNotification from './components/GlobalNotification';
@@ -51,6 +20,7 @@ import { fetchWithTimeout, DEFAULT_REQUEST_TIMEOUT_MS } from './utils/fetchWithT
 
 const WARMUP_FETCH_MS = Math.min(DEFAULT_REQUEST_TIMEOUT_MS, 28000);
 
+// Define lazy loading functions FIRST (before using them)
 function loadLanding() { return import('./pages/Landing'); }
 function loadHome() { return import('./pages/Home'); }
 function loadLogin() { return import('./pages/Auth/Login'); }
@@ -79,6 +49,36 @@ function loadChat() { return import('./pages/Messages/Chat'); }
 function loadGroupChat() { return import('./pages/Messages/GroupChat'); }
 function loadLiveStream() { return import('./pages/LiveStream'); }
 function loadStatus() { return import('./pages/Status'); }
+
+// NOW lazy load all heavy page components (functions are defined above)
+const Landing = React.lazy(loadLanding);
+const Home = React.lazy(loadHome);
+const Login = React.lazy(loadLogin);
+const Register = React.lazy(loadRegister);
+const ResetPassword = React.lazy(loadResetPassword);
+const Upload = React.lazy(loadUpload);
+const Profile = React.lazy(loadProfile);
+const ContentView = React.lazy(loadContentView);
+const AdminLogin = React.lazy(loadAdminLogin);
+const AdminDashboard = React.lazy(loadAdminDashboard);
+const Settings = React.lazy(loadSettings);
+const Appearance = React.lazy(loadAppearance);
+const Privacy = React.lazy(loadPrivacy);
+const Language = React.lazy(loadLanguage);
+const Notifications = React.lazy(loadNotifications);
+const TimeManagement = React.lazy(loadTimeManagement);
+const PasswordSecurity = React.lazy(loadPasswordSecurity);
+const CloseFriends = React.lazy(loadCloseFriends);
+const Activity = React.lazy(loadActivity);
+const ScheduledContent = React.lazy(loadScheduledContent);
+const Insights = React.lazy(loadInsights);
+const Search = React.lazy(loadSearch);
+const SavedContent = React.lazy(loadSavedContent);
+const Messages = React.lazy(loadMessages);
+const Chat = React.lazy(loadChat);
+const GroupChat = React.lazy(loadGroupChat);
+const LiveStream = React.lazy(loadLiveStream);
+const Status = React.lazy(loadStatus);
 
 // Main App Router Component (inside AuthProvider)
 function AppRouter() {
