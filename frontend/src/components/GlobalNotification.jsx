@@ -16,6 +16,14 @@ const DEFAULT_NOTIFICATION_SETTINGS = {
       sharesNotifications: true
 };
 
+const getMessagePreview = (message = {}) => {
+      const trimmedText = String(message.text || '').trim();
+      if (trimmedText) return trimmedText.length > 40 ? `${trimmedText.substring(0, 40)}...` : trimmedText;
+      if (message.media?.type === 'video') return 'Video message';
+      if (message.media?.url) return 'Photo message';
+      return 'Media shared';
+};
+
 const playNotificationSound = () => {
       try {
             const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -100,9 +108,7 @@ const GlobalNotification = () => {
                   if (isOnChatPage || isThrottled(`message:${newMessage._id || senderId}:${newMessage.createdAt || ''}`)) return;
 
                   const senderName = newMessage.sender?.displayName || newMessage.sender?.username || 'Someone';
-                  const textPreview = newMessage.text
-                        ? (newMessage.text.length > 40 ? `${newMessage.text.substring(0, 40)}...` : newMessage.text)
-                        : (newMessage.media?.type === 'video' ? 'Video message' : 'Photo message');
+                  const textPreview = getMessagePreview(newMessage);
                   const navigateId = senderId;
 
                   playNotificationSound();
@@ -119,6 +125,40 @@ const GlobalNotification = () => {
                         textPreview,
                         `zuno-msg-${senderId}`,
                         () => navigate(`/messages/${navigateId}`)
+                  );
+            };
+
+            const handleNewGroupMessage = (newMessage) => {
+                  if (!shouldAllow()) return;
+
+                  const senderId = getEntityId(newMessage.sender);
+                  const currentUserId = getEntityId(user);
+                  const groupId = getEntityId(newMessage.groupId || newMessage.conversationId);
+                  if (!senderId || senderId === currentUserId || !groupId) return;
+
+                  const groupPath = `/messages/group/${groupId}`;
+                  if (location.pathname === groupPath || isThrottled(`group-message:${newMessage._id || groupId}:${newMessage.createdAt || ''}`)) {
+                        return;
+                  }
+
+                  const senderName = newMessage.sender?.displayName || newMessage.sender?.username || 'Someone';
+                  const groupName = newMessage.groupName || 'Group';
+                  const textPreview = `${senderName}: ${getMessagePreview(newMessage)}`;
+
+                  playNotificationSound();
+                  toast.info(
+                        <div onClick={() => navigate(groupPath)} style={{ cursor: 'pointer' }}>
+                              <strong style={{ display: 'block' }}>{groupName}</strong>
+                              <span style={{ fontSize: '0.9em', opacity: 0.9 }}>{textPreview}</span>
+                        </div>,
+                        { position: 'top-right', autoClose: 4000, icon: 'Group', toastId: `group-msg-${newMessage._id || groupId}` }
+                  );
+
+                  showNativeNotification(
+                        `New message in ${groupName}`,
+                        textPreview,
+                        `zuno-group-${groupId}`,
+                        () => navigate(groupPath)
                   );
             };
 
@@ -293,6 +333,7 @@ const GlobalNotification = () => {
             };
 
             socket.on('newMessage', handleNewMessage);
+            socket.on('newGroupMessage', handleNewGroupMessage);
             socket.on('callUser', handleIncomingCall);
             socket.on('callCancelled', handleCallCancelled);
             socket.on('callEnded', handleCallEnded);
@@ -302,6 +343,7 @@ const GlobalNotification = () => {
 
             return () => {
                   socket.off('newMessage', handleNewMessage);
+                  socket.off('newGroupMessage', handleNewGroupMessage);
                   socket.off('callUser', handleIncomingCall);
                   socket.off('callCancelled', handleCallCancelled);
                   socket.off('callEnded', handleCallEnded);

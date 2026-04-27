@@ -59,12 +59,18 @@ const clearPersistedCallSession = () => {
       }
 };
 
+const TURN_SERVERS_ENV = String(
+      import.meta.env.VITE_TURN_SERVERS
+      || import.meta.env.VITE_REACT_APP_TURN_SERVERS
+      || ''
+).trim();
+
 // Load ICE servers from environment or use reliable fallbacks
 const getIceServers = () => {
   // Try to load from environment first
-  if (process.env.REACT_APP_TURN_SERVERS) {
+  if (TURN_SERVERS_ENV) {
     try {
-      const envServers = JSON.parse(process.env.REACT_APP_TURN_SERVERS);
+      const envServers = JSON.parse(TURN_SERVERS_ENV);
       if (Array.isArray(envServers) && envServers.length > 0) {
         return {
           iceServers: envServers,
@@ -75,7 +81,7 @@ const getIceServers = () => {
         };
       }
     } catch (e) {
-      console.warn('Invalid REACT_APP_TURN_SERVERS format, using fallbacks');
+      console.warn('Invalid VITE_TURN_SERVERS format, using fallbacks');
     }
   }
 
@@ -400,7 +406,10 @@ export const CallProvider = ({ children }) => {
 
       // Enhanced call notifications with better user experience
       const showCallNotification = useCallback((title, body, icon = '/favicon.svg') => {
-            if (Notification.permission === 'granted') {
+            if (typeof window === 'undefined' || !('Notification' in window) || Notification.permission !== 'granted') {
+                  return;
+            }
+
                   const notification = new Notification(title, {
                         body,
                         icon,
@@ -415,7 +424,6 @@ export const CallProvider = ({ children }) => {
                   
                   // Auto-close after 10 seconds
                   setTimeout(() => notification.close(), 10000);
-            }
       }, []);
       
       // Enhanced call start with better notifications
