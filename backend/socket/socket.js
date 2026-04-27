@@ -82,6 +82,17 @@ const addUserSocket = (userId, socketId) => {
   onlineUserSockets.set(userId, sockets);
 };
 
+const getReceiverSocketId = (userId) => {
+  const normalizedUserId = normalizeId(userId);
+  if (!normalizedUserId) return null;
+
+  const sockets = onlineUserSockets.get(normalizedUserId);
+  if (!sockets || sockets.size === 0) return null;
+
+  const firstSocketId = sockets.values().next().value;
+  return firstSocketId || null;
+};
+
 const removeUserSocket = (userId, socketId) => {
   if (!userId || !socketId) return 0;
 
@@ -739,6 +750,7 @@ module.exports = {
   app,
   io,
   server,
+  getReceiverSocketId,
   deliverMessageFast,
   deliverMessageWithAck,
   activeStreams,

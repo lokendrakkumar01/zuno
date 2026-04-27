@@ -197,8 +197,6 @@ const userSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Indexes for ultra-fast query performance
-userSchema.index({ username: 1 });
-userSchema.index({ email: 1 });
 userSchema.index({ blockedUsers: 1 });
 userSchema.index({ username: 'text', displayName: 'text' }); // Fast Search
 userSchema.index({ isActive: 1, createdAt: -1 });

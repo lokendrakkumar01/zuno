@@ -426,25 +426,6 @@ export const CallProvider = ({ children }) => {
                   setTimeout(() => notification.close(), 10000);
       }, []);
       
-      // Enhanced call start with better notifications
-      const startCallWithNotification = useCallback(async (targetUserId, type, otherUserData, options = {}) => {
-            if (!socket || !isConnected) {
-                  showCallToast('Realtime connection is still getting ready. Please try again in a moment.', 'warning');
-                  return;
-            }
-            
-            // Show call notification to receiver
-            if (options.notifyReceiver !== false) {
-                  showCallNotification(
-                        `Incoming ${type} call`,
-                        `${otherUserData?.displayName || otherUserData?.username || 'Someone'} is calling you`,
-                        otherUserData?.avatar || '/favicon.svg'
-                  );
-            }
-            
-            return startCall(targetUserId, type, otherUserData, options);
-      }, [socket, isConnected, showCallToast, showCallNotification, startCall]);
-      
       const startCall = async (targetUserId, type, otherUserData, options = {}) => {
             if (!socket || !isConnected) {
                   showCallToast('Realtime connection is still getting ready. Please try again in a moment.', 'warning');
