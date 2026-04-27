@@ -11,6 +11,14 @@ export const useSocketContext = () => {
       return useContext(SocketContext);
 };
 
+const normalizeOnlineUsers = (users = []) => (
+      Array.from(new Set(
+            (Array.isArray(users) ? users : [])
+                  .map((entry) => getEntityId(entry))
+                  .filter(Boolean)
+      ))
+);
+
 export const SocketContextProvider = ({ children }) => {
       const [socket, setSocket] = useState(null);
       const [onlineUsers, setOnlineUsers] = useState([]);
@@ -44,18 +52,17 @@ export const SocketContextProvider = ({ children }) => {
 
                   const socketInstance = io(SOCKET_URL, {
                         auth: { token, userId: authenticatedUserId },
-                        transports: ['websocket', 'polling'],
+                        transports: ['polling', 'websocket'],
                         withCredentials: true,
                         reconnection: true,
-                        reconnectionAttempts: 5,
+                        reconnectionAttempts: 10,
                         reconnectionDelay: 1000,
                         reconnectionDelayMax: 5000,
                         randomizationFactor: 0.2,
-                        timeout: 60000,
+                        timeout: 20000,
                         upgrade: true,
-                        rememberUpgrade: true,
+                        rememberUpgrade: false,
                         autoConnect: true,
-                        // Optimized for speed
                         forceNew: false,
                         maxHttpBufferSize: 1e8
                   });
@@ -79,6 +86,13 @@ export const SocketContextProvider = ({ children }) => {
                               socketInstance.io.opts.transports = ['polling', 'websocket'];
                         }
                         setIsConnected(false);
+                        if (!/authentication|required|expired/i.test(String(err?.message || ''))) {
+                              window.setTimeout(() => {
+                                    if (!socketInstance.connected) {
+                                          socketInstance.connect();
+                                    }
+                              }, 250);
+                        }
                   };
 
                   const handleReconnectAttempt = () => {
@@ -98,7 +112,10 @@ export const SocketContextProvider = ({ children }) => {
                   };
 
                   const handleOnlineUsers = (users) => {
-                        setOnlineUsers(Array.isArray(users) ? users : []);
+                        setOnlineUsers(normalizeOnlineUsers(users));
+                        if (socketInstance.connected) {
+                              setIsConnected(true);
+                        }
                   };
 
                   const handleHeartbeatAck = () => {

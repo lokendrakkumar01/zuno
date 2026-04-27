@@ -113,6 +113,7 @@ const getIceServers = () => {
 };
 
 const ICE_SERVERS = getIceServers();
+const unwrapSignalPayload = (payload) => payload?.signal || payload;
 
 export const useCallContext = () => useContext(CallContext);
 
@@ -247,14 +248,14 @@ export const CallProvider = ({ children }) => {
                   setReceivingCall(true);
                   setCaller(data.from);
                   callerRef.current = data.from;
-                  setCallerSignal(data.signal);
+                  setCallerSignal(unwrapSignalPayload(data.signal));
                   setCallType(data.callType);
                   setShowCallModal('incoming');
                   const callerId = data.from?._id || data.from?.id || data.from;
                   if (callerId) targetUserIdRef.current = callerId.toString();
             };
 
-            const handleCallAccepted = (signal) => {
+            const handleCallAccepted = (payload) => {
                   console.log('Call accepted');
                   setCallAccepted(true);
                   callAcceptedRef.current = true;
@@ -263,9 +264,12 @@ export const CallProvider = ({ children }) => {
                         clearTimeout(callTimeoutRef.current);
                         callTimeoutRef.current = null;
                   }
+                  if (payload?.from) {
+                        targetUserIdRef.current = payload.from.toString();
+                  }
                   // Signal the peer with the answer
                   if (connectionRef.current) {
-                        try { connectionRef.current.signal(signal); } catch (e) { console.error('Signal error:', e); }
+                        try { connectionRef.current.signal(unwrapSignalPayload(payload)); } catch (e) { console.error('Signal error:', e); }
                   }
             };
 
@@ -299,11 +303,11 @@ export const CallProvider = ({ children }) => {
             };
 
             // For trickle=false, we don't need webrtcSignal events — but keep for compatibility
-            const handleWebrtcSignal = (signal) => {
+            const handleWebrtcSignal = (payload) => {
                   if (connectionRef.current) {
-                        try { 
-                              connectionRef.current.signal(signal); 
-                        } catch (e) { 
+                        try {
+                              connectionRef.current.signal(unwrapSignalPayload(payload));
+                        } catch (e) {
                               console.error('WebRTC Signal error:', e);
                               showCallToast('⚠️ Connection issue. Retrying...', 'warning');
                         }

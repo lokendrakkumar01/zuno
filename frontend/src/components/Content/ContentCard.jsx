@@ -20,6 +20,14 @@ const getTextPreview = (content) => {
       return source.length > 160 ? `${source.slice(0, 157)}...` : source;
 };
 
+const formatContentDate = (value) => {
+      const parsedDate = value ? new Date(value) : null;
+      if (!parsedDate || Number.isNaN(parsedDate.getTime())) {
+            return 'Recently posted';
+      }
+      return parsedDate.toLocaleDateString();
+};
+
 const normalizeContentState = (content) => ({
       ...content,
       metrics: {
@@ -181,7 +189,7 @@ const ContentCard = ({ content, onSaveChange }) => {
                                           {contentState.creator?.displayName || contentState.creator?.username}
                                     </Link>
                                     <div className="text-xs text-secondary">
-                                          {new Date(contentState.createdAt).toLocaleDateString()}
+                                          {formatContentDate(contentState.createdAt)}
                                     </div>
                               </div>
                         </div>

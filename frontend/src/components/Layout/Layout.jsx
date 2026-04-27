@@ -128,7 +128,9 @@ const Layout = () => {
 
       const profileHandle = getUserHandle(user);
       const profileLabel = user?.displayName || profileHandle || 'Profile';
-      const activeUserLabel = onlineUsers.length === 1 ? '1 user active' : `${onlineUsers.length} users active`;
+      const realtimeReady = Boolean(isConnected || socket?.connected);
+      const activeUserCount = onlineUsers.length;
+      const activeUserLabel = activeUserCount === 1 ? '1 user active' : `${activeUserCount} users active`;
       const showProfileAsActive = location.pathname.startsWith('/profile') || location.pathname.startsWith('/u/') || location.pathname.startsWith('/messages');
 
       const renderNavLink = (item, mobile = false) => (
@@ -162,9 +164,9 @@ const Layout = () => {
                                     </Link>
 
                                     {isAuthenticated && (
-                                          <div className={`header-status-pill ${isConnected ? 'online' : 'offline'}`}>
+                                          <div className={`header-status-pill ${realtimeReady ? 'online' : 'offline'}`}>
                                                 <span className="status-dot" />
-                                                <span>{isConnected ? activeUserLabel : 'Realtime reconnecting'}</span>
+                                                <span>{realtimeReady ? activeUserLabel : 'Realtime reconnecting'}</span>
                                           </div>
                                     )}
                               </div>

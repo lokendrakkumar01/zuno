@@ -15,6 +15,58 @@ const EMOJI_DATA = {
       '🍕': ['🍕', '🍔', '🍟', '🌮', '🍜', '🍩', '🍪', '🎂', '🧁', '🍰', '🍫', '🍬', '☕', '🧃', '🍷', '🍻', '🥤', '🍳', '🥗', '🍣']
 };
 
+const getMessageSortTime = (message) => new Date(message?.createdAt || 0).getTime();
+const sortMessagesByCreatedAt = (items = []) => (
+      [...(Array.isArray(items) ? items : [])].sort((left, right) => getMessageSortTime(left) - getMessageSortTime(right))
+);
+
+const mergeMessageList = (items = []) => {
+      const byKey = new Map();
+      const clientToKey = new Map();
+
+      sortMessagesByCreatedAt(items).forEach((message, index) => {
+            if (!message) return;
+
+            const realId = message?._id?.toString?.() || message?._id || '';
+            const clientId = message?.clientMsgId ? String(message.clientMsgId) : '';
+
+            if (realId && byKey.has(realId)) {
+                  byKey.set(realId, { ...byKey.get(realId), ...message });
+                  if (clientId) clientToKey.set(clientId, realId);
+                  return;
+            }
+
+            if (clientId && clientToKey.has(clientId)) {
+                  const existingKey = clientToKey.get(clientId);
+                  const finalKey = realId || existingKey;
+                  const previousMessage = byKey.get(existingKey) || {};
+
+                  if (existingKey !== finalKey) {
+                        byKey.delete(existingKey);
+                  }
+
+                  byKey.set(finalKey, {
+                        ...previousMessage,
+                        ...message,
+                        _sending: false,
+                        _failed: false
+                  });
+                  clientToKey.set(clientId, finalKey);
+                  return;
+            }
+
+            const nextKey = realId || clientId || `message-${index}`;
+            byKey.set(nextKey, message);
+            if (clientId) {
+                  clientToKey.set(clientId, nextKey);
+            }
+      });
+
+      return sortMessagesByCreatedAt(Array.from(byKey.values()));
+};
+
+const createClientMessageId = () => `temp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
 const Chat = () => {
       const { userId } = useParams();
       const { token, user, unblockUser } = useAuth();
@@ -22,8 +74,8 @@ const Chat = () => {
       const navigate = useNavigate();
       const [messages, setMessages] = useState(() => {
             try {
-                  const cached = localStorage.getItem(`zuno_chat_cache_${userId}`); 
-                  return cached ? JSON.parse(cached) : [];
+                  const cached = localStorage.getItem(`zuno_chat_cache_${userId}`);
+                  return cached ? mergeMessageList(JSON.parse(cached)) : [];
             } catch {
                   return [];
             }
@@ -44,7 +96,7 @@ const Chat = () => {
             setCurrentUserId(userId);
             try {
                   const cachedMsgs = localStorage.getItem(`zuno_chat_cache_${userId}`);
-                  setMessages(cachedMsgs ? JSON.parse(cachedMsgs) : []);
+                  setMessages(cachedMsgs ? mergeMessageList(JSON.parse(cachedMsgs)) : []);
                   setLoading(!cachedMsgs);
                   const cachedUser = localStorage.getItem(`zuno_user_cache_${userId}`);
                   setOtherUser(cachedUser ? JSON.parse(cachedUser) : null);
@@ -260,7 +312,7 @@ const Chat = () => {
                                     const updated = [...prev];
                                     updated[tempIdx] = newMessage;
                                     sentMsgIds.current.add(realMsgId);
-                                    return updated;
+                                    return mergeMessageList(updated);
                               }
                               
                               // If the real message is already there (HTTP won), just return
@@ -268,9 +320,7 @@ const Chat = () => {
 
                               // Otherwise, just append (unlikely if user is sender, but safe)
                               sentMsgIds.current.add(realMsgId);
-                              const updated = [...prev, newMessage];
-                              updated.sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
-                              return updated;
+                              return mergeMessageList([...prev, newMessage]);
                         });
                         return;
                   }
@@ -285,9 +335,7 @@ const Chat = () => {
                               playSound('receive');
                         }
 
-                        const updated = [...prev, newMessage];
-                        updated.sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
-                        return updated;
+                        return mergeMessageList([...prev, newMessage]);
                   });
 
                   // Auto mark as read when the other user sends to us and we're viewing
@@ -320,7 +368,7 @@ const Chat = () => {
                               const isMySentMsg = senderId === currentUserId;
                               return (isMySentMsg && !m.read) ? { ...m, read: true } : m;
                         });
-                        return updated;
+                        return mergeMessageList(updated);
                   });
             };
 
@@ -447,7 +495,7 @@ const Chat = () => {
                         setHasMore(data.data.hasMore);
 
                         if (!fetchOlder) {
-                              setMessages(fetchedMessages);
+                              setMessages(mergeMessageList(fetchedMessages));
                               setOtherUser(data.data.otherUser);
                               setBlockedInfo(data.data.blockedInfo || { iBlocked: false, theyBlocked: false });
 
@@ -466,11 +514,7 @@ const Chat = () => {
                         } else {
                               // We fetched older messages, prepend them
                               setMessages(prev => {
-                                    const merged = [...fetchedMessages, ...prev];
-                                    // ensure uniqueness
-                                    const map = new Map();
-                                    merged.forEach(m => map.set(m._id?.toString(), m));
-                                    return Array.from(map.values()).sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+                                    return mergeMessageList([...fetchedMessages, ...prev]);
                               });
                               // keep scroll position
                               requestAnimationFrame(() => {
@@ -485,7 +529,7 @@ const Chat = () => {
                   // Use cache as fallback on error (only for initial load)
                   if (!fetchOlder) {
                         const cachedMsgs = localStorage.getItem(`zuno_chat_cache_${userId}`);
-                        if (cachedMsgs) setMessages(JSON.parse(cachedMsgs));
+                        if (cachedMsgs) setMessages(mergeMessageList(JSON.parse(cachedMsgs)));
                         const cachedUser = localStorage.getItem(`zuno_user_cache_${userId}`);
                         if (cachedUser) setOtherUser(JSON.parse(cachedUser));
                   }
@@ -566,7 +610,7 @@ const Chat = () => {
             setReplyingTo(null);
 
             // Optimistic UI — show message immediately with local preview
-            const tempId = 'temp_' + Date.now();
+            const tempId = createClientMessageId();
             const optimisticMsg = {
                   _id: tempId,
                   sender: user?._id || user,
@@ -580,7 +624,7 @@ const Chat = () => {
                   clientMsgId: tempId // Add clientMsgId for socket deduplication
             };
 
-            setMessages(prev => [...prev, optimisticMsg]);
+            setMessages(prev => mergeMessageList([...prev, optimisticMsg]));
             playSound('send'); // Play send sound instantly
 
             socket?.emit("stopTyping", { receiverId: userId });
@@ -631,11 +675,8 @@ const Chat = () => {
                               } else {
                                     updated = prev.map(m => m._id === tempId ? data.data.message : m);
                               }
-                              
-                              // Fix order: Long uploads might place new messages behind older ones
-                              updated.sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
 
-                              return updated;
+                              return mergeMessageList(updated);
                         });
                   } else {
                         // Remove failed message

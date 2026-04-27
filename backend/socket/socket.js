@@ -109,7 +109,8 @@ const removeUserSocket = (userId, socketId) => {
   return sockets.size;
 };
 
-// Fast message delivery with direct socket targeting
+// Direct socket targeting for realtime events.
+// Use regular emits so signaling and critical updates are not dropped.
 const deliverMessageFast = (receiverId, eventName, data) => {
   const normalizedReceiverId = normalizeId(receiverId);
   if (!normalizedReceiverId) return false;
@@ -122,7 +123,7 @@ const deliverMessageFast = (receiverId, eventName, data) => {
   receiverSockets.forEach(socketId => {
     const socket = io.sockets.sockets.get(socketId);
     if (socket && socket.connected) {
-      socket.volatile.emit(eventName, data);
+      socket.emit(eventName, data);
       delivered = true;
     }
   });
@@ -727,10 +728,6 @@ io.on('connection', (socket) => {
       // Use grace period instead of immediate ending
       scheduleDirectCallDisconnect(userId);
     }
-
-    // Clean up from pending disconnects
-    clearPendingDirectCallDisconnect(userId);
-    clearPendingStreamDisconnect(userId);
 
     const remainingSockets = removeUserSocket(userId, socket.id);
     if (remainingSockets === 0) {

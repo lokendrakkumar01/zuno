@@ -579,7 +579,8 @@ const getMyContent = async (req, res) => {
             const contents = await Content.find(query)
                   .sort({ createdAt: -1 })
                   .skip((page - 1) * limit)
-                  .limit(parseInt(limit));
+                  .limit(parseInt(limit))
+                  .populate('creator', 'username displayName avatar role interests isVerified profileSong stats createdAt');
 
             const total = await Content.countDocuments(query);
             const decoratedContents = await decorateContentsForViewer(contents, req.user.id);

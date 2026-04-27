@@ -351,13 +351,74 @@ const Profile = () => {
                   }
 
                   setPostsError(hasCachedPosts
-                        ? 'Showing saved posts — reconnecting for latest.'
+                        ? 'Showing saved posts - reconnecting for latest.'
                         : 'Could not load posts. Try again.');
 
                   setUserPosts(Array.isArray(cachedPosts) ? cachedPosts : []);
                   return Array.isArray(cachedPosts) ? cachedPosts : [];
             }
       }, [token, wakeBackend]);
+
+      const fetchOwnProfilePostsFallback = useCallback(async (signal, { showErrors = true } = {}) => {
+            if (!token) return [];
+
+            const fallbackCacheKey = postsCacheKey || (sessionHandle ? buildPostsCacheKey(sessionHandle) : '');
+            const baseOpts = { headers: { Authorization: `Bearer ${token}` } };
+            if (signal) {
+                  baseOpts.signal = signal;
+            }
+
+            try {
+                  let res;
+
+                  try {
+                        res = await fetchWithTimeout(`${API_URL}/content/user/my?limit=24`, { ...baseOpts }, POSTS_FETCH_PRIMARY_MS);
+                  } catch (error) {
+                        if (error?.name === 'AbortError' && signal?.aborted) {
+                              throw error;
+                        }
+                        if (error?.name === 'AbortError') {
+                              await wakeBackend();
+                              res = await fetchWithTimeout(`${API_URL}/content/user/my?limit=24`, { ...baseOpts }, POSTS_FETCH_WAKE_MS);
+                        } else {
+                              throw error;
+                        }
+                  }
+
+                  const data = await res.json().catch(() => null);
+                  if (!res.ok || !data?.success) {
+                        throw new Error(data?.message || 'Failed to load your posts.');
+                  }
+
+                  const safePosts = Array.isArray(data.data?.contents) ? data.data.contents : [];
+                  startTransition(() => setUserPosts(safePosts));
+                  if (fallbackCacheKey) {
+                        writeCachedValue(fallbackCacheKey, safePosts);
+                  }
+                  setPostsError('');
+                  setHasMorePosts(false);
+                  setPostsCursor(null);
+                  return safePosts;
+            } catch (error) {
+                  const cachedPosts = readCachedValue(fallbackCacheKey, []);
+                  const hasCachedPosts = Array.isArray(cachedPosts) && cachedPosts.length > 0;
+
+                  if (error?.name !== 'AbortError') {
+                        console.error('Failed to fetch own profile posts fallback:', error);
+                  }
+
+                  if (showErrors) {
+                        setPostsError(hasCachedPosts
+                              ? 'Showing saved posts - reconnecting for latest.'
+                              : 'Could not load posts. Try again.');
+                  }
+
+                  setUserPosts(Array.isArray(cachedPosts) ? cachedPosts : []);
+                  setHasMorePosts(false);
+                  setPostsCursor(null);
+                  return Array.isArray(cachedPosts) ? cachedPosts : [];
+            }
+      }, [postsCacheKey, sessionHandle, token, wakeBackend]);
 
       const refreshProfile = useCallback(async (nextUsername = targetUsername) => {
             if (!nextUsername) return;
@@ -423,6 +484,14 @@ const Profile = () => {
       }, [authLoading, isOwnProfile, postsCacheKey, profileCacheKey, sessionUser, targetUsername, token]);
 
       useEffect(() => {
+            if (!isOwnProfile || targetUsername || !token) return undefined;
+
+            const controller = new AbortController();
+            fetchOwnProfilePostsFallback(controller.signal, { showErrors: false });
+            return () => controller.abort();
+      }, [fetchOwnProfilePostsFallback, isOwnProfile, targetUsername, token]);
+
+      useEffect(() => {
             setTotalViews(getPostsViewCount(userPosts));
       }, [userPosts]);
 
@@ -466,9 +535,31 @@ const Profile = () => {
                         if (username && nextProfile?.username && nextProfile.username !== username) {
                               navigate(`/u/${nextProfile.username}`, { replace: true });
                         }
+
+                        const expectedOwnContentCount = Number(nextProfile?.stats?.contentCount || sessionUser?.stats?.contentCount || 0);
+                        if (isOwnProfile && expectedOwnContentCount > 0 && (!Array.isArray(nextBundle?.contents) || nextBundle.contents.length === 0)) {
+                              await fetchOwnProfilePostsFallback(profileController.signal, { showErrors: false });
+                        }
                   } catch (error) {
                         if (error.name !== 'AbortError') {
                               console.error('Failed to fetch profile:', error);
+                        }
+
+                        if (error.name === 'AbortError') {
+                              return;
+                        }
+
+                        if (!ignore) {
+                              if (isOwnProfile) {
+                                    await fetchOwnProfilePostsFallback(profileController.signal);
+                              } else {
+                                    const cachedPosts = readCachedValue(buildPostsCacheKey(targetUsername), []);
+                                    const hasCachedPosts = Array.isArray(cachedPosts) && cachedPosts.length > 0;
+                                    setPostsError(hasCachedPosts
+                                          ? 'Showing saved posts - reconnecting for latest.'
+                                          : 'Could not load posts. Try again.');
+                                    setUserPosts(Array.isArray(cachedPosts) ? cachedPosts : []);
+                              }
                         }
                   }
             };
@@ -489,7 +580,7 @@ const Profile = () => {
                   profileController.abort();
                   clearTimeout(timer);
             };
-      }, [fetchProfileRequest, isOwnProfile, navigate, targetUsername, username]);
+      }, [fetchOwnProfilePostsFallback, fetchProfileRequest, isOwnProfile, navigate, sessionUser?.stats?.contentCount, targetUsername, username]);
 
       // Auto-play removed per user request
 
@@ -1546,7 +1637,16 @@ const Profile = () => {
                                           {postsError && (
                                                 <div className="card p-md mb-lg" style={{ background: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.3)', margin: '16px' }}>
                                                       <p className="text-center text-red-500">{postsError}</p>
-                                                      <button onClick={() => fetchUserPosts(profileUser.username)} className="btn btn-primary mt-sm mx-auto flex">Retry</button>
+                                                      <button
+                                                            onClick={() => (
+                                                                  profileUser.username
+                                                                        ? fetchUserPosts(profileUser.username)
+                                                                        : fetchOwnProfilePostsFallback()
+                                                            )}
+                                                            className="btn btn-primary mt-sm mx-auto flex"
+                                                      >
+                                                            Retry
+                                                      </button>
                                                 </div>
                                           )}
 
