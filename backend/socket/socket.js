@@ -33,7 +33,6 @@ const io = new Server(server, {
   upgradeTimeout: 10000,
   rememberUpgrade: true,
   // Fast connection settings
-  forceNew: true,
   reconnectionAttempts: 5,
   reconnectionDelay: 1000,
   reconnectionDelayMax: 5000

@@ -52,7 +52,7 @@ export const SocketContextProvider = ({ children }) => {
 
                   const socketInstance = io(SOCKET_URL, {
                         auth: { token, userId: authenticatedUserId },
-                        transports: ['polling', 'websocket'],
+                        transports: ['websocket', 'polling'],
                         withCredentials: true,
                         reconnection: true,
                         reconnectionAttempts: 10,
@@ -61,7 +61,7 @@ export const SocketContextProvider = ({ children }) => {
                         randomizationFactor: 0.2,
                         timeout: 20000,
                         upgrade: true,
-                        rememberUpgrade: false,
+                        rememberUpgrade: true,
                         autoConnect: true,
                         forceNew: false,
                         maxHttpBufferSize: 1e8

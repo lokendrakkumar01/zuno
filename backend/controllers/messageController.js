@@ -1,4 +1,4 @@
-const { Message, Conversation } = require('../models/Message');
+const { Message } = require('../models/Message');
 const User = require('../models/User');
 const { getReceiverSocketId, io } = require('../socket/socket');
 
