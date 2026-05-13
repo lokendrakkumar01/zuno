@@ -2,12 +2,14 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const passport = require('passport');
 const jwt = require('jsonwebtoken');
+const { OAuth2Client } = require('google-auth-library');
 const User = require('../models/User');
 const { protect, signAccessToken, signRefreshToken } = require('../middlewares/auth.middleware');
 
 const router = express.Router();
 
 const sanitizeString = (value, max = 2000) => String(value || '').trim().slice(0, max);
+const googleOAuthClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const publicUser = (user) => user.getAuthProfile ? user.getAuthProfile() : {
   id: user._id.toString(),
@@ -32,6 +34,11 @@ const setRefreshToken = async (user) => {
   user.refreshTokenExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
   await user.save();
   return refreshToken;
+};
+
+const makeGoogleUsername = (email, googleId) => {
+  const base = email.split('@')[0].replace(/[^a-zA-Z0-9_.]/g, '').slice(0, 20) || 'zuno_user';
+  return `${base}_${String(googleId).slice(-6)}`.toLowerCase();
 };
 
 const sendSession = async (res, user) => {
@@ -127,9 +134,51 @@ router.get('/google/callback', (req, res, next) => {
 
 router.post('/google', async (req, res) => {
   try {
-    return res.status(400).json({ success: false, message: 'Use /api/auth/google for OAuth redirect login' });
+    const credential = String(req.body.credential || '');
+    if (!credential) {
+      return res.status(400).json({ success: false, message: 'Google credential is required' });
+    }
+
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      return res.status(500).json({ success: false, message: 'Google login is not configured on the server' });
+    }
+
+    const ticket = await googleOAuthClient.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID
+    });
+    const payload = ticket.getPayload();
+    const email = payload?.email?.toLowerCase();
+    const googleId = payload?.sub;
+
+    if (!email || !googleId) {
+      return res.status(400).json({ success: false, message: 'Google account did not return a verified email' });
+    }
+
+    let user = await User.findOne({ $or: [{ googleId }, { email }] }).select('+refreshTokenHash');
+    if (user) {
+      user.googleId = user.googleId || googleId;
+      user.authProvider = user.authProvider || 'google';
+      user.displayName = user.displayName || payload.name || email.split('@')[0];
+      user.avatar = user.avatar || payload.picture || '';
+      user.isVerified = true;
+      await user.save();
+      return sendSession(res, user);
+    }
+
+    user = await User.create({
+      googleId,
+      authProvider: 'google',
+      username: makeGoogleUsername(email, googleId),
+      email,
+      displayName: payload.name || email.split('@')[0],
+      avatar: payload.picture || '',
+      isVerified: true
+    });
+
+    return sendSession(res, user);
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(401).json({ success: false, message: 'Google login failed. Please try again.' });
   }
 });
 

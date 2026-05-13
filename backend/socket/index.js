@@ -54,9 +54,22 @@ const markPresence = async (userId, isOnline) => {
 };
 
 const initSocket = (server) => {
+  const socketAllowedOrigins = new Set([
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://localhost:3002',
+    'https://zunoworld.tech',
+    'https://www.zunoworld.tech',
+    ...(process.env.CLIENT_URL || '').split(',').map((origin) => origin.trim()).filter(Boolean),
+    ...(process.env.CORS_ORIGINS || '').split(',').map((origin) => origin.trim()).filter(Boolean)
+  ]);
+
   io = new Server(server, {
     cors: {
-      origin: process.env.CLIENT_URL || 'http://localhost:5173',
+      origin(origin, callback) {
+        if (!origin || socketAllowedOrigins.has(origin)) return callback(null, true);
+        return callback(new Error(`Socket CORS blocked origin: ${origin}`));
+      },
       methods: ['GET', 'POST'],
       credentials: true
     },

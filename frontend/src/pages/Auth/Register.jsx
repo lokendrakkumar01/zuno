@@ -146,7 +146,7 @@ const Register = () => {
 
             if (result.status === 'waking_up') {
                   setWakingUp(true);
-                  setError('Server is still waking up. Please try Create Account again in 30 seconds.');
+                  setError(result.message || 'Could not reach the server. Please try Create Account again.');
             } else {
                   setWakingUp(false);
                   setError(result.message || 'Registration failed. Please try again.');

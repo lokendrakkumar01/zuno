@@ -148,7 +148,7 @@ const Login = () => {
 
             if (result.status === 'waking_up') {
                   setWakingUp(true);
-                  setError('Server is still waking up. Please click Login again in 30 seconds.');
+                  setError(result.message || 'Could not reach the server. Please click Login again.');
             } else {
                   setWakingUp(false);
                   setError(result.message || 'Login failed. Please check your credentials.');

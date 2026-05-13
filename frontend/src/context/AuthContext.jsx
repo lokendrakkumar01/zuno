@@ -13,7 +13,7 @@ import { fetchWithTimeout, DEFAULT_REQUEST_TIMEOUT_MS } from '../utils/fetchWith
 
 const AuthContext = createContext(null);
 const AUTH_REFRESH_TIMEOUT_MS = 8000;
-const AUTH_RETRY_DELAYS = [5000, 10000, 20000];
+const AUTH_RETRY_DELAYS = [1500, 3000];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -49,6 +49,15 @@ const isRecoverableAuthError = (error) => (
       || error?.status === 429
       || (typeof error?.status === 'number' && error.status >= 500)
 );
+
+const getAuthSession = (data) => {
+      const payload = data?.data || data || {};
+      return {
+            user: payload.user || data?.user || null,
+            token: payload.token || payload.accessToken || data?.accessToken || null,
+            refreshToken: payload.refreshToken || data?.refreshToken || null
+      };
+};
 
 export const AuthProvider = ({ children }) => {
       const [token, setToken] = useState(() => readStoredToken());
@@ -198,9 +207,9 @@ export const AuthProvider = ({ children }) => {
       }, [token, user]);
 
       const login = async (email, password, onRetry = null) => {
-            const MAX_RETRIES = 3;
+            const MAX_RETRIES = 2;
 
-            const attemptLogin = async (timeoutMs = 25000) => {
+            const attemptLogin = async (timeoutMs = 12000) => {
                   const res = await fetchWithTimeout(`${API_URL}/auth/login`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -223,9 +232,13 @@ export const AuthProvider = ({ children }) => {
 
             for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
                   try {
-                        const data = await attemptLogin(25000);
+                        const data = await attemptLogin(12000);
                         if (data.success) {
-                              applyAuthenticatedSession(data.data.user, data.data.token, data.data.refreshToken);
+                              const session = getAuthSession(data);
+                              if (!session.user || !session.token) {
+                                    return { success: false, message: 'Login response was missing session data.' };
+                              }
+                              applyAuthenticatedSession(session.user, session.token, session.refreshToken);
                               return { success: true, message: data.message };
                         }
 
@@ -253,7 +266,7 @@ export const AuthProvider = ({ children }) => {
                               return {
                                     success: false,
                                     status: 'waking_up',
-                                    message: 'Server is waking up. Please wait 30 seconds and try again.'
+                                    message: 'Could not reach the server. Please try again now.'
                               };
                         }
 
@@ -268,7 +281,7 @@ export const AuthProvider = ({ children }) => {
       };
 
       const googleLogin = async (credential, onRetry = null) => {
-            const MAX_RETRIES = 3;
+            const MAX_RETRIES = 2;
 
             for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
                   try {
@@ -280,7 +293,7 @@ export const AuthProvider = ({ children }) => {
                                     origin: typeof window !== 'undefined' ? window.location.origin : '',
                                     redirectUri: typeof window !== 'undefined' ? `${window.location.origin}/login` : ''
                               })
-                        }, DEFAULT_REQUEST_TIMEOUT_MS);
+                        }, 12000);
 
                         if (!res.ok && res.status !== 400 && res.status !== 401 && res.status !== 422) {
                               throw new Error(`HTTP ${res.status}`);
@@ -295,7 +308,11 @@ export const AuthProvider = ({ children }) => {
 
                         const data = await res.json();
                         if (data.success) {
-                              applyAuthenticatedSession(data.data.user, data.data.token, data.data.refreshToken);
+                              const session = getAuthSession(data);
+                              if (!session.user || !session.token) {
+                                    return { success: false, message: 'Google login response was missing session data.' };
+                              }
+                              applyAuthenticatedSession(session.user, session.token, session.refreshToken);
                               return { success: true, message: data.message || 'Logged in with Google.' };
                         }
 
@@ -320,7 +337,7 @@ export const AuthProvider = ({ children }) => {
                               success: false,
                               status: isNetworkError ? 'waking_up' : 'error',
                               message: isNetworkError
-                                    ? 'Server is waking up. Please wait 30 seconds and try again.'
+                                    ? 'Could not reach the server. Please try again now.'
                                     : 'Google login failed. Please try again.'
                         };
                   }
@@ -330,7 +347,7 @@ export const AuthProvider = ({ children }) => {
       };
 
       const register = async (userData, onRetry = null) => {
-            const MAX_RETRIES = 3;
+            const MAX_RETRIES = 2;
 
             for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
                   try {
@@ -338,7 +355,7 @@ export const AuthProvider = ({ children }) => {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify(userData)
-                        }, 35000);
+                        }, 12000);
 
                         if (!res.ok) {
                               return {
@@ -349,7 +366,11 @@ export const AuthProvider = ({ children }) => {
 
                         const data = await res.json();
                         if (data.success) {
-                              applyAuthenticatedSession(data.data.user, data.data.token, data.data.refreshToken);
+                              const session = getAuthSession(data);
+                              if (!session.user || !session.token) {
+                                    return { success: false, message: 'Registration response was missing session data.' };
+                              }
+                              applyAuthenticatedSession(session.user, session.token, session.refreshToken);
                               return { success: true, message: data.message };
                         }
 
@@ -374,7 +395,7 @@ export const AuthProvider = ({ children }) => {
                               success: false,
                               status: isNetworkError ? 'waking_up' : 'error',
                               message: isNetworkError
-                                    ? 'Server is starting up. Please wait a moment and try again.'
+                                    ? 'Could not reach the server. Please try again now.'
                                     : 'Registration failed. Please try again.'
                         };
                   }
