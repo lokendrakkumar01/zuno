@@ -33,12 +33,49 @@ const userSchema = new mongoose.Schema({
   cloudinaryAvatarId: { type: String, default: '', select: false },
   bio: { type: String, maxlength: 200, default: '' },
   role: { type: String, enum: ['user', 'creator', 'mentor', 'moderator', 'admin'], default: 'user' },
+  trustLevel: { type: Number, min: 0, max: 10, default: 1 },
   isActive: { type: Boolean, default: true },
   isVerified: { type: Boolean, default: false },
+  verificationRequest: {
+    status: { type: String, enum: ['none', 'pending', 'approved', 'rejected'], default: 'none' },
+    reason: { type: String, default: '' },
+    requestedAt: Date,
+    reviewedAt: Date
+  },
   followers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   following: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  followRequests: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  closeFriends: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   interests: [{ type: String, trim: true, maxlength: 40 }],
+  preferredContentTypes: [{
+    type: String,
+    enum: ['photo', 'post', 'short-video', 'long-video', 'live']
+  }],
+  preferredFeedMode: {
+    type: String,
+    enum: ['learning', 'calm', 'video', 'reading', 'problem-solving'],
+    default: 'learning'
+  },
+  focusModeEnabled: { type: Boolean, default: false },
+  dailyUsageLimit: { type: Number, default: 0 },
+  isPrivate: { type: Boolean, default: false },
+  profileVisibility: { type: String, enum: ['public', 'community', 'private'], default: 'community' },
+  language: { type: String, enum: ['en', 'hi', 'both'], default: 'both' },
+  notificationSettings: {
+    pushNotifications: { type: Boolean, default: true },
+    emailNotifications: { type: Boolean, default: true },
+    likesNotifications: { type: Boolean, default: true },
+    commentsNotifications: { type: Boolean, default: true },
+    followsNotifications: { type: Boolean, default: true },
+    mentionsNotifications: { type: Boolean, default: true },
+    sharesNotifications: { type: Boolean, default: true }
+  },
+  stats: {
+    contentCount: { type: Number, default: 0 },
+    helpfulReceived: { type: Number, default: 0 },
+    helpfulGiven: { type: Number, default: 0 }
+  },
   profileSong: {
     trackId: String,
     name: String,
@@ -56,6 +93,10 @@ const userSchema = new mongoose.Schema({
 
 userSchema.index({ email: 1 }, { unique: true });
 userSchema.index({ username: 'text', displayName: 'text' });
+userSchema.index({ blockedUsers: 1 });
+userSchema.index({ isActive: 1, createdAt: -1 });
+userSchema.index({ role: 1, createdAt: -1 });
+userSchema.index({ 'verificationRequest.status': 1, 'verificationRequest.requestedAt': 1 });
 
 userSchema.pre('save', async function hashPassword(next) {
   try {
@@ -84,11 +125,16 @@ userSchema.methods.getPublicProfile = function getPublicProfile() {
     avatar: this.avatar,
     bio: this.bio,
     role: this.role,
+    trustLevel: this.trustLevel,
     isVerified: this.isVerified,
+    verificationRequest: this.verificationRequest
+      ? { status: this.verificationRequest.status, requestedAt: this.verificationRequest.requestedAt }
+      : null,
     interests: this.interests || [],
     followersCount: this.followers?.length || 0,
     followingCount: this.following?.length || 0,
     profileSong: this.profileSong || null,
+    stats: this.stats || {},
     createdAt: this.createdAt
   };
 };
@@ -98,7 +144,17 @@ userSchema.methods.getAuthProfile = function getAuthProfile() {
     ...this.getPublicProfile(),
     email: this.email,
     following: this.following || [],
-    blockedUsers: this.blockedUsers || []
+    blockedUsers: this.blockedUsers || [],
+    preferredFeedMode: this.preferredFeedMode,
+    focusModeEnabled: this.focusModeEnabled,
+    dailyUsageLimit: this.dailyUsageLimit,
+    language: this.language,
+    notificationSettings: this.notificationSettings,
+    preferredContentTypes: this.preferredContentTypes,
+    isPrivate: this.isPrivate,
+    profileVisibility: this.profileVisibility,
+    closeFriends: this.closeFriends || [],
+    followRequests: this.followRequests || []
   };
 };
 

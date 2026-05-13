@@ -16,6 +16,27 @@ const messageRoutes = require('./routes/message.routes');
 const streamRoutes = require('./routes/stream.routes');
 const spotifyRoutes = require('./routes/spotify.routes');
 
+const optionalRoute = (routePath) => {
+  try {
+    return require(routePath);
+  } catch (error) {
+    console.warn(`[Routes] Skipping ${routePath}: ${error.message}`);
+    return null;
+  }
+};
+
+const legacyRoutes = {
+  auth: optionalRoute('./routes/authRoutes'),
+  users: optionalRoute('./routes/userRoutes'),
+  content: optionalRoute('./routes/contentRoutes'),
+  comments: optionalRoute('./routes/commentRoutes'),
+  feed: optionalRoute('./routes/feedRoutes'),
+  admin: optionalRoute('./routes/adminRoutes'),
+  notes: optionalRoute('./routes/noteRoutes'),
+  livestream: optionalRoute('./routes/liveStreamRoutes'),
+  notifications: optionalRoute('./routes/notificationRoutes')
+};
+
 const app = express();
 
 const allowedOrigin = process.env.CLIENT_URL || 'http://localhost:5173';
@@ -57,10 +78,19 @@ app.get('/api/health', (req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+if (legacyRoutes.auth) app.use('/api/auth', legacyRoutes.auth);
 app.use('/api/users', userRoutes);
+if (legacyRoutes.users) app.use('/api/users', legacyRoutes.users);
+if (legacyRoutes.content) app.use('/api/content', legacyRoutes.content);
+if (legacyRoutes.comments) app.use('/api/comments', legacyRoutes.comments);
+if (legacyRoutes.feed) app.use('/api/feed', legacyRoutes.feed);
+if (legacyRoutes.admin) app.use('/api/admin', legacyRoutes.admin);
 app.use('/api/messages', messageRoutes);
+if (legacyRoutes.notes) app.use('/api/notes', legacyRoutes.notes);
+if (legacyRoutes.livestream) app.use('/api/livestream', legacyRoutes.livestream);
 app.use('/api/stream', streamRoutes);
 app.use('/api/spotify', spotifyRoutes);
+if (legacyRoutes.notifications) app.use('/api/notifications', legacyRoutes.notifications);
 
 app.use((req, res) => {
   res.status(404).json({ success: false, message: 'Route not found' });

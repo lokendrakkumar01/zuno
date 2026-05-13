@@ -17,6 +17,15 @@ const publicUser = (user) => user.getAuthProfile ? user.getAuthProfile() : {
   avatar: user.avatar
 };
 
+const compatUser = (user) => {
+  const profile = publicUser(user);
+  return {
+    ...profile,
+    _id: profile.id,
+    id: profile.id
+  };
+};
+
 const setRefreshToken = async (user) => {
   const refreshToken = signRefreshToken(user._id);
   user.refreshTokenHash = await bcrypt.hash(refreshToken, 10);
@@ -31,7 +40,19 @@ const sendSession = async (res, user) => {
       Promise.resolve(signAccessToken(user._id)),
       setRefreshToken(user)
     ]);
-    return res.json({ success: true, user: publicUser(user), accessToken, refreshToken });
+    const userPayload = compatUser(user);
+    return res.json({
+      success: true,
+      user: userPayload,
+      accessToken,
+      refreshToken,
+      data: {
+        user: userPayload,
+        token: accessToken,
+        accessToken,
+        refreshToken
+      }
+    });
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Could not create session' });
   }
@@ -134,7 +155,8 @@ router.post('/refresh', async (req, res) => {
 
 router.get('/me', protect, async (req, res) => {
   try {
-    return res.json({ success: true, user: publicUser(req.user) });
+    const userPayload = compatUser(req.user);
+    return res.json({ success: true, user: userPayload, data: { user: userPayload } });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
