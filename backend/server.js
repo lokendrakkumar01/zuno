@@ -1,6 +1,8 @@
 const http = require('http');
 require('dotenv').config();
 
+require('./scripts/ensure-runtime-deps');
+
 const app = require('./app');
 const connectDB = require('./config/db');
 const initSocket = require('./socket');
