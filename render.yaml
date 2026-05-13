@@ -4,7 +4,7 @@ services:
     name: zuno-backend
     runtime: node
     plan: free
-    buildCommand: cd backend && npm install
+    buildCommand: cd backend && npm ci --omit=dev --no-audit --no-fund
     preDeployCommand: cd backend && node scripts/fix-media-urls.js || true
     startCommand: cd backend && node --max-old-space-size=400 --expose-gc server.js
     envVars:
@@ -62,7 +62,7 @@ services:
     name: zuno-frontend
     runtime: static
     plan: free
-    buildCommand: cd frontend && npm install && npm run build
+    buildCommand: cd frontend && npm ci --include=dev --no-audit --no-fund && npm run build
     staticPublishPath: frontend/dist
     routes:
       - type: rewrite
@@ -89,7 +89,7 @@ services:
     name: zuno-admin
     runtime: static
     plan: free
-    buildCommand: cd admin-panel && npm install && npm run build
+    buildCommand: cd admin-panel && npm ci --include=dev --no-audit --no-fund && npm run build
     staticPublishPath: admin-panel/dist
     routes:
       - type: rewrite
