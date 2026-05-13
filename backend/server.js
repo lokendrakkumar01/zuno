@@ -1,187 +1,34 @@
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const morgan = require('morgan');
-const path = require('path');
+const http = require('http');
 require('dotenv').config();
 
+const app = require('./app');
 const connectDB = require('./config/db');
-const { isOriginAllowed } = require('./config/appConfig');
-const { apiLimiter } = require('./middleware/rateLimit');
-const errorHandler = require('./middleware/errorMiddleware');
-const { optimizeResponseMediaUrls } = require('./middleware/mediaOptimization');
-const mongoose = require('mongoose');
-
-// Import routes
-const authRoutes = require('./routes/authRoutes');
-const userRoutes = require('./routes/userRoutes');
-const contentRoutes = require('./routes/contentRoutes');
-const commentRoutes = require('./routes/commentRoutes');
-const feedRoutes = require('./routes/feedRoutes');
-const adminRoutes = require('./routes/adminRoutes');
-const messageRoutes = require('./routes/messageRoutes');
-const spotifyRoutes = require('./routes/spotifyRoutes');
-const noteRoutes = require('./routes/noteRoutes');
-const liveStreamRoutes = require('./routes/liveStreamRoutes');
-const notificationRoutes = require('./routes/notificationRoutes');
-const { app, server } = require('./socket/socket');
-
-// Middleware
-const compression = require('compression');
-app.use(compression());
-
-// Logging
-if (process.env.NODE_ENV === 'development') {
-  app.use(morgan('dev'));
-}
-
-// Security headers via helmet (must be before CORS and routes)
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: 'cross-origin' }, // allow images/videos from CDN
-  contentSecurityPolicy: false // we manage CSP separately if needed
-}));
-
-const corsOptions = {
-  origin: (origin, callback) => {
-    // Allow no-origin requests (mobile apps, Capacitor, curl, health checks)
-    if (!origin) return callback(null, true);
-    if (isOriginAllowed(origin)) {
-      return callback(null, true);
-    }
-    console.warn(`[CORS] Blocked request from origin: ${origin}`);
-    return callback(new Error(`CORS: origin ${origin} not allowed`), false);
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-};
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); // Handle preflight for all routes
-
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-app.use(optimizeResponseMediaUrls);
-app.use('/api', apiLimiter);
-
-// Static files for uploads with proper headers
-app.use('/uploads', (req, res, next) => {
-  // Set cache control headers for media files
-  res.setHeader('Cache-Control', 'public, max-age=31536000'); // 1 year cache
-  res.setHeader('Access-Control-Allow-Origin', '*'); // Allow CORS for media
-  next();
-}, express.static(path.join(__dirname, 'uploads'), {
-  setHeaders: (res, filePath) => {
-    // Set correct MIME type based on extension for video streaming
-    if (filePath.endsWith('.mp4')) {
-      res.setHeader('Accept-Ranges', 'bytes');
-      res.setHeader('Content-Type', 'video/mp4');
-    } else if (filePath.endsWith('.webm')) {
-      res.setHeader('Accept-Ranges', 'bytes');
-      res.setHeader('Content-Type', 'video/webm');
-    } else if (filePath.endsWith('.mov')) {
-      res.setHeader('Accept-Ranges', 'bytes');
-      res.setHeader('Content-Type', 'video/quicktime');
-    }
-  }
-}));
-
-// API Routes (keep targeted limiters at route-level to avoid throttling read endpoints)
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/content', contentRoutes);
-app.use('/api/comments', commentRoutes);
-app.use('/api/feed', feedRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/messages', messageRoutes);
-app.use('/api/notes', noteRoutes);
-app.use('/api/livestream', liveStreamRoutes);
-app.use('/api/spotify', spotifyRoutes);
-app.use('/api/notifications', notificationRoutes);
-
-// Root route - API Welcome
-app.get('/', (req, res) => {
-  const frontendUrl = process.env.CLIENT_URL || (process.env.NODE_ENV === 'development' ? 'https://localhost:3002' : 'https://zunoworld.tech');
-  res.send(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>ZUNO API</title>
-      <style>
-        body { font-family: sans-serif; background: #0a0f1a; color: #e2e8f0; min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; }
-        .container { text-align: center; padding: 2rem; }
-        .logo { font-size: 4rem; color: #6366f1; }
-        h1 { margin: 0.5rem 0; }
-        p { color: #94a3b8; }
-        .btn { display: inline-block; padding: 0.75rem 2rem; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; text-decoration: none; border-radius: 0.5rem; margin-top: 1rem; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="logo">Z</div>
-        <h1>ZUNO Backend Server</h1>
-        <p>Backend is running on port ${PORT}</p>
-        <p>Environment: ${process.env.NODE_ENV || 'development'}</p>
-        <a href="${frontendUrl}" class="btn">Open ZUNO Frontend</a>
-      </div>
-    </body>
-    </html>
-  `);
-});
-
-// Health check + keep-alive ping
-app.get('/api/health', (req, res) => {
-  const dbReady = mongoose.connection.readyState === 1;
-  const statusCode = dbReady ? 200 : 503;
-  res.status(statusCode);
-  res.json({
-    status: dbReady ? 'ok' : 'degraded',
-    message: 'ZUNO Backend is running',
-    dependencies: {
-      mongodb: dbReady ? 'connected' : 'disconnected'
-    },
-    uptimeSeconds: Math.round(process.uptime()),
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Ping endpoint to wake server (used by frontend keep-alive)
-app.get('/api/ping', (req, res) => {
-  res.json({ pong: true, ts: Date.now() });
-});
-
-// Error handling middleware
-app.use(errorHandler);
+const initSocket = require('./socket');
 
 const PORT = process.env.PORT || 5000;
+const server = http.createServer(app);
 
-const keepAlive = require('./utils/keepAlive');
-
-const registerProcessErrorHandlers = () => {
-  process.on('unhandledRejection', (reason) => {
-    console.error('[Process] Unhandled promise rejection:', reason);
-  });
-
-  process.on('uncaughtException', (error) => {
-    console.error('[Process] Uncaught exception:', error);
-  });
-};
+initSocket(server);
 
 const startServer = async () => {
   try {
-    // Connect to Database first
     await connectDB();
-
     server.listen(PORT, () => {
-      console.log(`ZUNO Server running on port ${PORT}`);
-      console.log(`Environment: ${process.env.NODE_ENV}`);
-      // Start the Render Keep-Alive job
-      keepAlive();
+      console.log(`Zuno server running on port ${PORT}`);
     });
-  } catch (err) {
-    console.error('Failed to start server:', err);
+  } catch (error) {
+    console.error('[Server] Failed to start:', error);
     process.exit(1);
   }
 };
 
-registerProcessErrorHandlers();
+process.on('unhandledRejection', (error) => {
+  console.error('[Process] Unhandled rejection:', error);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('[Process] Uncaught exception:', error);
+  process.exit(1);
+});
+
 startServer();

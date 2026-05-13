@@ -1,37 +1,40 @@
 {
-      "name": "zuno-frontend",
-      "private": true,
-      "version": "1.0.0",
-      "type": "module",
-      "engines": {
-            "node": ">=20 <23"
-      },
-      "scripts": {
-            "dev": "node ./node_modules/vite/bin/vite.js --host",
-            "build": "node ./node_modules/vite/bin/vite.js build",
-            "preview": "node ./node_modules/vite/bin/vite.js preview"
-      },
-      "dependencies": {
-            "@capacitor/android": "^8.3.0",
-            "@capacitor/cli": "^8.3.0",
-            "@capacitor/core": "^8.3.0",
-            "@vitejs/plugin-react": "^4.2.1",
-            "buffer": "^6.0.3",
-            "date-fns": "^4.1.0",
-            "framer-motion": "^12.36.0",
-            "process": "^0.11.10",
-            "react": "^18.2.0",
-            "react-dom": "^18.2.0",
-            "react-router-dom": "^6.30.2",
-            "react-toastify": "^11.0.5",
-            "simple-peer": "^9.11.1",
-            "socket.io-client": "^4.8.3",
-            "vite": "^5.0.8",
-            "vite-plugin-node-polyfills": "^0.25.0"
-      },
-      "devDependencies": {
-            "@types/react": "^18.2.43",
-            "@types/react-dom": "^18.2.17",
-            "@vitejs/plugin-basic-ssl": "^1.1.0"
-      }
+  "name": "zuno-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20 <23"
+  },
+  "scripts": {
+    "dev": "node ./node_modules/vite/bin/vite.js --host",
+    "build": "node ./node_modules/vite/bin/vite.js build",
+    "preview": "node ./node_modules/vite/bin/vite.js preview"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.3.0",
+    "@capacitor/cli": "8.3.0",
+    "@capacitor/core": "8.3.0",
+    "@vitejs/plugin-react": "4.2.1",
+    "axios": "1.7.9",
+    "buffer": "6.0.3",
+    "date-fns": "4.1.0",
+    "framer-motion": "12.36.0",
+    "process": "0.11.10",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "react-router-dom": "6.30.2",
+    "react-toastify": "11.0.5",
+    "react-window": "1.8.11",
+    "simple-peer": "9.11.1",
+    "socket.io-client": "4.8.1",
+    "tailwindcss": "3.4.17",
+    "vite": "5.0.8",
+    "vite-plugin-node-polyfills": "0.25.0"
+  },
+  "devDependencies": {
+    "@types/react": "18.2.43",
+    "@types/react-dom": "18.2.17",
+    "@vitejs/plugin-basic-ssl": "1.1.0"
+  }
 }

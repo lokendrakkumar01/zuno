@@ -52,7 +52,7 @@ export const SocketContextProvider = ({ children }) => {
 
                   const socketInstance = io(SOCKET_URL, {
                         auth: { token, userId: authenticatedUserId },
-                        transports: ['websocket', 'polling'],
+                        transports: ['websocket'],
                         withCredentials: true,
                         reconnection: true,
                         reconnectionAttempts: 10,
@@ -60,7 +60,7 @@ export const SocketContextProvider = ({ children }) => {
                         reconnectionDelayMax: 5000,
                         randomizationFactor: 0.2,
                         timeout: 20000,
-                        upgrade: true,
+                        upgrade: false,
                         rememberUpgrade: true,
                         autoConnect: true,
                         forceNew: false,
@@ -82,9 +82,6 @@ export const SocketContextProvider = ({ children }) => {
 
                   const handleConnectError = (err) => {
                         console.warn('[Socket] Connection error:', err.message);
-                        if (socketInstance.io.opts.transports?.[0] === 'websocket') {
-                              socketInstance.io.opts.transports = ['polling', 'websocket'];
-                        }
                         setIsConnected(false);
                         if (!/authentication|required|expired/i.test(String(err?.message || ''))) {
                               window.setTimeout(() => {

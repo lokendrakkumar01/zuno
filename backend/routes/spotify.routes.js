@@ -1,0 +1,47 @@
+const express = require('express');
+const { protect } = require('../middlewares/auth.middleware');
+
+const router = express.Router();
+
+let cachedToken = null;
+let tokenExpiresAt = 0;
+
+const getSpotifyToken = async () => {
+  try {
+    if (cachedToken && tokenExpiresAt > Date.now() + 30000) return cachedToken;
+    const credentials = Buffer.from(`${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`).toString('base64');
+    const response = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${credentials}`,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: 'grant_type=client_credentials'
+    });
+    if (!response.ok) throw new Error('Spotify token request failed');
+    const data = await response.json();
+    cachedToken = data.access_token;
+    tokenExpiresAt = Date.now() + data.expires_in * 1000;
+    return cachedToken;
+  } catch (error) {
+    throw error;
+  }
+};
+
+router.get('/search', protect, async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim().slice(0, 80);
+    if (!q) return res.status(400).json({ success: false, message: 'Search query is required' });
+    const token = await getSpotifyToken();
+    const response = await fetch(`https://api.spotify.com/v1/search?type=track&limit=10&q=${encodeURIComponent(q)}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!response.ok) throw new Error('Spotify search failed');
+    const data = await response.json();
+    return res.json({ success: true, tracks: data.tracks?.items || [] });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+module.exports = router;
