@@ -8,7 +8,8 @@ let tokenExpiresAt = 0;
 
 const getSpotifyToken = async () => {
   try {
-    if (cachedToken && tokenExpiresAt > Date.now() + 30000) return cachedToken;
+    // Temporarily disabled caching to force fresh permissions from Spotify
+    // if (cachedToken && tokenExpiresAt > Date.now() + 30000) return cachedToken;
     const credentials = Buffer.from(`${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`).toString('base64');
     const response = await fetch('https://accounts.spotify.com/api/token', {
       method: 'POST',
