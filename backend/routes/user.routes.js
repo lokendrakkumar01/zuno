@@ -16,16 +16,19 @@ router.get('/id/:id', protect, async (req, res) => {
   try {
     const user = await User.findById(req.params.id).lean();
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    const profile = {
+      id: user._id.toString(),
+      _id: user._id.toString(),
+      username: user.username,
+      displayName: user.displayName || user.username,
+      avatar: user.avatar,
+      bio: user.bio || '',
+      isVerified: Boolean(user.isVerified)
+    };
     return res.json({
       success: true,
-      user: {
-        id: user._id.toString(),
-        username: user.username,
-        displayName: user.displayName || user.username,
-        avatar: user.avatar,
-        bio: user.bio || '',
-        isVerified: Boolean(user.isVerified)
-      }
+      user: profile,
+      data: { user: profile }
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -83,7 +86,12 @@ router.get('/:username', async (req, res) => {
   try {
     const user = await User.findOne({ username: clean(req.params.username, 30), isActive: true });
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-    return res.json({ success: true, user: user.getPublicProfile() });
+    const profile = user.getPublicProfile();
+    return res.json({ 
+      success: true, 
+      user: profile,
+      data: { user: profile }
+    });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
