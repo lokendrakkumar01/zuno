@@ -36,10 +36,29 @@ router.get('/search', protect, async (req, res) => {
     const response = await fetch(`https://api.spotify.com/v1/search?type=track&limit=10&q=${encodeURIComponent(q)}`, {
       headers: { Authorization: `Bearer ${token}` }
     });
-    if (!response.ok) throw new Error('Spotify search failed');
+    
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('[Spotify Search Error]', response.status, errText);
+      throw new Error('Spotify search failed');
+    }
+    
     const data = await response.json();
-    return res.json({ success: true, tracks: data.tracks?.items || [] });
+    const items = data.tracks?.items || [];
+    
+    // Map to the format the frontend expects
+    const mappedTracks = items.map((track) => ({
+      trackId: track.id,
+      name: track.name,
+      artist: track.artists?.map(a => a.name).join(', ') || 'Unknown Artist',
+      albumArt: track.album?.images?.[0]?.url || '',
+      previewUrl: track.preview_url || null
+    }));
+
+    // Wrap in data object like frontend expects: data.data.tracks
+    return res.json({ success: true, data: { tracks: mappedTracks } });
   } catch (error) {
+    console.error('[Spotify Route Error]', error);
     return res.status(500).json({ success: false, message: error.message });
   }
 });
