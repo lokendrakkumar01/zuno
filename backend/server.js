@@ -1,6 +1,7 @@
 const http = require('http');
 require('dotenv').config();
 
+require('path'); // Dummy require to absorb the legacy sed hack from Render's build command
 const app = require('./app');
 const connectDB = require('./config/db');
 const initSocket = require('./socket');
