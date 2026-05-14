@@ -29,9 +29,23 @@ for (const pkg of PACKAGES_TO_CLEAN) {
       try {
         fs.rmSync(dir, { recursive: true, force: true });
         console.log(`[preinstall] Removed corrupted ${pkg} from cache.`);
+        needReinstall.push('vite@5.0.8');
+        needReinstall.push('@vitejs/plugin-react@4.2.1');
       } catch (err) {
         console.warn(`[preinstall] Could not remove ${pkg}:`, err.message);
       }
     }
+  }
+}
+
+if (needReinstall.length > 0) {
+  const uniqueReinstall = [...new Set(needReinstall)];
+  console.log(`[preinstall] Forcing reinstall of: ${uniqueReinstall.join(', ')}`);
+  try {
+    const { execSync } = require('child_process');
+    execSync(`npm install ${uniqueReinstall.join(' ')} --no-save`, { stdio: 'inherit', cwd: root });
+    console.log('[preinstall] Reinstall successful.');
+  } catch (err) {
+    console.error('[preinstall] Reinstall failed:', err.message);
   }
 }
