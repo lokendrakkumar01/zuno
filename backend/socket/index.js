@@ -189,6 +189,8 @@ const initSocket = (server) => {
         }
       });
 
+      const callTimeouts = new Map(); // Track pending call timeouts keyed by callerId
+
       socket.on('call-user', (payload = {}, ack = () => {}) => {
         try {
           const delivered = emitToUser(payload.to, 'incoming-call', {
@@ -198,10 +200,17 @@ const initSocket = (server) => {
             caller: payload.caller || null
           });
           ack({ success: delivered });
-          setTimeout(() => {
-            socket.emit('call-timeout', { to: payload.to });
-            emitToUser(payload.to, 'call-rejected', { from: userId, reason: 'timeout' });
+          // Auto-timeout if no answer after 30s
+          const timeoutKey = `${userId}-${payload.to}`;
+          if (callTimeouts.has(timeoutKey)) clearTimeout(callTimeouts.get(timeoutKey));
+          const tid = setTimeout(() => {
+            callTimeouts.delete(timeoutKey);
+            if (!callTimeouts.has(timeoutKey)) {
+              socket.emit('call-timeout', { to: payload.to });
+              emitToUser(payload.to, 'call-rejected', { from: userId, reason: 'timeout' });
+            }
           }, 30000);
+          callTimeouts.set(timeoutKey, tid);
         } catch (error) {
           ack({ success: false, message: error.message });
         }
@@ -209,6 +218,12 @@ const initSocket = (server) => {
 
       socket.on('call-accepted', (payload = {}, ack = () => {}) => {
         try {
+          // Clear any pending timeout for this call pair
+          const timeoutKey = `${payload.to}-${userId}`;
+          if (callTimeouts.has(timeoutKey)) {
+            clearTimeout(callTimeouts.get(timeoutKey));
+            callTimeouts.delete(timeoutKey);
+          }
           emitToUser(payload.to, 'call-accepted', { from: userId, answer: payload.answer });
           emitToUser(payload.to, 'callAccepted', { from: userId, signal: payload.answer });
           ack({ success: true });

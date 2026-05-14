@@ -10,7 +10,7 @@ let keepAliveInterval = null;
 
 const ping = async () => {
       try {
-            const res = await fetch(`${API_URL}/ping`, {
+            const res = await fetch(`${API_URL}/health`, {
                   method: 'GET',
                   cache: 'no-store',
                   signal: AbortSignal.timeout(10000)

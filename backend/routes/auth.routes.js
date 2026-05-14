@@ -187,9 +187,14 @@ router.post('/refresh', async (req, res) => {
     const refreshToken = String(req.body.refreshToken || '');
     if (!refreshToken) return res.status(401).json({ success: false, message: 'Refresh token required' });
 
-    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+    // Use fallback: JWT_REFRESH_SECRET if set, otherwise JWT_SECRET (matches authController.js)
+    const refreshSecret = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET;
+    const decoded = jwt.verify(refreshToken, refreshSecret);
     const user = await User.findById(decoded.id).select('+refreshTokenHash +refreshTokenExpiresAt');
-    if (!user || !user.refreshTokenHash || user.refreshTokenExpiresAt < new Date()) {
+    if (!user || !user.isActive) {
+      return res.status(401).json({ success: false, message: 'Session could not be refreshed' });
+    }
+    if (!user.refreshTokenHash || user.refreshTokenExpiresAt < new Date()) {
       return res.status(401).json({ success: false, message: 'Refresh token expired' });
     }
 

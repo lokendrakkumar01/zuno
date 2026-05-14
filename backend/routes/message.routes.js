@@ -48,6 +48,19 @@ router.get('/conversations', async (req, res) => {
   }
 });
 
+// Unread message count for nav badge (polled by Layout every 30s)
+router.get('/unread/count', async (req, res) => {
+  try {
+    const unreadCount = await Message.countDocuments({
+      receiver: req.user._id,
+      read: false
+    });
+    return res.json({ success: true, data: { unreadCount } });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 router.get('/:userId', async (req, res) => {
   try {
     const limit = Math.min(Number(req.query.limit) || 30, 30);

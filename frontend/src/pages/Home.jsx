@@ -49,7 +49,7 @@ const Home = () => {
 
       const wakeBackend = useCallback(async () => {
             try {
-                  await fetch(`${API_URL}/ping`, { cache: 'no-store' });
+                  await fetch(`${API_URL}/health`, { cache: 'no-store' });
             } catch {
                   // Best effort only.
             }

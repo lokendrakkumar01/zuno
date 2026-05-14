@@ -93,6 +93,11 @@ app.get('/api/health', (req, res) => {
   res.json({ success: true, status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Alias /api/ping → /api/health (used by frontend keep-alive and wake utilities)
+app.get('/api/ping', (req, res) => {
+  res.json({ success: true, status: 'ok' });
+});
+
 app.use('/api/auth', authRoutes);
 if (legacyRoutes.auth) app.use('/api/auth', legacyRoutes.auth);
 app.use('/api/users', userRoutes);

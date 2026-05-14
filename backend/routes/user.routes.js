@@ -59,7 +59,7 @@ router.put('/profile', protect, async (req, res) => {
       new: true,
       runValidators: true
     });
-    return res.json({ success: true, user: user.getAuthProfile() });
+    return res.json({ success: true, data: { user: user.getAuthProfile() }, user: user.getAuthProfile() });
   } catch (error) {
     return res.status(400).json({ success: false, message: error.message });
   }
@@ -73,7 +73,7 @@ router.post('/profile/avatar', protect, uploadImage.single('avatar'), async (req
     req.user.cloudinaryAvatarId = req.file.filename || '';
     await req.user.save();
 
-    return res.json({ success: true, user: req.user.getAuthProfile(), avatar: req.user.avatar });
+    return res.json({ success: true, data: { user: req.user.getAuthProfile() }, user: req.user.getAuthProfile(), avatar: req.user.avatar });
   } catch (error) {
     return res.status(400).json({ success: false, message: error.message });
   }
