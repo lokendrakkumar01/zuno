@@ -5,7 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "start:safe": "node scripts/ensure-runtime-deps.js && node --max-old-space-size=350 --expose-gc server.js",
+    "dev": "nodemon server.js",
+    "build": "node scripts/clean-install.js"
   },
   "engines": {
     "node": ">=20 <23"

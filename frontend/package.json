@@ -9,7 +9,8 @@
   "scripts": {
     "dev": "node ./node_modules/vite/bin/vite.js --host",
     "build": "node ./scripts/ensure-vite.cjs && node ./node_modules/vite/bin/vite.js build",
-    "preview": "node ./node_modules/vite/bin/vite.js preview"
+    "preview": "node ./node_modules/vite/bin/vite.js preview",
+    "render-build": "npm install --prefer-offline=false --no-audit --no-fund && node ./scripts/ensure-vite.cjs && node ./node_modules/vite/bin/vite.js build"
   },
   "dependencies": {
     "@capacitor/android": "8.3.0",
