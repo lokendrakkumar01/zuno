@@ -4,7 +4,7 @@
   "description": "Zuno real-time social and streaming backend",
   "main": "server.js",
   "scripts": {
-    "preinstall": "node scripts/preinstall.js 2>/dev/null || true",
+    "postinstall": "node scripts/postinstall.js",
     "start": "node server.js",
     "start:safe": "node scripts/ensure-runtime-deps.js && node --max-old-space-size=350 --expose-gc server.js",
     "dev": "nodemon server.js",

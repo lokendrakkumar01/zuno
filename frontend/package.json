@@ -7,7 +7,7 @@
     "node": ">=20 <23"
   },
   "scripts": {
-    "preinstall": "node ./scripts/preinstall.cjs",
+    "postinstall": "node ./scripts/postinstall.cjs",
     "dev": "vite --host",
     "build": "vite build",
     "preview": "vite preview",
