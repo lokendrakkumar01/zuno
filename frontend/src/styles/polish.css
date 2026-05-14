@@ -1,0 +1,161 @@
+/* ========================================
+   ZUNO Premium Polish Styles
+   Adds animations, glassmorphism, and glows
+   ======================================== */
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.33); opacity: 1; }
+  80%, 100% { opacity: 0; }
+}
+
+@keyframes pulse-dot {
+  0% { transform: scale(0.8); }
+  50% { transform: scale(1); }
+  100% { transform: scale(0.8); }
+}
+
+/* Online Presence Pulse */
+.header-status-pill.online .status-dot {
+  background-color: var(--color-accent-success);
+  position: relative;
+  box-shadow: 0 0 8px var(--color-accent-success);
+  animation: pulse-dot 2s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
+}
+
+.header-status-pill.online .status-dot::before {
+  content: '';
+  position: absolute;
+  display: block;
+  width: 300%;
+  height: 300%;
+  box-sizing: border-box;
+  margin-left: -100%;
+  margin-top: -100%;
+  border-radius: 45px;
+  background-color: var(--color-accent-success);
+  animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}
+
+/* Glassmorphism for Spotify Results */
+.spotify-result-card {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  border: 1px solid var(--color-border-light) !important;
+  background: var(--color-bg-card) !important;
+}
+
+.spotify-result-card:hover {
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: var(--shadow-lg) !important;
+  border-color: var(--color-primary) !important;
+}
+
+.spotify-result-art {
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.3s ease;
+}
+
+.spotify-result-card:hover .spotify-result-art {
+  transform: rotate(-2deg);
+}
+
+/* Spotify Input Focus Glow */
+.spotify-search-input-shell:focus-within {
+  box-shadow: 0 0 0 3px rgba(0, 149, 246, 0.15), var(--shadow-glow);
+  border-color: var(--color-primary);
+}
+
+/* Smooth Navigation Transitions */
+.nav-link, .bottom-nav-item {
+  transition: all 0.2s ease !important;
+}
+
+.nav-link:hover {
+  transform: translateY(-1px);
+}
+
+/* Premium Button Glows */
+.shell-upload-btn, .btn-primary {
+  box-shadow: var(--shadow-glow);
+  transition: all 0.25s ease !important;
+}
+
+.shell-upload-btn:hover, .btn-primary:hover {
+  box-shadow: var(--shadow-glow-lg);
+  transform: translateY(-1px);
+}
+
+/* Dynamic Animated Background for Landing */
+.landing-bg {
+  background: linear-gradient(-45deg, #0095f6, #06b6d4, #8b5cf6, #d62976);
+  background-size: 400% 400%;
+  animation: gradient-flow 15s ease infinite;
+  opacity: 0.15;
+}
+
+@keyframes gradient-flow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Floating Animations for Stat Cards */
+.landing-stat-card {
+  animation: float-stat 4s ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+}
+
+.landing-stat-card:nth-child(2) { --delay: 1s; }
+.landing-stat-card:nth-child(3) { --delay: 2s; }
+
+@keyframes float-stat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+/* Mobile Polish for Landing */
+@media (max-width: 768px) {
+  .landing-title {
+    font-size: 2.2rem !important;
+    line-height: 1.2 !important;
+    margin-bottom: 1.5rem !important;
+  }
+  
+  .landing-shell {
+    padding: 1rem !important;
+  }
+  
+  .landing-cta-row {
+    flex-direction: column !important;
+    gap: 1rem !important;
+  }
+  
+  .landing-cta {
+    width: 100% !important;
+    padding: 1.2rem !important;
+  }
+
+  .landing-stat-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .landing-panel-frame {
+    padding: 1rem !important;
+    border-radius: var(--radius-lg) !important;
+  }
+}
+
+/* Glassmorphism for Landing Panels */
+.landing-panel-frame, .landing-summary-card, .landing-stat-card {
+  background: rgba(255, 255, 255, 0.4) !important;
+  backdrop-filter: blur(15px) !important;
+  -webkit-backdrop-filter: blur(15px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+}
+
+[data-theme="dark"] .landing-panel-frame, 
+[data-theme="dark"] .landing-summary-card, 
+[data-theme="dark"] .landing-stat-card {
+  background: rgba(24, 25, 26, 0.6) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
