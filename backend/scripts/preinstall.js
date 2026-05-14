@@ -20,25 +20,13 @@ for (const pkg of PACKAGES_TO_CLEAN) {
   const dir = path.join(root, 'node_modules', pkg);
   if (!fs.existsSync(dir)) continue;
 
-  // Check if mongodb is corrupted (missing internal sub-files)
-  let isCorrupt = false;
-  if (pkg === 'mongodb') {
-    const bulkWrite = path.join(dir, 'lib', 'operations', 'bulk_write.js');
-    isCorrupt = !fs.existsSync(bulkWrite);
-  } else {
-    // For other packages just check if lib directory exists
-    const libDir = path.join(dir, 'lib');
-    isCorrupt = !fs.existsSync(libDir);
-  }
-
-  if (isCorrupt) {
-    try {
-      fs.rmSync(dir, { recursive: true, force: true });
-      console.log(`[preinstall] Removed corrupted ${pkg} from cache.`);
-      needReinstall.push(pkg === 'mongodb' ? 'mongodb@6.2.0' : 'mongoose@8.0.3');
-    } catch (err) {
-      console.warn(`[preinstall] Could not remove ${pkg}:`, err.message);
-    }
+  // Unconditionally remove these problem packages to force a clean unpack
+  try {
+    fs.rmSync(dir, { recursive: true, force: true });
+    console.log(`[preinstall] Unconditionally removed ${pkg} from cache to prevent corruption.`);
+    needReinstall.push(pkg === 'mongodb' ? 'mongodb@6.2.0' : 'mongoose@8.0.3');
+  } catch (err) {
+    console.warn(`[preinstall] Could not remove ${pkg}:`, err.message);
   }
 }
 
