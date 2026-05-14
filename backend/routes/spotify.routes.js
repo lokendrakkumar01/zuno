@@ -32,21 +32,32 @@ router.get('/search', protect, async (req, res) => {
   try {
     const q = String(req.query.q || '').trim().slice(0, 80);
     if (!q) return res.status(400).json({ success: false, message: 'Search query is required' });
+
+    if (!process.env.SPOTIFY_CLIENT_ID || !process.env.SPOTIFY_CLIENT_SECRET) {
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Spotify API credentials are not configured on the server environment.' 
+      });
+    }
+
     const token = await getSpotifyToken();
     const response = await fetch(`https://api.spotify.com/v1/search?type=track&limit=10&q=${encodeURIComponent(q)}`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     
     if (!response.ok) {
-      const errText = await response.text();
-      console.error('[Spotify Search Error]', response.status, errText);
-      throw new Error('Spotify search failed');
+      const errData = await response.json().catch(() => ({}));
+      const spotifyError = errData.error?.message || response.statusText || 'Search failed';
+      console.error('[Spotify Search Error]', response.status, errData);
+      return res.status(response.status).json({ 
+        success: false, 
+        message: `Spotify API Error (${response.status}): ${spotifyError}` 
+      });
     }
     
     const data = await response.json();
     const items = data.tracks?.items || [];
     
-    // Map to the format the frontend expects
     const mappedTracks = items.map((track) => ({
       trackId: track.id,
       name: track.name,
@@ -55,11 +66,15 @@ router.get('/search', protect, async (req, res) => {
       previewUrl: track.preview_url || null
     }));
 
-    // Wrap in data object like frontend expects: data.data.tracks
     return res.json({ success: true, data: { tracks: mappedTracks } });
   } catch (error) {
     console.error('[Spotify Route Error]', error);
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ 
+      success: false, 
+      message: error.message === 'Spotify token request failed' 
+        ? 'Spotify Authentication Failed: Check your Client ID and Secret in Render.' 
+        : error.message 
+    });
   }
 });
 
