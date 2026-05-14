@@ -25,13 +25,14 @@ for (const pkg of PACKAGES_TO_CLEAN) {
       !fs.existsSync(chunksDir) ||
       (fs.readdirSync(chunksDir).filter(f => f.endsWith('.js')).length === 0);
 
-  if (isCorrupt) {
-    try {
-      fs.rmSync(dir, { recursive: true, force: true });
-      console.log(`[preinstall] Removed corrupted ${pkg} from cache.`);
-      needReinstall.push('vite@5.0.8');
-    } catch (err) {
-      console.warn(`[preinstall] Could not remove ${pkg}:`, err.message);
+    if (isCorrupt) {
+      try {
+        fs.rmSync(dir, { recursive: true, force: true });
+        console.log(`[preinstall] Removed corrupted ${pkg} from cache.`);
+        needReinstall.push('vite@5.0.8');
+      } catch (err) {
+        console.warn(`[preinstall] Could not remove ${pkg}:`, err.message);
+      }
     }
   }
 }
