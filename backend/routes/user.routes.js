@@ -84,8 +84,21 @@ router.post('/profile/avatar', protect, uploadImage.single('avatar'), async (req
 
 router.get('/:username', async (req, res) => {
   try {
-    const user = await User.findOne({ username: clean(req.params.username, 30), isActive: true });
+    const rawUsername = String(req.params.username || '').trim();
+    if (!rawUsername) return res.status(400).json({ success: false, message: 'Username is required' });
+
+    // Try exact match first, then case-insensitive match
+    let user = await User.findOne({ username: rawUsername, isActive: true });
+    
+    if (!user) {
+      user = await User.findOne({ 
+        username: { $regex: new RegExp(`^${rawUsername.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i') },
+        isActive: true 
+      });
+    }
+
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    
     const profile = user.getPublicProfile();
     return res.json({ 
       success: true, 
