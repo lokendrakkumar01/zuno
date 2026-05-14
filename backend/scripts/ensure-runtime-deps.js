@@ -1,15 +1,9 @@
-const fs = require('fs');
-const path = require('path');
-
-const root = path.resolve(__dirname, '..');
-const requiredFiles = [
-  path.join(root, 'node_modules', 'mongodb', 'lib', 'operations', 'bulk_write.js'),
-  path.join(root, 'node_modules', 'mongoose', 'index.js')
-];
-
-const depsAreUsable = requiredFiles.every((file) => fs.existsSync(file));
-
-if (!depsAreUsable) {
-  console.error('[startup] MongoDB/Mongoose install is incomplete. Clear the Render build cache and redeploy.');
+try {
+  require('mongodb');
+  require('mongoose');
+} catch (error) {
+  console.error('[startup] MongoDB/Mongoose dependencies failed to load.');
+  console.error(error.message);
+  console.error('Clear the Render build cache and redeploy with a clean npm install.');
   process.exit(1);
 }

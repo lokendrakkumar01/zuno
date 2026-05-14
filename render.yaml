@@ -4,7 +4,7 @@ services:
     name: zuno-backend
     runtime: node
     plan: free
-    buildCommand: cd backend && npm install --omit=dev --legacy-peer-deps --no-audit --no-fund
+    buildCommand: cd backend && rm -rf node_modules && npm install --omit=dev --legacy-peer-deps --no-audit --no-fund
     preDeployCommand: cd backend && node scripts/fix-media-urls.js || true
     startCommand: cd backend && node --max-old-space-size=350 --expose-gc server.js
     envVars:
