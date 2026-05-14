@@ -55,10 +55,11 @@ router.get('/search', protect, async (req, res) => {
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
       const spotifyError = errData.error?.message || response.statusText || 'Search failed';
+      const reason = errData.error?.reason || 'Unknown';
       console.error('[Spotify Search Error]', response.status, errData);
       return res.status(response.status).json({ 
         success: false, 
-        message: `Spotify API Error (${response.status}): ${spotifyError}` 
+        message: `Spotify Error (${response.status}): ${spotifyError} (Reason: ${reason})` 
       });
     }
     
