@@ -138,10 +138,16 @@ const initSocket = (server) => {
             status: 'sent'
           });
 
-          const populated = await Message.findById(message._id)
-            .populate('sender', 'username displayName avatar')
-            .populate('receiver', 'username displayName avatar')
-            .lean();
+          // Instead of a second DB query (findById + populate), we construct the response immediately
+          // using the user data we already have or just the ID for maximum speed.
+          const populated = {
+            ...message.toObject(),
+            sender: {
+              _id: userId,
+              username: payload.senderName || 'User', // Fallback if name not provided
+              avatar: payload.senderAvatar || ''
+            }
+          };
 
           const delivered = emitToUser(receiverId, 'message-received', populated, async () => {
             try {
