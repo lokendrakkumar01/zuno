@@ -9,9 +9,9 @@
   "scripts": {
     "postinstall": "node ./scripts/postinstall.cjs",
     "dev": "vite --host",
-    "build": "vite build",
-    "preview": "vite preview",
-    "render-build": "npm install --prefer-offline=false --no-audit --no-fund && vite build"
+    "build": "node ./node_modules/vite/bin/vite.js build",
+    "preview": "node ./node_modules/vite/bin/vite.js preview",
+    "render-build": "npm install --prefer-offline=false --no-audit --no-fund && node ./node_modules/vite/bin/vite.js build"
   },
   "dependencies": {
     "@capacitor/android": "8.3.0",
