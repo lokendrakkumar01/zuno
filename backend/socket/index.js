@@ -74,6 +74,7 @@ const initSocket = (server) => {
       credentials: true
     },
     transports: ['websocket'],
+    allowUpgrades: false,
     pingTimeout: 60000,
     pingInterval: 25000,
     maxHttpBufferSize: 1e7

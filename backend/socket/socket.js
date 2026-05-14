@@ -26,7 +26,8 @@ const io = new Server(server, {
   },
   pingTimeout: 60000,
   pingInterval: 25000,
-  transports: ['websocket', 'polling'],
+  transports: ['websocket'],
+  allowUpgrades: false,
   perMessageDeflate: false,
   // Optimize for speed
   maxHttpBufferSize: 1e8,

@@ -1,1 +1,1 @@
-console.log('[fix-media-urls] No migration needed for Cloudinary-backed media URLs.');
+console.log('[fix-media-urls] Safe no-op: no media URL migration is required.');
