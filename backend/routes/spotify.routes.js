@@ -41,8 +41,15 @@ router.get('/search', protect, async (req, res) => {
     }
 
     const token = await getSpotifyToken();
-    const response = await fetch(`https://api.spotify.com/v1/search?type=track&limit=10&q=${encodeURIComponent(q)}`, {
-      headers: { Authorization: `Bearer ${token}` }
+    // Added market=US which is sometimes required to avoid 403 errors on search
+    const searchUrl = `https://api.spotify.com/v1/search?type=track&limit=10&market=US&q=${encodeURIComponent(q)}`;
+    
+    const response = await fetch(searchUrl, {
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
     });
     
     if (!response.ok) {
