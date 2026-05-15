@@ -40,7 +40,16 @@ export const MusicProvider = ({ children }) => {
       const currentTrackRef = useRef(null);
 
       const playTrack = useCallback((track) => {
-            if (!track?.previewUrl) return;
+            if (!track?.previewUrl) {
+                  import('react-toastify').then(({ toast }) => {
+                        toast.info('No audio preview available for this track', {
+                              position: "bottom-center",
+                              autoClose: 2000,
+                              hideProgressBar: true,
+                        });
+                  });
+                  return;
+            }
 
             const audio = audioRef.current;
 

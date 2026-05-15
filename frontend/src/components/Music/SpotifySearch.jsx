@@ -62,10 +62,13 @@ const SpotifySearch = ({
       return undefined;
     }
 
+    // Show loading state immediately to improve perceived speed
+    setLoading(true);
+
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => {
       searchTracks(trimmedQuery, controller.signal);
-    }, 400);
+    }, 250); // Reduced debounce for faster feel
 
     return () => {
       controller.abort();
