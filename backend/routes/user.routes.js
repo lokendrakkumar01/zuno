@@ -62,10 +62,23 @@ router.get('/search', protect, async (req, res) => {
 
 router.put('/profile', protect, async (req, res) => {
   try {
-    const updates = {
-      displayName: clean(req.body.displayName, 50),
-      bio: clean(req.body.bio, 200)
-    };
+    const updates = {};
+    if (req.body.displayName !== undefined) updates.displayName = clean(req.body.displayName, 50);
+    if (req.body.bio !== undefined) updates.bio = clean(req.body.bio, 200);
+    if (req.body.notificationSettings && typeof req.body.notificationSettings === 'object') {
+      updates.notificationSettings = {
+        pushNotifications: req.body.notificationSettings.pushNotifications !== false,
+        emailNotifications: req.body.notificationSettings.emailNotifications !== false,
+        likesNotifications: req.body.notificationSettings.likesNotifications !== false,
+        commentsNotifications: req.body.notificationSettings.commentsNotifications !== false,
+        followsNotifications: req.body.notificationSettings.followsNotifications !== false,
+        mentionsNotifications: req.body.notificationSettings.mentionsNotifications !== false,
+        sharesNotifications: req.body.notificationSettings.sharesNotifications !== false,
+        messageNotifications: req.body.notificationSettings.messageNotifications !== false,
+        messageSound: req.body.notificationSettings.messageSound || 'soft',
+        notificationSound: req.body.notificationSettings.notificationSound || 'soft'
+      };
+    }
     if (Array.isArray(req.body.interests)) {
       updates.interests = req.body.interests.map((item) => clean(item, 40)).filter(Boolean).slice(0, 10);
     }

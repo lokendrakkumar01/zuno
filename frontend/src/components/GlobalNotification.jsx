@@ -13,7 +13,10 @@ const DEFAULT_NOTIFICATION_SETTINGS = {
       commentsNotifications: true,
       followsNotifications: true,
       mentionsNotifications: true,
-      sharesNotifications: true
+      sharesNotifications: true,
+      messageNotifications: true,
+      messageSound: 'soft',
+      notificationSound: 'soft'
 };
 
 const getMessagePreview = (message = {}) => {
@@ -24,14 +27,21 @@ const getMessagePreview = (message = {}) => {
       return 'Media shared';
 };
 
-const playNotificationSound = () => {
+const playNotificationSound = (tone = 'soft') => {
+      if (tone === 'off') return;
       try {
             const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
             osc.type = 'sine';
-            osc.frequency.setValueAtTime(587.33, audioCtx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(880.0, audioCtx.currentTime + 0.1);
+            const tones = {
+                  soft: [587.33, 880.0],
+                  pop: [440.0, 660.0],
+                  chime: [659.25, 987.77]
+            };
+            const [start, end] = tones[tone] || tones.soft;
+            osc.frequency.setValueAtTime(start, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(end, audioCtx.currentTime + 0.1);
             gain.gain.setValueAtTime(0, audioCtx.currentTime);
             gain.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + 0.05);
             gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
@@ -96,7 +106,7 @@ const GlobalNotification = () => {
             };
 
             const handleNewMessage = (newMessage) => {
-                  if (!shouldAllow()) return;
+                  if (!shouldAllow('messageNotifications')) return;
 
                   const senderId = getEntityId(newMessage.sender);
                   const currentUserId = getEntityId(user);
@@ -111,7 +121,7 @@ const GlobalNotification = () => {
                   const textPreview = getMessagePreview(newMessage);
                   const navigateId = senderId;
 
-                  playNotificationSound();
+                  playNotificationSound(notificationSettings.messageSound);
                   toast.info(
                         <div onClick={() => navigate(`/messages/${navigateId}`)} style={{ cursor: 'pointer' }}>
                               <strong style={{ display: 'block' }}>{senderName}</strong>
@@ -129,7 +139,7 @@ const GlobalNotification = () => {
             };
 
             const handleNewGroupMessage = (newMessage) => {
-                  if (!shouldAllow()) return;
+                  if (!shouldAllow('messageNotifications')) return;
 
                   const senderId = getEntityId(newMessage.sender);
                   const currentUserId = getEntityId(user);
@@ -145,7 +155,7 @@ const GlobalNotification = () => {
                   const groupName = newMessage.groupName || 'Group';
                   const textPreview = `${senderName}: ${getMessagePreview(newMessage)}`;
 
-                  playNotificationSound();
+                  playNotificationSound(notificationSettings.messageSound);
                   toast.info(
                         <div onClick={() => navigate(groupPath)} style={{ cursor: 'pointer' }}>
                               <strong style={{ display: 'block' }}>{groupName}</strong>
@@ -169,7 +179,7 @@ const GlobalNotification = () => {
                   const callerName = data.from?.displayName || data.from?.username || 'Someone';
                   const callTypeLabel = data.callType === 'video' ? 'Video Call' : 'Voice Call';
 
-                  playNotificationSound();
+                  playNotificationSound(notificationSettings.notificationSound);
                   callToastId.current = toast.info(
                         <div style={{ lineHeight: 1.5 }}>
                               <strong style={{ display: 'block', fontSize: '1em', marginBottom: '4px' }}>
@@ -270,7 +280,7 @@ const GlobalNotification = () => {
                         follow_request_rejected: 'Declined'
                   };
 
-                  playNotificationSound();
+                  playNotificationSound(notificationSettings.notificationSound);
                   toast.info(
                         <div onClick={() => navigate(notification.actionUrl || '/profile')} style={{ cursor: 'pointer' }}>
                               <strong>{notification.title}</strong>
@@ -296,7 +306,7 @@ const GlobalNotification = () => {
                   if (!shouldAllow()) return;
                   if (isThrottled(`broadcast:${data.timestamp || data.message}`, 5000)) return;
 
-                  playNotificationSound();
+                  playNotificationSound(notificationSettings.notificationSound);
 
                   let icon = 'Broadcast';
                   if (data.type === 'success') icon = 'Done';
@@ -322,7 +332,7 @@ const GlobalNotification = () => {
                   if (data.hostId === user?._id || data.hostId === user?.id) return;
                   if (isThrottled(`stream-started:${data.hostId}:${data.roomId || ''}`, 5000)) return;
 
-                  playNotificationSound();
+                  playNotificationSound(notificationSettings.notificationSound);
                   toast.info(
                         <div onClick={() => navigate(`/live/${data.hostId}`)} style={{ cursor: 'pointer' }}>
                               <strong style={{ color: '#ef4444' }}>Live Stream Started</strong>
@@ -361,7 +371,10 @@ const GlobalNotification = () => {
             notificationSettings.pushNotifications,
             notificationSettings.likesNotifications,
             notificationSettings.commentsNotifications,
-            notificationSettings.followsNotifications
+            notificationSettings.followsNotifications,
+            notificationSettings.messageNotifications,
+            notificationSettings.messageSound,
+            notificationSettings.notificationSound
       ]);
 
       return null;

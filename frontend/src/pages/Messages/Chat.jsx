@@ -220,6 +220,8 @@ const Chat = () => {
       const [replyingTo, setReplyingTo] = useState(null);
 
       const isOnline = onlineUsers.some(id => id.toString() === userId?.toString());
+      const messageTone = user?.notificationSettings?.messageSound || 'soft';
+      const messageSoundsEnabled = user?.notificationSettings?.messageNotifications !== false && messageTone !== 'off';
 
       useEffect(() => {
             // If cache exists, scroll to bottom immediately (before network fetch)
@@ -265,16 +267,22 @@ const Chat = () => {
 
       // Initialize sounds
       useEffect(() => {
-            sendSoundRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3'); // Subtle pop/send
-            receiveSoundRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3'); // Subtle ding/receive
+            const soundMap = {
+                  soft: 'https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3',
+                  pop: 'https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3',
+                  chime: 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'
+            };
+            sendSoundRef.current = new Audio(soundMap.pop);
+            receiveSoundRef.current = new Audio(soundMap[messageTone] || soundMap.soft);
 
             // Preload
             sendSoundRef.current.load();
             receiveSoundRef.current.load();
-      }, []);
+      }, [messageTone]);
 
       const playSound = (type) => {
             try {
+                  if (type === 'receive' && !messageSoundsEnabled) return;
                   const sound = type === 'send' ? sendSoundRef.current : receiveSoundRef.current;
                   if (sound) {
                         sound.currentTime = 0;
@@ -381,12 +389,23 @@ const Chat = () => {
             // Real-time delete for everyone (receiver side)
             const handleMessageDeletedForEveryone = (data) => {
                   setMessages(prev => {
+                        if (data.type === 'me') {
+                              return prev.filter(m => m._id?.toString() !== data.messageId?.toString());
+                        }
                         return prev.map(m =>
                               m._id?.toString() === data.messageId?.toString()
                                     ? { ...m, deletedForEveryone: true, text: '', media: null }
                                     : m
                         );
                   });
+            };
+
+            const handleMessageEdited = (updatedMessage) => {
+                  setMessages(prev => prev.map(m =>
+                        m._id?.toString() === updatedMessage._id?.toString()
+                              ? { ...m, ...updatedMessage, edited: true }
+                              : m
+                  ));
             };
 
             socket.on("newMessage", handleNewMessage);
@@ -403,6 +422,8 @@ const Chat = () => {
             socket.on("message_reaction", handleMessageReaction);
             socket.on("messageDeletedForEveryone", handleMessageDeletedForEveryone);
             socket.on("message_deleted", handleMessageDeletedForEveryone);
+            socket.on("messageEdited", handleMessageEdited);
+            socket.on("message_edited", handleMessageEdited);
 
             return () => {
                   socket.off("newMessage", handleNewMessage);
@@ -419,6 +440,8 @@ const Chat = () => {
                   socket.off("message_reaction", handleMessageReaction);
                   socket.off("messageDeletedForEveryone", handleMessageDeletedForEveryone);
                   socket.off("message_deleted", handleMessageDeletedForEveryone);
+                  socket.off("messageEdited", handleMessageEdited);
+                  socket.off("message_edited", handleMessageEdited);
             };
       }, [socket, userId, token, user]);
 

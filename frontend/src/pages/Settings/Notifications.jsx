@@ -13,7 +13,10 @@ const Notifications = () => {
             commentsNotifications: true,
             followsNotifications: true,
             mentionsNotifications: true,
-            sharesNotifications: true
+            sharesNotifications: true,
+            messageNotifications: true,
+            messageSound: 'soft',
+            notificationSound: 'soft'
       });
       const [loading, setLoading] = useState(false);
 
@@ -77,6 +80,37 @@ const Notifications = () => {
                               cursor: 'pointer'
                         }}
                   />
+            </div>
+      );
+
+      const SoundSelect = ({ title, description, settingKey }) => (
+            <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '16px',
+                  padding: '16px',
+                  borderBottom: '1px solid var(--color-border)'
+            }}>
+                  <div>
+                        <div style={{ fontWeight: '500', color: 'var(--color-text-primary)', marginBottom: '4px' }}>
+                              {title}
+                        </div>
+                        <div style={{ fontSize: '14px', color: 'var(--color-text-secondary)' }}>
+                              {description}
+                        </div>
+                  </div>
+                  <select
+                        value={settings[settingKey]}
+                        onChange={(event) => setSettings(prev => ({ ...prev, [settingKey]: event.target.value }))}
+                        className="input"
+                        style={{ width: '150px', margin: 0 }}
+                  >
+                        <option value="soft">Soft</option>
+                        <option value="pop">Pop</option>
+                        <option value="chime">Chime</option>
+                        <option value="off">Off</option>
+                  </select>
             </div>
       );
 
@@ -144,6 +178,22 @@ const Notifications = () => {
                               title="Shares"
                               description="When someone shares your content"
                               settingKey="sharesNotifications"
+                        />
+                        <NotificationToggle
+                              icon="DM"
+                              title="Messages"
+                              description="When someone sends you a message"
+                              settingKey="messageNotifications"
+                        />
+                        <SoundSelect
+                              title="Message Tone"
+                              description="Choose the sound for incoming chats"
+                              settingKey="messageSound"
+                        />
+                        <SoundSelect
+                              title="Notification Tone"
+                              description="Choose the sound for alerts"
+                              settingKey="notificationSound"
                         />
                   </div>
 

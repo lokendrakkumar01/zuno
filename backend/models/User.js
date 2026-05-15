@@ -69,7 +69,10 @@ const userSchema = new mongoose.Schema({
     commentsNotifications: { type: Boolean, default: true },
     followsNotifications: { type: Boolean, default: true },
     mentionsNotifications: { type: Boolean, default: true },
-    sharesNotifications: { type: Boolean, default: true }
+    sharesNotifications: { type: Boolean, default: true },
+    messageNotifications: { type: Boolean, default: true },
+    messageSound: { type: String, enum: ['off', 'soft', 'pop', 'chime'], default: 'soft' },
+    notificationSound: { type: String, enum: ['off', 'soft', 'pop', 'chime'], default: 'soft' }
   },
   stats: {
     contentCount: { type: Number, default: 0 },

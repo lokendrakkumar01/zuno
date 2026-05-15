@@ -225,11 +225,54 @@ router.post('/:userId', uploadMultiple.single('media'), async (req, res) => {
       metadata: { roomId: room._id, senderId: req.user._id }
     }).catch((error) => console.warn('[Messages] Notification failed:', error.message));
 
-    return res.status(201).json({ success: true, message: payload });
+    return res.status(201).json({ success: true, message: payload, data: { message: payload } });
   } catch (error) {
     if (error.code === 11000) {
       return res.status(409).json({ success: false, message: 'Duplicate client message id' });
     }
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.put('/edit/:messageId', async (req, res) => {
+  try {
+    const text = cleanText(req.body.text);
+    if (!text) return res.status(400).json({ success: false, message: 'Message text is required' });
+
+    const message = await Message.findOneAndUpdate(
+      { _id: req.params.messageId, sender: req.user._id, deletedForEveryone: { $ne: true } },
+      { text, edited: true, editedAt: new Date() },
+      { new: true }
+    )
+      .populate('sender', 'username displayName avatar')
+      .populate('receiver', 'username displayName avatar')
+      .lean();
+
+    if (!message) return res.status(404).json({ success: false, message: 'Message not found or cannot be edited' });
+
+    const payload = messageView(message);
+    emitToUser(message.sender, 'messageEdited', payload);
+    emitToUser(message.sender, 'message_edited', payload);
+    if (message.receiver) {
+      emitToUser(message.receiver, 'messageEdited', payload);
+      emitToUser(message.receiver, 'message_edited', payload);
+    }
+
+    return res.json({ success: true, data: { message: payload }, message: payload });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.delete('/clear/:userId', async (req, res) => {
+  try {
+    const room = await getDirectRoom(req.user._id, req.params.userId);
+    await Message.updateMany(
+      { roomId: room._id, $or: [{ sender: req.user._id }, { receiver: req.user._id }] },
+      { $addToSet: { deletedBy: req.user._id } }
+    );
+    return res.json({ success: true });
+  } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -269,7 +312,12 @@ router.put('/react/:messageId', async (req, res) => {
       emitToUser(message.receiver, 'message_reaction', payload);
     }
 
-    return res.json({ success: true, data: payload });
+    const updatedMessage = await Message.findById(message._id)
+      .populate('sender', 'username displayName avatar')
+      .populate('receiver', 'username displayName avatar')
+      .lean();
+
+    return res.json({ success: true, data: { ...payload, message: messageView(updatedMessage) } });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
@@ -286,11 +334,15 @@ router.delete('/delete/:messageId', async (req, res) => {
     if (!message) return res.status(404).json({ success: false, message: 'Message not found' });
 
     const payload = { messageId: toId(message._id), type };
-    emitToUser(message.sender, 'messageDeletedForEveryone', payload);
-    emitToUser(message.sender, 'message_deleted', payload);
-    if (message.receiver) {
-      emitToUser(message.receiver, 'messageDeletedForEveryone', payload);
-      emitToUser(message.receiver, 'message_deleted', payload);
+    if (type === 'everyone') {
+      emitToUser(message.sender, 'messageDeletedForEveryone', payload);
+      emitToUser(message.sender, 'message_deleted', payload);
+      if (message.receiver) {
+        emitToUser(message.receiver, 'messageDeletedForEveryone', payload);
+        emitToUser(message.receiver, 'message_deleted', payload);
+      }
+    } else {
+      emitToUser(req.user._id, 'message_deleted', payload);
     }
 
     return res.json({ success: true, data: payload });
