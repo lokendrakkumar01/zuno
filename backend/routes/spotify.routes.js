@@ -8,8 +8,8 @@ let tokenExpiresAt = 0;
 
 const getSpotifyToken = async () => {
   try {
-    // Temporarily disabled caching to force fresh permissions from Spotify
-    // if (cachedToken && tokenExpiresAt > Date.now() + 30000) return cachedToken;
+    // Re-enabled caching for performance
+    if (cachedToken && tokenExpiresAt > Date.now() + 30000) return cachedToken;
     const credentials = Buffer.from(`${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`).toString('base64');
     const response = await fetch('https://accounts.spotify.com/api/token', {
       method: 'POST',
@@ -32,7 +32,7 @@ const getSpotifyToken = async () => {
 router.get('/search', protect, async (req, res) => {
   try {
     const q = String(req.query.q || '').trim().slice(0, 80);
-    if (!q) return res.status(400).json({ success: false, message: 'Search query is required' });
+    if (!q) return res.json({ success: true, data: { tracks: [] } });
 
     if (!process.env.SPOTIFY_CLIENT_ID || !process.env.SPOTIFY_CLIENT_SECRET) {
       return res.status(500).json({ 
@@ -54,12 +54,19 @@ router.get('/search', protect, async (req, res) => {
     
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
-      const spotifyError = errData.error?.message || response.statusText || 'Search failed';
-      const reason = errData.error?.reason || 'Unknown';
       console.error('[Spotify Search Error]', response.status, errData);
+      
+      // Special handling for 403 (usually means Web API not enabled in dashboard)
+      if (response.status === 403) {
+        return res.status(403).json({ 
+          success: false, 
+          message: 'Spotify access restricted. Please ensure Web API is enabled in your Spotify Dashboard.' 
+        });
+      }
+
       return res.status(response.status).json({ 
         success: false, 
-        message: `Spotify Error (${response.status}): ${spotifyError} (Reason: ${reason})` 
+        message: 'Spotify search failed. Please try again later.' 
       });
     }
     
