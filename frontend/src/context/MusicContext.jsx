@@ -40,27 +40,48 @@ export const MusicProvider = ({ children }) => {
       const currentTrackRef = useRef(null);
 
       const playTrack = useCallback((track) => {
-            if (!track || !track.previewUrl) return;
+            if (!track?.previewUrl) return;
 
-            // If it's the same track and already playing, do nothing
-            if (currentTrackRef.current?.trackId === track.trackId && !audioRef.current.paused) {
+            const audio = audioRef.current;
+
+            // Toggle play/pause for same track
+            if (currentTrackRef.current?.trackId === track.trackId) {
+                  if (!audio.paused) {
+                        audio.pause();
+                        return;
+                  }
+                  // Resume paused track
+                  audio.play().catch(() => setIsPlaying(false));
                   return;
             }
 
-            // Stop current audio
-            audioRef.current.pause();
+            // Stop current and load new
+            audio.pause();
+            audio.src = '';
 
-            // Start new audio
-            audioRef.current.src = track.previewUrl;
-            audioRef.current.loop = true;
+            // Small delay to ensure clean state before loading new source
+            setTimeout(() => {
+                  audio.src = track.previewUrl;
+                  audio.loop = false;
+                  audio.volume = 0.8;
+                  audio.load();
 
-            const playPromise = audioRef.current.play();
-            if (playPromise !== undefined) {
-                  playPromise.catch(error => {
-                        console.log("Autoplay prevented or audio error:", error);
-                        setIsPlaying(false);
-                  });
-            }
+                  const playPromise = audio.play();
+                  if (playPromise !== undefined) {
+                        playPromise
+                              .then(() => {
+                                    currentTrackRef.current = track;
+                                    setCurrentTrack(track);
+                              })
+                              .catch((error) => {
+                                    console.warn('Autoplay blocked or audio error:', error.name);
+                                    // Still set the track so UI updates - user can click again
+                                    currentTrackRef.current = track;
+                                    setCurrentTrack(track);
+                                    setIsPlaying(false);
+                              });
+                  }
+            }, 50);
 
             currentTrackRef.current = track;
             setCurrentTrack(track);

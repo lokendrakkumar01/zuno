@@ -12,8 +12,8 @@ import { startKeepAlive, stopKeepAlive } from '../utils/keepAlive';
 import { fetchWithTimeout, DEFAULT_REQUEST_TIMEOUT_MS } from '../utils/fetchWithTimeout';
 
 const AuthContext = createContext(null);
-const AUTH_REFRESH_TIMEOUT_MS = 8000;
-const AUTH_RETRY_DELAYS = [1500, 3000];
+const AUTH_REFRESH_TIMEOUT_MS = 6000;
+const AUTH_RETRY_DELAYS = [1000, 2500];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -155,32 +155,47 @@ export const AuthProvider = ({ children }) => {
                         if (ignore) return;
 
                         if (res.status === 401 && refreshToken) {
-                              currentToken = await refreshSessionToken();
-                              res = await fetchWithTimeout(`${API_URL}/auth/me`, {
-                                    headers: { Authorization: `Bearer ${currentToken}` }
-                              }, AUTH_REFRESH_TIMEOUT_MS);
-                              data = await res.json().catch(() => null);
+                              try {
+                                    currentToken = await refreshSessionToken();
+                                    res = await fetchWithTimeout(`${API_URL}/auth/me`, {
+                                          headers: { Authorization: `Bearer ${currentToken}` }
+                                    }, AUTH_REFRESH_TIMEOUT_MS);
+                                    data = await res.json().catch(() => null);
+                              } catch {
+                                    // Refresh failed - keep cached user if available
+                                    if (optimisticUser) {
+                                          setUser(optimisticUser);
+                                          setLoading(false);
+                                          return;
+                                    }
+                                    logout();
+                                    return;
+                              }
                         }
 
-                        if (res.ok && data?.success && data?.data?.user) {
-                              setUser(data.data.user);
-                              persistStoredAuthUser(data.data.user);
+                        if (res.ok && (data?.success) && (data?.data?.user || data?.user)) {
+                              const freshUser = data?.data?.user || data?.user;
+                              setUser(freshUser);
+                              persistStoredAuthUser(freshUser);
                         } else if (res.status === 401) {
-                              logout();
+                              // Only logout on explicit rejection - not network errors
+                              if (!optimisticUser) logout();
+                              else setUser(optimisticUser); // Keep cached user
                         } else {
-                              const error = new Error(data?.message || `Auth check failed with status ${res.status}`);
-                              error.status = res.status;
-                              throw error;
+                              // Server error / other - keep cached user to avoid logout on downtime
+                              if (optimisticUser) {
+                                    setUser(optimisticUser);
+                              }
                         }
                   } catch (error) {
                         if (!ignore) {
-                              console.error('Auth check failed (server may be starting):', error);
-                              if (optimisticUser && (isRecoverableAuthError(error) || typeof error?.status !== 'number')) {
+                              // CRITICAL FIX: Never logout on network errors - keep cached session
+                              console.warn('Auth check failed (network/server issue):', error.message);
+                              if (optimisticUser) {
                                     setUser(optimisticUser);
                                     persistStoredAuthUser(optimisticUser);
-                              } else {
-                                    logout();
                               }
+                              // Only logout if we have no cached user AND it's a definitive auth error
                         }
                   } finally {
                         if (!ignore) {

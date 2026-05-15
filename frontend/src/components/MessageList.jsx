@@ -1,36 +1,73 @@
-import { memo, useMemo } from 'react';
-import { FixedSizeList as List } from 'react-window';
+import { memo, useEffect, useRef } from 'react';
 import MessageItem from './MessageItem';
 
 const MessageList = memo(({ messages, currentUserId, height = 520, onLoadMore, hasMore }) => {
-  const items = useMemo(() => messages || [], [messages]);
+  const items = messages || [];
+  const bottomRef = useRef(null);
+  const containerRef = useRef(null);
 
-  const Row = ({ index, style }) => {
-    if (index === 0 && hasMore) {
-      return (
-        <div style={style} className="flex items-center justify-center">
-          <button onClick={onLoadMore} className="rounded bg-slate-200 px-3 py-1 text-sm text-slate-700">Load older</button>
-        </div>
-      );
-    }
-    const message = items[hasMore ? index - 1 : index];
-    if (!message) return null;
-    const senderId = message.sender?._id || message.sender?.id || message.sender;
-    return (
-      <div style={style}>
-        <MessageItem message={message} mine={String(senderId) === String(currentUserId)} />
-      </div>
-    );
-  };
+  // Auto-scroll to bottom on new messages
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages?.length]);
 
-  const itemCount = items.length + (hasMore ? 1 : 0);
   return (
-    <List height={height} itemCount={itemCount} itemSize={96} width="100%" itemKey={(index) => {
-      const message = items[hasMore ? index - 1 : index];
-      return message?._id || message?.id || `loader-${index}`;
-    }}>
-      {Row}
-    </List>
+    <div
+      ref={containerRef}
+      style={{
+        height: height,
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        padding: '8px 0',
+        scrollBehavior: 'smooth',
+      }}
+    >
+      {hasMore && (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '8px' }}>
+          <button
+            onClick={onLoadMore}
+            style={{
+              background: 'var(--color-bg-secondary)',
+              border: '1px solid var(--color-border)',
+              borderRadius: '20px',
+              padding: '6px 16px',
+              fontSize: '0.8rem',
+              color: 'var(--color-text-muted)',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+            }}
+            onMouseOver={e => e.target.style.borderColor = 'var(--color-primary)'}
+            onMouseOut={e => e.target.style.borderColor = 'var(--color-border)'}
+          >
+            Load older messages
+          </button>
+        </div>
+      )}
+      {items.length === 0 && (
+        <div style={{
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          height: '100%', color: 'var(--color-text-muted)',
+          gap: '12px',
+        }}>
+          <div style={{ fontSize: '3rem' }}>💬</div>
+          <p style={{ margin: 0, fontSize: '0.95rem' }}>No messages yet. Say hello!</p>
+        </div>
+      )}
+      {items.map((message) => {
+        const senderId = message.sender?._id || message.sender?.id || message.sender;
+        return (
+          <MessageItem
+            key={message._id || message.clientMsgId}
+            message={message}
+            mine={String(senderId) === String(currentUserId)}
+          />
+        );
+      })}
+      <div ref={bottomRef} />
+    </div>
   );
 });
 
