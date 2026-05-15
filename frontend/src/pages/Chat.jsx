@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import useSocket from '../hooks/useSocket';
 import useChat from '../hooks/useChat';
@@ -72,6 +72,9 @@ const Chat = () => {
       {/* Header */}
       <header className="chat-hdr">
         <div className="chat-hdr-left">
+          <Link to="/messages" className="chat-back-btn mobile-only" aria-label="Back to messages">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          </Link>
           <div className="chat-peer-avatar">
             <div className={`chat-online-ring ${connected ? 'ring-online' : 'ring-offline'}`}></div>
           </div>

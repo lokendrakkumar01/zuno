@@ -10,6 +10,7 @@ import { API_URL } from '../../config';
 import { fetchWithTimeout, DEFAULT_REQUEST_TIMEOUT_MS } from '../../utils/fetchWithTimeout';
 import { resolveAssetUrl } from '../../utils/media';
 import { getUserHandle } from '../../utils/session';
+import NotificationDropdown from './NotificationDropdown';
 
 const navItems = [
       {
@@ -188,6 +189,8 @@ const Layout = () => {
                                                 <button type="button" onClick={toggleTheme} className="theme-toggle-btn shell-icon-btn" aria-label="Toggle theme">
                                                       <ThemeIcon theme={theme} />
                                                 </button>
+
+                                                <NotificationDropdown />
 
                                                 <button
                                                       type="button"

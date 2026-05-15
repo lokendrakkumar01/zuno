@@ -6,7 +6,7 @@ const {
   serializeStream,
   pruneExpiredStreams,
   isStreamJoinable
-} = require('../socket/socket');
+} = require('../socket');
 const { getCloudinaryPlaybackStatus, getCloudinaryStreamSession } = require('../controllers/cloudinaryStreamController');
 
 const findConflictingStream = (hostId) => Array.from(activeStreams.values()).find((stream) => (

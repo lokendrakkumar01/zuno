@@ -38,7 +38,7 @@ const ScheduledContent = lazy(() => import('./pages/Settings/ScheduledContent'))
 const Insights = lazy(() => import('./pages/Settings/Insights'));
 const Search = lazy(() => import('./pages/Search/Search'));
 const SavedContent = lazy(() => import('./pages/SavedContent'));
-const Messages = lazy(() => import('./pages/Messages/Messages'));
+const MessagesLayout = lazy(() => import('./pages/Messages/MessagesLayout'));
 const Chat = lazy(() => import('./pages/Chat'));
 const GroupChat = lazy(() => import('./pages/Messages/GroupChat'));
 const LiveStream = lazy(() => import('./pages/LiveStream'));
@@ -78,9 +78,11 @@ function AppRouter() {
             <Route path="settings/insights" element={<Insights />} />
             <Route path="status" element={<Status />} />
             <Route path="search" element={<Search />} />
-            <Route path="messages" element={<Messages />} />
-            <Route path="messages/group/:groupId" element={<GroupChat />} />
-            <Route path="messages/:userId" element={<Chat />} />
+            <Route path="messages" element={<MessagesLayout />}>
+              <Route index element={null} />
+              <Route path="group/:groupId" element={<GroupChat />} />
+              <Route path=":userId" element={<Chat />} />
+            </Route>
             <Route path="chat/:userId" element={<Chat />} />
             <Route path="live/:hostId?" element={<LiveStream />} />
             <Route path="saved" element={<SavedContent />} />

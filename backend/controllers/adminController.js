@@ -5,7 +5,8 @@ const Interaction = require('../models/Interaction');
 const { Message } = require('../models/Message');
 const mongoose = require('mongoose');
 const { sendCustomAdminEmail } = require('../config/emailService');
-const { io } = require('../socket/socket');
+const { getIO } = require('../socket');
+const io = { emit: (ev, data) => getIO().emit(ev, data) };
 
 const ADMIN_STATS_CACHE_TTL_MS = 30 * 1000;
 let adminStatsCache = {

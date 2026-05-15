@@ -67,14 +67,13 @@ const initSocket = (server) => {
   io = new Server(server, {
     cors: {
       origin(origin, callback) {
-        if (!origin || socketAllowedOrigins.has(origin)) return callback(null, true);
-        return callback(new Error(`Socket CORS blocked origin: ${origin}`));
+        // Allow all origins – same policy as app.js CORS middleware
+        callback(null, true);
       },
       methods: ['GET', 'POST'],
       credentials: true
     },
-    transports: ['websocket'],
-    allowUpgrades: false,
+    transports: ['websocket', 'polling'],
     pingTimeout: 60000,
     pingInterval: 25000,
     maxHttpBufferSize: 1e7

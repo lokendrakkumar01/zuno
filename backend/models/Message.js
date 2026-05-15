@@ -7,9 +7,17 @@ const messageSchema = new mongoose.Schema({
   conversationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Conversation' },
   clientMsgId: { type: String, trim: true, index: true },
   text: { type: String, trim: true, maxlength: 2000, default: '' },
+  type: {
+    type: String,
+    enum: ['text', 'image', 'video', 'audio', 'file', 'gif'],
+    default: 'text'
+  },
   media: {
     url: { type: String, default: '' },
-    type: { type: String, enum: ['image', 'video', ''], default: '' }
+    type: { type: String, enum: ['image', 'video', 'audio', 'file', ''], default: '' },
+    name: { type: String, default: '' },
+    size: { type: Number, default: 0 },
+    duration: { type: Number, default: 0 } // for audio/video in seconds
   },
   status: { type: String, enum: ['sent', 'delivered', 'read'], default: 'sent' },
   deliveredAt: Date,
@@ -21,8 +29,10 @@ const messageSchema = new mongoose.Schema({
   }],
   read: { type: Boolean, default: false },
   edited: { type: Boolean, default: false },
+  editedAt: { type: Date, default: null },
   deletedForEveryone: { type: Boolean, default: false },
-  deletedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
+  deletedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  pinned: { type: Boolean, default: false }
 }, { timestamps: true });
 
 messageSchema.index({ roomId: 1, createdAt: -1 });

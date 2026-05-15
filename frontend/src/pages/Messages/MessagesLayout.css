@@ -1,0 +1,127 @@
+.messages-dual-pane-container {
+  display: flex;
+  height: calc(100vh - 64px); /* Assuming header is 64px */
+  margin-top: 64px;
+  background: var(--color-bg-secondary);
+  overflow: hidden;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+}
+
+.messages-sidebar-pane {
+  width: 350px;
+  min-width: 350px;
+  max-width: 350px;
+  height: 100%;
+  border-right: 1px solid var(--color-border-light);
+  background: var(--color-bg-primary);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.messages-chat-pane {
+  flex: 1;
+  height: 100%;
+  background: var(--color-bg-secondary);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.messages-empty-chat-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.messages-empty-chat-state .empty-chat-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.messages-empty-chat-state h2 {
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+  color: var(--color-text-primary);
+}
+
+/* Override existing styles when inside the sidebar pane */
+.messages-sidebar-pane .messages-shell {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 0 !important;
+}
+
+.messages-sidebar-pane .messages-hero-card {
+  padding: 1rem;
+  border-bottom: 1px solid var(--color-border-light);
+  background: var(--color-bg-primary);
+  border-radius: 0;
+  box-shadow: none;
+  margin: 0;
+}
+
+.messages-sidebar-pane .messages-page {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 !important;
+}
+
+.messages-sidebar-pane .conversations-list {
+  padding: 0;
+}
+
+.messages-sidebar-pane .conversation-item {
+  border-radius: 0;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.messages-sidebar-pane .conversation-item:last-child {
+  border-bottom: none;
+}
+
+/* Chat container overrides to fill the pane */
+.messages-chat-pane .chat-shell {
+  height: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  border-radius: 0;
+  border: none;
+}
+
+@media (max-width: 768px) {
+  .messages-dual-pane-container {
+    height: calc(100vh - 60px - 60px); /* header and bottom nav */
+    margin-top: 60px;
+    position: relative;
+    z-index: 1;
+  }
+  
+  .messages-sidebar-pane {
+    width: 100%;
+    min-width: 100%;
+    max-width: 100%;
+  }
+
+  .messages-sidebar-pane.mobile-hidden {
+    display: none;
+  }
+
+  .messages-chat-pane.mobile-hidden {
+    display: none;
+  }
+}

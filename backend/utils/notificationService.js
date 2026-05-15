@@ -1,127 +1,134 @@
 const Notification = require('../models/Notification');
-const { getReceiverSocketId, io } = require('../socket/socket');
 
 const ACTOR_SELECT = 'username displayName avatar';
 
 const buildActorPayload = (actor) => {
-      if (!actor) return null;
-
-      return {
-            _id: actor._id,
-            id: actor._id,
-            username: actor.username,
-            displayName: actor.displayName || actor.username,
-            avatar: actor.avatar || ''
-      };
+  if (!actor) return null;
+  return {
+    _id: actor._id,
+    id: actor._id,
+    username: actor.username,
+    displayName: actor.displayName || actor.username,
+    avatar: actor.avatar || ''
+  };
 };
 
 const buildActionUrl = (notification) => {
-      const entityId = notification.entityId || notification.metadata?.contentId || notification.metadata?.username || '';
-
-      switch (notification.type) {
-            case 'comment':
-            case 'helpful':
-                  return entityId ? `/content/${entityId}` : '/';
-            case 'follow_request':
-            case 'follow_request_accepted':
-            case 'follow_request_rejected':
-            case 'follow':
-            case 'unfollow':
-                  return notification.metadata?.username ? `/u/${notification.metadata.username}` : '/profile';
-            default:
-                  return '/profile';
-      }
+  const entityId = notification.entityId || notification.metadata?.contentId || notification.metadata?.username || '';
+  switch (notification.type) {
+    case 'comment':
+    case 'helpful':
+    case 'like':
+      return entityId ? `/content/${entityId}` : '/';
+    case 'follow_request':
+    case 'follow_request_accepted':
+    case 'follow_request_rejected':
+    case 'follow':
+    case 'unfollow':
+      return notification.metadata?.username ? `/u/${notification.metadata.username}` : '/profile';
+    case 'message':
+      return entityId ? `/messages/${entityId}` : '/messages';
+    case 'stream_live':
+      return entityId ? `/live/${entityId}` : '/';
+    default:
+      return '/';
+  }
 };
 
 const mapNotificationForClient = (notification) => ({
-      _id: notification._id,
-      type: notification.type,
-      title: notification.title,
-      body: notification.body,
-      entityType: notification.entityType,
-      entityId: notification.entityId,
-      metadata: notification.metadata || {},
-      isRead: Boolean(notification.isRead),
-      readAt: notification.readAt || null,
-      createdAt: notification.createdAt,
-      actor: buildActorPayload(notification.actor),
-      actionUrl: buildActionUrl(notification)
+  _id: notification._id,
+  type: notification.type,
+  title: notification.title,
+  body: notification.body,
+  entityType: notification.entityType,
+  entityId: notification.entityId,
+  metadata: notification.metadata || {},
+  isRead: Boolean(notification.isRead),
+  readAt: notification.readAt || null,
+  createdAt: notification.createdAt,
+  actor: buildActorPayload(notification.actor),
+  actionUrl: buildActionUrl(notification)
 });
 
+/**
+ * Create a notification and emit it in real-time to the recipient via Socket.IO.
+ * Uses lazy require to avoid circular dependency with socket module.
+ */
 const createNotification = async ({
-      recipientId,
-      actor = null,
-      type,
-      title,
-      body,
-      entityType = 'user',
-      entityId = '',
-      metadata = {}
+  recipientId,
+  actor = null,
+  type,
+  title,
+  body,
+  entityType = 'user',
+  entityId = '',
+  metadata = {}
 }) => {
-      const normalizedRecipientId = recipientId?.toString?.();
-      const normalizedActorId = actor?._id?.toString?.() || actor?.id?.toString?.() || actor?.toString?.() || null;
+  const normalizedRecipientId = recipientId?.toString?.();
+  const normalizedActorId = actor?._id?.toString?.() || actor?.id?.toString?.() || actor?.toString?.() || null;
 
-      if (!normalizedRecipientId || !type || !title || !body) {
-            return null;
-      }
+  if (!normalizedRecipientId || !type || !title || !body) return null;
 
-      if (normalizedRecipientId === normalizedActorId && type !== 'follow_request_rejected') {
-            return null;
-      }
+  // Don't notify yourself (except rejections)
+  if (normalizedRecipientId === normalizedActorId && type !== 'follow_request_rejected') return null;
 
-      const notification = await Notification.create({
-            recipient: normalizedRecipientId,
-            actor: normalizedActorId,
-            type,
-            title,
-            body,
-            entityType,
-            entityId: entityId?.toString?.() || entityId || '',
-            metadata
-      });
+  const notification = await Notification.create({
+    recipient: normalizedRecipientId,
+    actor: normalizedActorId,
+    type,
+    title,
+    body,
+    entityType,
+    entityId: entityId?.toString?.() || entityId || '',
+    metadata
+  });
 
-      const payload = mapNotificationForClient({
-            ...notification.toObject(),
-            actor: actor && actor.username ? actor : null
-      });
+  const payload = mapNotificationForClient({
+    ...notification.toObject(),
+    actor: actor && actor.username ? actor : null
+  });
 
-      const receiverSocketId = getReceiverSocketId(normalizedRecipientId);
-      if (receiverSocketId) {
-            io.to(receiverSocketId).emit('notification:new', payload);
-      }
+  // Lazy require to avoid circular dependency — socket module is loaded after app starts
+  try {
+    const socketModule = require('../socket');
+    const emitToUser = socketModule.emitToUser;
+    if (typeof emitToUser === 'function') {
+      emitToUser(normalizedRecipientId, 'notification:new', payload);
+    }
+  } catch (err) {
+    console.warn('[Notification] Could not emit socket event:', err.message);
+  }
 
-      return payload;
+  return payload;
 };
 
 const markNotificationsRead = async (recipientId, notificationIds = []) => {
-      const now = new Date();
-      const query = {
-            recipient: recipientId
-      };
+  const now = new Date();
+  const query = { recipient: recipientId };
+  if (Array.isArray(notificationIds) && notificationIds.length > 0) {
+    query._id = { $in: notificationIds };
+  }
 
-      if (Array.isArray(notificationIds) && notificationIds.length > 0) {
-            query._id = { $in: notificationIds };
-      }
+  await Notification.updateMany(query, { $set: { isRead: true, readAt: now } });
 
-      await Notification.updateMany(query, {
-            $set: {
-                  isRead: true,
-                  readAt: now
-            }
+  // Emit real-time update via socket
+  try {
+    const socketModule = require('../socket');
+    const emitToUser = socketModule.emitToUser;
+    if (typeof emitToUser === 'function') {
+      emitToUser(recipientId?.toString?.(), 'notification:read', {
+        ids: notificationIds,
+        readAt: now.toISOString()
       });
-
-      const receiverSocketId = getReceiverSocketId(recipientId?.toString?.());
-      if (receiverSocketId) {
-            io.to(receiverSocketId).emit('notification:read', {
-                  ids: notificationIds,
-                  readAt: now.toISOString()
-            });
-      }
+    }
+  } catch (err) {
+    // Non-critical — ignore
+  }
 };
 
 module.exports = {
-      ACTOR_SELECT,
-      createNotification,
-      mapNotificationForClient,
-      markNotificationsRead
+  ACTOR_SELECT,
+  createNotification,
+  mapNotificationForClient,
+  markNotificationsRead
 };

@@ -3,7 +3,7 @@ const {
   pruneExpiredStreams,
   isStreamJoinable,
   serializeStream,
-} = require('../socket/socket');
+} = require('../socket');
 
 const sanitizeValue = (value = '') => String(value || '').replace(/['"]+/g, '').trim();
 const PLAYBACK_STATUS_CACHE_TTL_MS = 5000;

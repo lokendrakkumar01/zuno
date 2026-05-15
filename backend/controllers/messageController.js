@@ -1,6 +1,7 @@
 const { Message, Conversation } = require('../models/Message');
 const User = require('../models/User');
-const { getReceiverSocketId, io } = require('../socket/socket');
+const { getReceiverSocketId, getIO } = require('../socket');
+const io = { to: (id) => getIO().to(id) };
 
 const hasUserId = (idList, id) =>
       Array.isArray(idList) && idList.some((entry) => entry?.toString() === id?.toString());
