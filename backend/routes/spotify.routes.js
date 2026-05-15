@@ -41,6 +41,19 @@ const getSpotifyToken = async () => {
   return cachedToken;
 };
 
+const findPreviewFallback = async (track) => {
+  try {
+    const term = `${track.name} ${track.artists?.[0]?.name || ''}`.trim();
+    if (!term) return null;
+    const response = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(term)}&entity=song&limit=1`);
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.results?.[0]?.previewUrl || null;
+  } catch {
+    return null;
+  }
+};
+
 router.get('/search', protect, async (req, res) => {
   try {
     const q = String(req.query.q || '').trim().slice(0, 100);
@@ -87,16 +100,16 @@ router.get('/search', protect, async (req, res) => {
     const data = await response.json();
     const items = data.tracks?.items || [];
 
-    const mappedTracks = items.map((track) => ({
+    const mappedTracks = await Promise.all(items.map(async (track) => ({
       trackId: track.id,
       name: track.name,
       artist: track.artists?.map(a => a.name).join(', ') || 'Unknown Artist',
       albumArt: track.album?.images?.[0]?.url || '',
       albumName: track.album?.name || '',
       durationMs: track.duration_ms || 0,
-      previewUrl: track.preview_url || null,   // null = no 30s preview from Spotify
+      previewUrl: track.preview_url || await findPreviewFallback(track),
       spotifyUrl: track.external_urls?.spotify || ''
-    }));
+    })));
 
     console.log(`[Spotify] Search "${q}": ${mappedTracks.length} results, ${mappedTracks.filter(t => t.previewUrl).length} with preview`);
 

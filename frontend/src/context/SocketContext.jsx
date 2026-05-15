@@ -1,8 +1,7 @@
 import { createContext, useState, useEffect, useContext, useRef, useCallback } from "react";
 import { toast } from "react-toastify";
 import { useAuth } from "./AuthContext";
-import io from "socket.io-client";
-import { SOCKET_URL } from "../config";
+import { getSocket, disconnectSocket } from "../socket";
 import { getEntityId } from "../utils/session";
 
 const SocketContext = createContext();
@@ -29,6 +28,7 @@ export const SocketContextProvider = ({ children }) => {
   const socketRef = useRef(null);
   const heartbeatRef = useRef(null);
   const reconnectTimerRef = useRef(null);
+  const notificationIdsRef = useRef(new Set());
 
   const clearHeartbeat = () => {
     if (heartbeatRef.current) {
@@ -52,6 +52,14 @@ export const SocketContextProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
+    notificationIdsRef.current = new Set(
+      notifications
+        .map((notification) => String(notification?._id || notification?.id || ''))
+        .filter(Boolean)
+    );
+  }, [notifications]);
+
+  useEffect(() => {
     if (!authenticatedUserId || !token) {
       clearHeartbeat();
       clearReconnectTimer();
@@ -71,19 +79,7 @@ export const SocketContextProvider = ({ children }) => {
       socketRef.current = null;
     }
 
-    const socketInstance = io(SOCKET_URL, {
-      auth: { token },
-      transports: ['websocket'],
-      withCredentials: true,
-      reconnection: true,
-      reconnectionAttempts: 20,
-      reconnectionDelay: 500,
-      reconnectionDelayMax: 3000,
-      randomizationFactor: 0.2,
-      timeout: 15000,
-      autoConnect: true,
-      forceNew: false,
-    });
+    const socketInstance = getSocket(token);
 
     socketRef.current = socketInstance;
     setSocket(socketInstance);
@@ -106,7 +102,7 @@ export const SocketContextProvider = ({ children }) => {
           if (socketRef.current && !socketRef.current.connected) {
             socketRef.current.connect();
           }
-        }, 1000);
+        }, 3000);
       }
     });
 
@@ -158,8 +154,14 @@ export const SocketContextProvider = ({ children }) => {
     }, 25000);
 
     // ---- Notifications (real-time) ----
-    socketInstance.on("notification:new", (notification) => {
-      setNotifications(prev => [notification, ...prev]);
+    const handleNotification = (notification) => {
+      const notificationId = String(notification?._id || notification?.id || '');
+      if (notificationId && notificationIdsRef.current.has(notificationId)) return;
+      if (notificationId) notificationIdsRef.current.add(notificationId);
+
+      setNotifications(prev => {
+        return [notification, ...prev];
+      });
       setUnreadCount(prev => prev + 1);
 
       // Show toast for new notification
@@ -174,7 +176,10 @@ export const SocketContextProvider = ({ children }) => {
         autoClose: 4000,
         toastId: `notif-${notification._id}`
       });
-    });
+    };
+
+    socketInstance.on("notification:new", handleNotification);
+    socketInstance.on("notification", handleNotification);
 
     socketInstance.on("notification:read", ({ ids, readAt }) => {
       setNotifications(prev =>
@@ -192,7 +197,10 @@ export const SocketContextProvider = ({ children }) => {
     return () => {
       clearHeartbeat();
       clearReconnectTimer();
+      socketInstance.off("notification:new", handleNotification);
+      socketInstance.off("notification", handleNotification);
       closeSocket(socketInstance);
+      disconnectSocket();
       if (socketRef.current === socketInstance) socketRef.current = null;
       setSocket(null);
       setIsConnected(false);

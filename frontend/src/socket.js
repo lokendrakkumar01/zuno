@@ -5,8 +5,11 @@ let socket;
 let currentToken;
 
 export const getSocket = (token) => {
-  // Re-use socket if connected with same token
-  if (socket?.connected && currentToken === token) return socket;
+  // Re-use the same socket instance for a token, even while reconnecting.
+  if (socket && currentToken === token) {
+    socket.auth = { token };
+    return socket;
+  }
 
   // Disconnect old socket if token changed
   if (socket && currentToken !== token) {
@@ -21,7 +24,8 @@ export const getSocket = (token) => {
     reconnection: true,
     reconnectionAttempts: 15,
     reconnectionDelay: 500,              // Faster first reconnect
-    reconnectionDelayMax: 3000,          // Max 3s between retries
+    reconnectionDelayMax: 8000,
+    randomizationFactor: 0.35,
     timeout: 10000,
     autoConnect: Boolean(token),
     forceNew: false,
@@ -52,4 +56,3 @@ export const disconnectSocket = () => {
 };
 
 export default getSocket;
-

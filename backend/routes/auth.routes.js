@@ -10,6 +10,13 @@ const router = express.Router();
 
 const sanitizeString = (value, max = 2000) => String(value || '').trim().slice(0, max);
 const googleOAuthClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const getGoogleAudiences = () => [
+  process.env.GOOGLE_CLIENT_ID,
+  process.env.GOOGLE_WEB_CLIENT_ID,
+  process.env.GOOGLE_ANDROID_CLIENT_ID,
+  process.env.GOOGLE_IOS_CLIENT_ID,
+  ...String(process.env.GOOGLE_CLIENT_IDS || '').split(',')
+].map((value) => String(value || '').trim()).filter(Boolean);
 
 const publicUser = (user) => user.getAuthProfile ? user.getAuthProfile() : {
   id: user._id.toString(),
@@ -139,19 +146,20 @@ router.post('/google', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Google credential is required' });
     }
 
-    if (!process.env.GOOGLE_CLIENT_ID) {
+    const audiences = getGoogleAudiences();
+    if (audiences.length === 0) {
       return res.status(500).json({ success: false, message: 'Google login is not configured on the server' });
     }
 
     const ticket = await googleOAuthClient.verifyIdToken({
       idToken: credential,
-      audience: process.env.GOOGLE_CLIENT_ID
+      audience: audiences
     });
     const payload = ticket.getPayload();
     const email = payload?.email?.toLowerCase();
     const googleId = payload?.sub;
 
-    if (!email || !googleId) {
+    if (!email || !googleId || payload.email_verified === false) {
       return res.status(400).json({ success: false, message: 'Google account did not return a verified email' });
     }
 

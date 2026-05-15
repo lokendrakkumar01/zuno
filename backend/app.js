@@ -44,7 +44,8 @@ const defaultAllowedOrigins = [
   'http://localhost:3000',
   'http://localhost:3002',
   'https://zunoworld.tech',
-  'https://www.zunoworld.tech'
+  'https://www.zunoworld.tech',
+  'https://zuno-admin.onrender.com'
 ];
 
 const allowedOrigins = new Set([
@@ -56,16 +57,17 @@ const allowedOrigins = new Set([
 app.set('trust proxy', 1);
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(compression());
-app.use(cors({
+const corsOptions = {
   origin: function (origin, callback) {
-    // Always allow the request's origin to avoid CORS blocking frontend
-    callback(null, true);
+    if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+    return callback(new Error(`Origin not allowed by CORS: ${origin}`));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
-}));
-app.options('*', cors());
+};
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(mongoSanitize());

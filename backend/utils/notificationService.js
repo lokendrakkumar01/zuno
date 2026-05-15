@@ -94,6 +94,7 @@ const createNotification = async ({
     const emitToUser = socketModule.emitToUser;
     if (typeof emitToUser === 'function') {
       emitToUser(normalizedRecipientId, 'notification:new', payload);
+      emitToUser(normalizedRecipientId, 'notification', payload);
     }
   } catch (err) {
     console.warn('[Notification] Could not emit socket event:', err.message);

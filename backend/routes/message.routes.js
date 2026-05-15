@@ -4,6 +4,8 @@ const { Message, Conversation } = require('../models/Message');
 const Room = require('../models/Room');
 const { protect } = require('../middlewares/auth.middleware');
 const { uploadMultiple } = require('../middlewares/upload.middleware');
+const { emitToUser } = require('../socket');
+const { createNotification } = require('../utils/notificationService');
 
 const router = express.Router();
 router.use(protect);
@@ -115,8 +117,26 @@ router.post('/:userId', uploadMultiple.single('media'), async (req, res) => {
       .populate('sender', 'username displayName avatar')
       .populate('receiver', 'username displayName avatar')
       .lean();
+    const payload = messageView(populated);
 
-    return res.status(201).json({ success: true, message: messageView(populated) });
+    emitToUser(req.params.userId, 'newMessage', payload);
+    emitToUser(req.params.userId, 'new_message', payload);
+    emitToUser(req.params.userId, 'message-received', payload);
+    emitToUser(req.user._id, 'newMessage', payload);
+    emitToUser(req.user._id, 'new_message', payload);
+
+    createNotification({
+      recipientId: req.params.userId,
+      actor: req.user._id,
+      type: 'message',
+      title: 'New message',
+      body: text || 'Sent you a message',
+      entityType: 'message',
+      entityId: message._id,
+      metadata: { roomId: room._id, senderId: req.user._id }
+    }).catch((error) => console.warn('[Messages] Notification failed:', error.message));
+
+    return res.status(201).json({ success: true, message: payload });
   } catch (error) {
     if (error.code === 11000) {
       return res.status(409).json({ success: false, message: 'Duplicate client message id' });

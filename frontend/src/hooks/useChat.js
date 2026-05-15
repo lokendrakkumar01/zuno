@@ -115,15 +115,25 @@ export const useChat = ({ token, user, receiverId, socket, emitWithAck }) => {
     });
 
     socket.on('message-received', onMessage);
+    socket.on('new_message', onMessage);
+    socket.on('newMessage', onMessage);
     socket.on('message-status', onStatus);
+    socket.on('message_read', onStatus);
     socket.on('typing', onTyping);
+    socket.on('typing_start', onTyping);
     socket.on('stop-typing', onStopTyping);
+    socket.on('typing_stop', onStopTyping);
 
     return () => {
       socket.off('message-received', onMessage);
+      socket.off('new_message', onMessage);
+      socket.off('newMessage', onMessage);
       socket.off('message-status', onStatus);
+      socket.off('message_read', onStatus);
       socket.off('typing', onTyping);
+      socket.off('typing_start', onTyping);
       socket.off('stop-typing', onStopTyping);
+      socket.off('typing_stop', onStopTyping);
       clearTimeout(typingTimer.current);
     };
   }, [receiverId, socket, user]);
