@@ -432,7 +432,7 @@ const Upload = () => {
                               </h2>
 
                               {/* Music Search Integration */}
-                              {formData.contentType && !formData.music && (
+                              {formData.contentType && (
                                     <div className="mb-lg">
                                           <SpotifySearch
                                                 selectedTrack={formData.music}
@@ -442,14 +442,14 @@ const Upload = () => {
                               )}
 
                               {/* Real-time Media Preview */}
-                              {(formData.contentType === 'photo' || formData.contentType.includes('video') || formData.contentType === 'story') && (
+                              {(formData.contentType === 'photo' || (formData.contentType && formData.contentType.includes('video')) || formData.contentType === 'story') && (
                                     <div
                                           className="preview-container"
                                           onClick={() => document.getElementById('media-upload-input').click()}
                                     >
                                           {formData.mediaPreview ? (
                                                 <div style={{ width: '100%', position: 'relative', padding: '10px' }}>
-                                                      {formData.contentType.includes('video') || (formData.contentType === 'story' && formData.media && formData.media[0].type.includes('video')) ? (
+                                                      {formData.contentType && formData.contentType.includes('video') || (formData.contentType === 'story' && formData.media && formData.media[0]?.type?.includes('video')) ? (
                                                             <video src={Array.isArray(formData.mediaPreview) ? formData.mediaPreview[0] : formData.mediaPreview} controls style={{ width: '100%', maxHeight: '400px', borderRadius: '8px' }} onClick={(e) => e.stopPropagation()} />
                                                       ) : (
                                                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center' }}>
@@ -625,7 +625,7 @@ const Upload = () => {
                                     );
                               })()}
 
-                              {(formData.contentType === 'photo' || formData.contentType.includes('video') || formData.contentType === 'story') && (
+                              {(formData.contentType === 'photo' || (formData.contentType && formData.contentType.includes('video')) || formData.contentType === 'story') && (
                                     <div className="input-group mb-lg">
                                           <label className="input-label" style={{ marginBottom: '8px', display: 'block' }}>Upload File</label>
                                           <div style={{ position: 'relative', overflow: 'hidden' }}>
