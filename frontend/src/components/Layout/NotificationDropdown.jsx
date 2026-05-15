@@ -24,6 +24,14 @@ const NotificationDropdown = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    if (token && notifications.length === 0) {
+      fetchInitialNotifications();
+    }
+    // Prefetch once per session so the bell opens instantly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
   const fetchInitialNotifications = async () => {
     if (!token || notifications.length > 0) return;
     setIsLoading(true);

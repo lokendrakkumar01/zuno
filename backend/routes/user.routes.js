@@ -38,11 +38,23 @@ router.get('/id/:id', protect, async (req, res) => {
 router.get('/search', protect, async (req, res) => {
   try {
     const q = clean(req.query.q, 80);
-    const users = await User.find(q ? { $text: { $search: q }, isActive: true } : { isActive: true })
+    const textQuery = q
+      ? {
+          isActive: true,
+          $or: [
+            { username: { $regex: q.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), $options: 'i' } },
+            { displayName: { $regex: q.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), $options: 'i' } },
+            { email: { $regex: q.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), $options: 'i' } }
+          ]
+        }
+      : { isActive: true };
+
+    const users = await User.find(textQuery)
       .select('username displayName avatar bio isVerified')
       .limit(20)
       .lean();
-    return res.json({ success: true, users: users.map((u) => ({ ...u, id: u._id.toString(), _id: undefined })) });
+    const mappedUsers = users.map((u) => ({ ...u, id: u._id.toString(), _id: u._id.toString() }));
+    return res.json({ success: true, users: mappedUsers, data: { users: mappedUsers } });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }

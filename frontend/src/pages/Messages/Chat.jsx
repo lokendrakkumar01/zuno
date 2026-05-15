@@ -390,19 +390,35 @@ const Chat = () => {
             };
 
             socket.on("newMessage", handleNewMessage);
+            socket.on("new_message", handleNewMessage);
+            socket.on("message-received", handleNewMessage);
             socket.on("typing", handleTyping);
+            socket.on("typing_start", handleTyping);
             socket.on("stopTyping", handleStopTyping);
+            socket.on("stop-typing", handleStopTyping);
+            socket.on("typing_stop", handleStopTyping);
             socket.on("messageRead", handleMessageRead);
+            socket.on("message_read", handleMessageRead);
             socket.on("messageReaction", handleMessageReaction);
+            socket.on("message_reaction", handleMessageReaction);
             socket.on("messageDeletedForEveryone", handleMessageDeletedForEveryone);
+            socket.on("message_deleted", handleMessageDeletedForEveryone);
 
             return () => {
                   socket.off("newMessage", handleNewMessage);
+                  socket.off("new_message", handleNewMessage);
+                  socket.off("message-received", handleNewMessage);
                   socket.off("typing", handleTyping);
+                  socket.off("typing_start", handleTyping);
                   socket.off("stopTyping", handleStopTyping);
+                  socket.off("stop-typing", handleStopTyping);
+                  socket.off("typing_stop", handleStopTyping);
                   socket.off("messageRead", handleMessageRead);
+                  socket.off("message_read", handleMessageRead);
                   socket.off("messageReaction", handleMessageReaction);
+                  socket.off("message_reaction", handleMessageReaction);
                   socket.off("messageDeletedForEveryone", handleMessageDeletedForEveryone);
+                  socket.off("message_deleted", handleMessageDeletedForEveryone);
             };
       }, [socket, userId, token, user]);
 
@@ -628,6 +644,8 @@ const Chat = () => {
             playSound('send'); // Play send sound instantly
 
             socket?.emit("stopTyping", { receiverId: userId });
+            socket?.emit("stop-typing", { receiverId: userId });
+            socket?.emit("typing_stop", { receiverId: userId });
 
             if (currentMedia) setSending(true); // Only globally 'sending' if it's media
             try {
@@ -902,9 +920,12 @@ const Chat = () => {
             setNewMessage(e.target.value);
             if (socket) {
                   socket.emit("typing", { receiverId: userId });
+                  socket.emit("typing_start", { receiverId: userId });
                   clearTimeout(typingTimeoutRef.current);
                   typingTimeoutRef.current = setTimeout(() => {
                         socket.emit("stopTyping", { receiverId: userId });
+                        socket.emit("stop-typing", { receiverId: userId });
+                        socket.emit("typing_stop", { receiverId: userId });
                   }, 2000);
             }
       };

@@ -246,12 +246,13 @@ export const CallProvider = ({ children }) => {
             const handleCallUser = (data) => {
                   console.log('Incoming call:', data);
                   setReceivingCall(true);
-                  setCaller(data.from);
-                  callerRef.current = data.from;
-                  setCallerSignal(unwrapSignalPayload(data.signal));
+                  const incomingCaller = data.caller || data.from || data.callerId;
+                  setCaller(incomingCaller);
+                  callerRef.current = incomingCaller;
+                  setCallerSignal(unwrapSignalPayload(data.signal || data.offer));
                   setCallType(data.callType);
                   setShowCallModal('incoming');
-                  const callerId = data.from?._id || data.from?.id || data.from;
+                  const callerId = incomingCaller?._id || incomingCaller?.id || incomingCaller || data.callerId;
                   if (callerId) targetUserIdRef.current = callerId.toString();
             };
 
@@ -269,7 +270,7 @@ export const CallProvider = ({ children }) => {
                   }
                   // Signal the peer with the answer
                   if (connectionRef.current) {
-                        try { connectionRef.current.signal(unwrapSignalPayload(payload)); } catch (e) { console.error('Signal error:', e); }
+                        try { connectionRef.current.signal(unwrapSignalPayload(payload.answer || payload.signal || payload)); } catch (e) { console.error('Signal error:', e); }
                   }
             };
 
@@ -325,10 +326,19 @@ export const CallProvider = ({ children }) => {
             socket.on('connect', handleConnect);
             socket.on('disconnect', handleDisconnect);
             socket.on("callUser", handleCallUser);
+            socket.on("incoming-call", handleCallUser);
+            socket.on("call_request", handleCallUser);
             socket.on("callAccepted", handleCallAccepted);
+            socket.on("call-accepted", handleCallAccepted);
+            socket.on("call_accept", handleCallAccepted);
             socket.on("callCancelled", handleCallCancelled);
+            socket.on("call-rejected", handleCallCancelled);
+            socket.on("call_reject", handleCallCancelled);
             socket.on("callEnded", handleCallEndedEvent);
+            socket.on("call-ended", handleCallEndedEvent);
             socket.on("webrtcSignal", handleWebrtcSignal);
+            socket.on("ice-candidate", handleWebrtcSignal);
+            socket.on("ice_candidate", handleWebrtcSignal);
             socket.on("groupCallIncoming", handleGroupCallIncoming);
 
             // Warn before page unload during active call
@@ -353,10 +363,19 @@ export const CallProvider = ({ children }) => {
                   socket.off('connect', handleConnect);
                   socket.off('disconnect', handleDisconnect);
                   socket.off("callUser", handleCallUser);
+                  socket.off("incoming-call", handleCallUser);
+                  socket.off("call_request", handleCallUser);
                   socket.off("callAccepted", handleCallAccepted);
+                  socket.off("call-accepted", handleCallAccepted);
+                  socket.off("call_accept", handleCallAccepted);
                   socket.off("callCancelled", handleCallCancelled);
+                  socket.off("call-rejected", handleCallCancelled);
+                  socket.off("call_reject", handleCallCancelled);
                   socket.off("callEnded", handleCallEndedEvent);
+                  socket.off("call-ended", handleCallEndedEvent);
                   socket.off("webrtcSignal", handleWebrtcSignal);
+                  socket.off("ice-candidate", handleWebrtcSignal);
+                  socket.off("ice_candidate", handleWebrtcSignal);
                   socket.off("groupCallIncoming", handleGroupCallIncoming);
                   window.removeEventListener('beforeunload', handleBeforeUnload);
                   window.removeEventListener('pagehide', handlePageHide);
