@@ -58,7 +58,7 @@ router.get('/search', protect, async (req, res) => {
     }
 
     // Use market=IN for India, which helps with search results & preview URLs
-    const searchUrl = `https://api.spotify.com/v1/search?type=track&limit=15&market=IN&q=${encodeURIComponent(q)}`;
+    const searchUrl = `https://api.spotify.com/v1/search?type=track&limit=10&market=IN&q=${encodeURIComponent(q)}`;
 
     const response = await fetch(searchUrl, {
       headers: {
