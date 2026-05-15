@@ -88,8 +88,12 @@ const SpotifySearch = ({
             }
       };
 
-      const togglePreview = async (track) => {
-            if (!track?.previewUrl) return;
+      const togglePreview = (track) => {
+            if (!track?.previewUrl) {
+                  setError('No preview available for this track. Select it to attach to your post.');
+                  setTimeout(() => setError(''), 3000);
+                  return;
+            }
 
             if (!previewAudioRef.current) {
                   previewAudioRef.current = new Audio();
@@ -97,23 +101,34 @@ const SpotifySearch = ({
 
             const audio = previewAudioRef.current;
 
+            // Toggle: pause if same track is playing
             if (previewTrackId === track.trackId && !audio.paused) {
                   audio.pause();
                   setPreviewTrackId('');
                   return;
             }
 
-            try {
-                  audio.pause();
-                  audio.src = track.previewUrl;
-                  audio.currentTime = 0;
-                  await audio.play();
-                  setPreviewTrackId(track.trackId);
-                  audio.onended = () => setPreviewTrackId('');
-            } catch {
-                  setPreviewTrackId('');
-                  setError('Preview could not be played on this device.');
+            // Stop any current preview
+            audio.pause();
+
+            // Load and play synchronously (required by browser gesture policy)
+            audio.src = track.previewUrl;
+            audio.volume = 0.85;
+            audio.currentTime = 0;
+
+            setPreviewTrackId(track.trackId);
+
+            const promise = audio.play();
+            if (promise !== undefined) {
+                  promise.catch((err) => {
+                        console.warn('Preview play failed:', err.message);
+                        setPreviewTrackId('');
+                        setError('Preview playback failed. Try clicking again.');
+                        setTimeout(() => setError(''), 3000);
+                  });
             }
+
+            audio.onended = () => setPreviewTrackId('');
       };
 
       const handleSelect = (track) => {

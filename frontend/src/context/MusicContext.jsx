@@ -48,43 +48,35 @@ export const MusicProvider = ({ children }) => {
             if (currentTrackRef.current?.trackId === track.trackId) {
                   if (!audio.paused) {
                         audio.pause();
-                        return;
+                  } else {
+                        audio.play().catch((err) => {
+                              console.warn('Resume failed:', err.message);
+                              setIsPlaying(false);
+                        });
                   }
-                  // Resume paused track
-                  audio.play().catch(() => setIsPlaying(false));
                   return;
             }
 
-            // Stop current and load new
+            // Stop current track cleanly - NO setTimeout (breaks browser gesture policy)
             audio.pause();
-            audio.src = '';
 
-            // Small delay to ensure clean state before loading new source
-            setTimeout(() => {
-                  audio.src = track.previewUrl;
-                  audio.loop = false;
-                  audio.volume = 0.8;
-                  audio.load();
+            // Set new source and play SYNCHRONOUSLY within the user gesture
+            audio.src = track.previewUrl;
+            audio.volume = 0.85;
+            audio.currentTime = 0;
 
-                  const playPromise = audio.play();
-                  if (playPromise !== undefined) {
-                        playPromise
-                              .then(() => {
-                                    currentTrackRef.current = track;
-                                    setCurrentTrack(track);
-                              })
-                              .catch((error) => {
-                                    console.warn('Autoplay blocked or audio error:', error.name);
-                                    // Still set the track so UI updates - user can click again
-                                    currentTrackRef.current = track;
-                                    setCurrentTrack(track);
-                                    setIsPlaying(false);
-                              });
-                  }
-            }, 50);
-
+            // Update track state immediately so UI reflects change
             currentTrackRef.current = track;
             setCurrentTrack(track);
+
+            // play() must be called synchronously here - no delay
+            const playPromise = audio.play();
+            if (playPromise !== undefined) {
+                  playPromise.catch((err) => {
+                        console.warn('Playback error:', err.name, err.message);
+                        setIsPlaying(false);
+                  });
+            }
       }, []);
 
       const stopTrack = useCallback(() => {
