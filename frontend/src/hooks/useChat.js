@@ -1,306 +1,250 @@
-/**
- * useChat.js — FIX: PROBLEMS 1, 5 & 6
- *
- * FIX PROBLEM 1 (Message slow):
- *   - Optimistic message is added to UI instantly (before any network call)
- *   - On server confirm → temp message is swapped for real one (with real _id)
- *   - On failure → temp message shows status: 'failed' so user can retry
- *
- * FIX PROBLEM 5 (Frontend laggy):
- *   - mergeMessages deduplicates by _id/clientMsgId so socket echoes never
- *     create duplicates alongside the optimistic copy
- *   - fetchMessages normalises the response shape correctly
- *
- * FIX PROBLEM 6 (Missing features):
- *   - Typing indicator emitted via socket (typing / stopTyping)
- *   - message-status (sent/delivered/read) handled in real-time
- *   - Auto read-receipt emitted when a message arrives and window is active
- */
-
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { API_URL } from '../config';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+const makeClientId = () => `opt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-const makeClientId = () =>
-  `opt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+const getId = (value) => String(value?._id || value?.id || value || '');
 
-/**
- * Merge message arrays, deduplicating on _id > clientMsgId.
- * - Real server messages (with _id) always win over temp optimistic copies.
- * - Sorted oldest → newest for display.
- */
-const mergeMessages = (incoming, existing = []) => {
-  const byKey = new Map();
+const sortMessages = (messages = []) =>
+  [...messages].sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
 
-  // Existing first so real messages are the base
-  [...existing, ...incoming].forEach((msg) => {
-    if (!msg) return;
-    // Prefer real _id; fall back to clientMsgId so optimistic copies are found
-    const key = msg._id && !msg._id.startsWith('opt_')
-      ? String(msg._id)
-      : msg.clientMsgId
-        ? `c_${String(msg.clientMsgId)}`
-        : `rnd_${Math.random()}`;
+const mergeMessageList = (messages = []) => {
+  const byId = new Map();
+  const clientToKey = new Map();
 
-    const prev = byKey.get(key);
-    // If we already have a real message for this key, don't overwrite with optimistic
-    if (prev && !prev._id?.startsWith('opt_') && msg._id?.startsWith('opt_')) return;
-    byKey.set(key, { ...prev, ...msg });
+  sortMessages(messages).forEach((message, index) => {
+    if (!message) return;
+    const realId = getId(message._id);
+    const clientId = message.clientMsgId ? String(message.clientMsgId) : '';
+
+    if (clientId && clientToKey.has(clientId)) {
+      const previousKey = clientToKey.get(clientId);
+      const nextKey = realId || previousKey;
+      const previous = byId.get(previousKey) || {};
+      if (previousKey !== nextKey) byId.delete(previousKey);
+      byId.set(nextKey, { ...previous, ...message, _sending: false, _failed: false });
+      clientToKey.set(clientId, nextKey);
+      return;
+    }
+
+    if (realId && byId.has(realId)) {
+      byId.set(realId, { ...byId.get(realId), ...message });
+      if (clientId) clientToKey.set(clientId, realId);
+      return;
+    }
+
+    const key = realId || clientId || `message-${index}`;
+    byId.set(key, message);
+    if (clientId) clientToKey.set(clientId, key);
   });
 
-  return Array.from(byKey.values()).sort(
-    (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
-  );
+  return sortMessages(Array.from(byId.values()));
 };
 
-// ─── Hook ─────────────────────────────────────────────────────────────────────
+const extractMessages = (queryData) =>
+  mergeMessageList((queryData?.pages || []).flatMap((page) => page.messages || []));
+
+const patchFirstPage = (queryClient, queryKey, updater) => {
+  queryClient.setQueryData(queryKey, (oldData) => {
+    if (!oldData?.pages?.length) {
+      return {
+        pageParams: [undefined],
+        pages: [{ messages: updater([]), hasMore: false, nextCursor: null }]
+      };
+    }
+
+    const pages = oldData.pages.map((page, index) => (
+      index === 0 ? { ...page, messages: updater(page.messages || []) } : page
+    ));
+
+    return { ...oldData, pages };
+  });
+};
 
 export const useChat = ({ token, user, receiverId, socket, emitWithAck }) => {
-  const [messages, setMessages]       = useState([]);
-  const [loading, setLoading]         = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError]             = useState('');
+  const queryClient = useQueryClient();
+  const [error, setError] = useState('');
   const [typingUsers, setTypingUsers] = useState(new Set());
-  const [hasMore, setHasMore]         = useState(true);
-  const oldestIdRef  = useRef(null);
-  const typingTimer  = useRef(null);
+  const typingTimer = useRef(null);
 
-  const myId = useMemo(
-    () => String(user?.id || user?._id || ''),
-    [user]
-  );
+  const myId = useMemo(() => getId(user), [user]);
+  const queryKey = useMemo(() => ['messages', String(receiverId || '')], [receiverId]);
 
-  // ── Fetch (initial + pagination) ───────────────────────────────────────────
-
-  const fetchMessages = useCallback(async (beforeId) => {
-    if (!token || !receiverId) return;
-
-    try {
-      beforeId ? setLoadingMore(true) : setLoading(true);
-      setError('');
-
+  const query = useInfiniteQuery({
+    queryKey,
+    enabled: Boolean(token && receiverId),
+    initialPageParam: undefined,
+    queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams({ limit: '30' });
-      if (beforeId) params.set('beforeId', beforeId);
+      if (pageParam) params.set('before', pageParam);
 
-      const res  = await fetch(`${API_URL}/messages/${receiverId}?${params}`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await fetch(`${API_URL}/messages/${receiverId}?${params}`, {
+        headers: { Authorization: `Bearer ${token}` }
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Could not load messages');
-
-      // API returns newest-first; reverse so UI shows oldest at top
-      const fetched = (data.data?.messages || data.messages || []).slice().reverse();
-
-      if (fetched.length > 0) {
-        oldestIdRef.current = fetched[0]._id || null;
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.message || 'Could not load messages.');
       }
 
-      setHasMore(Boolean(data.data?.hasMore ?? data.hasMore));
+      const payload = data.data || data;
+      const messages = payload.messages || [];
+      return {
+        messages,
+        hasMore: Boolean(payload.hasMore),
+        nextCursor: payload.nextCursor || payload.oldestMessageId || messages[0]?._id || null,
+        otherUser: payload.otherUser || null,
+        blockedInfo: payload.blockedInfo || null
+      };
+    },
+    getNextPageParam: (lastPage) => (lastPage?.hasMore ? lastPage.nextCursor : undefined),
+    staleTime: 20_000,
+    retry: 1
+  });
 
-      // FIX PROBLEM 5: merge so we don't lose optimistic messages mid-load
-      setMessages((prev) =>
-        beforeId ? mergeMessages(fetched, prev) : mergeMessages(fetched)
-      );
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
-  }, [receiverId, token]);
+  const messages = useMemo(() => extractMessages(query.data), [query.data]);
 
-  const loadMore = useCallback(() => {
-    if (hasMore && oldestIdRef.current && !loadingMore) {
-      fetchMessages(oldestIdRef.current);
-    }
-  }, [fetchMessages, hasMore, loadingMore]);
-
-  // ── Send message — FIX PROBLEMS 1 & 5 ─────────────────────────────────────
+  const setMessages = useCallback((updater) => {
+    patchFirstPage(queryClient, queryKey, (current) => (
+      typeof updater === 'function' ? updater(current) : updater
+    ));
+  }, [queryClient, queryKey]);
 
   const sendMessage = useCallback(async ({ text, media } = {}) => {
-    const clientMsgId = makeClientId();
-
-    // FIX PROBLEM 1: optimistic insert — appears IMMEDIATELY in UI
-    const optimistic = {
-      _id:       clientMsgId,   // starts with 'opt_' so merge knows it's temp
-      clientMsgId,
-      sender:    { _id: myId, id: myId },
-      receiver:  receiverId,
-      text:      text || '',
-      media:     media || null,
-      status:    'sending',     // UI can show a spinner/clock on this
-      createdAt: new Date().toISOString(),
-    };
-
-    setMessages((prev) => mergeMessages([optimistic], prev));
-
-    try {
-      // FIX PROBLEM 1: use socket emit (not HTTP) for lowest latency
-      const response = await emitWithAck('send-message', {
-        receiverId,
-        text,
-        media,
-        clientMsgId,
-      });
-
-      if (!response?.success) throw new Error(response?.message || 'Send failed');
-
-      const realMsg = response.message || response;
-
-      // FIX PROBLEM 5: swap optimistic copy with real server message
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.clientMsgId === clientMsgId
-            ? { ...realMsg, clientMsgId }
-            : m
-        )
-      );
-
-      return realMsg;
-    } catch (err) {
-      // FIX PROBLEM 5: mark as failed so UI can show retry button
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.clientMsgId === clientMsgId
-            ? { ...m, status: 'failed' }
-            : m
-        )
-      );
-      setError(err.message);
+    const trimmed = String(text || '').trim();
+    if (!trimmed && !media) return null;
+    if (!receiverId || !emitWithAck) {
+      setError('Realtime connection is not ready.');
       return null;
     }
-  }, [emitWithAck, myId, receiverId]);
 
-  // ── Typing indicator — FIX PROBLEM 6 ──────────────────────────────────────
+    const clientMsgId = makeClientId();
+    const optimistic = {
+      _id: clientMsgId,
+      clientMsgId,
+      sender: { _id: myId, id: myId, username: user?.username, avatar: user?.avatar },
+      receiver: receiverId,
+      text: trimmed,
+      media: media || null,
+      status: 'sending',
+      createdAt: new Date().toISOString()
+    };
+
+    patchFirstPage(queryClient, queryKey, (current) => mergeMessageList([...current, optimistic]));
+    setError('');
+
+    try {
+      const response = await emitWithAck('send-message', {
+        receiverId,
+        text: trimmed,
+        media: media || undefined,
+        clientMsgId
+      });
+
+      if (!response?.success) throw new Error(response?.message || 'Message failed to send.');
+      const realMessage = { ...(response.message || response), clientMsgId };
+      patchFirstPage(queryClient, queryKey, (current) => mergeMessageList([...current, realMessage]));
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      return realMessage;
+    } catch (err) {
+      patchFirstPage(queryClient, queryKey, (current) =>
+        current.map((message) => (
+          message.clientMsgId === clientMsgId ? { ...message, status: 'failed' } : message
+        ))
+      );
+      setError(err.message || 'Message failed to send.');
+      return null;
+    }
+  }, [emitWithAck, myId, queryClient, queryKey, receiverId, user]);
 
   const emitTyping = useCallback(() => {
     if (!socket?.connected || !receiverId) return;
     socket.emit('typing', { receiverId });
     clearTimeout(typingTimer.current);
-    // Auto stop-typing after 2 s of silence
     typingTimer.current = setTimeout(() => {
       socket.emit('stopTyping', { receiverId });
-    }, 2000);
+    }, 1800);
   }, [receiverId, socket]);
 
-  // ── Load on mount ──────────────────────────────────────────────────────────
-
   useEffect(() => {
-    if (!token || !receiverId) return undefined;
-    setMessages([]);
-    oldestIdRef.current = null;
-    fetchMessages();
-    return () => {
-      setMessages([]);
-      clearTimeout(typingTimer.current);
-    };
-  }, [receiverId, token, fetchMessages]);
+    if (!socket || !receiverId) return undefined;
 
-  // ── Socket listeners — FIX PROBLEMS 1, 5 & 6 ─────────────────────────────
-
-  useEffect(() => {
-    if (!socket) return undefined;
-
-    const relevantSender = (msg) => {
-      const sid = String(msg.sender?._id || msg.sender?.id || msg.sender || '');
-      const rid = String(msg.receiver?._id || msg.receiver?.id || msg.receiver || '');
-      // Message is relevant if it's part of this conversation
+    const isRelevant = (message) => {
+      const senderId = getId(message?.sender);
+      const targetId = getId(message?.receiver);
       return (
-        (sid === String(receiverId) || rid === String(receiverId)) ||
-        (sid === myId && rid === String(receiverId)) ||
-        (sid === String(receiverId) && rid === myId)
+        (senderId === String(receiverId) && targetId === myId) ||
+        (senderId === myId && targetId === String(receiverId))
       );
     };
 
-    /** Handle new inbound or echo message — FIX PROBLEM 1 & 5 */
-    const onNewMessage = (msg) => {
-      if (!msg || !relevantSender(msg)) return;
+    const onNewMessage = (message) => {
+      if (!isRelevant(message)) return;
+      patchFirstPage(queryClient, queryKey, (current) => mergeMessageList([...current, message]));
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
 
-      // FIX PROBLEM 5: merge so optimistic isn't duplicated
-      setMessages((prev) => mergeMessages([msg], prev));
+      if (getId(message.receiver) === myId && document.visibilityState === 'visible') {
+        socket.emit('message-read', { messageId: message._id, senderId: getId(message.sender) });
+      }
+    };
 
-      // FIX PROBLEM 6: auto read-receipt when window is visible
-      const rid = String(msg.receiver?._id || msg.receiver?.id || msg.receiver || '');
-      if (rid === myId && document.visibilityState === 'visible') {
-        socket.emit('message-read', {
-          messageId: msg._id,
-          senderId:  String(msg.sender?._id || msg.sender),
+    const onStatus = ({ messageId, status }) => {
+      patchFirstPage(queryClient, queryKey, (current) =>
+        current.map((message) => (
+          String(message._id) === String(messageId)
+            ? { ...message, status, read: status === 'read' }
+            : message
+        ))
+      );
+    };
+
+    const onTyping = ({ senderId }) => {
+      if (String(senderId) === String(receiverId)) {
+        setTypingUsers((previous) => new Set(previous).add(String(senderId)));
+      }
+    };
+
+    const onStopTyping = ({ senderId }) => {
+      if (String(senderId) === String(receiverId)) {
+        setTypingUsers((previous) => {
+          const next = new Set(previous);
+          next.delete(String(senderId));
+          return next;
         });
       }
     };
 
-    /** Handle status updates (sent/delivered/read) — FIX PROBLEM 6 */
-    const onStatus = ({ messageId, status }) => {
-      setMessages((prev) =>
-        prev.map((m) =>
-          String(m._id) === String(messageId)
-            ? { ...m, status, read: status === 'read' }
-            : m
-        )
-      );
-    };
-
-    /** Typing on — FIX PROBLEM 6 */
-    const onTyping = ({ senderId }) => {
-      if (String(senderId) === String(receiverId)) {
-        setTypingUsers((prev) => new Set(prev).add(String(senderId)));
-      }
-    };
-
-    /** Typing off — FIX PROBLEM 6 */
-    const onStopTyping = ({ senderId }) => {
-      setTypingUsers((prev) => {
-        const next = new Set(prev);
-        next.delete(String(senderId));
-        return next;
-      });
-    };
-
-    // Subscribe — cover both naming conventions used by the backend
-    socket.on('newMessage',       onNewMessage);
-    socket.on('new_message',      onNewMessage);
+    socket.on('newMessage', onNewMessage);
+    socket.on('new_message', onNewMessage);
     socket.on('message-received', onNewMessage);
-
-    socket.on('message-status',   onStatus);
-    socket.on('message_status',   onStatus);
-
-    socket.on('typing',           onTyping);
-    socket.on('typing_start',     onTyping);
-
-    socket.on('stopTyping',       onStopTyping);
-    socket.on('stop-typing',      onStopTyping);
-    socket.on('typing_stop',      onStopTyping);
+    socket.on('message-status', onStatus);
+    socket.on('typing', onTyping);
+    socket.on('stopTyping', onStopTyping);
+    socket.on('stop-typing', onStopTyping);
 
     return () => {
-      socket.off('newMessage',       onNewMessage);
-      socket.off('new_message',      onNewMessage);
+      socket.off('newMessage', onNewMessage);
+      socket.off('new_message', onNewMessage);
       socket.off('message-received', onNewMessage);
-
-      socket.off('message-status',   onStatus);
-      socket.off('message_status',   onStatus);
-
-      socket.off('typing',           onTyping);
-      socket.off('typing_start',     onTyping);
-
-      socket.off('stopTyping',       onStopTyping);
-      socket.off('stop-typing',      onStopTyping);
-      socket.off('typing_stop',      onStopTyping);
-
+      socket.off('message-status', onStatus);
+      socket.off('typing', onTyping);
+      socket.off('stopTyping', onStopTyping);
+      socket.off('stop-typing', onStopTyping);
       clearTimeout(typingTimer.current);
     };
-  }, [myId, receiverId, socket]);
+  }, [myId, queryClient, queryKey, receiverId, socket]);
 
   return {
     messages,
-    loading,
-    loadingMore,
-    error,
-    hasMore,
-    loadMore,
+    loading: query.isLoading,
+    loadingMore: query.isFetchingNextPage,
+    error: error || (query.error?.message || ''),
+    hasMore: Boolean(query.hasNextPage),
+    loadMore: query.fetchNextPage,
     sendMessage,
     emitTyping,
     typingUsers,
+    setMessages
   };
 };
 

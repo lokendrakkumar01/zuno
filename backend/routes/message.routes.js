@@ -1,7 +1,6 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const { Message, Conversation } = require('../models/Message');
-const Room = require('../models/Room');
 const User = require('../models/User');
 const { protect } = require('../middlewares/auth.middleware');
 const { uploadMultiple } = require('../middlewares/upload.middleware');
@@ -36,49 +35,58 @@ const messageView = (message) => ({
   updatedAt: message.updatedAt
 });
 
-const getDirectRoom = async (userA, userB) => {
-  const ids = [toId(userA), toId(userB)].sort();
-  let room = await Room.findOne({ type: 'direct', participants: { $all: ids, $size: 2 } });
-  if (room) return room;
-  room = await Room.create({ type: 'direct', participants: ids, createdBy: userA });
-  return room;
+const getUnreadForUser = (conversation, userId) => {
+  const unread = conversation?.unreadCount;
+  const key = toId(userId);
+  if (!unread) return 0;
+  if (typeof unread.get === 'function') return Number(unread.get(key) || 0);
+  return Number(unread[key] || 0);
+};
+
+const getDirectConversation = async (userA, userB, { create = true } = {}) => {
+  const participants = [toId(userA), toId(userB)].sort();
+  let conversation = await Conversation.findOne({
+    participants: { $all: participants, $size: 2 },
+    isGroup: false
+  });
+  if (conversation || !create) return conversation;
+  conversation = await Conversation.create({
+    participants,
+    isGroup: false,
+    unreadCount: new Map()
+  });
+  return conversation;
+};
+
+const getConversationForParam = async (currentUserId, paramId) => {
+  if (!mongoose.isValidObjectId(paramId)) return { conversation: null, otherUserId: paramId };
+
+  const conversation = await Conversation.findOne({
+    _id: paramId,
+    participants: currentUserId
+  });
+
+  if (conversation) {
+    const otherUserId = (conversation.participants || [])
+      .map(toId)
+      .find((id) => id !== toId(currentUserId));
+    return { conversation, otherUserId, isConversationId: true };
+  }
+
+  const directConversation = await getDirectConversation(currentUserId, paramId);
+  return { conversation: directConversation, otherUserId: paramId, isConversationId: false };
 };
 
 router.get('/conversations', async (req, res) => {
   try {
-    const [rooms, legacy] = await Promise.all([
-      Room.find({ participants: req.user._id })
-        .populate('participants', 'username displayName avatar isOnline offlineStatus')
-        .populate({
-          path: 'lastMessage',
-          populate: { path: 'sender receiver', select: 'username displayName avatar' }
-        })
-        .sort({ updatedAt: -1 })
-        .limit(50)
-        .lean(),
-      Conversation.find({ participants: req.user._id })
-        .populate('participants', 'username displayName avatar isOnline offlineStatus')
-        .populate('lastMessage.sender', 'username displayName avatar')
-        .sort({ updatedAt: -1 })
-        .limit(50)
-        .lean()
-    ]);
+    const legacy = await Conversation.find({ participants: req.user._id })
+      .populate('participants', 'username displayName avatar isOnline offlineStatus')
+      .populate('lastMessage.sender', 'username displayName avatar')
+      .sort({ updatedAt: -1 })
+      .limit(50)
+      .lean();
 
     const currentUserId = toId(req.user._id);
-    const directRooms = rooms.map((room) => {
-      const otherUser = (room.participants || []).find((participant) => toId(participant._id || participant) !== currentUserId);
-      return {
-        _id: toId(room._id),
-        id: toId(room._id),
-        roomId: toId(room._id),
-        user: otherUser || null,
-        isGroup: false,
-        lastMessage: room.lastMessage ? messageView(room.lastMessage) : null,
-        unreadCount: 0,
-        updatedAt: room.updatedAt
-      };
-    });
-
     const legacyConversations = legacy.map((conversation) => {
       const otherUser = !conversation.isGroup
         ? (conversation.participants || []).find((participant) => toId(participant._id || participant) !== currentUserId)
@@ -93,12 +101,12 @@ router.get('/conversations', async (req, res) => {
         groupAvatar: conversation.groupAvatar || '',
         participants: conversation.participants || [],
         lastMessage: conversation.lastMessage || null,
-        unreadCount: Number(conversation.unreadCount?.[currentUserId] || conversation.unreadCount?.get?.(currentUserId) || 0),
+        unreadCount: getUnreadForUser(conversation, currentUserId),
         updatedAt: conversation.updatedAt
       };
     });
 
-    const conversations = [...directRooms, ...legacyConversations]
+    const conversations = legacyConversations
       .filter((conversation, index, list) => {
         const key = conversation.isGroup
           ? `group:${conversation._id}`
@@ -134,9 +142,12 @@ router.get('/unread/count', async (req, res) => {
 router.get('/:userId', async (req, res) => {
   try {
     const limit = Math.min(Number(req.query.limit) || 30, 30);
-    const before = req.query.before;
-    const room = await getDirectRoom(req.user._id, req.params.userId);
-    const query = { roomId: room._id, deletedBy: { $ne: req.user._id } };
+    const before = req.query.before || req.query.beforeId;
+    const { conversation, otherUserId } = await getConversationForParam(req.user._id, req.params.userId);
+    const query = {
+      conversationId: conversation._id,
+      deletedBy: { $ne: req.user._id }
+    };
     if (before && mongoose.isValidObjectId(before)) query._id = { $lt: before };
 
     const messages = await Message.find(query)
@@ -157,7 +168,7 @@ router.get('/:userId', async (req, res) => {
       blockedInfo: { iBlocked: false, theyBlocked: false }
     };
 
-    const otherUser = await User.findById(req.params.userId).select('username displayName avatar isOnline offlineStatus blockedUsers').lean();
+    const otherUser = await User.findById(otherUserId).select('username displayName avatar isOnline offlineStatus blockedUsers').lean();
     if (otherUser) {
       response.otherUser = {
         _id: toId(otherUser._id),
@@ -169,10 +180,18 @@ router.get('/:userId', async (req, res) => {
         offlineStatus: otherUser.offlineStatus || null
       };
       response.blockedInfo = {
-        iBlocked: Array.isArray(req.user.blockedUsers) && req.user.blockedUsers.some((id) => toId(id) === toId(req.params.userId)),
+        iBlocked: Array.isArray(req.user.blockedUsers) && req.user.blockedUsers.some((id) => toId(id) === toId(otherUserId)),
         theyBlocked: Array.isArray(otherUser.blockedUsers) && otherUser.blockedUsers.some((id) => toId(id) === toId(req.user._id))
       };
     }
+
+    await Promise.all([
+      Message.updateMany(
+        { conversationId: conversation._id, receiver: req.user._id, read: false },
+        { $set: { read: true, status: 'read', readAt: new Date() } }
+      ),
+      Conversation.findByIdAndUpdate(conversation._id, { $set: { [`unreadCount.${toId(req.user._id)}`]: 0 } })
+    ]);
 
     return res.json({ ...response, data: response });
   } catch (error) {
@@ -185,14 +204,14 @@ router.post('/:userId', uploadMultiple.single('media'), async (req, res) => {
     const text = cleanText(req.body.text);
     if (!text && !req.file) return res.status(400).json({ success: false, message: 'Message text or media is required' });
 
-    const room = await getDirectRoom(req.user._id, req.params.userId);
+    const conversation = await getDirectConversation(req.user._id, req.params.userId);
     const media = req.file ? {
       url: req.file.path,
       type: req.file.mimetype.startsWith('video/') ? 'video' : 'image'
     } : { url: '', type: '' };
 
     const message = await Message.create({
-      roomId: room._id,
+      conversationId: conversation._id,
       sender: req.user._id,
       receiver: req.params.userId,
       clientMsgId: cleanText(req.body.clientMsgId).slice(0, 80),
@@ -201,7 +220,17 @@ router.post('/:userId', uploadMultiple.single('media'), async (req, res) => {
       status: 'sent'
     });
 
-    await Room.findByIdAndUpdate(room._id, { lastMessage: message._id, updatedAt: new Date() });
+    await Conversation.findByIdAndUpdate(conversation._id, {
+      $set: {
+        lastMessage: {
+          text: text || (media.type ? `${media.type[0].toUpperCase()}${media.type.slice(1)} attachment` : 'Media shared'),
+          sender: req.user._id,
+          createdAt: message.createdAt
+        },
+        updatedAt: new Date()
+      },
+      $inc: { [`unreadCount.${toId(req.params.userId)}`]: 1 }
+    });
     const populated = await Message.findById(message._id)
       .populate('sender', 'username displayName avatar')
       .populate('receiver', 'username displayName avatar')
@@ -222,7 +251,7 @@ router.post('/:userId', uploadMultiple.single('media'), async (req, res) => {
       body: text || 'Sent you a message',
       entityType: 'message',
       entityId: message._id,
-      metadata: { roomId: room._id, senderId: req.user._id }
+      metadata: { conversationId: conversation._id, senderId: req.user._id }
     }).catch((error) => console.warn('[Messages] Notification failed:', error.message));
 
     return res.status(201).json({ success: true, message: payload, data: { message: payload } });
@@ -266,9 +295,9 @@ router.put('/edit/:messageId', async (req, res) => {
 
 router.delete('/clear/:userId', async (req, res) => {
   try {
-    const room = await getDirectRoom(req.user._id, req.params.userId);
+    const conversation = await getDirectConversation(req.user._id, req.params.userId);
     await Message.updateMany(
-      { roomId: room._id, $or: [{ sender: req.user._id }, { receiver: req.user._id }] },
+      { conversationId: conversation._id, $or: [{ sender: req.user._id }, { receiver: req.user._id }] },
       { $addToSet: { deletedBy: req.user._id } }
     );
     return res.json({ success: true });
@@ -279,11 +308,12 @@ router.delete('/clear/:userId', async (req, res) => {
 
 router.put('/:userId/read', async (req, res) => {
   try {
-    const room = await getDirectRoom(req.user._id, req.params.userId);
+    const conversation = await getDirectConversation(req.user._id, req.params.userId);
     await Message.updateMany(
-      { roomId: room._id, receiver: req.user._id, read: false },
+      { conversationId: conversation._id, receiver: req.user._id, read: false },
       { read: true, status: 'read', readAt: new Date() }
     );
+    await Conversation.findByIdAndUpdate(conversation._id, { $set: { [`unreadCount.${toId(req.user._id)}`]: 0 } });
     emitToUser(req.params.userId, 'messageRead', { readerId: toId(req.user._id), receiverId: toId(req.user._id) });
     emitToUser(req.params.userId, 'message_read', { readerId: toId(req.user._id), receiverId: toId(req.user._id) });
     return res.json({ success: true });

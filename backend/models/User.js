@@ -63,6 +63,7 @@ const userSchema = new mongoose.Schema({
   profileVisibility: { type: String, enum: ['public', 'community', 'private'], default: 'community' },
   language: { type: String, enum: ['en', 'hi', 'both'], default: 'both' },
   notificationSettings: {
+    inApp: { type: Boolean, default: true },
     pushNotifications: { type: Boolean, default: true },
     emailNotifications: { type: Boolean, default: true },
     likesNotifications: { type: Boolean, default: true },

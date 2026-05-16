@@ -13,6 +13,7 @@ require('./config/passport');
 const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
 const messageRoutes = require('./routes/message.routes');
+const conversationRoutes = require('./routes/conversation.routes');
 const streamRoutes = require('./routes/stream.routes');
 const spotifyRoutes = require('./routes/spotify.routes');
 
@@ -109,6 +110,7 @@ if (legacyRoutes.comments) app.use('/api/comments', legacyRoutes.comments);
 if (legacyRoutes.feed) app.use('/api/feed', legacyRoutes.feed);
 if (legacyRoutes.admin) app.use('/api/admin', legacyRoutes.admin);
 app.use('/api/messages', messageRoutes);
+app.use('/api/conversations', conversationRoutes);
 if (legacyRoutes.notes) app.use('/api/notes', legacyRoutes.notes);
 if (legacyRoutes.livestream) app.use('/api/livestream', legacyRoutes.livestream);
 app.use('/api/stream', streamRoutes);

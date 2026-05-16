@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
 import { useSocketContext } from '../../context/SocketContext';
 import { API_URL } from '../../config';
@@ -68,6 +69,7 @@ const Messages = () => {
       const refetchTimerRef = useRef(null);
       const searchAbortRef = useRef(null);
       const groupSearchAbortRef = useRef(null);
+      const queryClient = useQueryClient();
 
       const persistConversations = useCallback((nextConversations) => {
             setConversations(nextConversations);
@@ -91,7 +93,9 @@ const Messages = () => {
                   });
                   const data = await res.json();
                   if (data.success) {
-                        persistConversations(data.data.conversations || []);
+                        const nextConversations = data.data.conversations || data.conversations || [];
+                        queryClient.setQueryData(['conversations'], nextConversations);
+                        persistConversations(nextConversations);
                   }
             } catch (err) {
                   console.error('Failed to fetch conversations:', err);
@@ -99,7 +103,30 @@ const Messages = () => {
                   setLoading(false);
                   setSilentRefreshing(false);
             }
-      }, [conversationsCacheKey, persistConversations, token]);
+      }, [conversationsCacheKey, persistConversations, queryClient, token]);
+
+      const conversationsQuery = useQuery({
+            queryKey: ['conversations'],
+            enabled: Boolean(isAuthenticated && token),
+            queryFn: async () => {
+                  const res = await fetch(`${API_URL}/conversations`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                  });
+                  const data = await res.json().catch(() => null);
+                  if (!res.ok || !data?.success) {
+                        throw new Error(data?.message || 'Could not load conversations.');
+                  }
+                  return data.data?.conversations || data.conversations || [];
+            },
+            initialData: conversations,
+            staleTime: 20_000
+      });
+
+      useEffect(() => {
+            if (!Array.isArray(conversationsQuery.data)) return;
+            persistConversations(conversationsQuery.data);
+            setLoading(false);
+      }, [conversationsQuery.data, persistConversations]);
 
       const fetchNotes = useCallback(async () => {
             try {
@@ -247,6 +274,7 @@ const Messages = () => {
             };
 
             const handleRealtimeUpdate = () => {
+                  queryClient.invalidateQueries({ queryKey: ['conversations'] });
                   debouncedRefetch();
             };
 
@@ -266,7 +294,7 @@ const Messages = () => {
                   socket.off('newGroupMessage', handleRealtimeGroup);
                   socket.off('messageRead', handleRealtimeUpdate);
             };
-      }, [debouncedRefetch, socket, upsertConversationFromMessage]);
+      }, [debouncedRefetch, queryClient, socket, upsertConversationFromMessage]);
 
       useEffect(() => () => {
             if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current);
@@ -352,6 +380,26 @@ const Messages = () => {
                   }
             }
       };
+
+      const createConversationForUser = useCallback((person) => {
+            const targetId = getEntityId(person);
+            if (!targetId || !token) return;
+            fetch(`${API_URL}/conversations`, {
+                  method: 'POST',
+                  headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`
+                  },
+                  body: JSON.stringify({ userId: targetId })
+            })
+                  .then((res) => res.json())
+                  .then((data) => {
+                        if (data?.success) {
+                              queryClient.invalidateQueries({ queryKey: ['conversations'] });
+                        }
+                  })
+                  .catch(() => undefined);
+      }, [queryClient, token]);
 
       const handleAddNote = async () => {
             if (!noteText.trim()) return;
@@ -505,7 +553,10 @@ const Messages = () => {
                                                             key={getEntityId(person) || person.username}
                                                             to={buildDirectMessagePath(person)}
                                                             className="search-result-item"
-                                                            onClick={() => setSearchQuery('')}
+                                                            onClick={() => {
+                                                                  createConversationForUser(person);
+                                                                  setSearchQuery('');
+                                                            }}
                                                       >
                                                             <UserAvatar user={person} size={40} />
                                                             <div>
@@ -547,10 +598,16 @@ const Messages = () => {
                         </div>
 
                         <div className="conversations-list">
-                              {loading ? (
+                              {loading || conversationsQuery.isLoading ? (
                                     <div className="empty-state">
                                           <div className="loader mb-md" />
                                           <p className="text-muted">Loading your inbox...</p>
+                                    </div>
+                              ) : conversationsQuery.isError && conversations.length === 0 ? (
+                                    <div className="empty-state">
+                                          <div className="empty-state-icon">!</div>
+                                          <h3 className="text-lg font-semibold mb-sm">Could not load conversations</h3>
+                                          <p className="text-muted">{conversationsQuery.error?.message || 'Please check your connection and try again.'}</p>
                                     </div>
                               ) : conversations.length > 0 ? (
                                     conversations.map((conversation) => (

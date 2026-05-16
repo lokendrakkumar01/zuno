@@ -141,6 +141,7 @@ export const CallProvider = ({ children }) => {
       const [callAccepted, setCallAccepted] = useState(false);
       const [callEnded, setCallEnded] = useState(false);
       const [callType, setCallType] = useState(null); // 'voice' or 'video'
+      const [callStatus, setCallStatus] = useState('idle'); // idle | ringing | active | ended
       const [isCalling, setIsCalling] = useState(false);
       const [showCallModal, setShowCallModal] = useState(null);
 
@@ -258,6 +259,7 @@ export const CallProvider = ({ children }) => {
             const handleCallUser = (data) => {
                   console.log('Incoming call:', data);
                   setReceivingCall(true);
+                  setCallStatus('ringing');
                   const incomingCaller = data.caller || data.from || data.callerId;
                   setCaller(incomingCaller);
                   callerRef.current = incomingCaller;
@@ -271,6 +273,7 @@ export const CallProvider = ({ children }) => {
             const handleCallAccepted = (payload) => {
                   console.log('Call accepted');
                   setCallAccepted(true);
+                  setCallStatus('active');
                   callAcceptedRef.current = true;
                   callStartTime.current = Date.now();
                   if (callTimeoutRef.current) {
@@ -289,6 +292,7 @@ export const CallProvider = ({ children }) => {
             const handleCallCancelled = () => {
                   console.log('Call cancelled');
                   clearPersistedCallSession();
+                  setCallStatus('ended');
                   restoredSessionRef.current = false;
                   setShowCallModal(null);
                   setReceivingCall(false);
@@ -339,15 +343,18 @@ export const CallProvider = ({ children }) => {
             socket.on('disconnect', handleDisconnect);
             socket.on("callUser", handleCallUser);
             socket.on("incoming-call", handleCallUser);
+            socket.on("call-made", handleCallUser);
             socket.on("call_request", handleCallUser);
             socket.on("callAccepted", handleCallAccepted);
             socket.on("call-accepted", handleCallAccepted);
+            socket.on("answer-made", handleCallAccepted);
             socket.on("call_accept", handleCallAccepted);
             socket.on("callCancelled", handleCallCancelled);
             socket.on("call-rejected", handleCallCancelled);
             socket.on("call_reject", handleCallCancelled);
             socket.on("callEnded", handleCallEndedEvent);
             socket.on("call-ended", handleCallEndedEvent);
+            socket.on("end-call", handleCallEndedEvent);
             socket.on("webrtcSignal", handleWebrtcSignal);
             socket.on("ice-candidate", handleWebrtcSignal);
             socket.on("ice_candidate", handleWebrtcSignal);
@@ -376,15 +383,18 @@ export const CallProvider = ({ children }) => {
                   socket.off('disconnect', handleDisconnect);
                   socket.off("callUser", handleCallUser);
                   socket.off("incoming-call", handleCallUser);
+                  socket.off("call-made", handleCallUser);
                   socket.off("call_request", handleCallUser);
                   socket.off("callAccepted", handleCallAccepted);
                   socket.off("call-accepted", handleCallAccepted);
+                  socket.off("answer-made", handleCallAccepted);
                   socket.off("call_accept", handleCallAccepted);
                   socket.off("callCancelled", handleCallCancelled);
                   socket.off("call-rejected", handleCallCancelled);
                   socket.off("call_reject", handleCallCancelled);
                   socket.off("callEnded", handleCallEndedEvent);
                   socket.off("call-ended", handleCallEndedEvent);
+                  socket.off("end-call", handleCallEndedEvent);
                   socket.off("webrtcSignal", handleWebrtcSignal);
                   socket.off("ice-candidate", handleWebrtcSignal);
                   socket.off("ice_candidate", handleWebrtcSignal);
@@ -487,6 +497,7 @@ export const CallProvider = ({ children }) => {
 
             pageUnloadRef.current = false;
             setCallEnded(false);
+            setCallStatus('ringing');
             setCallType(type);
             setIsCalling(true);
             isCallingRef.current = true;
@@ -600,6 +611,7 @@ export const CallProvider = ({ children }) => {
             pageUnloadRef.current = false;
             setShowCallModal(null);
             setCallAccepted(true);
+            setCallStatus('active');
             callAcceptedRef.current = true;
             callStartTime.current = Date.now();
 
@@ -879,6 +891,7 @@ export const CallProvider = ({ children }) => {
             clearPersistedCallSession();
             restoredSessionRef.current = false;
             setCallEnded(true);
+            setCallStatus('ended');
             setIsCalling(false);
             isCallingRef.current = false;
             setReceivingCall(false);
@@ -928,6 +941,7 @@ export const CallProvider = ({ children }) => {
 
             setTimeout(() => {
                   setCallEnded(false);
+                  setCallStatus('idle');
                   setCallType(null);
                   setCaller(null);
                   callerRef.current = null;
@@ -955,6 +969,7 @@ export const CallProvider = ({ children }) => {
             setCaller(null);
             callerRef.current = null;
             setCallType(null);
+            setCallStatus('ended');
             targetUserIdRef.current = null;
       };
 
@@ -994,7 +1009,7 @@ export const CallProvider = ({ children }) => {
             <CallContext.Provider value={{
                   stream, remoteStream, setStream, myVideo, userVideo,
                   receivingCall, caller, callerSignal,
-                  callAccepted, callEnded, callType,
+                  callAccepted, callEnded, callType, callStatus,
                   isCalling, showCallModal, setShowCallModal,
                   isMuted, isVideoOff,
                   isScreenSharing, isSpeakerOn,

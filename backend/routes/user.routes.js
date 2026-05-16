@@ -2,6 +2,7 @@ const express = require('express');
 const User = require('../models/User');
 const { protect } = require('../middlewares/auth.middleware');
 const { uploadImage } = require('../middlewares/upload.middleware');
+const { getJson, setJson } = require('../config/redis');
 
 const router = express.Router();
 
@@ -38,22 +39,28 @@ router.get('/id/:id', protect, async (req, res) => {
 router.get('/search', protect, async (req, res) => {
   try {
     const q = clean(req.query.q, 80);
+    const cacheKey = `users:search:${req.user._id}:${q.toLowerCase()}`;
+    const cached = await getJson(cacheKey);
+    if (cached) return res.json({ success: true, users: cached, data: { users: cached }, cached: true });
+
     const textQuery = q
       ? {
           isActive: true,
+          _id: { $ne: req.user._id },
           $or: [
             { username: { $regex: q.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), $options: 'i' } },
             { displayName: { $regex: q.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), $options: 'i' } },
             { email: { $regex: q.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), $options: 'i' } }
           ]
         }
-      : { isActive: true };
+      : { isActive: true, _id: { $ne: req.user._id } };
 
     const users = await User.find(textQuery)
       .select('username displayName avatar bio isVerified')
-      .limit(20)
+      .limit(10)
       .lean();
     const mappedUsers = users.map((u) => ({ ...u, id: u._id.toString(), _id: u._id.toString() }));
+    setJson(cacheKey, mappedUsers, 30);
     return res.json({ success: true, users: mappedUsers, data: { users: mappedUsers } });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -67,6 +74,7 @@ router.put('/profile', protect, async (req, res) => {
     if (req.body.bio !== undefined) updates.bio = clean(req.body.bio, 200);
     if (req.body.notificationSettings && typeof req.body.notificationSettings === 'object') {
       updates.notificationSettings = {
+        inApp: req.body.notificationSettings.inApp !== false,
         pushNotifications: req.body.notificationSettings.pushNotifications !== false,
         emailNotifications: req.body.notificationSettings.emailNotifications !== false,
         likesNotifications: req.body.notificationSettings.likesNotifications !== false,
@@ -88,6 +96,33 @@ router.put('/profile', protect, async (req, res) => {
       runValidators: true
     });
     return res.json({ success: true, data: { user: user.getAuthProfile() }, user: user.getAuthProfile() });
+  } catch (error) {
+    return res.status(400).json({ success: false, message: error.message });
+  }
+});
+
+router.patch('/notification-settings', protect, async (req, res) => {
+  try {
+    const current = req.user.notificationSettings?.toObject?.() || req.user.notificationSettings || {};
+    const nextSettings = {
+      ...current,
+      ...(typeof req.body.inApp === 'boolean' ? { inApp: req.body.inApp } : {}),
+      ...(req.body.notificationSettings && typeof req.body.notificationSettings === 'object'
+        ? req.body.notificationSettings
+        : {})
+    };
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { notificationSettings: nextSettings },
+      { new: true, runValidators: true }
+    );
+
+    return res.json({
+      success: true,
+      data: { notificationSettings: user.notificationSettings, user: user.getAuthProfile() },
+      notificationSettings: user.notificationSettings
+    });
   } catch (error) {
     return res.status(400).json({ success: false, message: error.message });
   }

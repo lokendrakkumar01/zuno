@@ -1,4 +1,5 @@
 const Notification = require('../models/Notification');
+const User = require('../models/User');
 
 const ACTOR_SELECT = 'username displayName avatar';
 
@@ -71,6 +72,11 @@ const createNotification = async ({
 
   // Don't notify yourself (except rejections)
   if (normalizedRecipientId === normalizedActorId && type !== 'follow_request_rejected') return null;
+
+  const recipient = await User.findById(normalizedRecipientId)
+    .select('notificationSettings.inApp')
+    .lean();
+  if (recipient?.notificationSettings?.inApp === false) return null;
 
   const notification = await Notification.create({
     recipient: normalizedRecipientId,

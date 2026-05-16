@@ -22,6 +22,7 @@ const Register = lazy(() => import('./pages/Auth/Register'));
 const ResetPassword = lazy(() => import('./pages/Auth/ResetPassword'));
 const Upload = lazy(() => import('./pages/Upload/Upload'));
 const Profile = lazy(() => import('./pages/Profile'));
+const ProfileById = lazy(() => import('./pages/ProfileById'));
 const ContentView = lazy(() => import('./pages/ContentView'));
 const AdminLogin = lazy(() => import('./pages/Admin/AdminLogin'));
 const AdminDashboard = lazy(() => import('./pages/Admin/AdminDashboard'));
@@ -65,6 +66,7 @@ function AppRouter() {
             <Route index element={<Home />} />
             <Route path="upload" element={<Upload />} />
             <Route path="profile" element={<Profile />} />
+            <Route path="profile/:userId" element={<ProfileById />} />
             <Route path="settings" element={<Settings />} />
             <Route path="settings/appearance" element={<Appearance />} />
             <Route path="settings/privacy" element={<Privacy />} />

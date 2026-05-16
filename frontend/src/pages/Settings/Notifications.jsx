@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-toastify';
+import { API_URL } from '../../config';
 
 const Notifications = () => {
       const navigate = useNavigate();
-      const { user, updateProfile } = useAuth();
+      const { user, token, updateProfile } = useAuth();
       const [settings, setSettings] = useState({
+            inApp: true,
             pushNotifications: true,
             emailNotifications: true,
             likesNotifications: true,
@@ -36,14 +38,23 @@ const Notifications = () => {
 
             try {
                   const result = await updateProfile({ notificationSettings: settings });
+                  const res = await fetch(`${API_URL}/users/notification-settings`, {
+                        method: 'PATCH',
+                        headers: {
+                              'Content-Type': 'application/json',
+                              Authorization: `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ notificationSettings: settings, inApp: settings.inApp })
+                  });
+                  const patchResult = await res.json().catch(() => null);
 
-                  if (result.success) {
+                  if (result.success && res.ok && patchResult?.success) {
                         if (settings.pushNotifications && 'Notification' in window && Notification.permission === 'default') {
                               Notification.requestPermission().catch(() => {});
                         }
                         toast.success('Notification settings updated!');
                   } else {
-                        toast.error(result.message || 'Update failed');
+                        toast.error(result.message || patchResult?.message || 'Update failed');
                   }
                 } catch (error) {
                   toast.error('Failed to update settings');
@@ -137,6 +148,12 @@ const Notifications = () => {
                         border: '1px solid var(--color-border)',
                         marginBottom: '16px'
                   }}>
+                        <NotificationToggle
+                              icon="Z"
+                              title="In-app notifications"
+                              description="Show realtime notification banners while you use ZUNO"
+                              settingKey="inApp"
+                        />
                         <NotificationToggle
                               icon="📱"
                               title="Push Notifications"

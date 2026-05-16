@@ -204,9 +204,16 @@ const initSocket = (server) => {
 
           const text        = String(payload.text || '').trim().slice(0, 2000);
           const clientMsgId = payload.clientMsgId || null;
+          const participants = [userId, receiverId].sort();
+          const conversation = await Conversation.findOneAndUpdate(
+            { participants: { $all: participants, $size: 2 }, isGroup: false },
+            { $setOnInsert: { participants, isGroup: false, unreadCount: new Map() } },
+            { new: true, upsert: true, setDefaultsOnInsert: true }
+          );
 
           // ── FIX BUG 2: Save to DB FIRST ───────────────────────────────
           const message = await Message.create({
+            conversationId: conversation._id,
             sender:      userId,
             receiver:    receiverId,
             text,
@@ -219,6 +226,7 @@ const initSocket = (server) => {
           const finalPayload = {
             ...message.toObject(),
             _id:         normalizeId(message._id),
+            conversationId: normalizeId(conversation._id),
             clientMsgId,
             sender:      { _id: userId, id: userId },
             receiver:    receiverId,
@@ -234,7 +242,7 @@ const initSocket = (server) => {
           });
 
           // FIX BUG 2: Update conversation in background (non-blocking)
-          setImmediate(() => updateConversationLastMessage(userId, receiverId, text, message._id));
+          setImmediate(() => updateConversationLastMessage(userId, receiverId, text, message._id, conversation._id));
 
           // Mark delivered if receiver is online
           if (delivered) {
@@ -305,6 +313,7 @@ const initSocket = (server) => {
 
           const delivered = emitToUser(to, 'incoming-call', callData);
           emitToUser(to, 'callUser', callData); // legacy alias
+          emitToUser(to, 'call-made', callData);
 
           ack({ success: delivered });
 
@@ -337,6 +346,7 @@ const initSocket = (server) => {
           const acceptData = { from: userId, signal: payload.signal || payload.answer };
           emitToUser(to, 'call-accepted', acceptData);
           emitToUser(to, 'callAccepted',  acceptData);
+          emitToUser(to, 'answer-made', acceptData);
           ack({ success: true });
         } catch (err) {
           ack({ success: false, message: err.message });
@@ -345,6 +355,7 @@ const initSocket = (server) => {
       socket.on('acceptCall',    handleAcceptCall);
       socket.on('answerCall',    handleAcceptCall);
       socket.on('call-accepted', handleAcceptCall);
+      socket.on('answer-made',   handleAcceptCall);
 
       /** rejectCall */
       const handleRejectCall = (payload = {}, ack = () => {}) => {
@@ -376,6 +387,7 @@ const initSocket = (server) => {
           const data = { from: userId };
           emitToUser(to, 'call-ended', data);
           emitToUser(to, 'callEnded',  data);
+          emitToUser(to, 'end-call',   data);
           ack({ success: true });
         } catch (err) {
           ack({ success: false, message: err.message });
@@ -383,6 +395,7 @@ const initSocket = (server) => {
       };
       socket.on('endCall',    handleEndCall);
       socket.on('call-ended', handleEndCall);
+      socket.on('end-call',   handleEndCall);
       socket.on('leaveCall',  handleEndCall);
 
       /** ICE candidate relay */
@@ -468,13 +481,15 @@ const initSocket = (server) => {
 };
 
 // ─── Background: update conversation last message — FIX BUG 2 ────────────────
-async function updateConversationLastMessage(senderId, receiverId, text, messageId) {
+async function updateConversationLastMessage(senderId, receiverId, text, messageId, conversationId = null) {
   try {
     const lastMessage = { text: text || 'Media shared', sender: senderId, createdAt: new Date() };
-    const existing = await Conversation.findOne({
-      participants: { $all: [senderId, receiverId] },
-      isGroup: false,
-    });
+    const existing = conversationId
+      ? await Conversation.findById(conversationId)
+      : await Conversation.findOne({
+          participants: { $all: [senderId, receiverId] },
+          isGroup: false,
+        });
     if (existing) {
       existing.lastMessage = lastMessage;
       if (!existing.unreadCount) existing.unreadCount = new Map();
