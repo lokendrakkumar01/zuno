@@ -1,6 +1,7 @@
 import { Suspense, lazy, startTransition, useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useSocketContext } from '../context/SocketContext';
 import { API_URL } from '../config';
 import { useMusic } from '../context/MusicContext';
 import UserAvatar from '../components/User/UserAvatar';
@@ -166,6 +167,7 @@ const applyProfileBundle = ({
 const Profile = () => {
       const { username } = useParams();
       const { user, token, loading: authLoading, isAuthenticated, updateProfile, uploadAvatar, logout, blockUser, unblockUser, updateFollowState } = useAuth();
+      const { socket } = useSocketContext();
       const navigate = useNavigate();
       const fileInputRef = useRef(null);
       const { playTrack, stopTrack, currentTrack, isPlaying: isMusicPlayingGlobal } = useMusic();
@@ -706,6 +708,34 @@ const Profile = () => {
             }
       }, [profileUser, user, isOwnProfile]);
 
+      useEffect(() => {
+            if (!socket || !profileUserId) return undefined;
+
+            const handleFollowState = (payload = {}) => {
+                  if (!sameEntityId(payload.targetUserId, profileUserId)) return;
+
+                  setProfileUser(prev => {
+                        if (!prev) return prev;
+                        const nextProfile = {
+                              ...prev,
+                              isFollowing: Boolean(payload.isFollowing),
+                              followersCount: payload.followersCount ?? prev.followersCount
+                        };
+                        writeCachedValue(profileCacheKey, nextProfile);
+                        return nextProfile;
+                  });
+
+                  if (sameEntityId(payload.actorUserId, user?._id || user?.id)) {
+                        setIsFollowing(Boolean(payload.isFollowing));
+                        setFollowRequested(Boolean(payload.isRequested));
+                        updateFollowState(profileUserId, Boolean(payload.isFollowing));
+                  }
+            };
+
+            socket.on('user:follow-state', handleFollowState);
+            return () => socket.off('user:follow-state', handleFollowState);
+      }, [profileCacheKey, profileUserId, socket, updateFollowState, user]);
+
       const handleFollow = async () => {
             if (!token || !profileUserId || !profileUser) return;
             if (isBlocked) {
@@ -713,9 +743,31 @@ const Profile = () => {
                   setTimeout(() => setMessage(''), 3000);
                   return;
             }
+
+            const endpoint = (isFollowing || followRequested) ? 'unfollow' : 'follow';
+            const previousProfile = profileUser;
+            const previousFollowing = isFollowing;
+            const previousRequested = followRequested;
+            const optimisticFollowing = endpoint === 'follow' && !profileUser.isPrivate;
+            const optimisticRequested = endpoint === 'follow' && Boolean(profileUser.isPrivate);
+            const optimisticDelta = endpoint === 'follow' && !profileUser.isPrivate ? 1 : previousFollowing ? -1 : 0;
+
             setFollowLoading(true);
+            setIsFollowing(optimisticFollowing);
+            setFollowRequested(optimisticRequested);
+            updateFollowState(profileUserId, optimisticFollowing);
+            setProfileUser(prev => {
+                  if (!prev) return prev;
+                  const nextProfile = {
+                        ...prev,
+                        isFollowing: optimisticFollowing,
+                        followersCount: Math.max(0, (prev.followersCount || 0) + optimisticDelta)
+                  };
+                  writeCachedValue(profileCacheKey, nextProfile);
+                  return nextProfile;
+            });
+
             try {
-                  const endpoint = (isFollowing || followRequested) ? 'unfollow' : 'follow';
                   const res = await fetchWithTimeout(`${API_URL}/users/${profileUserId}/${endpoint}`, {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${token}` }
@@ -728,17 +780,32 @@ const Profile = () => {
                         setIsFollowing(nextIsFollowing);
                         setFollowRequested(nextIsRequested);
                         updateFollowState(profileUserId, nextIsFollowing);
-                        setProfileUser(prev => ({
-                              ...prev,
-                              followersCount: data.data?.followersCount ?? prev.followersCount ?? 0
-                        }));
+                        setProfileUser(prev => {
+                              const nextProfile = {
+                                    ...prev,
+                                    isFollowing: nextIsFollowing,
+                                    followersCount: data.data?.followersCount ?? prev.followersCount ?? 0
+                              };
+                              writeCachedValue(profileCacheKey, nextProfile);
+                              return nextProfile;
+                        });
                         setMessage(data.message);
                         setTimeout(() => setMessage(''), 3000);
+                  } else {
+                        throw new Error(data.message || 'Follow update failed');
                   }
             } catch (error) {
                   console.error('Failed to toggle follow:', error);
+                  setIsFollowing(previousFollowing);
+                  setFollowRequested(previousRequested);
+                  updateFollowState(profileUserId, previousFollowing);
+                  setProfileUser(previousProfile);
+                  writeCachedValue(profileCacheKey, previousProfile);
+                  setMessage(error.message || 'Could not update follow status.');
+                  setTimeout(() => setMessage(''), 3000);
+            } finally {
+                  setFollowLoading(false);
             }
-            setFollowLoading(false);
       };
 
       const handleQuickSend = async (e) => {

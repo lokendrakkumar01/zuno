@@ -23,15 +23,20 @@ const styles = `
 .rq-list{min-height:0}
 .rq-row{display:flex;padding:4px 14px}
 .rq-row.mine{justify-content:flex-end}
-.rq-bubble{max-width:min(76%,620px);border-radius:18px;padding:9px 11px;background:var(--color-bg-secondary,#f1f5f9);color:var(--color-text-primary,#111827);box-shadow:0 1px 2px rgba(15,23,42,.05);position:relative;word-break:break-word}
+.rq-bubble{max-width:min(76%,620px);border-radius:18px;padding:9px 11px;background:var(--color-bg-secondary,#f1f5f9);color:var(--color-text-primary,#111827);box-shadow:0 1px 2px rgba(15,23,42,.05);position:relative;word-break:break-word;touch-action:manipulation}
 .rq-row.mine .rq-bubble{background:linear-gradient(135deg,#2563eb,#14b8a6);color:#fff}
 .rq-deleted{font-style:italic;opacity:.72}
 .rq-media{display:block;max-width:260px;max-height:320px;border-radius:14px;margin-bottom:7px;object-fit:cover;background:#0f172a}
 .rq-meta{display:flex;gap:6px;justify-content:flex-end;align-items:center;margin-top:4px;font-size:.68rem;opacity:.72}
-.rq-menu{position:absolute;right:8px;top:calc(100% + 6px);display:grid;gap:4px;z-index:6;min-width:170px;padding:6px;border-radius:14px;background:var(--color-bg-card,#fff);border:1px solid var(--color-border-light,#e5e7eb);box-shadow:0 18px 50px rgba(15,23,42,.18)}
-.rq-row.mine .rq-menu{color:var(--color-text-primary,#111827)}
-.rq-menu button{border:0;background:transparent;text-align:left;padding:9px 10px;border-radius:10px;cursor:pointer;color:inherit}
-.rq-menu button:hover{background:var(--color-bg-secondary,#f1f5f9)}
+.rq-menu{position:absolute;right:8px;top:calc(100% + 8px);display:grid;gap:5px;z-index:40;min-width:190px;padding:7px;border-radius:14px;background:#fff;color:#0f172a;border:1px solid rgba(148,163,184,.35);box-shadow:0 22px 60px rgba(2,6,23,.28)}
+.rq-row:not(.mine) .rq-menu{left:8px;right:auto}
+[data-theme="dark"] .rq-menu{background:#111827;color:#f8fafc;border-color:rgba(148,163,184,.25)}
+.rq-menu button{border:0;background:transparent;text-align:left;padding:10px 11px;border-radius:10px;cursor:pointer;color:inherit;font-weight:700;font-size:.88rem}
+.rq-menu button:hover{background:#eef2ff;color:#1d4ed8}
+[data-theme="dark"] .rq-menu button:hover{background:#1f2937;color:#93c5fd}
+.rq-menu button.rq-menu-danger{color:#dc2626}
+.rq-menu button.rq-menu-danger:hover{background:#fee2e2;color:#991b1b}
+.rq-menu button.rq-menu-quiet{color:#475569}
 .rq-typing{min-height:20px;padding:0 18px 4px;color:var(--color-text-secondary,#64748b);font-size:.82rem}
 .rq-composer{position:relative;display:flex;align-items:flex-end;gap:8px;padding:10px 12px;border-top:1px solid var(--color-border-light,#e5e7eb);background:var(--color-bg-primary,#fff)}
 .rq-composer textarea{flex:1;max-height:120px;resize:none;border:1px solid var(--color-border-light,#e5e7eb);border-radius:18px;padding:11px 13px;background:var(--color-bg-secondary,#f8fafc);color:var(--color-text-primary,#111827);outline:none}
@@ -53,6 +58,7 @@ const styles = `
   .rq-composer textarea{font-size:16px;min-height:40px;padding:10px 12px}
   .rq-send{width:40px;height:40px;flex:0 0 40px}
   .rq-bubble{max-width:84%}
+  .rq-menu{position:fixed;left:12px;right:12px;bottom:calc(74px + env(safe-area-inset-bottom));top:auto;min-width:0}
 }
 `;
 
@@ -114,6 +120,7 @@ export default function Chat() {
   const virtuosoRef = useRef(null);
   const fileRef = useRef(null);
   const typingTimerRef = useRef(null);
+  const longPressTimerRef = useRef(null);
 
   const [draft, setDraft] = useState('');
   const [mediaFile, setMediaFile] = useState(null);
@@ -196,6 +203,8 @@ export default function Chat() {
     if (!mediaPreview) return undefined;
     return () => URL.revokeObjectURL(mediaPreview.url);
   }, [mediaPreview]);
+
+  useEffect(() => () => window.clearTimeout(longPressTimerRef.current), []);
 
   useEffect(() => {
     if (!socket) return undefined;
@@ -411,6 +420,15 @@ export default function Chat() {
     link.remove();
   };
 
+  const startLongPress = (id) => {
+    window.clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = window.setTimeout(() => setMenuId(id), 420);
+  };
+
+  const cancelLongPress = () => {
+    window.clearTimeout(longPressTimerRef.current);
+  };
+
   return (
     <div className="rq-chat">
       <header className="rq-chat-head">
@@ -453,6 +471,12 @@ export default function Chat() {
                     className="rq-bubble"
                     onContextMenu={(event) => { event.preventDefault(); setMenuId(menuId === id ? null : id); }}
                     onDoubleClick={() => setMenuId(menuId === id ? null : id)}
+                    onPointerDown={(event) => {
+                      if (event.pointerType === 'touch') startLongPress(id);
+                    }}
+                    onPointerUp={cancelLongPress}
+                    onPointerCancel={cancelLongPress}
+                    onPointerLeave={cancelLongPress}
                   >
                     {message.deletedForEveryone ? (
                       <span className="rq-deleted">This message was deleted</span>
@@ -478,10 +502,10 @@ export default function Chat() {
                     </div>
                     {menuId === id && !message.deletedForEveryone ? (
                       <div className="rq-menu">
-                        {isEditable(message, currentUserId) ? <button type="button" onClick={() => beginEdit(message)}>Edit</button> : null}
-                        {mediaUrl ? <button type="button" onClick={() => { setMenuId(null); downloadMedia(message); }}>Download Media</button> : null}
-                        {mine ? <button type="button" onClick={() => { if (window.confirm('Delete this message for everyone?')) { setMenuId(null); deleteMutation.mutate({ id, mode: 'everyone' }); } }}>Delete for Everyone</button> : null}
-                        <button type="button" onClick={() => { if (window.confirm('Delete this message only for you?')) { setMenuId(null); deleteMutation.mutate({ id, mode: 'me' }); } }}>Delete for Me</button>
+                        {isEditable(message, currentUserId) ? <button type="button" onClick={() => beginEdit(message)}>Edit message</button> : null}
+                        {mediaUrl ? <button className="rq-menu-quiet" type="button" onClick={() => { setMenuId(null); downloadMedia(message); }}>Download media</button> : null}
+                        {mine ? <button className="rq-menu-danger" type="button" onClick={() => { if (window.confirm('Delete this message for everyone?')) { setMenuId(null); deleteMutation.mutate({ id, mode: 'everyone' }); } }}>Delete for everyone</button> : null}
+                        <button className="rq-menu-danger" type="button" onClick={() => { if (window.confirm('Delete this message only for you?')) { setMenuId(null); deleteMutation.mutate({ id, mode: 'me' }); } }}>Delete for me</button>
                       </div>
                     ) : null}
                   </div>

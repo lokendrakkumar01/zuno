@@ -130,6 +130,16 @@ const CallStyles = () => {
         background:rgba(99,102,241,.15); border:1px solid rgba(99,102,241,.3); border-radius:99px;
         padding:4px 12px; font-size:.75rem; color:#818cf8; font-weight:600;
       }
+      .call-header-action {
+        border:1px solid rgba(255,255,255,.1); background:rgba(255,255,255,.08); color:#e5e7eb;
+        border-radius:999px; min-width:34px; height:34px; padding:0 10px; cursor:pointer;
+        display:inline-grid; place-items:center; font-weight:800;
+      }
+      .call-quality-badge {
+        display:inline-flex; align-items:center; gap:5px; border-radius:999px; padding:4px 10px;
+        font-size:.72rem; font-weight:700; background:rgba(16,185,129,.14); color:#86efac;
+        border:1px solid rgba(16,185,129,.24);
+      }
       .call-video-area { flex:1; position:relative; overflow:hidden; background:#0a0a14; }
       .call-remote-video { width:100%; height:100%; object-fit:cover; }
       .call-local-pip {
@@ -200,13 +210,41 @@ const CallStyles = () => {
       }
       .call-toast-error { border-color:rgba(239,68,68,.4); background:#1e1020; }
       .call-toast-info  { border-color:rgba(99,102,241,.4); }
+      .call-mini-window {
+        position:fixed; right:18px; bottom:92px; z-index:999999;
+        width:min(320px, calc(100vw - 32px)); min-height:96px;
+        display:flex; align-items:center; gap:12px; padding:12px;
+        border-radius:18px; border:1px solid rgba(99,102,241,.32);
+        background:linear-gradient(145deg, rgba(17,24,39,.96), rgba(30,41,59,.96));
+        color:#f8fafc; box-shadow:0 18px 50px rgba(0,0,0,.38);
+        animation: callSlideUp .25s ease;
+      }
+      .call-mini-video {
+        width:76px; height:76px; border-radius:14px; overflow:hidden; background:#020617; flex:0 0 auto;
+      }
+      .call-mini-video video { width:100%; height:100%; object-fit:cover; }
+      .call-mini-title { font-weight:800; line-height:1.15; }
+      .call-mini-subtitle { color:#93c5fd; font-size:.82rem; margin-top:4px; }
+      .call-mini-actions { display:flex; gap:8px; margin-left:auto; }
+      .call-mini-actions button {
+        width:38px; height:38px; border-radius:999px; border:0; cursor:pointer;
+        background:rgba(255,255,255,.1); color:#fff; font-weight:800;
+      }
+      .call-mini-actions .danger { background:#ef4444; }
 
       @media(max-width:480px) {
         .call-modal-card { padding:32px 20px; border-radius:20px; }
-        .call-ctrl-btn { width:50px; height:50px; font-size:1.1rem; }
-        .call-ctrl-end { width:58px; height:58px; }
-        .call-local-pip { width:88px; height:118px; bottom:10px; right:10px; }
-        .call-controls { gap:12px; padding:18px 12px; }
+        .call-active-header { padding:14px 14px; gap:10px; }
+        .call-header-badge,.call-quality-badge { display:none; }
+        .call-ctrl-btn { width:52px; height:52px; font-size:1.05rem; }
+        .call-ctrl-end { width:62px; height:62px; grid-column:3; }
+        .call-local-pip { width:92px; height:120px; bottom:14px; right:12px; }
+        .call-controls {
+          display:grid; grid-template-columns:repeat(5, minmax(48px, 1fr));
+          justify-items:center; gap:10px; padding:16px 10px max(18px, env(safe-area-inset-bottom));
+        }
+        .call-ctrl-label { font-size:.5rem; }
+        .call-mini-window { left:12px; right:12px; bottom:86px; width:auto; }
       }
     `;
     document.head.appendChild(style);
@@ -322,6 +360,45 @@ const CallOverlay = () => {
 
   const timer = useCallTimer(callAccepted && !callEnded);
   const otherUser = caller;
+  const miniVideoRef = useRef(null);
+  const activeCallVisible = (isCalling || callAccepted) && !callEnded;
+  const [isMinimized, setIsMinimized] = useState(false);
+  const [networkQuality, setNetworkQuality] = useState('Good');
+
+  useEffect(() => {
+    if (!activeCallVisible) setIsMinimized(false);
+  }, [activeCallVisible]);
+
+  useEffect(() => {
+    const updateQuality = () => {
+      const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+      const effectiveType = connection?.effectiveType || '';
+      const downlink = Number(connection?.downlink || 0);
+      if (effectiveType.includes('2g') || (downlink && downlink < 0.8)) setNetworkQuality('Poor');
+      else if (effectiveType.includes('3g') || (downlink && downlink < 2)) setNetworkQuality('Fair');
+      else setNetworkQuality('Good');
+    };
+    updateQuality();
+    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    connection?.addEventListener?.('change', updateQuality);
+    return () => connection?.removeEventListener?.('change', updateQuality);
+  }, []);
+
+  useEffect(() => {
+    if (miniVideoRef.current && remoteStream) {
+      miniVideoRef.current.srcObject = remoteStream;
+      miniVideoRef.current.play().catch(() => {});
+    }
+  }, [remoteStream, isMinimized]);
+
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen();
+    } catch {
+      // Browser may block fullscreen. The call itself continues normally.
+    }
+  };
 
   // Ensure remote video binds safely against React remounts
   useEffect(() => {
@@ -434,7 +511,25 @@ const CallOverlay = () => {
       )}
 
       {/* ── Active Call Screen ── */}
-      {(isCalling || callAccepted) && !callEnded && (
+      {activeCallVisible && isMinimized && (
+        <div className="call-mini-window">
+          <div className="call-mini-video">
+            {remoteStream && callType === 'video'
+              ? <video ref={miniVideoRef} playsInline autoPlay />
+              : <CallAvatar user={otherUser} size={76} className="call-avatar-center-init" style={{ margin: 0, fontSize: '1.6rem' }} />}
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div className="call-mini-title">{otherUser?.displayName || otherUser?.username || 'Call'}</div>
+            <div className="call-mini-subtitle">{callAccepted ? timer : 'Connecting'} - {networkQuality}</div>
+          </div>
+          <div className="call-mini-actions">
+            <button type="button" onClick={() => setIsMinimized(false)} title="Open call">Open</button>
+            <button type="button" className="danger" onClick={() => leaveCall(true)} title="End call">End</button>
+          </div>
+        </div>
+      )}
+
+      {activeCallVisible && !isMinimized && (
         <div className="call-active-overlay">
           {/* Header */}
           <div className="call-active-header">
@@ -451,9 +546,12 @@ const CallOverlay = () => {
                   📺 Sharing
                 </span>
               )}
+              <span className="call-quality-badge">{networkQuality}</span>
               <span className="call-header-badge">
                 {callType === 'video' ? '📹 Video' : '📞 Voice'}
               </span>
+              <button type="button" className="call-header-action" onClick={toggleFullscreen} title="Full screen">[]</button>
+              <button type="button" className="call-header-action" onClick={() => setIsMinimized(true)} title="Minimize">_</button>
             </div>
           </div>
 
@@ -463,11 +561,11 @@ const CallOverlay = () => {
             <video
               playsInline ref={userVideo} autoPlay
               className="call-remote-video"
-              style={{ display: callAccepted && callType === 'video' && !isVideoOff ? 'block' : 'none' }}
+              style={{ display: callAccepted && callType === 'video' && remoteStream ? 'block' : 'none' }}
             />
 
             {/* Avatar shown when voice call or video off or not yet connected */}
-            {(!callAccepted || callType === 'voice' || isVideoOff) && (
+            {(!callAccepted || callType === 'voice' || !remoteStream) && (
               <div className="call-avatar-center">
                 <div style={{ position: 'relative', width: 120, height: 120, margin: '0 auto 20px' }}>
                   <div style={{ position: 'absolute', inset: 0, border: '2px solid rgba(99,102,241,.5)', borderRadius: '50%', animation: 'callRingWave 2s ease-out infinite' }} />
@@ -483,8 +581,8 @@ const CallOverlay = () => {
                     Ringing<span className="call-status-dot" style={{ background: '#6366f1' }} /><span className="call-status-dot" style={{ background: '#6366f1', animationDelay: '.16s' }} /><span className="call-status-dot" style={{ background: '#6366f1', animationDelay: '.32s' }} />
                   </div>
                 )}
-                {callAccepted && isVideoOff && (
-                  <div className="call-center-status">📵 Camera Paused</div>
+                {callAccepted && callType === 'video' && !remoteStream && (
+                  <div className="call-center-status">Waiting for remote video...</div>
                 )}
               </div>
             )}

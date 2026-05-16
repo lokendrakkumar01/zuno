@@ -461,7 +461,9 @@ const markNotUseful = async (req, res) => {
 // @access  Private
 const saveContent = async (req, res) => {
       try {
-            const content = await Content.findById(req.params.id);
+            const content = await Content.findById(req.params.id)
+                  .select('_id metrics.saveCount')
+                  .lean();
 
             if (!content) {
                   return res.status(404).json({
@@ -470,39 +472,56 @@ const saveContent = async (req, res) => {
                   });
             }
 
-            const existing = await Interaction.findOne({
+            const existing = await Interaction.findOneAndDelete({
                   user: req.user.id,
                   content: req.params.id,
                   type: 'save'
             });
 
             if (existing) {
-                  await Interaction.findByIdAndDelete(existing._id);
-                  content.metrics.saveCount = Math.max(0, content.metrics.saveCount - 1);
-                  await content.save();
+                  const updated = await Content.findByIdAndUpdate(
+                        req.params.id,
+                        { $inc: { 'metrics.saveCount': -1 } },
+                        { new: true }
+                  ).select('metrics.saveCount').lean();
+                  const saveCount = Math.max(0, updated?.metrics?.saveCount || 0);
+                  if ((updated?.metrics?.saveCount || 0) < 0) {
+                        await Content.updateOne({ _id: req.params.id }, { $set: { 'metrics.saveCount': 0 } });
+                  }
 
                   return res.json({
                         success: true,
                         message: 'Removed from saved items',
                         data: {
                               isSaved: false,
-                              saveCount: content.metrics.saveCount
+                              saveCount
                         }
                   });
             } else {
-                  await Interaction.create({
-                        user: req.user.id,
-                        content: req.params.id,
-                        type: 'save'
-                  });
-                  content.metrics.saveCount += 1;
-                  await content.save();
+                  let createdSave = true;
+                  try {
+                        await Interaction.create({
+                              user: req.user.id,
+                              content: req.params.id,
+                              type: 'save'
+                        });
+                  } catch (error) {
+                        if (error?.code !== 11000) throw error;
+                        createdSave = false;
+                  }
+                  const updated = createdSave
+                        ? await Content.findByIdAndUpdate(
+                              req.params.id,
+                              { $inc: { 'metrics.saveCount': 1 } },
+                              { new: true }
+                        ).select('metrics.saveCount').lean()
+                        : await Content.findById(req.params.id).select('metrics.saveCount').lean();
 
                   res.json({
                         success: true,
                         data: {
                               isSaved: true,
-                              saveCount: content.metrics.saveCount
+                              saveCount: Math.max(0, updated?.metrics?.saveCount || 0)
                         },
                         message: 'Saved for later 📌'
                   });

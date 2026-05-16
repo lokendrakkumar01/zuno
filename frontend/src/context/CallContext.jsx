@@ -24,7 +24,7 @@ const supportsScreenShare = () => {
 
 const CallContext = createContext();
 const ACTIVE_CALL_SESSION_KEY = 'zuno_active_call_session_v1';
-const ACTIVE_CALL_MAX_RESUME_AGE_MS = 20000;
+const ACTIVE_CALL_MAX_RESUME_AGE_MS = 120000;
 
 const readPersistedCallSession = () => {
       try {
@@ -446,13 +446,13 @@ export const CallProvider = ({ children }) => {
 
             // Video call — try with camera first
             const videoConstraints = isAndroid()
-                  ? { facingMode: 'user' }  // Mobile: simpler constraints avoid rejections
-                  : { facingMode: { ideal: facingMode }, width: { ideal: 1280, max: 1920 }, height: { ideal: 720, max: 1080 } };
+                  ? { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24, max: 30 } }
+                  : { facingMode: { ideal: facingMode }, width: { ideal: 960, max: 1280 }, height: { ideal: 540, max: 720 }, frameRate: { ideal: 24, max: 30 } };
 
             try {
                   return await navigator.mediaDevices.getUserMedia({
                         video: videoConstraints,
-                        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: 44100 },
+                        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: 48000, channelCount: 1 },
                   });
             } catch (videoErr) {
                   // FIX BUG 3: Camera unavailable (in use / permission denied) → fall back to audio

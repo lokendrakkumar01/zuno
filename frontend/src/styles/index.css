@@ -4339,6 +4339,165 @@ video.chat-media-content {
   box-shadow: var(--shadow-sm);
 }
 
+/* Production feed overrides: keep virtualized posts readable on wide screens
+   and prevent portrait media from being cropped into giant desktop cards. */
+.home-windowed-list,
+.home-windowed-item {
+  width: min(100%, 720px);
+  margin-inline: auto;
+}
+
+.home-windowed-item {
+  padding-inline: clamp(0px, 2vw, 12px);
+}
+
+.home-windowed-item .standard-card,
+.home-windowed-item .content-card {
+  width: 100%;
+  max-width: 720px;
+  margin-inline: auto;
+  overflow: hidden;
+  border-radius: 14px;
+}
+
+[data-theme="dark"] .home-windowed-item .standard-card {
+  background: var(--color-bg-card);
+}
+
+.home-windowed-item .content-card-header,
+.home-windowed-item .content-card-body,
+.home-windowed-item .content-card-footer {
+  padding-inline: clamp(0.9rem, 2.5vw, 1.15rem);
+}
+
+.home-windowed-item .content-card-media-link {
+  display: block;
+  color: inherit;
+}
+
+.home-windowed-item .content-card-media {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 4 / 3;
+  max-height: min(66vh, 520px);
+  min-height: 220px;
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.05), rgba(148, 163, 184, 0.14)),
+    var(--color-bg-tertiary);
+}
+
+.home-windowed-item .content-card-media img,
+.home-windowed-item .content-card-media video {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  min-height: 0;
+  object-fit: contain;
+  background: var(--color-bg-tertiary);
+  transform: none !important;
+}
+
+.home-windowed-item .content-card-purpose-chip {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  max-width: calc(100% - 24px);
+  min-height: 28px;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.78);
+  color: #fff;
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1;
+  text-transform: capitalize;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.22);
+  backdrop-filter: blur(10px);
+}
+
+.home-windowed-item .content-card-title {
+  margin-bottom: 0.35rem;
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.home-windowed-item .content-card-text {
+  font-size: 0.94rem;
+  line-height: 1.55;
+}
+
+.home-windowed-item .content-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.home-windowed-item .interaction-btn,
+.home-windowed-item .interaction-link {
+  min-height: 38px;
+  border-radius: 999px;
+  color: var(--color-text-secondary);
+  background: transparent;
+}
+
+.home-windowed-item .interaction-btn.active {
+  color: var(--color-accent-primary);
+  background: rgba(0, 149, 246, 0.08);
+}
+
+.home-windowed-item .content-inline-status {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--color-accent-success);
+  font-size: 0.82rem;
+  font-weight: 700;
+  margin-top: 0.45rem;
+}
+
+@media (min-width: 1024px) {
+  .home-page .section > .container {
+    max-width: 960px;
+  }
+}
+
+@media (max-width: 640px) {
+  .home-windowed-list,
+  .home-windowed-item {
+    width: 100%;
+  }
+
+  .home-windowed-item {
+    padding-inline: 0;
+    padding-bottom: 0.75rem !important;
+  }
+
+  .home-windowed-item .standard-card,
+  .home-windowed-item .content-card {
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+  }
+
+  .home-windowed-item .content-card-media {
+    aspect-ratio: 1 / 1;
+    min-height: 260px;
+    max-height: 70vh;
+  }
+
+  .home-feed-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
 /* ========================================
    Landing Page
    ======================================== */
@@ -6799,4 +6958,56 @@ video.chat-media-content {
     transparent
   );
   animation: route-suspense-shimmer 0.9s ease-in-out infinite;
+}
+
+/* Final feed sizing guard. Keep after legacy styles. */
+.home-windowed-list,
+.home-windowed-item {
+  width: min(100%, 720px);
+  margin-inline: auto;
+}
+
+.home-windowed-item .standard-card,
+.home-windowed-item .content-card {
+  width: 100%;
+  max-width: 720px;
+  margin-inline: auto;
+  overflow: hidden;
+}
+
+.home-windowed-item .content-card-media {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 4 / 3;
+  max-height: min(66vh, 520px);
+  min-height: 220px;
+}
+
+.home-windowed-item .content-card-media img,
+.home-windowed-item .content-card-media video {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  min-height: 0;
+  object-fit: contain;
+  transform: none !important;
+}
+
+.home-windowed-item .content-card-purpose-chip {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 2;
+}
+
+@media (max-width: 640px) {
+  .home-windowed-list,
+  .home-windowed-item {
+    width: 100%;
+  }
+
+  .home-windowed-item .content-card-media {
+    aspect-ratio: 1 / 1;
+    max-height: 70vh;
+  }
 }

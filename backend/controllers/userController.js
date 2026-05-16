@@ -63,6 +63,19 @@ const normalizeId = (value) => {
       return String(value);
 };
 
+const sameId = (left, right) => normalizeId(left) === normalizeId(right);
+
+const emitFollowState = (recipientId, payload) => {
+      try {
+            const { emitToUser } = require('../socket/index');
+            if (typeof emitToUser === 'function') {
+                  emitToUser(recipientId, 'user:follow-state', payload);
+            }
+      } catch {
+            // Socket may not be initialized in tests or worker contexts.
+      }
+};
+
 const buildCursorFilter = (cursor) => {
       if (!cursor?._id || !cursor?.createdAt) return null;
 
@@ -684,16 +697,16 @@ const followUser = async (req, res) => {
                   return res.status(404).json({ success: false, message: "User not found" });
             }
 
-            if (currentUser.following.includes(req.params.id)) {
+            if (currentUser.following.some((id) => sameId(id, req.params.id))) {
                   return res.status(400).json({ success: false, message: "You already follow this user" });
             }
 
-            if (userToFollow.followRequests.includes(req.user.id)) {
+            if (userToFollow.followRequests.some((id) => sameId(id, req.user.id))) {
                   return res.status(400).json({ success: false, message: "Follow request already sent" });
             }
 
             if (userToFollow.isPrivate) {
-                  await userToFollow.updateOne({ $push: { followRequests: req.user.id } });
+                  await userToFollow.updateOne({ $addToSet: { followRequests: req.user.id } });
 
                   await createNotification({
                         recipientId: req.params.id,
@@ -708,21 +721,27 @@ const followUser = async (req, res) => {
                         }
                   });
 
+                  const payload = {
+                        targetUserId: normalizeId(req.params.id),
+                        actorUserId: normalizeId(req.user.id),
+                        isFollowing: false,
+                        isRequested: true,
+                        followersCount: userToFollow.followers.length,
+                        followingCount: currentUser.following.length
+                  };
+                  emitFollowState(req.user.id, payload);
+                  emitFollowState(req.params.id, payload);
+
                   return res.json({
                         success: true,
                         message: "Follow request sent",
                         status: "requested",
-                        data: {
-                              isFollowing: false,
-                              isRequested: true,
-                              followersCount: userToFollow.followers.length,
-                              followingCount: currentUser.following.length
-                        }
+                        data: payload
                   });
             } else {
                   await Promise.all([
-                        currentUser.updateOne({ $push: { following: req.params.id } }),
-                        userToFollow.updateOne({ $push: { followers: req.user.id } })
+                        currentUser.updateOne({ $addToSet: { following: req.params.id } }),
+                        userToFollow.updateOne({ $addToSet: { followers: req.user.id } })
                   ]);
 
                   await createNotification({
@@ -738,16 +757,22 @@ const followUser = async (req, res) => {
                         }
                   });
 
+                  const payload = {
+                        targetUserId: normalizeId(req.params.id),
+                        actorUserId: normalizeId(req.user.id),
+                        isFollowing: true,
+                        isRequested: false,
+                        followersCount: userToFollow.followers.length + 1,
+                        followingCount: currentUser.following.length + 1
+                  };
+                  emitFollowState(req.user.id, payload);
+                  emitFollowState(req.params.id, payload);
+
                   return res.json({
                         success: true,
                         message: "User followed",
                         status: "following",
-                        data: {
-                              isFollowing: true,
-                              isRequested: false,
-                              followersCount: userToFollow.followers.length + 1,
-                              followingCount: currentUser.following.length + 1
-                        }
+                        data: payload
                   });
             }
       } catch (error) {
@@ -772,7 +797,7 @@ const unfollowUser = async (req, res) => {
                   return res.status(404).json({ success: false, message: "User not found" });
             }
 
-            if (currentUser.following.includes(req.params.id)) {
+            if (currentUser.following.some((id) => sameId(id, req.params.id))) {
                   await Promise.all([
                         currentUser.updateOne({ $pull: { following: req.params.id } }),
                         userToUnfollow.updateOne({ $pull: { followers: req.user.id } })
@@ -791,17 +816,23 @@ const unfollowUser = async (req, res) => {
                         }
                   });
 
+                  const payload = {
+                        targetUserId: normalizeId(req.params.id),
+                        actorUserId: normalizeId(req.user.id),
+                        isFollowing: false,
+                        isRequested: false,
+                        followersCount: Math.max(0, userToUnfollow.followers.length - 1),
+                        followingCount: Math.max(0, currentUser.following.length - 1)
+                  };
+                  emitFollowState(req.user.id, payload);
+                  emitFollowState(req.params.id, payload);
+
                   res.json({
                         success: true,
                         message: "User unfollowed",
-                        data: {
-                              isFollowing: false,
-                              isRequested: false,
-                              followersCount: Math.max(0, userToUnfollow.followers.length - 1),
-                              followingCount: Math.max(0, currentUser.following.length - 1)
-                        }
+                        data: payload
                   });
-            } else if (userToUnfollow.followRequests.includes(req.user.id)) {
+            } else if (userToUnfollow.followRequests.some((id) => sameId(id, req.user.id))) {
                   // Check if there was a pending request and remove it
                   await userToUnfollow.updateOne({ $pull: { followRequests: req.user.id } });
 
@@ -818,15 +849,21 @@ const unfollowUser = async (req, res) => {
                         }
                   });
 
+                  const payload = {
+                        targetUserId: normalizeId(req.params.id),
+                        actorUserId: normalizeId(req.user.id),
+                        isFollowing: false,
+                        isRequested: false,
+                        followersCount: userToUnfollow.followers.length,
+                        followingCount: currentUser.following.length
+                  };
+                  emitFollowState(req.user.id, payload);
+                  emitFollowState(req.params.id, payload);
+
                   res.json({
                         success: true,
                         message: "Follow request cancelled",
-                        data: {
-                              isFollowing: false,
-                              isRequested: false,
-                              followersCount: userToUnfollow.followers.length,
-                              followingCount: currentUser.following.length
-                        }
+                        data: payload
                   });
             } else {
                   res.status(400).json({ success: false, message: "You do not follow this user" });

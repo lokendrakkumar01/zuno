@@ -82,6 +82,21 @@ const ContentCard = ({ content, onSaveChange }) => {
             ));
       };
 
+      const patchCachedContent = (updater) => {
+            queryClient.setQueriesData({ queryKey: ['feed'] }, (old) => {
+                  if (!old?.pages) return old;
+                  return {
+                        ...old,
+                        pages: old.pages.map((page) => ({
+                              ...page,
+                              contents: (page.contents || []).map((item) => (
+                                    item?._id === contentState._id ? normalizeContentState(updater(normalizeContentState(item))) : item
+                              ))
+                        }))
+                  };
+            });
+      };
+
       const handleHelpful = async (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -116,18 +131,37 @@ const ContentCard = ({ content, onSaveChange }) => {
             e.stopPropagation();
             if (!token) return;
 
+            const previousState = contentState;
+            const optimisticSaved = !isSaved;
+            const optimisticSaveCount = Math.max(0, (contentState.metrics.saveCount || 0) + (optimisticSaved ? 1 : -1));
+            const optimisticUpdater = (prev) => ({
+                  ...prev,
+                  viewerState: {
+                        ...prev.viewerState,
+                        isSaved: optimisticSaved
+                  },
+                  metrics: {
+                        ...prev.metrics,
+                        saveCount: optimisticSaveCount
+                  }
+            });
+
+            updateContentState(optimisticUpdater);
+            patchCachedContent(optimisticUpdater);
+            onSaveChange?.(contentState._id, optimisticSaved);
+
             try {
                   const res = await fetch(`${API_URL}/content/${contentState._id}/save`, {
                         method: 'POST',
                         headers: { Authorization: `Bearer ${token}` }
                   });
                   const data = await res.json();
-                  if (!data.success) return;
+                  if (!data.success) throw new Error(data.message || 'Save failed');
 
-                  const nextSaved = data.data?.isSaved ?? !contentState.viewerState.isSaved;
-                  const nextSaveCount = data.data?.saveCount ?? contentState.metrics.saveCount;
+                  const nextSaved = data.data?.isSaved ?? optimisticSaved;
+                  const nextSaveCount = data.data?.saveCount ?? optimisticSaveCount;
 
-                  updateContentState((prev) => ({
+                  const serverUpdater = (prev) => ({
                         ...prev,
                         viewerState: {
                               ...prev.viewerState,
@@ -137,11 +171,18 @@ const ContentCard = ({ content, onSaveChange }) => {
                               ...prev.metrics,
                               saveCount: nextSaveCount
                         }
-                  }));
+                  });
 
+                  updateContentState(serverUpdater);
+                  patchCachedContent(serverUpdater);
                   onSaveChange?.(contentState._id, nextSaved);
             } catch (error) {
                   console.error('Failed to save content:', error);
+                  setContentState(previousState);
+                  patchCachedContent(() => previousState);
+                  onSaveChange?.(contentState._id, previousState.viewerState?.isSaved);
+                  setStatusMessage('Could not update saved post');
+                  window.setTimeout(() => setStatusMessage(''), 2200);
             }
       };
 
