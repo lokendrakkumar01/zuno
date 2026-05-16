@@ -12,6 +12,21 @@ router.use(protect);
 
 const toId = (value) => value?.toString?.() || String(value || '');
 const cleanText = (value) => String(value || '').trim().replace(/\s+/g, ' ').slice(0, 2000);
+const mediaFromBody = (body = {}, file = null) => {
+  const rawUrl = body.mediaUrl || body.media?.url || (file ? file.path : '');
+  const mediaType = body.mediaType || body.media?.type || (file?.mimetype?.startsWith('video/') ? 'video' : file ? 'image' : '');
+  const url = String(rawUrl || '').trim();
+  return {
+    mediaUrl: url,
+    media: {
+      url,
+      type: ['image', 'video', 'audio', 'file'].includes(mediaType) ? mediaType : '',
+      name: body.mediaName || file?.originalname || '',
+      size: Number(body.mediaSize || file?.size || 0),
+      duration: Number(body.mediaDuration || 0)
+    }
+  };
+};
 
 const messageView = (message) => ({
   _id: toId(message._id),
@@ -20,16 +35,24 @@ const messageView = (message) => ({
   conversationId: toId(message.conversationId || message.roomId || ''),
   sender: message.sender,
   receiver: message.receiver,
-  text: message.text,
-  media: message.media,
+  content: message.content || message.text || '',
+  text: message.text || message.content || '',
+  mediaUrl: message.mediaUrl || message.media?.url || '',
+  media: message.media?.url || message.mediaUrl
+    ? { ...(message.media || {}), url: message.media?.url || message.mediaUrl }
+    : (message.media || { url: '', type: '' }),
   status: message.status,
   read: message.read,
+  readBy: message.readBy || [],
   deliveredAt: message.deliveredAt,
   readAt: message.readAt,
   replyTo: message.replyTo || null,
   reactions: message.reactions || [],
   deletedForEveryone: Boolean(message.deletedForEveryone),
-  deletedBy: message.deletedBy || [],
+  deletedFor: message.deletedFor || message.deletedBy || [],
+  deletedBy: message.deletedBy || message.deletedFor || [],
+  edited: Boolean(message.edited),
+  editedAt: message.editedAt || null,
   clientMsgId: message.clientMsgId,
   createdAt: message.createdAt,
   updatedAt: message.updatedAt
@@ -56,6 +79,47 @@ const getDirectConversation = async (userA, userB, { create = true } = {}) => {
     unreadCount: new Map()
   });
   return conversation;
+};
+
+const populateMessage = (id) => Message.findById(id)
+  .populate('sender', 'username displayName avatar')
+  .populate('receiver', 'username displayName avatar')
+  .lean();
+
+const conversationRecipients = (conversation, senderId, fallbackReceiverId) => {
+  const sender = toId(senderId);
+  const participants = (conversation?.participants || []).map(toId).filter(Boolean);
+  const recipients = participants.filter((id) => id !== sender);
+  if (recipients.length > 0) return recipients;
+  return fallbackReceiverId ? [toId(fallbackReceiverId)] : [];
+};
+
+const emitMessageToParticipants = (conversation, senderId, event, payload) => {
+  const participants = new Set([
+    toId(senderId),
+    toId(payload?.receiver?._id || payload?.receiver),
+    ...(conversation?.participants || []).map(toId)
+  ].filter(Boolean));
+  participants.forEach((participantId) => emitToUser(participantId, event, payload));
+};
+
+const updateLastMessage = async ({ conversation, message, senderId, preview, mediaUrl }) => {
+  const inc = conversationRecipients(conversation, senderId, message.receiver)
+    .reduce((acc, recipientId) => ({ ...acc, [`unreadCount.${recipientId}`]: 1 }), {});
+
+  await Conversation.findByIdAndUpdate(conversation._id, {
+    $set: {
+      lastMessage: {
+        content: preview,
+        text: preview,
+        mediaUrl: mediaUrl || '',
+        sender: senderId,
+        createdAt: message.createdAt
+      },
+      updatedAt: new Date()
+    },
+    ...(Object.keys(inc).length ? { $inc: inc } : {})
+  });
 };
 
 const getConversationForParam = async (currentUserId, paramId) => {
@@ -139,19 +203,169 @@ router.get('/unread/count', async (req, res) => {
   }
 });
 
+router.post('/', uploadMultiple.single('media'), async (req, res) => {
+  try {
+    const content = cleanText(req.body.content || req.body.text);
+    const receiverId = req.body.receiver || req.body.receiverId;
+    const providedConversationId = req.body.conversationId;
+    const { media, mediaUrl } = mediaFromBody(req.body, req.file);
+
+    if (!content && !mediaUrl) {
+      return res.status(400).json({ success: false, message: 'Message content or media is required' });
+    }
+
+    let conversation;
+    if (providedConversationId && mongoose.isValidObjectId(providedConversationId)) {
+      conversation = await Conversation.findOne({ _id: providedConversationId, participants: req.user._id });
+      if (!conversation && receiverId && mongoose.isValidObjectId(receiverId)) {
+        conversation = await getDirectConversation(req.user._id, receiverId);
+      }
+      if (!conversation) return res.status(404).json({ success: false, message: 'Conversation not found' });
+    } else if (receiverId && mongoose.isValidObjectId(receiverId)) {
+      conversation = await getDirectConversation(req.user._id, receiverId);
+    } else {
+      return res.status(400).json({ success: false, message: 'conversationId or receiver is required' });
+    }
+
+    const finalReceiverId = receiverId || conversationRecipients(conversation, req.user._id)[0] || null;
+    const message = await Message.create({
+      conversationId: conversation._id,
+      sender: req.user._id,
+      receiver: finalReceiverId,
+      clientMsgId: cleanText(req.body.clientMsgId).slice(0, 80) || undefined,
+      content,
+      text: content,
+      media,
+      mediaUrl,
+      type: media.type || 'text',
+      readBy: [req.user._id],
+      status: 'sent'
+    });
+
+    const preview = content || (media.type ? `${media.type[0].toUpperCase()}${media.type.slice(1)} attachment` : 'Media shared');
+    await updateLastMessage({ conversation, message, senderId: req.user._id, preview, mediaUrl });
+
+    const populated = await populateMessage(message._id);
+    const payload = messageView(populated);
+
+    emitMessageToParticipants(conversation, req.user._id, 'newMessage', payload);
+    emitMessageToParticipants(conversation, req.user._id, 'new_message', payload);
+
+    conversationRecipients(conversation, req.user._id, finalReceiverId).forEach((recipientId) => {
+      createNotification({
+        recipientId,
+        actor: req.user._id,
+        type: 'message',
+        title: 'New message',
+        body: content || 'Sent you a message',
+        entityType: 'message',
+        entityId: message._id,
+        metadata: { conversationId: conversation._id, senderId: req.user._id }
+      }).catch((error) => console.warn('[Messages] Notification failed:', error.message));
+    });
+
+    return res.status(201).json({ success: true, message: payload, data: { message: payload } });
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({ success: false, message: 'Duplicate client message id' });
+    }
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.patch('/:id/edit', async (req, res) => {
+  try {
+    const content = cleanText(req.body.content || req.body.text);
+    if (!content) return res.status(400).json({ success: false, message: 'Message content is required' });
+
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const message = await Message.findOne({
+      _id: req.params.id,
+      sender: req.user._id,
+      createdAt: { $gte: oneHourAgo },
+      deletedForEveryone: { $ne: true }
+    });
+
+    if (!message) {
+      return res.status(403).json({ success: false, message: 'Message cannot be edited after 1 hour or by another user' });
+    }
+
+    message.content = content;
+    message.text = content;
+    message.edited = true;
+    message.editedAt = new Date();
+    await message.save();
+
+    const conversation = await Conversation.findById(message.conversationId).lean();
+    const payload = messageView(await populateMessage(message._id));
+    emitMessageToParticipants(conversation, req.user._id, 'messageEdited', payload);
+    emitMessageToParticipants(conversation, req.user._id, 'message_edited', payload);
+
+    return res.json({ success: true, message: payload, data: { message: payload } });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.delete('/:id/delete-for-everyone', async (req, res) => {
+  try {
+    const message = await Message.findOneAndUpdate(
+      { _id: req.params.id, sender: req.user._id },
+      {
+        $set: {
+          deletedForEveryone: true,
+          content: '',
+          text: '',
+          mediaUrl: '',
+          media: { url: '', type: '' }
+        }
+      },
+      { new: true }
+    );
+    if (!message) return res.status(404).json({ success: false, message: 'Message not found or not yours' });
+
+    const conversation = await Conversation.findById(message.conversationId).lean();
+    const payload = { messageId: toId(message._id), type: 'everyone', conversationId: toId(message.conversationId) };
+    emitMessageToParticipants(conversation, req.user._id, 'messageDeletedForEveryone', payload);
+    emitMessageToParticipants(conversation, req.user._id, 'message_deleted', payload);
+    return res.json({ success: true, data: payload });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.delete('/:id/delete-for-me', async (req, res) => {
+  try {
+    const message = await Message.findByIdAndUpdate(
+      req.params.id,
+      { $addToSet: { deletedFor: req.user._id, deletedBy: req.user._id } },
+      { new: true }
+    );
+    if (!message) return res.status(404).json({ success: false, message: 'Message not found' });
+    const payload = { messageId: toId(message._id), type: 'me', conversationId: toId(message.conversationId), deletedBy: toId(req.user._id) };
+    emitToUser(req.user._id, 'message_deleted', payload);
+    return res.json({ success: true, data: payload });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 router.get('/:userId', async (req, res) => {
   try {
     const limit = Math.min(Number(req.query.limit) || 30, 30);
     const before = req.query.before || req.query.beforeId;
+    const pageNumber = Math.max(Number(req.query.page) || 1, 1);
     const { conversation, otherUserId } = await getConversationForParam(req.user._id, req.params.userId);
     const query = {
       conversationId: conversation._id,
-      deletedBy: { $ne: req.user._id }
+      deletedBy: { $ne: req.user._id },
+      deletedFor: { $ne: req.user._id }
     };
     if (before && mongoose.isValidObjectId(before)) query._id = { $lt: before };
 
     const messages = await Message.find(query)
       .sort({ _id: -1 })
+      .skip(before ? 0 : (pageNumber - 1) * limit)
       .limit(limit + 1)
       .populate('sender', 'username displayName avatar')
       .populate('receiver', 'username displayName avatar')
@@ -188,7 +402,7 @@ router.get('/:userId', async (req, res) => {
     await Promise.all([
       Message.updateMany(
         { conversationId: conversation._id, receiver: req.user._id, read: false },
-        { $set: { read: true, status: 'read', readAt: new Date() } }
+        { $set: { read: true, status: 'read', readAt: new Date() }, $addToSet: { readBy: req.user._id } }
       ),
       Conversation.findByIdAndUpdate(conversation._id, { $set: { [`unreadCount.${toId(req.user._id)}`]: 0 } })
     ]);
@@ -205,18 +419,18 @@ router.post('/:userId', uploadMultiple.single('media'), async (req, res) => {
     if (!text && !req.file) return res.status(400).json({ success: false, message: 'Message text or media is required' });
 
     const conversation = await getDirectConversation(req.user._id, req.params.userId);
-    const media = req.file ? {
-      url: req.file.path,
-      type: req.file.mimetype.startsWith('video/') ? 'video' : 'image'
-    } : { url: '', type: '' };
+    const { media, mediaUrl } = mediaFromBody(req.body, req.file);
 
     const message = await Message.create({
       conversationId: conversation._id,
       sender: req.user._id,
       receiver: req.params.userId,
-      clientMsgId: cleanText(req.body.clientMsgId).slice(0, 80),
+      clientMsgId: cleanText(req.body.clientMsgId).slice(0, 80) || undefined,
+      content: text,
       text,
       media,
+      mediaUrl,
+      readBy: [req.user._id],
       status: 'sent'
     });
 
@@ -224,6 +438,8 @@ router.post('/:userId', uploadMultiple.single('media'), async (req, res) => {
       $set: {
         lastMessage: {
           text: text || (media.type ? `${media.type[0].toUpperCase()}${media.type.slice(1)} attachment` : 'Media shared'),
+          content: text || (media.type ? `${media.type[0].toUpperCase()}${media.type.slice(1)} attachment` : 'Media shared'),
+          mediaUrl,
           sender: req.user._id,
           createdAt: message.createdAt
         },
@@ -269,8 +485,13 @@ router.put('/edit/:messageId', async (req, res) => {
     if (!text) return res.status(400).json({ success: false, message: 'Message text is required' });
 
     const message = await Message.findOneAndUpdate(
-      { _id: req.params.messageId, sender: req.user._id, deletedForEveryone: { $ne: true } },
-      { text, edited: true, editedAt: new Date() },
+      {
+        _id: req.params.messageId,
+        sender: req.user._id,
+        createdAt: { $gte: new Date(Date.now() - 60 * 60 * 1000) },
+        deletedForEveryone: { $ne: true }
+      },
+      { content: text, text, edited: true, editedAt: new Date() },
       { new: true }
     )
       .populate('sender', 'username displayName avatar')
@@ -311,7 +532,7 @@ router.put('/:userId/read', async (req, res) => {
     const conversation = await getDirectConversation(req.user._id, req.params.userId);
     await Message.updateMany(
       { conversationId: conversation._id, receiver: req.user._id, read: false },
-      { read: true, status: 'read', readAt: new Date() }
+      { $set: { read: true, status: 'read', readAt: new Date() }, $addToSet: { readBy: req.user._id } }
     );
     await Conversation.findByIdAndUpdate(conversation._id, { $set: { [`unreadCount.${toId(req.user._id)}`]: 0 } });
     emitToUser(req.params.userId, 'messageRead', { readerId: toId(req.user._id), receiverId: toId(req.user._id) });
@@ -357,8 +578,8 @@ router.delete('/delete/:messageId', async (req, res) => {
   try {
     const type = req.query.type === 'everyone' ? 'everyone' : 'me';
     const update = type === 'everyone'
-      ? { deletedForEveryone: true, text: '', media: { url: '', type: '' } }
-      : { $addToSet: { deletedBy: req.user._id } };
+      ? { deletedForEveryone: true, content: '', text: '', mediaUrl: '', media: { url: '', type: '' } }
+      : { $addToSet: { deletedFor: req.user._id, deletedBy: req.user._id } };
 
     const message = await Message.findByIdAndUpdate(req.params.messageId, update, { new: true });
     if (!message) return res.status(404).json({ success: false, message: 'Message not found' });

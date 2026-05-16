@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-toastify';
 import { API_URL } from '../../config';
+import { useQueryClient } from '@tanstack/react-query';
 
 const Notifications = () => {
       const navigate = useNavigate();
       const { user, token, updateProfile } = useAuth();
+      const queryClient = useQueryClient();
       const [settings, setSettings] = useState({
             inApp: true,
             pushNotifications: true,
@@ -49,6 +51,8 @@ const Notifications = () => {
                   const patchResult = await res.json().catch(() => null);
 
                   if (result.success && res.ok && patchResult?.success) {
+                        queryClient.setQueryData(['me'], (previous) => previous ? { ...previous, notificationSettings: settings } : previous);
+                        queryClient.setQueryData(['notificationSettings'], patchResult.data?.notificationSettings || settings);
                         if (settings.pushNotifications && 'Notification' in window && Notification.permission === 'default') {
                               Notification.requestPermission().catch(() => {});
                         }

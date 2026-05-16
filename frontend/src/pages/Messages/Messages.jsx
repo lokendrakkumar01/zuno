@@ -119,7 +119,7 @@ const Messages = () => {
                   return data.data?.conversations || data.conversations || [];
             },
             initialData: conversations,
-            staleTime: 20_000
+            staleTime: 60_000
       });
 
       useEffect(() => {

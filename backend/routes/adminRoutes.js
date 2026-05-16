@@ -16,7 +16,15 @@ const {
       getConfigs,
       updateConfig,
       initializeConfigs,
-      sendBroadcast
+      sendBroadcast,
+      getStories,
+      deleteStory,
+      getBroadcastChannels,
+      createBroadcastChannel,
+      scheduleBroadcastMessage,
+      getLiveStreams,
+      terminateLiveStream,
+      getAnalytics
 } = require('../controllers/adminController');
 const { protect, adminOnly, moderatorAccess } = require('../middleware/auth');
 
@@ -36,11 +44,19 @@ router.get('/config', adminOnly, getConfigs);
 router.put('/config/:key', adminOnly, updateConfig);
 router.post('/config/init', adminOnly, initializeConfigs);
 router.post('/broadcast', adminOnly, sendBroadcast);
+router.get('/analytics', adminOnly, getAnalytics);
+router.get('/channels', adminOnly, getBroadcastChannels);
+router.post('/channels', adminOnly, createBroadcastChannel);
+router.post('/channels/:id/schedule', adminOnly, scheduleBroadcastMessage);
+router.get('/live-streams', adminOnly, getLiveStreams);
+router.post('/live-streams/:id/terminate', adminOnly, terminateLiveStream);
 
 // Moderator+ routes
 router.get('/content', moderatorAccess, getAllContent);
 router.put('/content/:id', moderatorAccess, moderateContent);
 router.get('/reports', moderatorAccess, getReports);
 router.put('/reports/:id', moderatorAccess, handleReportAction);
+router.get('/stories', moderatorAccess, getStories);
+router.delete('/stories/:id', moderatorAccess, deleteStory);
 
 module.exports = router;

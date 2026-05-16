@@ -571,12 +571,261 @@ function BroadcastManagement({ token, notify }) {
       );
 }
 
+function StoriesManagement({ token, notify }) {
+      const [stories, setStories] = useState([]);
+      const [loading, setLoading] = useState(true);
+
+      const fetchStories = useCallback(async () => {
+            setLoading(true);
+            try {
+                  const res = await fetch(`${API_URL}/admin/stories?limit=50`, { headers: { Authorization: `Bearer ${token}` } });
+                  const { ok, data } = await readAdminResponse(res);
+                  if (ok) setStories(data.data?.stories || []);
+                  else notify(data.message || 'Could not load stories');
+            } catch {
+                  notify('Could not load stories');
+            } finally {
+                  setLoading(false);
+            }
+      }, [notify, token]);
+
+      useEffect(() => { fetchStories(); }, [fetchStories]);
+
+      const removeStory = async (storyId) => {
+            try {
+                  const res = await fetch(`${API_URL}/admin/stories/${storyId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+                  const { ok, data } = await readAdminResponse(res);
+                  if (ok) {
+                        notify('Story removed');
+                        fetchStories();
+                  } else {
+                        notify(data.message || 'Story removal failed');
+                  }
+            } catch {
+                  notify('Story removal failed');
+            }
+      };
+
+      return (
+            <Surface title="Stories" subtitle="View active and recent stories, then remove unsafe items quickly.">
+                  {loading ? <Loading label="Loading stories" /> : stories.length === 0 ? <div className="admin-empty">No stories found.</div> : (
+                        <div className="admin-stack">
+                              {stories.map((story) => (
+                                    <div key={story._id} className="admin-card">
+                                          <h3>{story.creator?.displayName || story.creator?.username || 'Unknown creator'}</h3>
+                                          <p className="admin-muted">{story.contentType} - {new Date(story.createdAt).toLocaleString()}</p>
+                                          <p>{story.body || story.title || 'Media story'}</p>
+                                          <div className="admin-row"><button className="admin-btn danger" onClick={() => removeStory(story._id)}>Delete Story</button></div>
+                                    </div>
+                              ))}
+                        </div>
+                  )}
+            </Surface>
+      );
+}
+
+function ChannelsManagement({ token, notify }) {
+      const [channels, setChannels] = useState([]);
+      const [name, setName] = useState('');
+      const [description, setDescription] = useState('');
+      const [loading, setLoading] = useState(true);
+
+      const fetchChannels = useCallback(async () => {
+            setLoading(true);
+            try {
+                  const res = await fetch(`${API_URL}/admin/channels`, { headers: { Authorization: `Bearer ${token}` } });
+                  const { ok, data } = await readAdminResponse(res);
+                  if (ok) setChannels(data.data?.channels || []);
+                  else notify(data.message || 'Could not load channels');
+            } catch {
+                  notify('Could not load channels');
+            } finally {
+                  setLoading(false);
+            }
+      }, [notify, token]);
+
+      useEffect(() => { fetchChannels(); }, [fetchChannels]);
+
+      const createChannel = async () => {
+            if (!name.trim()) return notify('Channel name is required');
+            try {
+                  const res = await fetch(`${API_URL}/admin/channels`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({ name, description })
+                  });
+                  const { ok, data } = await readAdminResponse(res);
+                  if (ok) {
+                        setName('');
+                        setDescription('');
+                        notify('Channel created');
+                        fetchChannels();
+                  } else {
+                        notify(data.message || 'Channel creation failed');
+                  }
+            } catch {
+                  notify('Channel creation failed');
+            }
+      };
+
+      const scheduleMessage = async (channelId) => {
+            const body = window.prompt('Message to schedule');
+            if (!body) return;
+            const scheduledAt = window.prompt('Schedule time (ISO or local date string)', new Date(Date.now() + 60 * 60 * 1000).toISOString());
+            try {
+                  const res = await fetch(`${API_URL}/admin/channels/${channelId}/schedule`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({ body, scheduledAt })
+                  });
+                  const { ok, data } = await readAdminResponse(res);
+                  if (ok) {
+                        notify('Broadcast scheduled');
+                        fetchChannels();
+                  } else {
+                        notify(data.message || 'Scheduling failed');
+                  }
+            } catch {
+                  notify('Scheduling failed');
+            }
+      };
+
+      return (
+            <Surface title="Channels" subtitle="Create broadcast channels, inspect subscribers, and schedule messages.">
+                  <div className="admin-card admin-stack">
+                        <input className="admin-input" placeholder="Channel name" value={name} onChange={(event) => setName(event.target.value)} />
+                        <input className="admin-input" placeholder="Description" value={description} onChange={(event) => setDescription(event.target.value)} />
+                        <button className="admin-btn primary" onClick={createChannel}>Create Channel</button>
+                  </div>
+                  {loading ? <Loading label="Loading channels" /> : (
+                        <div className="admin-stack">
+                              {channels.map((channel) => (
+                                    <div key={channel._id} className="admin-card">
+                                          <h3>{channel.name}</h3>
+                                          <p className="admin-muted">{channel.subscribers?.length || 0} subscribers - {channel.scheduledMessages?.length || 0} scheduled</p>
+                                          <p>{channel.description || 'No description.'}</p>
+                                          <div className="admin-row"><button className="admin-btn soft" onClick={() => scheduleMessage(channel._id)}>Schedule Message</button></div>
+                                    </div>
+                              ))}
+                        </div>
+                  )}
+            </Surface>
+      );
+}
+
+function LiveStreamsManagement({ token, notify }) {
+      const [streams, setStreams] = useState([]);
+      const [loading, setLoading] = useState(true);
+
+      const fetchStreams = useCallback(async () => {
+            setLoading(true);
+            try {
+                  const res = await fetch(`${API_URL}/admin/live-streams`, { headers: { Authorization: `Bearer ${token}` } });
+                  const { ok, data } = await readAdminResponse(res);
+                  if (ok) setStreams(data.data?.streams || []);
+                  else notify(data.message || 'Could not load streams');
+            } catch {
+                  notify('Could not load streams');
+            } finally {
+                  setLoading(false);
+            }
+      }, [notify, token]);
+
+      useEffect(() => { fetchStreams(); }, [fetchStreams]);
+
+      const terminate = async (streamId) => {
+            try {
+                  const res = await fetch(`${API_URL}/admin/live-streams/${streamId}/terminate`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+                  const { ok, data } = await readAdminResponse(res);
+                  if (ok) {
+                        notify('Live stream terminated');
+                        fetchStreams();
+                  } else {
+                        notify(data.message || 'Termination failed');
+                  }
+            } catch {
+                  notify('Termination failed');
+            }
+      };
+
+      return (
+            <Surface title="Live Streams" subtitle="Monitor currently active live streams and terminate abusive sessions.">
+                  {loading ? <Loading label="Loading live streams" /> : streams.length === 0 ? <div className="admin-empty">No active streams.</div> : (
+                        <div className="admin-stack">
+                              {streams.map((stream) => (
+                                    <div key={stream._id} className="admin-card">
+                                          <h3>{stream.title || 'Live stream'}</h3>
+                                          <p className="admin-muted">Host @{stream.creator?.username || 'unknown'} - started {new Date(stream.createdAt).toLocaleString()}</p>
+                                          <div className="admin-row"><button className="admin-btn danger" onClick={() => terminate(stream._id)}>Terminate Stream</button></div>
+                                    </div>
+                              ))}
+                        </div>
+                  )}
+            </Surface>
+      );
+}
+
+function AnalyticsManagement({ token, notify }) {
+      const [analytics, setAnalytics] = useState(null);
+      const [loading, setLoading] = useState(true);
+
+      const fetchAnalytics = useCallback(async () => {
+            setLoading(true);
+            try {
+                  const res = await fetch(`${API_URL}/admin/analytics`, { headers: { Authorization: `Bearer ${token}` } });
+                  const { ok, data } = await readAdminResponse(res);
+                  if (ok) setAnalytics(data.data || null);
+                  else notify(data.message || 'Could not load analytics');
+            } catch {
+                  notify('Could not load analytics');
+            } finally {
+                  setLoading(false);
+            }
+      }, [notify, token]);
+
+      useEffect(() => { fetchAnalytics(); }, [fetchAnalytics]);
+
+      const Chart = ({ title, items, field }) => {
+            const max = Math.max(1, ...(items || []).map((item) => Number(item[field] || 0)));
+            return (
+                  <div className="admin-card">
+                        <h3>{title}</h3>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'end', height: 160, marginTop: 16 }}>
+                              {(items || []).map((item) => (
+                                    <div key={item.date} title={`${item.date}: ${item[field]}`} style={{ flex: 1, minWidth: 12, borderRadius: '10px 10px 4px 4px', background: 'linear-gradient(180deg,#0ea5e9,#2563eb)', height: `${Math.max(8, (Number(item[field] || 0) / max) * 150)}px` }} />
+                              ))}
+                        </div>
+                  </div>
+            );
+      };
+
+      return (
+            <Surface title="Analytics" subtitle="User growth, activity, posting, and message volume for the last 14 days." actions={<button className="admin-btn primary" onClick={fetchAnalytics}>Refresh</button>}>
+                  {loading ? <Loading label="Loading analytics" /> : (
+                        <div className="admin-stack">
+                              <div className="admin-grid">
+                                    <div className="admin-stat"><span>Online now</span><strong>{analytics?.activeUsers || 0}</strong></div>
+                                    <div className="admin-stat"><span>Message days</span><strong>{analytics?.messagesPerDay?.length || 0}</strong></div>
+                              </div>
+                              <Chart title="User Growth" items={analytics?.userGrowth || []} field="users" />
+                              <Chart title="Messages Per Day" items={analytics?.messagesPerDay || []} field="messages" />
+                              <Chart title="Posts Per Day" items={analytics?.contentPerDay || []} field="posts" />
+                        </div>
+                  )}
+            </Surface>
+      );
+}
+
 const navItems = [
       { path: '/', label: 'Dashboard', showBadge: false },
       { path: '/users', label: 'Users', showBadge: false },
       { path: '/verifications', label: 'Verifications', showBadge: true },
       { path: '/content', label: 'Content', showBadge: false },
+      { path: '/stories', label: 'Stories', showBadge: false },
       { path: '/reports', label: 'Reports', showBadge: false },
+      { path: '/channels', label: 'Channels', showBadge: false },
+      { path: '/live', label: 'Live Streams', showBadge: false },
+      { path: '/analytics', label: 'Analytics', showBadge: false },
       { path: '/broadcast', label: 'Broadcast', showBadge: false },
       { path: '/config', label: 'Config', showBadge: false }
 ];
@@ -627,7 +876,11 @@ export default function AdminDashboard({ token, user, onLogout }) {
                                           <Route path="/users" element={<UsersManagement token={token} notify={show} />} />
                                           <Route path="/verifications" element={<VerificationsManagement token={token} notify={show} onUpdate={setPendingCount} />} />
                                           <Route path="/content" element={<ContentManagement token={token} notify={show} />} />
+                                          <Route path="/stories" element={<StoriesManagement token={token} notify={show} />} />
                                           <Route path="/reports" element={<ReportsManagement token={token} notify={show} />} />
+                                          <Route path="/channels" element={<ChannelsManagement token={token} notify={show} />} />
+                                          <Route path="/live" element={<LiveStreamsManagement token={token} notify={show} />} />
+                                          <Route path="/analytics" element={<AnalyticsManagement token={token} notify={show} />} />
                                           <Route path="/broadcast" element={<BroadcastManagement token={token} notify={show} />} />
                                           <Route path="/config" element={<ConfigManagement token={token} notify={show} />} />
                                     </Routes>

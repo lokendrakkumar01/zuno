@@ -1,10 +1,29 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import basicSsl from '@vitejs/plugin-basic-ssl'
+import { brotliCompressSync } from 'node:zlib'
+
+const brotliPlugin = () => ({
+      name: 'zuno-brotli-assets',
+      apply: 'build',
+      generateBundle(_, bundle) {
+            for (const [fileName, asset] of Object.entries(bundle)) {
+                  if (!/\.(js|css|html|svg|json)$/.test(fileName)) continue
+                  const source = asset.type === 'asset' ? asset.source : asset.code
+                  if (!source) continue
+                  this.emitFile({
+                        type: 'asset',
+                        fileName: `${fileName}.br`,
+                        source: brotliCompressSync(Buffer.from(source))
+                  })
+            }
+      }
+})
 
 export default defineConfig(({ command }) => ({
       plugins: [
             react(),
+            brotliPlugin(),
             // basicSsl is dev-only — only load during `vite dev`, not during `vite build`
             ...(command === 'serve' ? [basicSsl()] : [])
       ],

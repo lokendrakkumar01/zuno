@@ -184,12 +184,17 @@ const initSocket = (server) => {
       socket.on('typing', ({ receiverId } = {}) => {
         if (receiverId) emitToUser(receiverId, 'typing', { senderId: userId });
       });
+      socket.on('typing-start', ({ receiverId, to, conversationId } = {}) => {
+        const target = receiverId || to;
+        if (target) emitToUser(target, 'typing-start', { senderId: userId, conversationId });
+      });
 
       const handleStopTyping = ({ receiverId, to } = {}) => {
         const target = receiverId || to;
         if (target) {
           emitToUser(target, 'stopTyping',  { senderId: userId });
           emitToUser(target, 'stop-typing', { senderId: userId });
+          emitToUser(target, 'typing-stop', { senderId: userId });
         }
       };
       socket.on('stopTyping',  handleStopTyping);
@@ -202,7 +207,8 @@ const initSocket = (server) => {
           const receiverId = normalizeId(payload.receiverId || payload.receiver || payload.to);
           if (!receiverId) throw new Error('receiverId required');
 
-          const text        = String(payload.text || '').trim().slice(0, 2000);
+          const text        = String(payload.content || payload.text || '').trim().slice(0, 2000);
+          const mediaUrl    = String(payload.mediaUrl || payload.media?.url || '').trim();
           const clientMsgId = payload.clientMsgId || null;
           const participants = [userId, receiverId].sort();
           const conversation = await Conversation.findOneAndUpdate(
@@ -216,8 +222,10 @@ const initSocket = (server) => {
             conversationId: conversation._id,
             sender:      userId,
             receiver:    receiverId,
+            content:     text,
             text,
-            media:       payload.media || undefined,
+            media:       payload.media || (mediaUrl ? { url: mediaUrl, type: payload.mediaType || '' } : undefined),
+            mediaUrl,
             replyTo:     payload.replyTo || undefined,
             clientMsgId: clientMsgId || undefined,
             status:      'sent',
@@ -332,6 +340,7 @@ const initSocket = (server) => {
       };
       socket.on('callUser',  handleCallUser);
       socket.on('call-user', handleCallUser);
+      socket.on('call:invite', handleCallUser);
 
       /** acceptCall — clear timeout, forward SDP answer */
       const handleAcceptCall = (payload = {}, ack = () => {}) => {
@@ -356,6 +365,7 @@ const initSocket = (server) => {
       socket.on('answerCall',    handleAcceptCall);
       socket.on('call-accepted', handleAcceptCall);
       socket.on('answer-made',   handleAcceptCall);
+      socket.on('call:answer',   handleAcceptCall);
 
       /** rejectCall */
       const handleRejectCall = (payload = {}, ack = () => {}) => {
@@ -378,6 +388,7 @@ const initSocket = (server) => {
       socket.on('rejectCall',    handleRejectCall);
       socket.on('call-rejected', handleRejectCall);
       socket.on('cancelCall',    handleRejectCall);
+      socket.on('call:reject',   handleRejectCall);
 
       /** endCall */
       const handleEndCall = (payload = {}, ack = () => {}) => {
@@ -397,6 +408,7 @@ const initSocket = (server) => {
       socket.on('call-ended', handleEndCall);
       socket.on('end-call',   handleEndCall);
       socket.on('leaveCall',  handleEndCall);
+      socket.on('call:end',   handleEndCall);
 
       /** ICE candidate relay */
       const handleIce = (payload = {}, ack = () => {}) => {
@@ -437,8 +449,8 @@ const initSocket = (server) => {
         try {
           if (!messageId) throw new Error('messageId required');
           const update = mode === 'everyone'
-            ? { deletedForEveryone: true, text: '', media: { url: '', type: '' } }
-            : { $addToSet: { deletedBy: userId } };
+            ? { deletedForEveryone: true, content: '', text: '', mediaUrl: '', media: { url: '', type: '' } }
+            : { $addToSet: { deletedFor: userId, deletedBy: userId } };
           const message = await Message.findByIdAndUpdate(messageId, update, { new: true });
           if (!message) throw new Error('Message not found');
           const data = { messageId, mode, deletedBy: userId };
@@ -483,7 +495,8 @@ const initSocket = (server) => {
 // ─── Background: update conversation last message — FIX BUG 2 ────────────────
 async function updateConversationLastMessage(senderId, receiverId, text, messageId, conversationId = null) {
   try {
-    const lastMessage = { text: text || 'Media shared', sender: senderId, createdAt: new Date() };
+    const preview = text || 'Media shared';
+    const lastMessage = { content: preview, text: preview, sender: senderId, createdAt: new Date() };
     const existing = conversationId
       ? await Conversation.findById(conversationId)
       : await Conversation.findOne({

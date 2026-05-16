@@ -47,4 +47,19 @@ const setJson = async (key, value, ttlSeconds = 60) => {
   }
 };
 
-module.exports = { getJson, setJson };
+const delByPattern = async (pattern) => {
+  try {
+    const redis = await getRedisClient();
+    if (!redis) return;
+    let cursor = 0;
+    do {
+      const reply = await redis.scan(cursor, { MATCH: pattern, COUNT: 100 });
+      cursor = Number(reply.cursor);
+      if (reply.keys.length) await redis.del(reply.keys);
+    } while (cursor !== 0);
+  } catch {
+    // Cache invalidation is best effort.
+  }
+};
+
+module.exports = { getJson, setJson, delByPattern };

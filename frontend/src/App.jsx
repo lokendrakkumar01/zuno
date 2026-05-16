@@ -1,5 +1,6 @@
 import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -14,6 +15,7 @@ import GlobalNotification from './components/GlobalNotification';
 import CallOverlay from './components/CallOverlay';
 import ErrorBoundary from './components/ErrorBoundary';
 import RouteSuspenseFallback from './components/RouteSuspenseFallback';
+import { API_URL } from './config';
 
 const Landing = lazy(() => import('./pages/Landing'));
 const Home = lazy(() => import('./pages/Home'));
@@ -47,7 +49,24 @@ const Status = lazy(() => import('./pages/Status'));
 
 function AppRouter() {
   const { isAuthenticated, token, loading } = useAuth();
+  const queryClient = useQueryClient();
   const hasActiveSession = Boolean(token) || isAuthenticated;
+
+  React.useEffect(() => {
+    if (!hasActiveSession || !token) return;
+    queryClient.prefetchQuery({
+      queryKey: ['conversations'],
+      staleTime: 60_000,
+      queryFn: async () => {
+        const res = await fetch(`${API_URL}/conversations`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data?.success) throw new Error(data?.message || 'Could not load conversations.');
+        return data.data?.conversations || data.conversations || [];
+      }
+    });
+  }, [hasActiveSession, queryClient, token]);
 
   if (loading) return <RouteSuspenseFallback />;
 

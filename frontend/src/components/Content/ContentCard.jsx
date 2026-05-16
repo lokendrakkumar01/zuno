@@ -1,5 +1,6 @@
 import { memo, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
 import { API_URL } from '../../config';
 import {
@@ -46,6 +47,7 @@ const normalizeContentState = (content) => ({
 
 const ContentCard = ({ content, onSaveChange }) => {
       const { token } = useAuth();
+      const queryClient = useQueryClient();
       const [contentState, setContentState] = useState(() => normalizeContentState(content));
       const [statusMessage, setStatusMessage] = useState('');
 
@@ -167,11 +169,28 @@ const ContentCard = ({ content, onSaveChange }) => {
             }
       };
 
+      const prefetchCreator = () => {
+            const creatorId = contentState.creator?._id || contentState.creator?.id;
+            if (!creatorId || !token) return;
+            queryClient.prefetchQuery({
+                  queryKey: ['profile', String(creatorId)],
+                  staleTime: 60_000,
+                  queryFn: async () => {
+                        const res = await fetch(`${API_URL}/users/id/${encodeURIComponent(creatorId)}`, {
+                              headers: { Authorization: `Bearer ${token}` }
+                        });
+                        const data = await res.json().catch(() => null);
+                        if (!res.ok || !data?.success) throw new Error(data?.message || 'Could not load profile');
+                        return data.data?.user || data.user;
+                  }
+            });
+      };
+
       return (
             <article className="content-card standard-card">
                   <div className="content-card-header">
                         <div className="flex items-center gap-sm">
-                              <Link to={`/u/${contentState.creator?.username}`} onClick={(e) => e.stopPropagation()}>
+                              <Link to={`/u/${contentState.creator?.username}`} onMouseEnter={prefetchCreator} onFocus={prefetchCreator} onClick={(e) => e.stopPropagation()}>
                                     <div className="avatar avatar-sm">
                                           {contentState.creator?.avatar ? (
                                                 <img src={resolveAssetUrl(contentState.creator.avatar)} alt={contentState.creator.username} />
@@ -184,6 +203,8 @@ const ContentCard = ({ content, onSaveChange }) => {
                                     <Link
                                           to={`/u/${contentState.creator?.username}`}
                                           className="content-card-creator-name"
+                                          onMouseEnter={prefetchCreator}
+                                          onFocus={prefetchCreator}
                                           onClick={(e) => e.stopPropagation()}
                                     >
                                           {contentState.creator?.displayName || contentState.creator?.username}

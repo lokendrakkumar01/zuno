@@ -155,6 +155,7 @@ export const SocketContextProvider = ({ children }) => {
 
     // ---- Notifications (real-time) ----
     const handleNotification = (notification) => {
+      if (user?.notificationSettings?.inApp === false) return;
       const notificationId = String(notification?._id || notification?.id || '');
       if (notificationId && notificationIdsRef.current.has(notificationId)) return;
       if (notificationId) notificationIdsRef.current.add(notificationId);

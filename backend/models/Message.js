@@ -41,6 +41,7 @@ const messageSchema = new mongoose.Schema(
     // FIX BUG 2: deduplication token from client to prevent double-insert
     clientMsgId: { type: String, trim: true, index: true },
 
+    content: { type: String, trim: true, maxlength: 2000, default: '' },
     text: { type: String, trim: true, maxlength: 2000, default: '' },
     type: {
       type:    String,
@@ -55,6 +56,7 @@ const messageSchema = new mongoose.Schema(
       size:     { type: Number, default: 0 },
       duration: { type: Number, default: 0 }, // seconds, for audio/video
     },
+    mediaUrl: { type: String, default: '' },
 
     // FIX BUG 6: Delivered/read status lifecycle
     status:      { type: String, enum: ['sent', 'delivered', 'read'], default: 'sent', index: true },
@@ -71,9 +73,11 @@ const messageSchema = new mongoose.Schema(
     ],
 
     read:               { type: Boolean, default: false, index: true }, // FIX BUG 5
+    readBy:             [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     edited:             { type: Boolean, default: false },
     editedAt:           { type: Date, default: null },
     deletedForEveryone: { type: Boolean, default: false },
+    deletedFor:         [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     deletedBy:          [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     pinned:             { type: Boolean, default: false },
   },
@@ -84,6 +88,7 @@ const messageSchema = new mongoose.Schema(
 
 // Primary: per-conversation paginated fetch (most-used query)
 messageSchema.index({ conversationId: 1, createdAt: -1 });
+messageSchema.index({ conversationId: 1, _id: -1 });
 
 // DM: both directions so a $or query can use an index on each branch
 messageSchema.index({ sender: 1, receiver: 1, createdAt: -1 });
@@ -109,7 +114,9 @@ const conversationSchema = new mongoose.Schema(
 
     // Snapshot of last message for inbox preview
     lastMessage: {
+      content:   { type: String, default: '' },
       text:      { type: String, default: '' },
+      mediaUrl:  { type: String, default: '' },
       sender:    { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
       createdAt: { type: Date, default: Date.now },
     },

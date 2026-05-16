@@ -1,5 +1,6 @@
 const Content = require('../models/Content');
 const User = require('../models/User');
+const { getJson, setJson } = require('../config/redis');
 const {
       CONTENT_EXCLUDED_TYPES,
       DEFAULT_FEED_LIMIT,
@@ -12,12 +13,6 @@ const {
       toPositiveInt,
       unpackCursorPage
 } = require('../utils/feedAggregation');
-
-let feedCache = {
-      data: null,
-      lastUpdated: 0,
-      ttl: 3 * 60 * 1000
-};
 
 const getViewerId = (reqUser) => reqUser?._id || reqUser?.id || null;
 
@@ -294,6 +289,16 @@ const getFeed = async (req, res, next) => {
             const limitNum = toPositiveInt(limit, DEFAULT_FEED_LIMIT, MAX_FEED_LIMIT);
             const decodedCursor = decodeCursor(rawCursor);
             const viewerBlockedIds = req.user?.blockedUsers || [];
+            const cacheableFirstPages = !viewerId && !decodedCursor && !topic && !contentType && ['all', 'learning', 'calm', 'video', 'reading', 'problem-solving'].includes(mode);
+            const cacheKey = cacheableFirstPages ? `feed:v2:${mode}:limit:${limitNum}:first` : null;
+
+            if (cacheKey) {
+                  const cached = await getJson(cacheKey);
+                  if (cached) {
+                        res.setHeader('Cache-Control', 'public, max-age=30');
+                        return res.json({ ...cached, cached: true });
+                  }
+            }
 
             let feedPage;
 
@@ -331,14 +336,17 @@ const getFeed = async (req, res, next) => {
                               : 'public, max-age=90'
             );
 
-            return res.json(buildFeedResponse({
+            const response = buildFeedResponse({
                   contents,
                   mode,
                   limit: limitNum,
                   hasMore,
                   nextCursor,
                   topic: topic || null
-            }));
+            });
+
+            if (cacheKey) setJson(cacheKey, response, 30);
+            return res.json(response);
       } catch (error) {
             console.error('Feed error:', error);
             return next(error);

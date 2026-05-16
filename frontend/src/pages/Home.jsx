@@ -1,337 +1,175 @@
-import { Suspense, lazy, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { Virtuoso } from 'react-virtuoso';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config';
-import { fetchWithTimeout } from '../utils/fetchWithTimeout';
 
 const ContentCard = lazy(() => import('../components/Content/ContentCard'));
 const StoryBar = lazy(() => import('../components/Story/StoryBar'));
-const VirtualizedList = lazy(() => import('../components/VirtualizedList'));
 
-const PRIMARY_FEED_TIMEOUT_MS = 12000;
-const WAKE_FEED_TIMEOUT_MS = 45000;
 const FEED_PAGE_SIZE = 12;
-const FEED_CARD_HEIGHT = 520;
-
 const FEED_MODES = [
-      { id: 'all', label: 'All', desc: 'A fast mix of current conversations, posts and videos.' },
-      { id: 'learning', label: 'Learning', desc: 'Tutorials, skill building and explainers.' },
-      { id: 'calm', label: 'Calm', desc: 'Inspiration, reflection and low-noise updates.' },
-      { id: 'video', label: 'Video', desc: 'Short and long videos optimized for quick watching.' },
-      { id: 'reading', label: 'Reading', desc: 'Text-first posts and deeper breakdowns.' },
-      { id: 'problem-solving', label: 'Solutions', desc: 'Questions, answers and practical help.' }
+  { id: 'all', label: 'All', desc: 'A fast mix of current conversations, posts and videos.' },
+  { id: 'learning', label: 'Learning', desc: 'Tutorials, skill building and explainers.' },
+  { id: 'calm', label: 'Calm', desc: 'Inspiration, reflection and low-noise updates.' },
+  { id: 'video', label: 'Video', desc: 'Short and long videos optimized for quick watching.' },
+  { id: 'reading', label: 'Reading', desc: 'Text-first posts and deeper breakdowns.' },
+  { id: 'problem-solving', label: 'Solutions', desc: 'Questions, answers and practical help.' }
 ];
-
 const FALLBACK_TOPICS = ['learning', 'technology', 'creativity', 'business', 'problem-solving'];
 
-// FIX BUG 10: 3-minute TTL cache — stale data auto-expires
-const FEED_CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes
+const FeedSkeleton = () => (
+  <div className="home-windowed-list">
+    {[0, 1, 2].map((item) => (
+      <div key={item} className="card animate-pulse" style={{ minHeight: 420, marginBottom: 16 }}>
+        <div style={{ height: 260, borderRadius: 12, background: 'var(--color-bg-secondary)' }} />
+        <div style={{ height: 24, width: '65%', borderRadius: 8, background: 'var(--color-bg-secondary)', marginTop: 16 }} />
+        <div style={{ height: 16, width: '92%', borderRadius: 8, background: 'var(--color-bg-secondary)', marginTop: 12 }} />
+      </div>
+    ))}
+  </div>
+);
 
-const readFeedCache = (key) => {
-      try {
-            const raw = localStorage.getItem(key);
-            if (!raw) return [];
-            const { data, ts } = JSON.parse(raw);
-            // FIX BUG 10: expire after 3 minutes so user always gets fresh content
-            if (!ts || Date.now() - ts > FEED_CACHE_TTL_MS) {
-                  localStorage.removeItem(key);
-                  return [];
-            }
-            return Array.isArray(data) ? data : [];
-      } catch {
-            return [];
-      }
-};
+export default function Home() {
+  const { token, user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [mode, setMode] = useState('all');
+  const topicParam = searchParams.get('topic') || '';
 
-const writeFeedCache = (key, data) => {
-      try { localStorage.setItem(key, JSON.stringify({ data, ts: Date.now() })); } catch { /* best effort */ }
-};
+  const feedQuery = useInfiniteQuery({
+    queryKey: ['feed', mode, topicParam],
+    staleTime: 60_000,
+    gcTime: 10 * 60_000,
+    initialPageParam: null,
+    placeholderData: (previous) => previous,
+    queryFn: async ({ pageParam }) => {
+      const url = new URL(`${API_URL}/feed`);
+      url.searchParams.set('mode', mode);
+      url.searchParams.set('limit', String(FEED_PAGE_SIZE));
+      if (topicParam) url.searchParams.set('topic', topicParam);
+      if (pageParam) url.searchParams.set('cursor', pageParam);
+      const res = await fetch(url.toString(), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok || !payload?.success) throw new Error(payload?.message || 'Failed to load feed');
+      const pagination = payload.data?.pagination || {};
+      return {
+        contents: payload.data?.contents || [],
+        nextCursor: pagination.nextCursor || payload.data?.nextCursor || null,
+        hasMore: Boolean(pagination.hasMore ?? payload.data?.hasMore)
+      };
+    },
+    getNextPageParam: (lastPage) => lastPage?.hasMore ? lastPage.nextCursor : undefined
+  });
 
-const Home = () => {
-      const { token, user } = useAuth();
-      const [searchParams, setSearchParams] = useSearchParams();
-      const topicParam = searchParams.get('topic') || '';
-      const [mode, setMode] = useState('all');
-      const [contents, setContents] = useState(() => readFeedCache('zuno_feedCache_all'));
-      const [feedBusy, setFeedBusy] = useState(false);
-      const [error, setError] = useState(null);
-      const [hasMore, setHasMore] = useState(true);
-      const [nextCursor, setNextCursor] = useState(null);
-      const feedRequestGenRef = useRef(0);
-      // FIX BUG 10: debounce ref — prevents rapid re-fetches when topic changes quickly
-      const debounceRef = useRef(null);
+  const contents = useMemo(() => {
+    const seen = new Set();
+    return (feedQuery.data?.pages || [])
+      .flatMap((page) => page.contents || [])
+      .filter((content) => {
+        if (!content?._id || seen.has(content._id)) return false;
+        seen.add(content._id);
+        return true;
+      });
+  }, [feedQuery.data]);
 
-      const wakeBackend = useCallback(async () => {
-            try {
-                  await fetch(`${API_URL}/health`, { cache: 'no-store' });
-            } catch {
-                  // Best effort only.
-            }
-      }, []);
+  const quickTopics = useMemo(() => {
+    const derived = Array.from(new Set(contents.flatMap((content) => content.topics || []).filter(Boolean))).slice(0, 6);
+    return derived.length ? derived : FALLBACK_TOPICS;
+  }, [contents]);
 
-      useEffect(() => {
-            wakeBackend();
-      }, [wakeBackend]);
+  const selectedMode = FEED_MODES.find((item) => item.id === mode) || FEED_MODES[0];
 
-      const fetchFeed = useCallback(async ({
-            currentMode,
-            append = false,
-            cursor = null,
-            currentTopic = topicParam
-      }) => {
-            const requestId = ++feedRequestGenRef.current;
-            const cacheKey = currentTopic ? `zuno_feedCache_${currentMode}_${currentTopic}` : `zuno_feedCache_${currentMode}`;
-
-            if (!append) {
-                  const cached = readFeedCache(cacheKey);
-                  if (cached.length > 0) {
-                        startTransition(() => setContents(cached));
-                  }
-                  setError(null);
-            }
-
-            setFeedBusy(true);
-
-            const headers = token ? { Authorization: `Bearer ${token}` } : {};
-            const url = new URL(`${API_URL}/feed`);
-            url.searchParams.set('mode', currentMode);
-            url.searchParams.set('limit', String(FEED_PAGE_SIZE));
-            if (cursor) url.searchParams.set('cursor', cursor);
-            if (currentTopic) url.searchParams.set('topic', currentTopic);
-
-            const runFetch = async (timeoutMs) => fetchWithTimeout(url.toString(), { headers }, timeoutMs);
-
-            try {
-                  let response;
-
-                  try {
-                        response = await runFetch(PRIMARY_FEED_TIMEOUT_MS);
-                  } catch (fetchError) {
-                        if (fetchError?.name !== 'AbortError') {
-                              throw fetchError;
-                        }
-                        await wakeBackend();
-                        response = await runFetch(WAKE_FEED_TIMEOUT_MS);
-                  }
-
-                  if (requestId !== feedRequestGenRef.current) return;
-                  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-                  const payload = await response.json();
-                  if (!payload?.success) {
-                        throw new Error(payload?.message || 'Failed to load feed');
-                  }
-
-                  const nextContents = Array.isArray(payload.data?.contents) ? payload.data.contents : [];
-                  const pagination = payload.data?.pagination || {
-                        hasMore: payload.data?.hasMore,
-                        nextCursor: payload.data?.nextCursor || null
-                  };
-
-                  startTransition(() => {
-                        setContents((previous) => {
-                              if (!append) {
-                                    // FIX BUG 10: use writeFeedCache with TTL
-                                    writeFeedCache(cacheKey, nextContents);
-                                    return nextContents;
-                              }
-
-                              const existingIds = new Set(previous.map((item) => item._id));
-                              const merged = [...previous, ...nextContents.filter((item) => !existingIds.has(item._id))];
-                              writeFeedCache(cacheKey, merged);
-                              return merged;
-                        });
-                  });
-
-                  setHasMore(Boolean(pagination.hasMore));
-                  setNextCursor(pagination.nextCursor || null);
-                  setError(null);
-            } catch (fetchError) {
-                  if (requestId !== feedRequestGenRef.current) return;
-                  const cached = readFeedCache(cacheKey);
-                  if (cached.length === 0 && contents.length === 0) {
-                        setError(fetchError?.name === 'AbortError' ? 'timeout' : 'network');
-                  }
-            } finally {
-                  if (requestId === feedRequestGenRef.current) {
-                        setFeedBusy(false);
-                  }
-            }
-      }, [contents.length, token, topicParam, wakeBackend]);
-
-      // FIX BUG 10: 300ms debounce on mode/topic change to prevent rapid re-fetch
-      useEffect(() => {
-            setHasMore(true);
-            setNextCursor(null);
-            clearTimeout(debounceRef.current);
-            debounceRef.current = setTimeout(() => {
-                  fetchFeed({ currentMode: mode, append: false, cursor: null, currentTopic: topicParam });
-            }, 300);
-
-            return () => {
-                  feedRequestGenRef.current += 1;
-                  clearTimeout(debounceRef.current);
-            };
-      }, [fetchFeed, mode, topicParam]);
-
-      const loadMore = useCallback(() => {
-            if (!nextCursor || feedBusy) return;
-            fetchFeed({ currentMode: mode, append: true, cursor: nextCursor, currentTopic: topicParam });
-      }, [feedBusy, fetchFeed, mode, nextCursor, topicParam]);
-
-      const quickTopics = useMemo(() => {
-            const derivedTopics = Array.from(
-                  new Set(contents.flatMap((content) => content.topics || []).filter(Boolean))
-            ).slice(0, 6);
-
-            return derivedTopics.length > 0 ? derivedTopics : FALLBACK_TOPICS;
-      }, [contents]);
-
-      const selectedMode = FEED_MODES.find((item) => item.id === mode) || FEED_MODES[0];
-      const videoCount = contents.filter((item) => item.contentType?.includes('video')).length;
-      const textCount = contents.filter((item) => item.contentType === 'post').length;
-
-      return (
-            <div className="home-page">
-                  <section className="home-hero-shell">
-                        <div className="container home-hero">
-                              <div className="home-hero-copy">
-                                    <span className="home-kicker">Fast social feed</span>
-                                    <h1>{user?.displayName ? `Welcome back, ${user.displayName.split(' ')[0]}` : 'Your ZUNO home'}</h1>
-                                    <p>Clean navigation, instant hydration, and a quieter feed that still keeps chat, live streams, and sharing close at hand.</p>
-
-                                    <div className="home-hero-actions">
-                                          <Link to="/upload" className="btn btn-primary">Create Post</Link>
-                                          <Link to="/profile" className="btn btn-secondary">Open Profile Inbox</Link>
-                                    </div>
-
-                                    <div className="home-hero-topics">
-                                          {quickTopics.map((topic) => (
-                                                <button
-                                                      key={topic}
-                                                      type="button"
-                                                      className={`home-topic-pill ${topicParam === topic ? 'active' : ''}`}
-                                                      onClick={() => setSearchParams({ topic })}
-                                                >
-                                                      #{topic}
-                                                </button>
-                                          ))}
-                                          {topicParam ? (
-                                                <button type="button" className="home-topic-clear" onClick={() => setSearchParams({})}>
-                                                      Clear topic
-                                                </button>
-                                          ) : null}
-                                    </div>
-                              </div>
-
-                              <div className="home-hero-panels">
-                                    <div className="home-summary-card">
-                                          <span className="home-summary-label">Current mode</span>
-                                          <strong>{selectedMode.label}</strong>
-                                          <p>{selectedMode.desc}</p>
-                                    </div>
-                                    <div className="home-stat-grid">
-                                          <div className="home-stat-card">
-                                                <span>Loaded now</span>
-                                                <strong>{contents.length}</strong>
-                                          </div>
-                                          <div className="home-stat-card">
-                                                <span>Video</span>
-                                                <strong>{videoCount}</strong>
-                                          </div>
-                                          <div className="home-stat-card">
-                                                <span>Reading</span>
-                                                <strong>{textCount}</strong>
-                                          </div>
-                                          <div className="home-stat-card">
-                                                <span>Live</span>
-                                                <strong>{mode === 'video' ? 'Ready' : 'Discover'}</strong>
-                                          </div>
-                                    </div>
-                              </div>
-                        </div>
-                  </section>
-
-                  <div className="container home-story-strip">
-                        <Suspense fallback={null}>
-                              <StoryBar />
-                        </Suspense>
-                  </div>
-
-                  <section className="section">
-                        <div className="container">
-                              <div className="feed-header home-feed-toolbar">
-                                    <div className="home-mode-scroller">
-                                          {FEED_MODES.map((feedMode) => (
-                                                <button
-                                                      key={feedMode.id}
-                                                      type="button"
-                                                      onClick={() => setMode(feedMode.id)}
-                                                      className={`mode-btn ${mode === feedMode.id ? 'active' : ''}`}
-                                                >
-                                                      {feedMode.label}
-                                                </button>
-                                          ))}
-                                    </div>
-
-                                    <div className="home-toolbar-status">
-                                          <span className="text-secondary" style={{ fontSize: '0.88rem' }}>Cursor feed + windowed render</span>
-                                    </div>
-                              </div>
-
-                              {(error === 'network' || error === 'timeout') && contents.length === 0 ? (
-                                    <div className="text-center py-lg">
-                                          <p className="text-secondary mb-sm" style={{ fontSize: '0.9rem' }}>
-                                                {error === 'timeout'
-                                                      ? 'Still connecting. Tap below to retry.'
-                                                      : 'Offline. Retry once the connection is back.'}
-                                          </p>
-                                          <button
-                                                type="button"
-                                                onClick={() => fetchFeed({ currentMode: mode, append: false, cursor: null, currentTopic: topicParam })}
-                                                className="btn btn-secondary btn-sm"
-                                          >
-                                                Retry
-                                          </button>
-                                    </div>
-                              ) : null}
-
-                              {contents.length > 0 ? (
-                                    <Suspense fallback={<div className="py-lg text-center text-secondary">Loading feed cards...</div>}>
-                                          <VirtualizedList
-                                                items={contents}
-                                                itemHeight={FEED_CARD_HEIGHT}
-                                                className="home-windowed-list"
-                                                itemClassName="home-windowed-item"
-                                                renderItem={(content, index) => (
-                                                      <div className="animate-fadeInUp" style={{ animationDelay: `${Math.min(index, 10) * 0.03}s`, paddingBottom: '1rem' }}>
-                                                            <ContentCard content={content} />
-                                                      </div>
-                                                )}
-                                          />
-                                    </Suspense>
-                              ) : null}
-
-                              {contents.length === 0 && !feedBusy && !error ? (
-                                    <div className="text-center py-3xl card">
-                                          <div style={{ fontSize: '3.5rem', marginBottom: '1rem' }}>Quiet for now</div>
-                                          <h3 className="text-xl font-bold mb-sm">Nothing has landed here yet</h3>
-                                          <p className="text-secondary mb-xl">Switch modes or share the first post in this lane.</p>
-                                          <Link to="/upload" className="btn btn-primary">Start Creating</Link>
-                                    </div>
-                              ) : null}
-
-                              {hasMore && contents.length > 0 ? (
-                                    <div className="text-center mt-3xl">
-                                          <button type="button" onClick={loadMore} disabled={feedBusy} className="btn btn-secondary">
-                                                {feedBusy ? 'Loading...' : 'Load more'}
-                                          </button>
-                                    </div>
-                              ) : null}
-                        </div>
-                  </section>
+  return (
+    <div className="home-page">
+      <section className="home-hero-shell">
+        <div className="container home-hero">
+          <div className="home-hero-copy">
+            <span className="home-kicker">Fast social feed</span>
+            <h1>{user?.displayName ? `Welcome back, ${user.displayName.split(' ')[0]}` : 'Your ZUNO home'}</h1>
+            <p>Instant cached feed, virtual rendering, stories, live content, and creation close at hand.</p>
+            <div className="home-hero-actions">
+              <Link to="/upload" className="btn btn-primary">Create Post</Link>
+              <Link to="/messages" className="btn btn-secondary">Open Messages</Link>
             </div>
-      );
-};
+            <div className="home-hero-topics">
+              {quickTopics.map((topic) => (
+                <button key={topic} type="button" className={`home-topic-pill ${topicParam === topic ? 'active' : ''}`} onClick={() => setSearchParams({ topic })}>
+                  #{topic}
+                </button>
+              ))}
+              {topicParam ? <button type="button" className="home-topic-clear" onClick={() => setSearchParams({})}>Clear topic</button> : null}
+            </div>
+          </div>
+          <div className="home-hero-panels">
+            <div className="home-summary-card">
+              <span className="home-summary-label">Current mode</span>
+              <strong>{selectedMode.label}</strong>
+              <p>{selectedMode.desc}</p>
+            </div>
+            <div className="home-stat-grid">
+              <div className="home-stat-card"><span>Loaded</span><strong>{contents.length}</strong></div>
+              <div className="home-stat-card"><span>Status</span><strong>{feedQuery.isFetching ? 'Syncing' : 'Ready'}</strong></div>
+            </div>
+          </div>
+        </div>
+      </section>
 
-export default Home;
+      <div className="container home-story-strip">
+        <Suspense fallback={null}><StoryBar /></Suspense>
+      </div>
+
+      <section className="section">
+        <div className="container">
+          <div className="feed-header home-feed-toolbar">
+            <div className="home-mode-scroller">
+              {FEED_MODES.map((feedMode) => (
+                <button key={feedMode.id} type="button" onClick={() => setMode(feedMode.id)} className={`mode-btn ${mode === feedMode.id ? 'active' : ''}`}>
+                  {feedMode.label}
+                </button>
+              ))}
+            </div>
+            <span className="text-secondary" style={{ fontSize: '.88rem' }}>Cursor feed + virtual render</span>
+          </div>
+
+          {contents.length === 0 && feedQuery.isFetching ? <FeedSkeleton /> : null}
+
+          {contents.length > 0 ? (
+            <Suspense fallback={null}>
+              <Virtuoso
+                useWindowScroll
+                data={contents}
+                endReached={() => {
+                  if (feedQuery.hasNextPage && !feedQuery.isFetchingNextPage) feedQuery.fetchNextPage();
+                }}
+                overscan={800}
+                itemContent={(index, content) => (
+                  <div className="home-windowed-item animate-fadeInUp" style={{ animationDelay: `${Math.min(index, 8) * 0.02}s`, paddingBottom: '1rem' }}>
+                    <ContentCard content={content} />
+                  </div>
+                )}
+              />
+            </Suspense>
+          ) : null}
+
+          {contents.length === 0 && !feedQuery.isFetching && !feedQuery.isError ? (
+            <div className="text-center py-3xl card">
+              <h3 className="text-xl font-bold mb-sm">Nothing has landed here yet</h3>
+              <p className="text-secondary mb-xl">Switch modes or share the first post in this lane.</p>
+              <Link to="/upload" className="btn btn-primary">Start Creating</Link>
+            </div>
+          ) : null}
+
+          {feedQuery.isError && contents.length === 0 ? (
+            <div className="text-center py-lg">
+              <p className="text-secondary mb-sm">Offline or waking the backend. Try again in a moment.</p>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => feedQuery.refetch()}>Retry</button>
+            </div>
+          ) : null}
+        </div>
+      </section>
+    </div>
+  );
+}

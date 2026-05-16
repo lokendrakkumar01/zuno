@@ -3,6 +3,7 @@ const Content = require('../models/Content');
 const AdminConfig = require('../models/AdminConfig');
 const Interaction = require('../models/Interaction');
 const { Message } = require('../models/Message');
+const BroadcastChannel = require('../models/BroadcastChannel');
 const mongoose = require('mongoose');
 const { sendCustomAdminEmail } = require('../config/emailService');
 const { getIO } = require('../socket');
@@ -649,9 +650,12 @@ const deleteUser = async (req, res) => {
                         { 
                           $set: { 
                             deletedForEveryone: true,
+                            content: '[Message deleted]',
                             text: '[Message deleted]',
+                            mediaUrl: '',
                             media: { url: '', type: '' },
-                            deletedBy: [targetId]
+                            deletedBy: [targetId],
+                            deletedFor: [targetId]
                           }
                         },
                         { session }
@@ -765,6 +769,136 @@ const sendBroadcast = async (req, res) => {
       }
 };
 
+const getStories = async (req, res) => {
+      try {
+            const stories = await Content.find({ contentType: { $in: ['story', 'status', 'text-status'] } })
+                  .populate('creator', 'username displayName avatar')
+                  .sort({ createdAt: -1 })
+                  .limit(toPositiveInt(req.query.limit, 40, 100))
+                  .lean();
+            res.json({ success: true, data: { stories } });
+      } catch (error) {
+            res.status(500).json({ success: false, message: 'Failed to load stories', error: error.message });
+      }
+};
+
+const deleteStory = async (req, res) => {
+      try {
+            const story = await Content.findOneAndUpdate(
+                  { _id: req.params.id, contentType: { $in: ['story', 'status', 'text-status'] } },
+                  { status: 'removed', moderationNote: `Removed by admin ${req.user.id}` },
+                  { new: true }
+            );
+            if (!story) return res.status(404).json({ success: false, message: 'Story not found' });
+            invalidateAdminStatsCache();
+            res.json({ success: true, data: { story }, message: 'Story removed' });
+      } catch (error) {
+            res.status(500).json({ success: false, message: 'Failed to remove story', error: error.message });
+      }
+};
+
+const getBroadcastChannels = async (req, res) => {
+      try {
+            const channels = await BroadcastChannel.find({ isActive: true })
+                  .populate('subscribers', 'username displayName avatar')
+                  .sort({ updatedAt: -1 })
+                  .limit(50)
+                  .lean();
+            res.json({ success: true, data: { channels } });
+      } catch (error) {
+            res.status(500).json({ success: false, message: 'Failed to load channels', error: error.message });
+      }
+};
+
+const createBroadcastChannel = async (req, res) => {
+      try {
+            const name = String(req.body.name || '').trim().slice(0, 80);
+            if (!name) return res.status(400).json({ success: false, message: 'Channel name is required' });
+            const channel = await BroadcastChannel.create({
+                  name,
+                  description: String(req.body.description || '').trim().slice(0, 500),
+                  subscribers: Array.isArray(req.body.subscribers) ? req.body.subscribers : [],
+                  createdBy: req.user.id
+            });
+            res.status(201).json({ success: true, data: { channel } });
+      } catch (error) {
+            res.status(500).json({ success: false, message: 'Failed to create channel', error: error.message });
+      }
+};
+
+const scheduleBroadcastMessage = async (req, res) => {
+      try {
+            const body = String(req.body.body || req.body.message || '').trim().slice(0, 2000);
+            const scheduledAt = new Date(req.body.scheduledAt || Date.now());
+            if (!body) return res.status(400).json({ success: false, message: 'Message body is required' });
+            const channel = await BroadcastChannel.findByIdAndUpdate(
+                  req.params.id,
+                  { $push: { scheduledMessages: { body, scheduledAt, createdBy: req.user.id } } },
+                  { new: true }
+            ).lean();
+            if (!channel) return res.status(404).json({ success: false, message: 'Channel not found' });
+            res.json({ success: true, data: { channel }, message: 'Broadcast scheduled' });
+      } catch (error) {
+            res.status(500).json({ success: false, message: 'Failed to schedule broadcast', error: error.message });
+      }
+};
+
+const getLiveStreams = async (req, res) => {
+      try {
+            const streams = await Content.find({ contentType: 'live', 'liveData.isLive': true, status: { $ne: 'removed' } })
+                  .populate('creator', 'username displayName avatar')
+                  .sort({ createdAt: -1 })
+                  .limit(50)
+                  .lean();
+            res.json({ success: true, data: { streams } });
+      } catch (error) {
+            res.status(500).json({ success: false, message: 'Failed to load live streams', error: error.message });
+      }
+};
+
+const terminateLiveStream = async (req, res) => {
+      try {
+            const stream = await Content.findByIdAndUpdate(
+                  req.params.id,
+                  { $set: { 'liveData.isLive': false, 'liveData.endedAt': new Date(), moderationNote: `Terminated by admin ${req.user.id}` } },
+                  { new: true }
+            );
+            if (!stream) return res.status(404).json({ success: false, message: 'Live stream not found' });
+            try {
+                  getIO().emit('live:terminated', { streamId: req.params.id });
+            } catch {}
+            res.json({ success: true, data: { stream }, message: 'Live stream terminated' });
+      } catch (error) {
+            res.status(500).json({ success: false, message: 'Failed to terminate stream', error: error.message });
+      }
+};
+
+const getAnalytics = async (req, res) => {
+      try {
+            const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+            const groupByDay = (field = '$createdAt') => ({
+                  $dateToString: { format: '%Y-%m-%d', date: field }
+            });
+            const [userGrowth, messagesPerDay, contentPerDay, activeUsers] = await Promise.all([
+                  User.aggregate([{ $match: { createdAt: { $gte: since } } }, { $group: { _id: groupByDay(), count: { $sum: 1 } } }, { $sort: { _id: 1 } }]),
+                  Message.aggregate([{ $match: { createdAt: { $gte: since } } }, { $group: { _id: groupByDay(), count: { $sum: 1 } } }, { $sort: { _id: 1 } }]),
+                  Content.aggregate([{ $match: { createdAt: { $gte: since } } }, { $group: { _id: groupByDay(), count: { $sum: 1 } } }, { $sort: { _id: 1 } }]),
+                  User.countDocuments({ isOnline: true })
+            ]);
+            res.json({
+                  success: true,
+                  data: {
+                        userGrowth: userGrowth.map((item) => ({ date: item._id, users: item.count })),
+                        messagesPerDay: messagesPerDay.map((item) => ({ date: item._id, messages: item.count })),
+                        contentPerDay: contentPerDay.map((item) => ({ date: item._id, posts: item.count })),
+                        activeUsers
+                  }
+            });
+      } catch (error) {
+            res.status(500).json({ success: false, message: 'Failed to load analytics', error: error.message });
+      }
+};
+
 module.exports = {
       getDashboardStats,
       getAllUsers,
@@ -782,6 +916,14 @@ module.exports = {
       updateConfig,
       initializeConfigs,
       sendBroadcast,
+      getStories,
+      deleteStory,
+      getBroadcastChannels,
+      createBroadcastChannel,
+      scheduleBroadcastMessage,
+      getLiveStreams,
+      terminateLiveStream,
+      getAnalytics,
       _private: {
             mapReportForAdmin
       }

@@ -6,6 +6,7 @@ const {
       decorateContentForViewer
 } = require('../utils/contentPresentation');
 const { createNotification } = require('../utils/notificationService');
+const { delByPattern } = require('../config/redis');
 
 const hasId = (idList, id) =>
       Array.isArray(idList) && idList.some((entry) => entry?.toString() === id?.toString());
@@ -84,6 +85,7 @@ const createContent = async (req, res) => {
             await User.findByIdAndUpdate(req.user.id, {
                   $inc: { 'stats.contentCount': 1 }
             });
+            delByPattern('feed:v2:*').catch(() => undefined);
 
             // Populate creator info before sending response
             await content.populate('creator', 'username displayName avatar role');

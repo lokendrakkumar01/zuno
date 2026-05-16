@@ -16,6 +16,8 @@ const messageRoutes = require('./routes/message.routes');
 const conversationRoutes = require('./routes/conversation.routes');
 const streamRoutes = require('./routes/stream.routes');
 const spotifyRoutes = require('./routes/spotify.routes');
+const { protect } = require('./middlewares/auth.middleware');
+const { uploadMultiple } = require('./middlewares/upload.middleware');
 
 const optionalRoute = (routePath) => {
   try {
@@ -116,6 +118,25 @@ if (legacyRoutes.livestream) app.use('/api/livestream', legacyRoutes.livestream)
 app.use('/api/stream', streamRoutes);
 app.use('/api/spotify', spotifyRoutes);
 if (legacyRoutes.notifications) app.use('/api/notifications', legacyRoutes.notifications);
+
+app.post('/api/upload', protect, uploadMultiple.single('file'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ success: false, message: 'A file field named "file" is required' });
+  }
+
+  const url = req.file.path || req.file.secure_url || '';
+  return res.status(201).json({
+    success: true,
+    url,
+    mediaUrl: url,
+    data: {
+      url,
+      mediaUrl: url,
+      type: req.file.mimetype?.startsWith('video/') ? 'video' : 'image',
+      publicId: req.file.filename || req.file.public_id || ''
+    }
+  });
+});
 
 app.use((req, res) => {
   res.status(404).json({ success: false, message: 'Route not found' });
