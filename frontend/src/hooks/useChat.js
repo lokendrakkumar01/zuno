@@ -195,7 +195,7 @@ export const useChat = ({ token, user, receiverId, socket, emitWithAck }) => {
       setMessages([]);
       clearTimeout(typingTimer.current);
     };
-  }, [receiverId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [receiverId, token, fetchMessages]);
 
   // ── Socket listeners — FIX PROBLEMS 1, 5 & 6 ─────────────────────────────
 
