@@ -199,7 +199,8 @@ const ContentCard = ({ content, onSaveChange }) => {
                   <Link to={`/content/${contentState._id}`} className="content-card-media-link">
                         <div className="content-card-media">
                               {hasMedia && isVideo ? (
-                                    <video src={mediaUrl} muted playsInline loop preload="metadata" />
+                                    // FIX BUG 12: muted, playsInline, loop, and preload for mobile auto-play
+                                    <video src={mediaUrl} muted playsInline loop preload="metadata" autoPlay={false} />
                               ) : hasMedia ? (
                                     <img src={mediaUrl} alt={contentState.title || 'ZUNO content'} loading="lazy" />
                               ) : (

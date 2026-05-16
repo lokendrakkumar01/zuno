@@ -24,15 +24,27 @@ const FEED_MODES = [
 
 const FALLBACK_TOPICS = ['learning', 'technology', 'creativity', 'business', 'problem-solving'];
 
+// FIX BUG 10: 3-minute TTL cache — stale data auto-expires
+const FEED_CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes
+
 const readFeedCache = (key) => {
       try {
             const raw = localStorage.getItem(key);
             if (!raw) return [];
-            const parsed = JSON.parse(raw);
-            return Array.isArray(parsed) ? parsed : [];
+            const { data, ts } = JSON.parse(raw);
+            // FIX BUG 10: expire after 3 minutes so user always gets fresh content
+            if (!ts || Date.now() - ts > FEED_CACHE_TTL_MS) {
+                  localStorage.removeItem(key);
+                  return [];
+            }
+            return Array.isArray(data) ? data : [];
       } catch {
             return [];
       }
+};
+
+const writeFeedCache = (key, data) => {
+      try { localStorage.setItem(key, JSON.stringify({ data, ts: Date.now() })); } catch { /* best effort */ }
 };
 
 const Home = () => {
@@ -46,6 +58,8 @@ const Home = () => {
       const [hasMore, setHasMore] = useState(true);
       const [nextCursor, setNextCursor] = useState(null);
       const feedRequestGenRef = useRef(0);
+      // FIX BUG 10: debounce ref — prevents rapid re-fetches when topic changes quickly
+      const debounceRef = useRef(null);
 
       const wakeBackend = useCallback(async () => {
             try {
@@ -117,21 +131,14 @@ const Home = () => {
                   startTransition(() => {
                         setContents((previous) => {
                               if (!append) {
-                                    try {
-                                          localStorage.setItem(cacheKey, JSON.stringify(nextContents));
-                                    } catch {
-                                          // Best effort cache.
-                                    }
+                                    // FIX BUG 10: use writeFeedCache with TTL
+                                    writeFeedCache(cacheKey, nextContents);
                                     return nextContents;
                               }
 
                               const existingIds = new Set(previous.map((item) => item._id));
                               const merged = [...previous, ...nextContents.filter((item) => !existingIds.has(item._id))];
-                              try {
-                                    localStorage.setItem(cacheKey, JSON.stringify(merged));
-                              } catch {
-                                    // Best effort cache.
-                              }
+                              writeFeedCache(cacheKey, merged);
                               return merged;
                         });
                   });
@@ -152,13 +159,18 @@ const Home = () => {
             }
       }, [contents.length, token, topicParam, wakeBackend]);
 
+      // FIX BUG 10: 300ms debounce on mode/topic change to prevent rapid re-fetch
       useEffect(() => {
             setHasMore(true);
             setNextCursor(null);
-            fetchFeed({ currentMode: mode, append: false, cursor: null, currentTopic: topicParam });
+            clearTimeout(debounceRef.current);
+            debounceRef.current = setTimeout(() => {
+                  fetchFeed({ currentMode: mode, append: false, cursor: null, currentTopic: topicParam });
+            }, 300);
 
             return () => {
                   feedRequestGenRef.current += 1;
+                  clearTimeout(debounceRef.current);
             };
       }, [fetchFeed, mode, topicParam]);
 
