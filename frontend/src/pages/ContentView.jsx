@@ -91,20 +91,10 @@ const ContentView = () => {
       const { id } = useParams();
       const { token, user } = useAuth();
       const { playTrack, stopTrack, currentTrack, isPlaying: isGlobalPlaying } = useMusic();
-      const [content, setContent] = useState(() => {
-            try {
-                  const cached = localStorage.getItem(`zuno_content_${id}`);
-                  if (cached) return JSON.parse(cached);
-            } catch (e) { }
-            return null;
-      });
+      // Always start with null + loading=true so we always fetch fresh data
+      const [content, setContent] = useState(null);
       const isThisPlaying = isGlobalPlaying && currentTrack?.trackId === content?.music?.trackId;
-      const [loading, setLoading] = useState(() => {
-            try {
-                  if (localStorage.getItem(`zuno_content_${id}`)) return false;
-            } catch (e) { }
-            return true;
-      });
+      const [loading, setLoading] = useState(true);
       const [isHelpful, setIsHelpful] = useState(false);
       const [isSaved, setIsSaved] = useState(false);
       const [moreContent, setMoreContent] = useState([]);
@@ -123,16 +113,28 @@ const ContentView = () => {
             }
       }, []);
 
+      // Purge ANY stale localStorage cache for this content on every id change.
+      // This prevents cross-user cache poisoning (visitor sees owner's cached stale data).
+      useEffect(() => {
+            try {
+                  localStorage.removeItem(`zuno_content_${id}`);
+                  // Also clear feed-level cache so ContentCard re-fetches fresh data
+                  const keysToRemove = [];
+                  for (let i = 0; i < localStorage.length; i++) {
+                        const key = localStorage.key(i);
+                        if (key && (key.startsWith('zuno_content_') || key.startsWith('zuno_feed_'))) {
+                              keysToRemove.push(key);
+                        }
+                  }
+                  keysToRemove.forEach(k => localStorage.removeItem(k));
+            } catch { /* ignore */ }
+      }, [id]);
+
+      // No caching — always keep state fresh from server
       const updateContentState = (updater) => {
             setContent((prev) => {
                   if (!prev) return prev;
-                  const next = typeof updater === 'function' ? updater(prev) : updater;
-                  try {
-                        localStorage.setItem(`zuno_content_${id}`, JSON.stringify(next));
-                  } catch {
-                        // Cache writes are optional.
-                  }
-                  return next;
+                  return typeof updater === 'function' ? updater(prev) : updater;
             });
       };
 
@@ -168,7 +170,9 @@ const ContentView = () => {
             const controller = new AbortController();
 
             const fetchContent = async () => {
-                  setLoading((prev) => (content ? false : prev));
+                  // Always show spinner while fetching fresh data
+                  setLoading(true);
+                  setContent(null);
 
                   try {
                         let res;
@@ -184,6 +188,7 @@ const ContentView = () => {
                               }
 
                               if (error?.name === 'AbortError') {
+                                    // Backend sleeping — wake it and retry with longer timeout
                                     await wakeBackend();
                                     res = await fetchWithTimeout(`${API_URL}/content/${id}`, {
                                           headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -198,21 +203,19 @@ const ContentView = () => {
                         if (ignore) return;
 
                         if (data?.success && data.data?.content) {
-                              setContent(data.data.content);
-                              setIsHelpful(Boolean(data.data.content?.viewerState?.isHelpful));
-                              setIsSaved(Boolean(data.data.content?.viewerState?.isSaved));
-                              try {
-                                    localStorage.setItem(`zuno_content_${id}`, JSON.stringify(data.data.content));
-                              } catch {
-                                    // Cache writes are optional.
-                              }
-                        } else if (!content) {
+                              const freshContent = data.data.content;
+                              setContent(freshContent);
+                              setIsHelpful(Boolean(freshContent?.viewerState?.isHelpful));
+                              setIsSaved(Boolean(freshContent?.viewerState?.isSaved));
+                              // No localStorage — always load fresh
+                        } else {
                               setContent(null);
                         }
                   } catch (error) {
                         if (error?.name !== 'AbortError') {
                               console.error('Failed to fetch content:', error);
                         }
+                        if (!ignore) setContent(null);
                   } finally {
                         if (!ignore) {
                               setLoading(false);
@@ -385,10 +388,65 @@ const ContentView = () => {
 
       if (loading) {
             return (
-                  <div className="empty-state animate-fadeIn" style={{ minHeight: '40vh' }}>
-                        <div className="loader" style={{ margin: '0 auto 1rem' }} />
-                        <h2 className="text-xl font-semibold mb-sm">Loading content</h2>
-                        <p className="text-secondary">Opening the post and preparing comments, media, and creator details.</p>
+                  <div style={{
+                        maxWidth: '860px', margin: '40px auto', padding: '0 20px'
+                  }}>
+                        {/* Skeleton header */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+                              <div style={{
+                                    width: '44px', height: '44px', borderRadius: '50%',
+                                    background: 'var(--color-bg-secondary)',
+                                    animation: 'skeletonPulse 1.4s ease-in-out infinite'
+                              }} />
+                              <div>
+                                    <div style={{
+                                          width: '120px', height: '14px', borderRadius: '6px',
+                                          background: 'var(--color-bg-secondary)',
+                                          animation: 'skeletonPulse 1.4s ease-in-out infinite',
+                                          marginBottom: '6px'
+                                    }} />
+                                    <div style={{
+                                          width: '80px', height: '11px', borderRadius: '6px',
+                                          background: 'var(--color-bg-secondary)',
+                                          animation: 'skeletonPulse 1.4s ease-in-out infinite 0.2s'
+                                    }} />
+                              </div>
+                        </div>
+                        {/* Skeleton title */}
+                        <div style={{
+                              width: '75%', height: '32px', borderRadius: '8px',
+                              background: 'var(--color-bg-secondary)',
+                              animation: 'skeletonPulse 1.4s ease-in-out infinite',
+                              marginBottom: '12px'
+                        }} />
+                        <div style={{
+                              width: '45%', height: '20px', borderRadius: '6px',
+                              background: 'var(--color-bg-secondary)',
+                              animation: 'skeletonPulse 1.4s ease-in-out infinite 0.15s',
+                              marginBottom: '28px'
+                        }} />
+                        {/* Skeleton media */}
+                        <div style={{
+                              width: '100%', height: '340px', borderRadius: '16px',
+                              background: 'var(--color-bg-secondary)',
+                              animation: 'skeletonPulse 1.4s ease-in-out infinite 0.3s',
+                              marginBottom: '24px'
+                        }} />
+                        {/* Skeleton body lines */}
+                        {[100, 85, 90, 60].map((w, i) => (
+                              <div key={i} style={{
+                                    width: `${w}%`, height: '14px', borderRadius: '6px',
+                                    background: 'var(--color-bg-secondary)',
+                                    animation: `skeletonPulse 1.4s ease-in-out infinite ${i * 0.1}s`,
+                                    marginBottom: '10px'
+                              }} />
+                        ))}
+                        <style>{`
+                              @keyframes skeletonPulse {
+                                    0%, 100% { opacity: 1; }
+                                    50% { opacity: 0.4; }
+                              }
+                        `}</style>
                   </div>
             );
       }
@@ -396,8 +454,9 @@ const ContentView = () => {
       if (!content) {
             return (
                   <div className="empty-state animate-fadeIn">
-                        <div className="empty-state-icon">[Not Found]</div>
+                        <div className="empty-state-icon" style={{ fontSize: '3rem' }}>🔍</div>
                         <h2 className="text-xl font-semibold mb-md">Content not found</h2>
+                        <p className="text-secondary" style={{ marginBottom: '20px' }}>This post may have been deleted or is not accessible.</p>
                         <Link to="/" className="btn btn-primary">Go Home</Link>
                   </div>
             );
@@ -428,7 +487,11 @@ const ContentView = () => {
                               <div className="mb-xl">
                                     <div className="flex items-start justify-between gap-md flex-wrap">
                                           <h1 className="text-4xl font-extrabold mb-md" style={{ letterSpacing: '-0.02em', lineHeight: '1.2', flex: '1 1 320px' }}>
-                                                {content.title || 'Untitled Content'}
+                                                {content.title
+                                                  ? content.title
+                                                  : content.body
+                                                    ? content.body.slice(0, 60) + (content.body.length > 60 ? '…' : '')
+                                                    : 'Content preview not available'}
                                           </h1>
                                           {isOwner && (
                                                 <button

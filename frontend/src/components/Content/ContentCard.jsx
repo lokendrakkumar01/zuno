@@ -66,8 +66,11 @@ const ContentCard = ({ content, onSaveChange }) => {
       const isHelpful = contentState.viewerState?.isHelpful;
       const isSaved = contentState.viewerState?.isSaved;
       const creatorName = contentState.creator?.displayName || contentState.creator?.username || 'ZUNO';
+      // Robust title fallback: title → body preview → generic label (never "Untitled")
       const cardTitle = contentState.title?.trim()
-            || (contentState.contentType === 'post' ? getTextPreview(contentState) : 'Untitled post');
+            || (contentState.body?.trim()
+                  ? contentState.body.slice(0, 60) + (contentState.body.length > 60 ? '…' : '')
+                  : 'Content preview not available');
       const cardText = contentState.body?.trim() || 'Open this post to view the full content.';
 
       const updateContentState = (updater) => {
