@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { API_URL } from '../config';
 import useSocket from '../hooks/useSocket';
 import useChat from '../hooks/useChat';
 import useCall from '../hooks/useCall';
@@ -38,10 +39,18 @@ const EmojiIcon = () => (
   </svg>
 );
 
+const THEMES = {
+  default: '',
+  darkblue: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)',
+  sunset: 'linear-gradient(135deg, #4c1d95 0%, #be123c 100%)',
+  forest: 'linear-gradient(135deg, #064e3b 0%, #0f766e 100%)'
+};
+
 const Chat = () => {
   const { userId } = useParams();
   const { token, user } = useAuth();
   const [text, setText] = useState('');
+  const [theme, setTheme] = useState('default');
   const [isInputFocused, setIsInputFocused] = useState(false);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -67,8 +76,49 @@ const Chat = () => {
     }
   };
 
+  const handleDeleteMessage = async (message, type) => {
+    if (!window.confirm(`Are you sure you want to delete this message?`)) return;
+    try {
+      const res = await fetch(`${API_URL}/messages/delete/${message._id}?type=${type}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        // Optimistic delete
+        if (type === 'everyone') {
+          chat.setMessages?.(prev => prev.map(m => m._id === message._id ? { ...m, deletedForEveryone: true } : m));
+        } else {
+          chat.setMessages?.(prev => prev.filter(m => m._id !== message._id));
+        }
+      }
+    } catch (err) {
+      console.error('Delete failed:', err);
+    }
+  };
+
+  const handleEditMessage = async (message) => {
+    const newText = window.prompt("Edit message:", message.text);
+    if (newText === null || newText.trim() === '' || newText === message.text) return;
+    try {
+      const res = await fetch(`${API_URL}/messages/edit/${message._id}`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ text: newText })
+      });
+      const data = await res.json();
+      if (data.success) {
+        chat.setMessages?.(prev => prev.map(m => m._id === message._id ? { ...m, text: newText, edited: true } : m));
+      }
+    } catch (err) {
+      console.error('Edit failed:', err);
+    }
+  };
+
   return (
-    <main className="chat-shell">
+    <main className="chat-shell" style={theme !== 'default' ? { background: THEMES[theme] } : {}}>
       {/* Header */}
       <header className="chat-hdr">
         <div className="chat-hdr-left">
@@ -89,6 +139,17 @@ const Chat = () => {
           </div>
         </div>
         <div className="chat-hdr-actions">
+          <select 
+            value={theme} 
+            onChange={(e) => setTheme(e.target.value)}
+            className="chat-theme-select"
+            title="Chat Theme"
+          >
+            <option value="default">Default Theme</option>
+            <option value="darkblue">Dark Blue</option>
+            <option value="sunset">Sunset</option>
+            <option value="forest">Forest</option>
+          </select>
           <button
             className="chat-call-btn audio-call-btn"
             onClick={() => call.startCall(userId, 'audio')}
@@ -128,6 +189,8 @@ const Chat = () => {
             hasMore={chat.hasMore}
             onLoadMore={chat.loadMore}
             height={window.innerHeight - 170}
+            onDelete={handleDeleteMessage}
+            onEdit={handleEditMessage}
           />
         )}
       </section>
@@ -226,8 +289,18 @@ const Chat = () => {
         .conn-label-on { font-size: 0.75rem; font-weight: 600; color: #22c55e; }
         .conn-label-off { font-size: 0.75rem; font-weight: 600; color: #f59e0b; }
 
-        /* ─── Call Buttons ─── */
-        .chat-hdr-actions { display: flex; gap: 8px; }
+        /* ─── Call Buttons & Select ─── */
+        .chat-hdr-actions { display: flex; gap: 8px; align-items: center; }
+        .chat-theme-select {
+          background: var(--color-bg-secondary);
+          color: var(--color-text-primary);
+          border: 1px solid var(--color-border-light);
+          border-radius: 20px;
+          padding: 4px 10px;
+          font-size: 0.8rem;
+          outline: none;
+          cursor: pointer;
+        }
         .chat-call-btn {
           display: flex; align-items: center; gap: 6px;
           padding: 8px 14px; border-radius: 24px;

@@ -1,7 +1,7 @@
 import { memo, useEffect, useRef } from 'react';
 import MessageItem from './MessageItem';
 
-const MessageList = memo(({ messages, currentUserId, height = 520, onLoadMore, hasMore }) => {
+const MessageList = memo(({ messages, currentUserId, height = 520, onLoadMore, hasMore, onDelete, onEdit }) => {
   const items = messages || [];
   const bottomRef = useRef(null);
   const containerRef = useRef(null);
@@ -63,6 +63,8 @@ const MessageList = memo(({ messages, currentUserId, height = 520, onLoadMore, h
             key={message._id || message.clientMsgId}
             message={message}
             mine={String(senderId) === String(currentUserId)}
+            onDelete={onDelete}
+            onEdit={onEdit}
           />
         );
       })}
