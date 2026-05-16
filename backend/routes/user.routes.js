@@ -107,6 +107,7 @@ router.patch('/notification-settings', protect, async (req, res) => {
     const nextSettings = {
       ...current,
       ...(typeof req.body.inApp === 'boolean' ? { inApp: req.body.inApp } : {}),
+      ...(Array.isArray(req.body.mutedConversations) ? { mutedConversations: req.body.mutedConversations } : {}),
       ...(req.body.notificationSettings && typeof req.body.notificationSettings === 'object'
         ? req.body.notificationSettings
         : {})

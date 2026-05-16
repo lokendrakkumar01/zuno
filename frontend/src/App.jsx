@@ -40,6 +40,7 @@ const Activity = lazy(() => import('./pages/Settings/Activity'));
 const ScheduledContent = lazy(() => import('./pages/Settings/ScheduledContent'));
 const Insights = lazy(() => import('./pages/Settings/Insights'));
 const Search = lazy(() => import('./pages/Search/Search'));
+const Music = lazy(() => import('./pages/Music'));
 const SavedContent = lazy(() => import('./pages/SavedContent'));
 const MessagesLayout = lazy(() => import('./pages/Messages/MessagesLayout'));
 const Chat = lazy(() => import('./pages/Chat'));
@@ -99,6 +100,7 @@ function AppRouter() {
             <Route path="settings/insights" element={<Insights />} />
             <Route path="status" element={<Status />} />
             <Route path="search" element={<Search />} />
+            <Route path="music" element={<Music />} />
             <Route path="messages" element={<MessagesLayout />}>
               <Route index element={null} />
               <Route path="group/:groupId" element={<GroupChat />} />

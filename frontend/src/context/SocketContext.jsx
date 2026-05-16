@@ -29,6 +29,7 @@ export const SocketContextProvider = ({ children }) => {
   const heartbeatRef = useRef(null);
   const reconnectTimerRef = useRef(null);
   const notificationIdsRef = useRef(new Set());
+  const soundRef = useRef(null);
 
   const clearHeartbeat = () => {
     if (heartbeatRef.current) {
@@ -58,6 +59,30 @@ export const SocketContextProvider = ({ children }) => {
         .filter(Boolean)
     );
   }, [notifications]);
+
+  const playNotificationSound = useCallback((type = 'notification') => {
+    const settings = user?.notificationSettings || {};
+    const soundName = type === 'message' ? settings.messageSound : settings.notificationSound;
+    if (settings.inApp === false || soundName === 'off') return;
+    const soundMap = {
+      soft: 'https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3',
+      pop: 'https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3',
+      chime: 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'
+    };
+    const src = soundMap[soundName || 'soft'];
+    if (!src) return;
+    try {
+      if (!soundRef.current || soundRef.current.src !== src) {
+        soundRef.current = new Audio(src);
+        soundRef.current.preload = 'auto';
+      }
+      soundRef.current.currentTime = 0;
+      soundRef.current.volume = type === 'message' ? 0.55 : 0.45;
+      soundRef.current.play().catch(() => undefined);
+    } catch {
+      // Browser audio policies can block unattended playback.
+    }
+  }, [user?.notificationSettings]);
 
   useEffect(() => {
     if (!authenticatedUserId || !token) {
@@ -164,6 +189,7 @@ export const SocketContextProvider = ({ children }) => {
         return [notification, ...prev];
       });
       setUnreadCount(prev => prev + 1);
+      playNotificationSound(notification.type === 'message' ? 'message' : 'notification');
 
       // Show toast for new notification
       const icons = {
@@ -207,7 +233,7 @@ export const SocketContextProvider = ({ children }) => {
       setIsConnected(false);
       setOnlineUsers([]);
     };
-  }, [authenticatedUserId, token, closeSocket]);
+  }, [authenticatedUserId, token, closeSocket, playNotificationSound, user?.notificationSettings?.inApp]);
 
   // Helper: mark notification as read
   const markNotificationRead = useCallback((notificationId) => {

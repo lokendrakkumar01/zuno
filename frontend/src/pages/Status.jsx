@@ -205,8 +205,10 @@ const Status = () => {
                   <section>
                         <h2 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--color-text-secondary)', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Recent Updates</h2>
                         {loading ? (
-                              <div style={{ display: 'flex', justifyContent: 'center', padding: '32px' }}>
-                                    <div style={{ width: '32px', height: '32px', border: '4px solid var(--color-bg-hover)', borderTopColor: 'var(--color-accent-primary)', borderRadius: '50%' }} className="animate-spin"></div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                    {[0, 1, 2].map((item) => (
+                                          <div key={item} className="animate-pulse" style={{ height: 82, borderRadius: 12, background: 'var(--color-bg-secondary)' }} />
+                                    ))}
                               </div>
                         ) : recentUpdates.length > 0 ? (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>

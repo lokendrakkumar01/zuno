@@ -23,7 +23,7 @@ const interactionSchema = new mongoose.Schema({
       // For reports
       reportReason: {
             type: String,
-            enum: ['spam', 'inappropriate', 'misleading', 'harmful', 'other']
+            enum: ['spam', 'abuse', 'fake-content', 'violence', 'other', 'inappropriate', 'misleading', 'harmful']
       },
       reportNote: String
 

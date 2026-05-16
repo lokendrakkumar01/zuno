@@ -73,7 +73,8 @@ const userSchema = new mongoose.Schema({
     sharesNotifications: { type: Boolean, default: true },
     messageNotifications: { type: Boolean, default: true },
     messageSound: { type: String, enum: ['off', 'soft', 'pop', 'chime'], default: 'soft' },
-    notificationSound: { type: String, enum: ['off', 'soft', 'pop', 'chime'], default: 'soft' }
+    notificationSound: { type: String, enum: ['off', 'soft', 'pop', 'chime'], default: 'soft' },
+    mutedConversations: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Conversation' }]
   },
   stats: {
     contentCount: { type: Number, default: 0 },

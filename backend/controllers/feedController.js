@@ -664,6 +664,7 @@ const getActiveStories = async (req, res, next) => {
                               backgroundColor: 1,
                               fontStyle: 1,
                               textAlign: 1,
+                              music: 1,
                               metrics: 1
                         }
                   }

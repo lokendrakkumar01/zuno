@@ -45,6 +45,15 @@ const styles = `
 .rq-skeleton{padding:18px;display:grid;gap:10px}
 .rq-skeleton div{height:38px;border-radius:18px;background:linear-gradient(90deg,#eef2f7,#f8fafc,#eef2f7);animation:rq-pulse 1.1s infinite}
 @keyframes rq-pulse{50%{opacity:.55}}
+@media(max-width:640px){
+  .rq-chat-head{padding:10px 12px}
+  .rq-head-actions{gap:6px}
+  .rq-icon-btn{width:36px;height:36px}
+  .rq-composer{gap:6px;padding:8px calc(8px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) calc(8px + env(safe-area-inset-left))}
+  .rq-composer textarea{font-size:16px;min-height:40px;padding:10px 12px}
+  .rq-send{width:40px;height:40px;flex:0 0 40px}
+  .rq-bubble{max-width:84%}
+}
 `;
 
 const ensureStyles = () => {
@@ -114,6 +123,7 @@ export default function Chat() {
   const [editingId, setEditingId] = useState(null);
   const [editingText, setEditingText] = useState('');
   const [typingUser, setTypingUser] = useState(false);
+  const [muteOverride, setMuteOverride] = useState(null);
 
   const authHeaders = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
@@ -155,6 +165,9 @@ export default function Chat() {
   const messages = useMemo(() => flattenPages(messagesQuery.data, currentUserId), [currentUserId, messagesQuery.data]);
   const otherUser = messagesQuery.data?.pages?.[0]?.otherUser || profileQuery.data || null;
   const isOnline = onlineUsers.some((id) => sameEntityId(id, conversationParam));
+  const mutedConversations = user?.notificationSettings?.mutedConversations || [];
+  const conversationIdForMute = getEntityId(messages[0]?.conversationId) || conversationParam;
+  const isMuted = muteOverride ?? mutedConversations.some((id) => sameEntityId(id, conversationIdForMute));
 
   const patchMessagesCache = useCallback((updater) => {
     queryClient.setQueryData(['messages', conversationParam], (old) => {
@@ -324,6 +337,24 @@ export default function Chat() {
     }
   });
 
+  const muteMutation = useMutation({
+    mutationFn: async (nextMuted) => {
+      setMuteOverride(nextMuted);
+      const nextMutedConversations = nextMuted
+        ? Array.from(new Set([...mutedConversations.map(String), conversationIdForMute].filter(Boolean)))
+        : mutedConversations.filter((id) => !sameEntityId(id, conversationIdForMute));
+      const res = await fetch(`${API_URL}/users/notification-settings`, {
+        method: 'PATCH',
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notificationSettings: { ...(user?.notificationSettings || {}), mutedConversations: nextMutedConversations } })
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) throw new Error(data?.message || 'Mute update failed');
+      return data.data?.user || null;
+    },
+    onError: () => setMuteOverride(null)
+  });
+
   const handleDraftChange = (event) => {
     setDraft(event.target.value);
     if (!socket) return;
@@ -367,6 +398,19 @@ export default function Chat() {
     event.target.value = '';
   };
 
+  const downloadMedia = (message) => {
+    const url = messageMediaUrl(message);
+    if (!url) return;
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = url.split('/').pop()?.split('?')[0] || 'zuno-media';
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+
   return (
     <div className="rq-chat">
       <header className="rq-chat-head">
@@ -380,6 +424,9 @@ export default function Chat() {
         <div className="rq-head-actions">
           <button className="rq-icon-btn" type="button" title="Voice call" onClick={() => startCall?.(conversationParam, 'voice', otherUser)}>☎</button>
           <button className="rq-icon-btn" type="button" title="Video call" onClick={() => startCall?.(conversationParam, 'video', otherUser)}>▣</button>
+          <button className="rq-icon-btn" type="button" title={isMuted ? 'Unmute conversation' : 'Mute conversation'} onClick={() => muteMutation.mutate(!isMuted)}>
+            {isMuted ? '🔕' : '🔔'}
+          </button>
         </div>
       </header>
 
@@ -432,8 +479,9 @@ export default function Chat() {
                     {menuId === id && !message.deletedForEveryone ? (
                       <div className="rq-menu">
                         {isEditable(message, currentUserId) ? <button type="button" onClick={() => beginEdit(message)}>Edit</button> : null}
-                        {mine ? <button type="button" onClick={() => { setMenuId(null); deleteMutation.mutate({ id, mode: 'everyone' }); }}>Delete for Everyone</button> : null}
-                        <button type="button" onClick={() => { setMenuId(null); deleteMutation.mutate({ id, mode: 'me' }); }}>Delete for Me</button>
+                        {mediaUrl ? <button type="button" onClick={() => { setMenuId(null); downloadMedia(message); }}>Download Media</button> : null}
+                        {mine ? <button type="button" onClick={() => { if (window.confirm('Delete this message for everyone?')) { setMenuId(null); deleteMutation.mutate({ id, mode: 'everyone' }); } }}>Delete for Everyone</button> : null}
+                        <button type="button" onClick={() => { if (window.confirm('Delete this message only for you?')) { setMenuId(null); deleteMutation.mutate({ id, mode: 'me' }); } }}>Delete for Me</button>
                       </div>
                     ) : null}
                   </div>

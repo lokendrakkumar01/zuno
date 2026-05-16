@@ -74,9 +74,12 @@ const createNotification = async ({
   if (normalizedRecipientId === normalizedActorId && type !== 'follow_request_rejected') return null;
 
   const recipient = await User.findById(normalizedRecipientId)
-    .select('notificationSettings.inApp')
+    .select('notificationSettings.inApp notificationSettings.mutedConversations')
     .lean();
   if (recipient?.notificationSettings?.inApp === false) return null;
+  const mutedIds = recipient?.notificationSettings?.mutedConversations || [];
+  const targetConversationId = metadata?.conversationId?.toString?.() || metadata?.conversationId || '';
+  if (targetConversationId && mutedIds.some((id) => id?.toString?.() === targetConversationId)) return null;
 
   const notification = await Notification.create({
     recipient: normalizedRecipientId,

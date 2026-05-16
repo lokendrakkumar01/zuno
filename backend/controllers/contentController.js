@@ -530,7 +530,10 @@ const reportContent = async (req, res) => {
                   });
             }
 
-            const { reason, note } = req.body;
+            const allowedReasons = new Set(['spam', 'abuse', 'fake-content', 'violence', 'other']);
+            const requestedReason = String(req.body.reason || '').trim();
+            const reason = allowedReasons.has(requestedReason) ? requestedReason : 'other';
+            const note = String(req.body.note || '').trim().slice(0, 1000);
 
             // Check if already reported
             const existing = await Interaction.findOne({

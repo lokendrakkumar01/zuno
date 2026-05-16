@@ -50,6 +50,9 @@ const ContentCard = ({ content, onSaveChange }) => {
       const queryClient = useQueryClient();
       const [contentState, setContentState] = useState(() => normalizeContentState(content));
       const [statusMessage, setStatusMessage] = useState('');
+      const [reportOpen, setReportOpen] = useState(false);
+      const [reportReason, setReportReason] = useState('spam');
+      const [reportNote, setReportNote] = useState('');
 
       useEffect(() => {
             setContentState(normalizeContentState(content));
@@ -169,6 +172,33 @@ const ContentCard = ({ content, onSaveChange }) => {
                   window.setTimeout(() => setStatusMessage(''), 2200);
             } catch (error) {
                   console.error('Failed to share content:', error);
+            }
+      };
+
+      const submitReport = async () => {
+            if (!token) return;
+            try {
+                  const res = await fetch(`${API_URL}/content/${contentState._id}/report`, {
+                        method: 'POST',
+                        headers: {
+                              'Content-Type': 'application/json',
+                              Authorization: `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ reason: reportReason, note: reportNote })
+                  });
+                  const data = await res.json().catch(() => null);
+                  if (res.ok && data?.success) {
+                        setStatusMessage('Report submitted for review');
+                        setReportOpen(false);
+                        setReportNote('');
+                        window.setTimeout(() => setStatusMessage(''), 2200);
+                  } else {
+                        setStatusMessage(data?.message || 'Report failed');
+                        window.setTimeout(() => setStatusMessage(''), 2200);
+                  }
+            } catch {
+                  setStatusMessage('Report failed');
+                  window.setTimeout(() => setStatusMessage(''), 2200);
             }
       };
 
@@ -306,6 +336,19 @@ const ContentCard = ({ content, onSaveChange }) => {
                                     <ShareIcon size={18} />
                                     <span>{contentState.metrics.shareCount || 0}</span>
                               </button>
+
+                              <button
+                                    className="interaction-btn"
+                                    onClick={(event) => {
+                                          event.preventDefault();
+                                          event.stopPropagation();
+                                          setReportOpen(true);
+                                    }}
+                                    aria-label="Report content"
+                              >
+                                    <span style={{ fontWeight: 800 }}>!</span>
+                                    <span>Report</span>
+                              </button>
                         </div>
 
                         {statusMessage ? (
@@ -315,6 +358,44 @@ const ContentCard = ({ content, onSaveChange }) => {
                               </div>
                         ) : null}
                   </div>
+
+                  {reportOpen ? (
+                        <div className="modal-overlay" onClick={() => setReportOpen(false)} style={{ zIndex: 1200 }}>
+                              <div className="card" onClick={(event) => event.stopPropagation()} style={{ width: 'min(420px, calc(100vw - 32px))', borderRadius: 16 }}>
+                                    <h3 className="text-lg font-bold mb-sm">Report this content</h3>
+                                    <p className="text-muted mb-md">Tell moderators what feels wrong. Reports stay private.</p>
+                                    <div className="flex flex-wrap gap-sm mb-md">
+                                          {[
+                                                ['spam', 'Spam'],
+                                                ['abuse', 'Abuse'],
+                                                ['fake-content', 'Fake content'],
+                                                ['violence', 'Violence'],
+                                                ['other', 'Other']
+                                          ].map(([value, label]) => (
+                                                <button
+                                                      key={value}
+                                                      type="button"
+                                                      className={`mode-pill ${reportReason === value ? 'active' : ''}`}
+                                                      onClick={() => setReportReason(value)}
+                                                >
+                                                      {label}
+                                                </button>
+                                          ))}
+                                    </div>
+                                    <textarea
+                                          className="input"
+                                          rows={4}
+                                          value={reportNote}
+                                          onChange={(event) => setReportNote(event.target.value.slice(0, 500))}
+                                          placeholder="Add optional context..."
+                                    />
+                                    <div className="flex gap-sm mt-md">
+                                          <button type="button" className="btn btn-secondary flex-1" onClick={() => setReportOpen(false)}>Cancel</button>
+                                          <button type="button" className="btn btn-primary flex-1" onClick={submitReport}>Submit Report</button>
+                                    </div>
+                              </div>
+                        </div>
+                  ) : null}
             </article>
       );
 };
