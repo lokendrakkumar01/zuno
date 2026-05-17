@@ -925,8 +925,12 @@ const Profile = () => {
                         trackId: editData.profileSong.trackId,
                         name: editData.profileSong.name,
                         artist: editData.profileSong.artist,
+                        albumName: editData.profileSong.albumName,
                         albumArt: editData.profileSong.albumArt,
-                        previewUrl: editData.profileSong.previewUrl
+                        previewUrl: editData.profileSong.previewUrl,
+                        spotifyUrl: editData.profileSong.spotifyUrl,
+                        embedUrl: editData.profileSong.embedUrl,
+                        durationMs: editData.profileSong.durationMs
                   } : null
             };
             const result = await updateProfile(dataToSave);
@@ -1285,6 +1289,7 @@ const Profile = () => {
                                                       @keyframes magicMusicBar { 0% { height: 30%; } 50% { height: 100%; } 100% { height: 30%; } }
                                                 `}</style>
                                                 {profileUser.profileSong && profileUser.profileSong.name ? (
+                                                      <>
                                                       <div
                                                             className="mt-lg animate-fadeInUp magic-music-bar profile-music-bar"
                                                             style={{
@@ -1323,6 +1328,8 @@ const Profile = () => {
                                                                         } else {
                                                                               playTrack(profileUser.profileSong);
                                                                         }
+                                                                  } else if (profileUser.profileSong.spotifyUrl) {
+                                                                        window.open(profileUser.profileSong.spotifyUrl, '_blank', 'noopener,noreferrer');
                                                                   }
                                                             }}
                                                             onMouseOver={(e) => { if (!isMusicPlayingGlobal) e.currentTarget.style.transform = 'scale(1.02)' }}
@@ -1345,6 +1352,7 @@ const Profile = () => {
                                                                         e.stopPropagation();
                                                                         if (isMusicPlayingGlobal && currentTrack?.trackId === profileUser.profileSong.trackId) stopTrack();
                                                                         else if (profileUser.profileSong.previewUrl) playTrack(profileUser.profileSong);
+                                                                        else if (profileUser.profileSong.spotifyUrl) window.open(profileUser.profileSong.spotifyUrl, '_blank', 'noopener,noreferrer');
                                                                   }}
                                                             >
                                                                   <div style={{
@@ -1395,6 +1403,25 @@ const Profile = () => {
                                                                   <div style={{ fontSize: '10px', fontWeight: 700, color: '#4338ca', background: '#eef2ff', padding: '0.25rem 0.5rem', borderRadius: '999px', marginLeft: '8px', boxShadow: 'var(--shadow-sm)', border: '1px solid #c7d2fe' }}>EDIT</div>
                                                             )}
                                                       </div>
+                                                      {profileUser.profileSong.embedUrl ? (
+                                                            <div className="mt-md animate-fadeInUp" style={{ width: '100%', maxWidth: 420 }}>
+                                                                  <iframe
+                                                                        title={`${profileUser.profileSong.name} by ${profileUser.profileSong.artist}`}
+                                                                        src={profileUser.profileSong.embedUrl}
+                                                                        width="100%"
+                                                                        height="80"
+                                                                        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                                                                        loading="lazy"
+                                                                        style={{
+                                                                              border: 0,
+                                                                              borderRadius: 10,
+                                                                              display: 'block',
+                                                                              background: 'var(--color-bg-secondary)'
+                                                                        }}
+                                                                  />
+                                                            </div>
+                                                      ) : null}
+                                                      </>
                                                 ) : isOwnProfile && (
                                                       <div
                                                             className="mt-lg animate-fadeInUp"

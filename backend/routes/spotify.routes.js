@@ -70,8 +70,8 @@ router.get('/search', protect, async (req, res) => {
       });
     }
 
-    // Use market=IN for India, which helps with search results & preview URLs
-    const searchUrl = `https://api.spotify.com/v1/search?type=track&limit=10&market=IN&q=${encodeURIComponent(q)}`;
+    const market = String(process.env.SPOTIFY_MARKET || 'IN').trim().slice(0, 2).toUpperCase();
+    const searchUrl = `https://api.spotify.com/v1/search?type=track&limit=10&market=${encodeURIComponent(market)}&q=${encodeURIComponent(q)}`;
 
     const response = await fetch(searchUrl, {
       headers: {
@@ -108,11 +108,13 @@ router.get('/search', protect, async (req, res) => {
       albumName: track.album?.name || '',
       durationMs: track.duration_ms || 0,
       previewUrl: track.preview_url || await findPreviewFallback(track),
-      spotifyUrl: track.external_urls?.spotify || ''
+      spotifyUrl: track.external_urls?.spotify || '',
+      embedUrl: track.id ? `https://open.spotify.com/embed/track/${track.id}` : ''
     })));
 
     console.log(`[Spotify] Search "${q}": ${mappedTracks.length} results, ${mappedTracks.filter(t => t.previewUrl).length} with preview`);
 
+    res.set('Cache-Control', 'private, max-age=60');
     return res.json({ success: true, data: { tracks: mappedTracks } });
   } catch (error) {
     console.error('[Spotify Route Error]', error.message);

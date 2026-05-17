@@ -19,6 +19,16 @@ const protect = async (req, res, next) => {
                         return res.status(401).json({ success: false, message: 'Account is deactivated' });
                   }
 
+                  if (!req.user.isEmailVerified) {
+                        return res.status(403).json({
+                              success: false,
+                              message: 'Please verify your email before continuing.',
+                              requiresVerification: true,
+                              email: req.user.email,
+                              data: { requiresVerification: true, email: req.user.email }
+                        });
+                  }
+
                   return next();
             } catch (error) {
                   return res.status(401).json({ success: false, message: 'Not authorized, token failed' });
@@ -41,7 +51,7 @@ const optionalProtect = async (req, res, next) => {
             const token = authHeader.split(' ')[1];
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
             const user = await User.findById(decoded.id).select('-password');
-            if (user && user.isActive) {
+            if (user && user.isActive && user.isEmailVerified) {
                   req.user = user;
             }
       } catch (error) {

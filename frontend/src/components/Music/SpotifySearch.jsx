@@ -39,6 +39,7 @@ const SpotifySearch = ({
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const { token } = useAuth();
   const previewAudioRef = useRef(null);
+  const searchRunRef = useRef(0);
 
   useEffect(() => {
     if (selectedTrack?.name && !hasTyped) {
@@ -66,8 +67,10 @@ const SpotifySearch = ({
     setLoading(true);
 
     const controller = new AbortController();
+    const searchRun = searchRunRef.current + 1;
+    searchRunRef.current = searchRun;
     const timeoutId = window.setTimeout(() => {
-      searchTracks(trimmedQuery, controller.signal);
+      searchTracks(trimmedQuery, controller.signal, searchRun);
     }, 250); // Reduced debounce for faster feel
 
     return () => {
@@ -84,7 +87,7 @@ const SpotifySearch = ({
     }
   }, []);
 
-  const searchTracks = async (nextQuery, signal) => {
+  const searchTracks = async (nextQuery, signal, searchRun) => {
     setLoading(true);
     setError('');
 
@@ -96,21 +99,29 @@ const SpotifySearch = ({
       const data = await res.json();
 
       if (data.success) {
-        setResults(data.data?.tracks || []);
-        if ((data.data?.tracks || []).length === 0 && nextQuery.length >= 3) {
+        if (searchRun !== searchRunRef.current) return;
+        const seen = new Set();
+        const tracks = (data.data?.tracks || []).filter((track) => {
+          if (!track?.trackId || seen.has(track.trackId)) return false;
+          seen.add(track.trackId);
+          return true;
+        });
+        setResults(tracks);
+        if (tracks.length === 0 && nextQuery.length >= 3) {
           setError('No songs found. Try a different search.');
         }
       } else {
+        if (searchRun !== searchRunRef.current) return;
         setResults([]);
         setError(data.message || 'Failed to search music.');
       }
     } catch (err) {
-      if (err.name !== 'AbortError') {
+      if (err.name !== 'AbortError' && searchRun === searchRunRef.current) {
         setResults([]);
         setError('Connection error. Please try again.');
       }
     } finally {
-      setLoading(false);
+      if (searchRun === searchRunRef.current) setLoading(false);
     }
   };
 
@@ -218,7 +229,7 @@ const SpotifySearch = ({
       {/* Selected Track */}
       {selectedTrack && (
         <div className="spotify-selected">
-          <img src={selectedTrack.albumArt} alt={selectedTrack.name} className="spotify-sel-art" />
+          <img src={selectedTrack.albumArt || '/favicon.svg'} alt={selectedTrack.name} className="spotify-sel-art" />
           <div className="spotify-sel-info">
             <span className="spotify-sel-kicker">✅ Selected</span>
             <strong className="spotify-sel-name">{selectedTrack.name}</strong>
@@ -250,7 +261,7 @@ const SpotifySearch = ({
                 key={track.trackId}
                 className={`spotify-track ${isActive ? 'spotify-track-active' : ''}`}
               >
-                <img src={track.albumArt} alt={track.name} className="spotify-track-art" />
+                <img src={track.albumArt || '/favicon.svg'} alt={track.name} className="spotify-track-art" />
                 <div className="spotify-track-info">
                   <strong className="spotify-track-name">{track.name}</strong>
                   <span className="spotify-track-artist">{track.artist}</span>

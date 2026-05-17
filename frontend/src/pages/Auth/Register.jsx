@@ -141,6 +141,9 @@ const Register = () => {
             if (result.success) {
                   setLoading(false);
                   setRetryInfo(null);
+                  if (result.requiresVerification) {
+                        navigate(`/verify-email?email=${encodeURIComponent(result.email || submitData.email)}`, { replace: true });
+                  }
                   return;
             }
 

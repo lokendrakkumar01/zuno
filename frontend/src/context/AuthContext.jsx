@@ -36,6 +36,32 @@ const getApiErrorMessage = async (res, fallbackMessage) => {
       return data?.message || detailedMessage || fallbackMessage;
 };
 
+const getApiErrorPayload = async (res, fallbackMessage) => {
+      let data = null;
+
+      try {
+            data = await res.json();
+      } catch {
+            data = {};
+      }
+
+      const fieldMessages = data?.fieldErrors
+            ? Object.values(data.fieldErrors)
+            : Array.isArray(data?.errors)
+                  ? data.errors.flatMap((entry) => Object.values(entry || {}))
+                  : [];
+      const detailedMessage = fieldMessages.filter(Boolean).join(' ');
+
+      return {
+            ...data,
+            success: false,
+            statusCode: res.status,
+            message: data?.message || detailedMessage || fallbackMessage,
+            requiresVerification: Boolean(data?.requiresVerification || data?.data?.requiresVerification),
+            email: data?.email || data?.data?.email || ''
+      };
+};
+
 const isRetriableNetworkError = (error) => (
       error?.name === 'AbortError'
       || error?.message === 'Failed to fetch'
@@ -231,16 +257,11 @@ export const AuthProvider = ({ children }) => {
                         body: JSON.stringify({ email, password })
                   }, timeoutMs);
 
-                  if (!res.ok && res.status !== 401 && res.status !== 400 && res.status !== 422) {
+                  if (!res.ok && res.status !== 401 && res.status !== 400 && res.status !== 403 && res.status !== 422) {
                         throw new Error(`HTTP ${res.status}`);
                   }
 
-                  if (!res.ok) {
-                        return {
-                              success: false,
-                              message: await getApiErrorMessage(res, 'Login failed. Please try again.')
-                        };
-                  }
+                  if (!res.ok) return getApiErrorPayload(res, 'Login failed. Please try again.');
 
                   return res.json();
             };
@@ -257,10 +278,7 @@ export const AuthProvider = ({ children }) => {
                               return { success: true, message: data.message };
                         }
 
-                        return {
-                              success: false,
-                              message: data.message || 'Invalid email or password.'
-                        };
+                        return { ...data, success: false, message: data.message || 'Invalid email or password.' };
                   } catch (error) {
                         const isNetworkError = isRetriableNetworkError(error);
 
@@ -372,15 +390,19 @@ export const AuthProvider = ({ children }) => {
                               body: JSON.stringify(userData)
                         }, 12000);
 
-                        if (!res.ok) {
-                              return {
-                                    success: false,
-                                    message: await getApiErrorMessage(res, 'Registration failed.')
-                              };
-                        }
+                        if (!res.ok) return getApiErrorPayload(res, 'Registration failed.');
 
                         const data = await res.json();
                         if (data.success) {
+                              if (data.requiresVerification || data.data?.requiresVerification) {
+                                    return {
+                                          success: true,
+                                          requiresVerification: true,
+                                          email: data.email || data.data?.email || email,
+                                          message: data.message || 'Please verify your email.'
+                                    };
+                              }
+
                               const session = getAuthSession(data);
                               if (!session.user || !session.token) {
                                     return { success: false, message: 'Registration response was missing session data.' };
@@ -389,7 +411,7 @@ export const AuthProvider = ({ children }) => {
                               return { success: true, message: data.message };
                         }
 
-                        return { success: false, message: data.message || 'Registration failed.' };
+                        return { ...data, success: false, message: data.message || 'Registration failed.' };
                   } catch (error) {
                         const isNetworkError = isRetriableNetworkError(error);
 
@@ -417,6 +439,52 @@ export const AuthProvider = ({ children }) => {
             }
 
             return { success: false, message: 'Registration failed after multiple attempts. Please try again.' };
+      };
+
+      const verifyEmailOtp = async ({ email, otp }) => {
+            try {
+                  const res = await fetchWithTimeout(`${API_URL}/auth/verify-email`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email, otp })
+                  }, DEFAULT_REQUEST_TIMEOUT_MS);
+
+                  if (!res.ok) return getApiErrorPayload(res, 'Email verification failed.');
+
+                  const data = await res.json();
+                  if (data.success) {
+                        const session = getAuthSession(data);
+                        if (session.user && session.token) {
+                              applyAuthenticatedSession(session.user, session.token, session.refreshToken);
+                              return { success: true, message: data.message || 'Email verified.' };
+                        }
+                  }
+
+                  return { success: false, message: data.message || 'Email verification failed.' };
+            } catch {
+                  return { success: false, message: 'Could not verify OTP. Please try again.' };
+            }
+      };
+
+      const resendOtp = async (email) => {
+            try {
+                  const res = await fetchWithTimeout(`${API_URL}/auth/resend-otp`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email })
+                  }, DEFAULT_REQUEST_TIMEOUT_MS);
+
+                  if (!res.ok) return getApiErrorPayload(res, 'Could not resend OTP.');
+
+                  const data = await res.json();
+                  return {
+                        success: Boolean(data.success),
+                        message: data.message || 'OTP sent.',
+                        data: data.data || {}
+                  };
+            } catch {
+                  return { success: false, message: 'Could not resend OTP. Please try again.' };
+            }
       };
 
       const updateProfile = async (userData) => {
@@ -562,6 +630,8 @@ export const AuthProvider = ({ children }) => {
             login,
             googleLogin,
             register,
+            verifyEmailOtp,
+            resendOtp,
             logout,
             updateProfile,
             uploadAvatar,

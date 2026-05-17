@@ -262,6 +262,34 @@ const buildUploadedFileUrl = (file) => {
       return '';
 };
 
+const sanitizeProfileSongPayload = (song) => {
+      if (song === null) return null;
+      if (!song || typeof song !== 'object') return undefined;
+
+      const cleanText = (value, max = 200) => String(value || '').trim().replace(/[<>]/g, '').slice(0, max);
+      const cleanUrl = (value, max = 700) => {
+            const url = cleanText(value, max);
+            return /^https?:\/\//i.test(url) ? url : '';
+      };
+      const trackId = cleanText(song.trackId, 80).replace(/[^A-Za-z0-9]/g, '');
+      const name = cleanText(song.name, 160);
+      const artist = cleanText(song.artist, 200);
+
+      if (!trackId || !name || !artist) return undefined;
+
+      return {
+            trackId,
+            name,
+            artist,
+            albumName: cleanText(song.albumName, 160),
+            albumArt: cleanUrl(song.albumArt),
+            previewUrl: cleanUrl(song.previewUrl),
+            spotifyUrl: cleanUrl(song.spotifyUrl || song.externalUrl),
+            embedUrl: cleanUrl(song.embedUrl) || `https://open.spotify.com/embed/track/${trackId}`,
+            durationMs: Number.isFinite(Number(song.durationMs)) ? Math.max(0, Number(song.durationMs)) : 0
+      };
+};
+
 // @desc    Get user profile by MongoDB ID
 // @route   GET /api/users/id/:id
 // @access  Private
@@ -509,7 +537,15 @@ const updateProfile = async (req, res) => {
             const changedFields = [];
             for (const key of allowedUpdates) {
                   if (req.body[key] !== undefined) {
-                        updates[key] = req.body[key];
+                        if (key === 'profileSong') {
+                              const profileSong = sanitizeProfileSongPayload(req.body.profileSong);
+                              if (profileSong === undefined) {
+                                    return res.status(400).json({ success: false, message: 'Invalid Spotify track payload' });
+                              }
+                              updates.profileSong = profileSong;
+                        } else {
+                              updates[key] = req.body[key];
+                        }
                         changedFields.push(key);
                   }
             }

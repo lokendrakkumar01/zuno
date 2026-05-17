@@ -21,6 +21,7 @@ const Landing = lazy(() => import('./pages/Landing'));
 const Home = lazy(() => import('./pages/Home'));
 const Login = lazy(() => import('./pages/Auth/Login'));
 const Register = lazy(() => import('./pages/Auth/Register'));
+const VerifyEmail = lazy(() => import('./pages/Auth/VerifyEmail'));
 const ResetPassword = lazy(() => import('./pages/Auth/ResetPassword'));
 const Upload = lazy(() => import('./pages/Upload/Upload'));
 const Profile = lazy(() => import('./pages/Profile'));
@@ -81,6 +82,7 @@ function AppRouter() {
           <Route path="/welcome" element={!hasActiveSession ? <Landing /> : <Navigate to="/" replace />} />
           <Route path="/login" element={!hasActiveSession ? <Login /> : <Navigate to="/" replace />} />
           <Route path="/register" element={!hasActiveSession ? <Register /> : <Navigate to="/" replace />} />
+          <Route path="/verify-email" element={!hasActiveSession ? <VerifyEmail /> : <Navigate to="/" replace />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/" element={hasActiveSession ? <Layout /> : <Navigate to="/welcome" replace />}>
             <Route index element={<Home />} />

@@ -7,6 +7,39 @@ const { getJson, setJson } = require('../config/redis');
 const router = express.Router();
 
 const clean = (value, max = 200) => String(value || '').trim().replace(/[<>]/g, '').slice(0, max);
+const cleanUrl = (value, max = 700) => {
+  const url = clean(value, max);
+  return /^https?:\/\//i.test(url) ? url : '';
+};
+
+const buildSpotifyEmbedUrl = (trackId, embedUrl) => {
+  const safeEmbed = cleanUrl(embedUrl);
+  if (safeEmbed && safeEmbed.includes('open.spotify.com/embed/track/')) return safeEmbed;
+  const id = clean(trackId, 80).replace(/[^A-Za-z0-9]/g, '');
+  return id ? `https://open.spotify.com/embed/track/${id}` : '';
+};
+
+const sanitizeProfileSong = (song) => {
+  if (song === null) return null;
+  if (!song || typeof song !== 'object') return undefined;
+
+  const trackId = clean(song.trackId, 80).replace(/[^A-Za-z0-9]/g, '');
+  const name = clean(song.name, 160);
+  const artist = clean(song.artist, 200);
+  if (!trackId || !name || !artist) return undefined;
+
+  return {
+    trackId,
+    name,
+    artist,
+    albumName: clean(song.albumName, 160),
+    albumArt: cleanUrl(song.albumArt),
+    previewUrl: cleanUrl(song.previewUrl),
+    spotifyUrl: cleanUrl(song.spotifyUrl || song.externalUrl),
+    embedUrl: buildSpotifyEmbedUrl(trackId, song.embedUrl),
+    durationMs: Number.isFinite(Number(song.durationMs)) ? Math.max(0, Number(song.durationMs)) : 0
+  };
+};
 
 const optimizeCloudinaryUrl = (url) => {
   if (!url || !url.includes('/upload/')) return url || '';
@@ -24,7 +57,9 @@ router.get('/id/:id', protect, async (req, res) => {
       displayName: user.displayName || user.username,
       avatar: user.avatar,
       bio: user.bio || '',
-      isVerified: Boolean(user.isVerified)
+      isVerified: Boolean(user.isVerified),
+      isEmailVerified: Boolean(user.isEmailVerified),
+      profileSong: user.profileSong || null
     };
     return res.json({
       success: true,
@@ -89,6 +124,13 @@ router.put('/profile', protect, async (req, res) => {
     }
     if (Array.isArray(req.body.interests)) {
       updates.interests = req.body.interests.map((item) => clean(item, 40)).filter(Boolean).slice(0, 10);
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body, 'profileSong')) {
+      const profileSong = sanitizeProfileSong(req.body.profileSong);
+      if (profileSong === undefined) {
+        return res.status(400).json({ success: false, message: 'Invalid Spotify track payload' });
+      }
+      updates.profileSong = profileSong;
     }
 
     const user = await User.findByIdAndUpdate(req.user._id, updates, {

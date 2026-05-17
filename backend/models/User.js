@@ -28,6 +28,12 @@ const userSchema = new mongoose.Schema({
   },
   googleId: { type: String, unique: true, sparse: true },
   authProvider: { type: String, enum: ['local', 'google'], default: 'local' },
+  isEmailVerified: { type: Boolean, default: false },
+  emailVerifiedAt: { type: Date },
+  emailVerificationOtpHash: { type: String, select: false },
+  emailVerificationOtpExpiresAt: { type: Date, select: false },
+  emailVerificationOtpLastSentAt: { type: Date, select: false },
+  emailVerificationOtpAttempts: { type: Number, default: 0, select: false },
   displayName: { type: String, trim: true, maxlength: 50 },
   avatar: { type: String, default: '' },
   cloudinaryAvatarId: { type: String, default: '', select: false },
@@ -85,8 +91,12 @@ const userSchema = new mongoose.Schema({
     trackId: String,
     name: String,
     artist: String,
+    albumName: String,
     albumArt: String,
-    previewUrl: String
+    previewUrl: String,
+    spotifyUrl: String,
+    embedUrl: String,
+    durationMs: Number
   },
   refreshTokenHash: { type: String, select: false },
   refreshTokenExpiresAt: { type: Date, select: false },
@@ -102,6 +112,8 @@ userSchema.index({ blockedUsers: 1 });
 userSchema.index({ isActive: 1, createdAt: -1 });
 userSchema.index({ role: 1, createdAt: -1 });
 userSchema.index({ 'verificationRequest.status': 1, 'verificationRequest.requestedAt': 1 });
+userSchema.index({ isEmailVerified: 1, createdAt: -1 });
+userSchema.index({ 'profileSong.trackId': 1 }, { sparse: true });
 
 userSchema.pre('save', async function hashPassword(next) {
   try {
@@ -132,6 +144,7 @@ userSchema.methods.getPublicProfile = function getPublicProfile() {
     role: this.role,
     trustLevel: this.trustLevel,
     isVerified: this.isVerified,
+    isEmailVerified: this.isEmailVerified,
     verificationRequest: this.verificationRequest
       ? { status: this.verificationRequest.status, requestedAt: this.verificationRequest.requestedAt }
       : null,
@@ -148,6 +161,7 @@ userSchema.methods.getAuthProfile = function getAuthProfile() {
   return {
     ...this.getPublicProfile(),
     email: this.email,
+    emailVerifiedAt: this.emailVerifiedAt,
     following: this.following || [],
     blockedUsers: this.blockedUsers || [],
     preferredFeedMode: this.preferredFeedMode,

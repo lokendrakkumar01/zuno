@@ -146,6 +146,12 @@ const Login = () => {
                   return;
             }
 
+            if (result.requiresVerification && result.email) {
+                  setLoading(false);
+                  navigate(`/verify-email?email=${encodeURIComponent(result.email)}`, { replace: true });
+                  return;
+            }
+
             if (result.status === 'waking_up') {
                   setWakingUp(true);
                   setError(result.message || 'Could not reach the server. Please click Login again.');
