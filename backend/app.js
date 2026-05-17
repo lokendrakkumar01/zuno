@@ -132,7 +132,13 @@ app.post('/api/upload', protect, uploadMultiple.single('file'), (req, res) => {
     data: {
       url,
       mediaUrl: url,
-      type: req.file.mimetype?.startsWith('video/') ? 'video' : 'image',
+      type: req.file.mimetype?.startsWith('video/')
+        ? 'video'
+        : req.file.mimetype?.startsWith('audio/')
+          ? 'audio'
+          : req.file.mimetype?.startsWith('image/')
+            ? 'image'
+            : 'file',
       publicId: req.file.filename || req.file.public_id || ''
     }
   });

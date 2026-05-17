@@ -34,6 +34,7 @@ const { createNotification } = require('../utils/notificationService');
 // ─── State (module-level singletons) ─────────────────────────────────────────
 const userSocketMap = new Map();  // userId  → Set<socketId>
 const socketUserMap = new Map();  // socketId → userId
+const pendingCallTimeouts = new Map(); // callerId:calleeId -> timeout
 
 let io;
 
@@ -160,6 +161,28 @@ const initSocket = (server) => {
 
     // FIX BUG 1: per-socket call timeout map (cleared on disconnect)
     const callTimeouts = new Map();
+
+    const clearPendingCall = (callerId, calleeId) => {
+      const key = `${normalizeId(callerId)}:${normalizeId(calleeId)}`;
+      const timeout = pendingCallTimeouts.get(key) || callTimeouts.get(key);
+      if (timeout) clearTimeout(timeout);
+      pendingCallTimeouts.delete(key);
+      callTimeouts.delete(key);
+    };
+
+    const clearUserPendingCalls = (uid) => {
+      const normalized = normalizeId(uid);
+      for (const [key, timeout] of pendingCallTimeouts.entries()) {
+        const [callerId, calleeId] = key.split(':');
+        if (callerId === normalized || calleeId === normalized) {
+          clearTimeout(timeout);
+          pendingCallTimeouts.delete(key);
+          const peerId = callerId === normalized ? calleeId : callerId;
+          emitToUser(peerId, 'call-ended', { from: normalized, reason: 'disconnected' });
+          emitToUser(peerId, 'callEnded', { from: normalized, reason: 'disconnected' });
+        }
+      }
+    };
 
     try {
       socket.join(userId);
@@ -322,18 +345,24 @@ const initSocket = (server) => {
           const delivered = emitToUser(to, 'incoming-call', callData);
           emitToUser(to, 'callUser', callData); // legacy alias
           emitToUser(to, 'call-made', callData);
+          if (delivered) {
+            socket.emit('call-ringing', { to, callType: callData.callType });
+            socket.emit('callRinging', { to, callType: callData.callType });
+          }
 
           ack({ success: delivered });
 
           // FIX BUG 3: 40 s timeout (was 30 s, often too short on slow networks)
           const key = `${userId}:${to}`;
-          if (callTimeouts.has(key)) clearTimeout(callTimeouts.get(key));
+          clearPendingCall(userId, to);
           const tid = trackTimer(setTimeout(() => {
             callTimeouts.delete(key);
+            pendingCallTimeouts.delete(key);
             socket.emit('call-timeout', { to });
             emitToUser(to, 'call-rejected', { from: userId, reason: 'timeout' });
           }, 40_000));
           callTimeouts.set(key, tid);
+          pendingCallTimeouts.set(key, tid);
         } catch (err) {
           ack({ success: false, message: err.message });
         }
@@ -347,11 +376,7 @@ const initSocket = (server) => {
         try {
           const to = normalizeId(payload.to || payload.callerId);
           if (!to) throw new Error('callerId required');
-          const key = `${to}:${userId}`;
-          if (callTimeouts.has(key)) {
-            clearTimeout(callTimeouts.get(key));
-            callTimeouts.delete(key);
-          }
+          clearPendingCall(to, userId);
           const acceptData = { from: userId, signal: payload.signal || payload.answer };
           emitToUser(to, 'call-accepted', acceptData);
           emitToUser(to, 'callAccepted',  acceptData);
@@ -372,11 +397,7 @@ const initSocket = (server) => {
         try {
           const to = normalizeId(payload.to || payload.callerId);
           if (!to) throw new Error('callerId required');
-          const key = `${to}:${userId}`;
-          if (callTimeouts.has(key)) {
-            clearTimeout(callTimeouts.get(key));
-            callTimeouts.delete(key);
-          }
+          clearPendingCall(to, userId);
           const data = { from: userId, reason: payload.reason || 'rejected' };
           emitToUser(to, 'call-rejected', data);
           emitToUser(to, 'callCancelled', data);
@@ -395,6 +416,8 @@ const initSocket = (server) => {
         try {
           const to = normalizeId(payload.to || payload.peerId);
           if (!to) throw new Error('peerId required');
+          clearPendingCall(userId, to);
+          clearPendingCall(to, userId);
           const data = { from: userId };
           emitToUser(to, 'call-ended', data);
           emitToUser(to, 'callEnded',  data);
@@ -469,6 +492,7 @@ const initSocket = (server) => {
           clearTracked();
           callTimeouts.forEach(clearTimeout);
           callTimeouts.clear();
+          clearUserPendingCalls(userId);
 
           const uid = removeSocket(socket.id);
           if (uid && !userSocketMap.has(uid)) {
@@ -536,3 +560,7 @@ module.exports.getReceiverSocketId = (userId) => {
 };
 
 module.exports.emitToUser = emitToUser;
+module.exports.isUserOnline = (userId) => {
+  const sockets = userSocketMap.get(normalizeId(userId));
+  return Boolean(sockets && sockets.size > 0);
+};

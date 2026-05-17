@@ -28,6 +28,8 @@ const styles = `
 .rq-deleted{font-style:italic;opacity:.72}
 .rq-media{display:block;max-width:260px;max-height:320px;border-radius:14px;margin-bottom:7px;object-fit:cover;background:#0f172a}
 .rq-meta{display:flex;gap:6px;justify-content:flex-end;align-items:center;margin-top:4px;font-size:.68rem;opacity:.72}
+.rq-status{font-weight:900;letter-spacing:-2px;font-size:.74rem;min-width:18px;text-align:right}
+.rq-status.seen{color:#38bdf8;opacity:1}
 .rq-menu{position:absolute;right:8px;top:calc(100% + 8px);display:grid;gap:5px;z-index:40;min-width:190px;padding:7px;border-radius:14px;background:#fff;color:#0f172a;border:1px solid rgba(148,163,184,.35);box-shadow:0 22px 60px rgba(2,6,23,.28)}
 .rq-row:not(.mine) .rq-menu{left:8px;right:auto}
 [data-theme="dark"] .rq-menu{background:#111827;color:#f8fafc;border-color:rgba(148,163,184,.25)}
@@ -73,10 +75,27 @@ const ensureStyles = () => {
 const messageId = (message) => getEntityId(message?._id || message?.id || message?.clientMsgId);
 const messageText = (message) => message?.content || message?.text || '';
 const messageMediaUrl = (message) => message?.mediaUrl || message?.media?.url || '';
+const messageMediaType = (message) => message?.media?.type || (/\.(mp4|webm|mov|m4v)$/i.test(messageMediaUrl(message)) ? 'video' : /\.(mp3|wav|ogg|m4a)$/i.test(messageMediaUrl(message)) ? 'audio' : '');
 const senderId = (message) => getEntityId(message?.sender);
 const isEditable = (message, currentUserId) => {
   if (!sameEntityId(message?.sender, currentUserId) || message?.deletedForEveryone) return false;
   return Date.now() - new Date(message.createdAt || 0).getTime() <= 60 * 60 * 1000;
+};
+
+const statusLabel = (message) => {
+  if (message._failed) return 'failed';
+  if (message._sending) return 'sending';
+  if (message.status === 'read' || message.read) return 'seen';
+  if (message.status === 'delivered' || message.deliveredAt) return 'delivered';
+  return 'sent';
+};
+
+const StatusTicks = ({ message }) => {
+  const status = statusLabel(message);
+  if (status === 'sending') return <span className="rq-status">...</span>;
+  if (status === 'failed') return <span className="rq-status">!</span>;
+  if (status === 'sent') return <span className="rq-status">✓</span>;
+  return <span className={`rq-status ${status === 'seen' ? 'seen' : ''}`}>✓✓</span>;
 };
 
 const mergeMessages = (messages = []) => {
@@ -186,6 +205,25 @@ export default function Chat() {
     });
   }, [conversationParam, queryClient]);
 
+  const patchMessageStatus = useCallback((payload = {}) => {
+    const ids = new Set((payload.messageIds || [payload.messageId]).filter(Boolean).map(String));
+    if (ids.size === 0 && !payload.clientMsgId) return;
+
+    patchMessagesCache((items) => items.map((item) => {
+      const id = messageId(item);
+      const sameById = id && ids.has(String(id));
+      const sameByClient = payload.clientMsgId && item.clientMsgId === payload.clientMsgId;
+      if (!sameById && !sameByClient) return item;
+      return {
+        ...item,
+        status: payload.status || item.status,
+        read: payload.status === 'read' ? true : item.read,
+        deliveredAt: payload.deliveredAt || item.deliveredAt,
+        readAt: payload.readAt || item.readAt
+      };
+    }));
+  }, [patchMessagesCache]);
+
   const addMessageToCache = useCallback((message) => {
     queryClient.setQueryData(['messages', conversationParam], (old) => {
       if (!old?.pages?.length) {
@@ -235,6 +273,7 @@ export default function Chat() {
     const onTypingStop = ({ senderId: typingSender }) => {
       if (sameEntityId(typingSender, conversationParam)) setTypingUser(false);
     };
+    const onStatus = (payload) => patchMessageStatus(payload);
 
     socket.on('newMessage', onNewMessage);
     socket.on('new_message', onNewMessage);
@@ -247,6 +286,13 @@ export default function Chat() {
     socket.on('typing-stop', onTypingStop);
     socket.on('stopTyping', onTypingStop);
     socket.on('stop-typing', onTypingStop);
+    socket.on('message-status', onStatus);
+    socket.on('messageStatus', onStatus);
+    socket.on('message_status', onStatus);
+    socket.on('messages-read', onStatus);
+    socket.on('messages_read', onStatus);
+    socket.on('messageRead', onStatus);
+    socket.on('message_read', onStatus);
     return () => {
       socket.off('newMessage', onNewMessage);
       socket.off('new_message', onNewMessage);
@@ -259,8 +305,48 @@ export default function Chat() {
       socket.off('typing-stop', onTypingStop);
       socket.off('stopTyping', onTypingStop);
       socket.off('stop-typing', onTypingStop);
+      socket.off('message-status', onStatus);
+      socket.off('messageStatus', onStatus);
+      socket.off('message_status', onStatus);
+      socket.off('messages-read', onStatus);
+      socket.off('messages_read', onStatus);
+      socket.off('messageRead', onStatus);
+      socket.off('message_read', onStatus);
     };
-  }, [addMessageToCache, conversationParam, currentUserId, patchMessagesCache, socket]);
+  }, [addMessageToCache, conversationParam, currentUserId, patchMessagesCache, patchMessageStatus, socket]);
+
+  useEffect(() => {
+    if (!token || !conversationParam || messages.length === 0) return undefined;
+    const unreadIncoming = messages.some((message) =>
+      !sameEntityId(message.sender, currentUserId)
+      && !message.read
+      && message.status !== 'read'
+      && !message.deletedForEveryone
+    );
+    if (!unreadIncoming) return undefined;
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const res = await fetch(`${API_URL}/messages/${encodeURIComponent(conversationParam)}/read`, {
+          method: 'PUT',
+          headers: authHeaders
+        });
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.success) {
+          const ids = new Set((data.data?.messageIds || []).map(String));
+          patchMessagesCache((items) => items.map((item) => {
+            const isIncoming = !sameEntityId(item.sender, currentUserId);
+            if (!isIncoming || (ids.size > 0 && !ids.has(String(messageId(item))))) return item;
+            return { ...item, read: true, status: 'read', readAt: item.readAt || new Date().toISOString() };
+          }));
+        }
+      } catch {
+        // Read receipts are best-effort; the next fetch will reconcile state.
+      }
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [authHeaders, conversationParam, currentUserId, messages, patchMessagesCache, token]);
 
   const sendMutation = useMutation({
     mutationFn: async ({ content, file }) => {
@@ -403,7 +489,11 @@ export default function Chat() {
     const file = event.target.files?.[0];
     if (!file) return;
     setMediaFile(file);
-    setMediaPreview({ url: URL.createObjectURL(file), type: file.type.startsWith('video/') ? 'video' : 'image', name: file.name });
+    setMediaPreview({
+      url: URL.createObjectURL(file),
+      type: file.type.startsWith('video/') ? 'video' : file.type.startsWith('audio/') ? 'audio' : file.type.startsWith('image/') ? 'image' : 'file',
+      name: file.name
+    });
     event.target.value = '';
   };
 
@@ -464,6 +554,7 @@ export default function Chat() {
               const id = messageId(message);
               const mine = sameEntityId(message.sender, currentUserId);
               const mediaUrl = messageMediaUrl(message);
+              const mediaType = messageMediaType(message);
               const text = messageText(message);
               return (
                 <div className={`rq-row ${mine ? 'mine' : ''}`}>
@@ -490,15 +581,20 @@ export default function Chat() {
                       </form>
                     ) : (
                       <>
-                        {mediaUrl && (message.media?.type === 'video' ? <video className="rq-media" src={mediaUrl} controls preload="metadata" /> : <img className="rq-media" src={mediaUrl} alt="" loading="lazy" />)}
+                        {mediaUrl && (mediaType === 'video'
+                          ? <video className="rq-media" src={mediaUrl} controls preload="metadata" />
+                          : mediaType === 'audio'
+                            ? <audio src={mediaUrl} controls preload="metadata" style={{ width: 'min(260px, 70vw)' }} />
+                            : mediaType === 'file'
+                              ? <a href={mediaUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', fontWeight: 800 }}>{message.media?.name || 'Open file'}</a>
+                              : <img className="rq-media" src={mediaUrl} alt="" loading="lazy" />)}
                         {text ? <div>{text}</div> : null}
                       </>
                     )}
                     <div className="rq-meta">
                       <span>{new Date(message.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                       {message.edited ? <span>edited</span> : null}
-                      {message._sending ? <span>sending</span> : null}
-                      {message._failed ? <span>failed</span> : null}
+                      {mine ? <StatusTicks message={message} /> : null}
                     </div>
                     {menuId === id && !message.deletedForEveryone ? (
                       <div className="rq-menu">
@@ -521,7 +617,7 @@ export default function Chat() {
       {emojiOpen ? <div className="rq-emoji">{EMOJIS.map((emoji) => <button type="button" key={emoji} onClick={() => setDraft((value) => `${value}${emoji}`)}>{emoji}</button>)}</div> : null}
       {mediaPreview ? (
         <div className="rq-preview">
-          {mediaPreview.type === 'video' ? <video src={mediaPreview.url} muted /> : <img src={mediaPreview.url} alt="" />}
+          {mediaPreview.type === 'video' ? <video src={mediaPreview.url} muted /> : mediaPreview.type === 'audio' ? <span style={{ fontWeight: 800 }}>Audio</span> : mediaPreview.type === 'file' ? <span style={{ fontWeight: 800 }}>File</span> : <img src={mediaPreview.url} alt="" />}
           <span>{mediaPreview.name}</span>
           <button className="rq-icon-btn" type="button" onClick={() => { setMediaFile(null); setMediaPreview(null); }}>×</button>
         </div>
@@ -530,7 +626,7 @@ export default function Chat() {
       <form className="rq-composer" onSubmit={handleSend}>
         <button className="rq-icon-btn" type="button" title="Emoji" onClick={() => setEmojiOpen((value) => !value)}>☺</button>
         <button className="rq-icon-btn" type="button" title="Attach media" onClick={() => fileRef.current?.click()}>＋</button>
-        <input ref={fileRef} type="file" accept="image/*,video/*" hidden onChange={selectFile} />
+        <input ref={fileRef} type="file" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip" hidden onChange={selectFile} />
         <textarea value={draft} onChange={handleDraftChange} placeholder="Message..." rows={1} />
         <button className="rq-send" type="submit" disabled={!draft.trim() && !mediaFile}>➤</button>
       </form>

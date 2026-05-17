@@ -4,7 +4,7 @@ const { Message, Conversation } = require('../models/Message');
 const User = require('../models/User');
 const { protect } = require('../middlewares/auth.middleware');
 const { uploadMultiple } = require('../middlewares/upload.middleware');
-const { emitToUser } = require('../socket');
+const { emitToUser, isUserOnline } = require('../socket');
 const { createNotification } = require('../utils/notificationService');
 
 const router = express.Router();
@@ -12,9 +12,19 @@ router.use(protect);
 
 const toId = (value) => value?.toString?.() || String(value || '');
 const cleanText = (value) => String(value || '').trim().replace(/\s+/g, ' ').slice(0, 2000);
+const isParticipantId = (id, ...candidates) => candidates.some((candidate) => toId(candidate) === toId(id));
 const mediaFromBody = (body = {}, file = null) => {
   const rawUrl = body.mediaUrl || body.media?.url || (file ? file.path : '');
-  const mediaType = body.mediaType || body.media?.type || (file?.mimetype?.startsWith('video/') ? 'video' : file ? 'image' : '');
+  const fileType = file?.mimetype?.startsWith('video/')
+    ? 'video'
+    : file?.mimetype?.startsWith('audio/')
+      ? 'audio'
+      : file?.mimetype?.startsWith('image/')
+        ? 'image'
+        : file
+          ? 'file'
+          : '';
+  const mediaType = body.mediaType || body.media?.type || fileType;
   const url = String(rawUrl || '').trim();
   return {
     mediaUrl: url,
@@ -101,6 +111,108 @@ const emitMessageToParticipants = (conversation, senderId, event, payload) => {
     ...(conversation?.participants || []).map(toId)
   ].filter(Boolean));
   participants.forEach((participantId) => emitToUser(participantId, event, payload));
+};
+
+const emitStatusToSender = (senderId, payload) => {
+  emitToUser(senderId, 'message-status', payload);
+  emitToUser(senderId, 'messageStatus', payload);
+  emitToUser(senderId, 'message_status', payload);
+  if (payload.status === 'read') {
+    emitToUser(senderId, 'messages-read', payload);
+    emitToUser(senderId, 'messages_read', payload);
+    emitToUser(senderId, 'messageRead', payload);
+    emitToUser(senderId, 'message_read', payload);
+  }
+};
+
+const markMessagesDelivered = async ({ conversation, message, senderId, payload }) => {
+  const recipients = conversationRecipients(conversation, senderId, message.receiver);
+  const delivered = recipients.some((recipientId) => (typeof isUserOnline === 'function' ? isUserOnline(recipientId) : false));
+
+  if (!delivered) return payload;
+
+  const deliveredAt = new Date();
+  await Message.findByIdAndUpdate(message._id, {
+    $set: { status: 'delivered', deliveredAt }
+  });
+
+  const nextPayload = {
+    ...payload,
+    status: 'delivered',
+    deliveredAt
+  };
+
+  emitStatusToSender(senderId, {
+    messageId: toId(message._id),
+    messageIds: [toId(message._id)],
+    clientMsgId: message.clientMsgId,
+    conversationId: toId(conversation?._id),
+    status: 'delivered',
+    deliveredAt
+  });
+
+  return nextPayload;
+};
+
+const resolveDuplicateMessage = async ({ req, receiverId, clientMsgId }) => {
+  if (!clientMsgId) return null;
+  const query = {
+    sender: req.user._id,
+    clientMsgId,
+    ...(receiverId ? { receiver: receiverId } : {})
+  };
+  const existing = await Message.findOne(query)
+    .populate('sender', 'username displayName avatar')
+    .populate('receiver', 'username displayName avatar')
+    .lean();
+  return existing ? messageView(existing) : null;
+};
+
+const markConversationRead = async ({ conversation, readerId, otherUserId }) => {
+  const readAt = new Date();
+  const unreadMessages = await Message.find({
+    conversationId: conversation._id,
+    receiver: readerId,
+    read: false,
+    deletedForEveryone: { $ne: true }
+  })
+    .select('_id sender clientMsgId')
+    .lean();
+
+  if (unreadMessages.length === 0) {
+    await Conversation.findByIdAndUpdate(conversation._id, { $set: { [`unreadCount.${toId(readerId)}`]: 0 } });
+    return [];
+  }
+
+  const messageIds = unreadMessages.map((message) => message._id);
+  await Promise.all([
+    Message.updateMany(
+      { _id: { $in: messageIds } },
+      { $set: { read: true, status: 'read', readAt }, $addToSet: { readBy: readerId } }
+    ),
+    Conversation.findByIdAndUpdate(conversation._id, { $set: { [`unreadCount.${toId(readerId)}`]: 0 } })
+  ]);
+
+  const idsBySender = unreadMessages.reduce((acc, message) => {
+    const sender = toId(message.sender || otherUserId);
+    if (!sender) return acc;
+    if (!acc.has(sender)) acc.set(sender, []);
+    acc.get(sender).push(toId(message._id));
+    return acc;
+  }, new Map());
+
+  idsBySender.forEach((ids, senderId) => {
+    emitStatusToSender(senderId, {
+      status: 'read',
+      readerId: toId(readerId),
+      conversationId: toId(conversation._id),
+      messageIds: ids,
+      messageId: ids[ids.length - 1],
+      readAt
+    });
+  });
+
+  return messageIds.map(toId);
 };
 
 const updateLastMessage = async ({ conversation, message, senderId, preview, mediaUrl }) => {
@@ -228,11 +340,17 @@ router.post('/', uploadMultiple.single('media'), async (req, res) => {
     }
 
     const finalReceiverId = receiverId || conversationRecipients(conversation, req.user._id)[0] || null;
+    const clientMsgId = cleanText(req.body.clientMsgId).slice(0, 80) || undefined;
+    const duplicate = await resolveDuplicateMessage({ req, receiverId: finalReceiverId, clientMsgId });
+    if (duplicate) {
+      return res.status(200).json({ success: true, duplicate: true, message: duplicate, data: { message: duplicate } });
+    }
+
     const message = await Message.create({
       conversationId: conversation._id,
       sender: req.user._id,
       receiver: finalReceiverId,
-      clientMsgId: cleanText(req.body.clientMsgId).slice(0, 80) || undefined,
+      clientMsgId,
       content,
       text: content,
       media,
@@ -246,7 +364,12 @@ router.post('/', uploadMultiple.single('media'), async (req, res) => {
     await updateLastMessage({ conversation, message, senderId: req.user._id, preview, mediaUrl });
 
     const populated = await populateMessage(message._id);
-    const payload = messageView(populated);
+    const payload = await markMessagesDelivered({
+      conversation,
+      message,
+      senderId: req.user._id,
+      payload: messageView(populated)
+    });
 
     emitMessageToParticipants(conversation, req.user._id, 'newMessage', payload);
     emitMessageToParticipants(conversation, req.user._id, 'new_message', payload);
@@ -267,6 +390,12 @@ router.post('/', uploadMultiple.single('media'), async (req, res) => {
     return res.status(201).json({ success: true, message: payload, data: { message: payload } });
   } catch (error) {
     if (error.code === 11000) {
+      const duplicate = await resolveDuplicateMessage({
+        req,
+        receiverId: req.body.receiver || req.body.receiverId,
+        clientMsgId: cleanText(req.body.clientMsgId).slice(0, 80)
+      }).catch(() => null);
+      if (duplicate) return res.status(200).json({ success: true, duplicate: true, message: duplicate, data: { message: duplicate } });
       return res.status(409).json({ success: false, message: 'Duplicate client message id' });
     }
     return res.status(500).json({ success: false, message: error.message });
@@ -336,12 +465,13 @@ router.delete('/:id/delete-for-everyone', async (req, res) => {
 
 router.delete('/:id/delete-for-me', async (req, res) => {
   try {
-    const message = await Message.findByIdAndUpdate(
-      req.params.id,
-      { $addToSet: { deletedFor: req.user._id, deletedBy: req.user._id } },
-      { new: true }
-    );
+    const message = await Message.findById(req.params.id);
     if (!message) return res.status(404).json({ success: false, message: 'Message not found' });
+    if (!isParticipantId(req.user._id, message.sender, message.receiver)) {
+      const conversation = message.conversationId ? await Conversation.findOne({ _id: message.conversationId, participants: req.user._id }).lean() : null;
+      if (!conversation) return res.status(403).json({ success: false, message: 'Not authorized for this message' });
+    }
+    await Message.findByIdAndUpdate(req.params.id, { $addToSet: { deletedFor: req.user._id, deletedBy: req.user._id } });
     const payload = { messageId: toId(message._id), type: 'me', conversationId: toId(message.conversationId), deletedBy: toId(req.user._id) };
     emitToUser(req.user._id, 'message_deleted', payload);
     return res.json({ success: true, data: payload });
@@ -399,13 +529,7 @@ router.get('/:userId', async (req, res) => {
       };
     }
 
-    await Promise.all([
-      Message.updateMany(
-        { conversationId: conversation._id, receiver: req.user._id, read: false },
-        { $set: { read: true, status: 'read', readAt: new Date() }, $addToSet: { readBy: req.user._id } }
-      ),
-      Conversation.findByIdAndUpdate(conversation._id, { $set: { [`unreadCount.${toId(req.user._id)}`]: 0 } })
-    ]);
+    await markConversationRead({ conversation, readerId: req.user._id, otherUserId });
 
     return res.json({ ...response, data: response });
   } catch (error) {
@@ -421,11 +545,17 @@ router.post('/:userId', uploadMultiple.single('media'), async (req, res) => {
     const conversation = await getDirectConversation(req.user._id, req.params.userId);
     const { media, mediaUrl } = mediaFromBody(req.body, req.file);
 
+    const clientMsgId = cleanText(req.body.clientMsgId).slice(0, 80) || undefined;
+    const duplicate = await resolveDuplicateMessage({ req, receiverId: req.params.userId, clientMsgId });
+    if (duplicate) {
+      return res.status(200).json({ success: true, duplicate: true, message: duplicate, data: { message: duplicate } });
+    }
+
     const message = await Message.create({
       conversationId: conversation._id,
       sender: req.user._id,
       receiver: req.params.userId,
-      clientMsgId: cleanText(req.body.clientMsgId).slice(0, 80) || undefined,
+      clientMsgId,
       content: text,
       text,
       media,
@@ -451,7 +581,12 @@ router.post('/:userId', uploadMultiple.single('media'), async (req, res) => {
       .populate('sender', 'username displayName avatar')
       .populate('receiver', 'username displayName avatar')
       .lean();
-    const payload = messageView(populated);
+    const payload = await markMessagesDelivered({
+      conversation,
+      message,
+      senderId: req.user._id,
+      payload: messageView(populated)
+    });
 
     emitToUser(req.params.userId, 'newMessage', payload);
     emitToUser(req.params.userId, 'new_message', payload);
@@ -473,6 +608,12 @@ router.post('/:userId', uploadMultiple.single('media'), async (req, res) => {
     return res.status(201).json({ success: true, message: payload, data: { message: payload } });
   } catch (error) {
     if (error.code === 11000) {
+      const duplicate = await resolveDuplicateMessage({
+        req,
+        receiverId: req.params.userId,
+        clientMsgId: cleanText(req.body.clientMsgId).slice(0, 80)
+      }).catch(() => null);
+      if (duplicate) return res.status(200).json({ success: true, duplicate: true, message: duplicate, data: { message: duplicate } });
       return res.status(409).json({ success: false, message: 'Duplicate client message id' });
     }
     return res.status(500).json({ success: false, message: error.message });
@@ -530,14 +671,8 @@ router.delete('/clear/:userId', async (req, res) => {
 router.put('/:userId/read', async (req, res) => {
   try {
     const conversation = await getDirectConversation(req.user._id, req.params.userId);
-    await Message.updateMany(
-      { conversationId: conversation._id, receiver: req.user._id, read: false },
-      { $set: { read: true, status: 'read', readAt: new Date() }, $addToSet: { readBy: req.user._id } }
-    );
-    await Conversation.findByIdAndUpdate(conversation._id, { $set: { [`unreadCount.${toId(req.user._id)}`]: 0 } });
-    emitToUser(req.params.userId, 'messageRead', { readerId: toId(req.user._id), receiverId: toId(req.user._id) });
-    emitToUser(req.params.userId, 'message_read', { readerId: toId(req.user._id), receiverId: toId(req.user._id) });
-    return res.json({ success: true });
+    const messageIds = await markConversationRead({ conversation, readerId: req.user._id, otherUserId: req.params.userId });
+    return res.json({ success: true, data: { messageIds } });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
@@ -577,6 +712,15 @@ router.put('/react/:messageId', async (req, res) => {
 router.delete('/delete/:messageId', async (req, res) => {
   try {
     const type = req.query.type === 'everyone' ? 'everyone' : 'me';
+    const current = await Message.findById(req.params.messageId);
+    if (!current) return res.status(404).json({ success: false, message: 'Message not found' });
+    if (!isParticipantId(req.user._id, current.sender, current.receiver)) {
+      const conversation = current.conversationId ? await Conversation.findOne({ _id: current.conversationId, participants: req.user._id }).lean() : null;
+      if (!conversation) return res.status(403).json({ success: false, message: 'Not authorized for this message' });
+    }
+    if (type === 'everyone' && !isParticipantId(req.user._id, current.sender)) {
+      return res.status(403).json({ success: false, message: 'Only the sender can delete for everyone' });
+    }
     const update = type === 'everyone'
       ? { deletedForEveryone: true, content: '', text: '', mediaUrl: '', media: { url: '', type: '' } }
       : { $addToSet: { deletedFor: req.user._id, deletedBy: req.user._id } };
